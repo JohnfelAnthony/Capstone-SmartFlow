@@ -381,16 +381,46 @@ export function ChangePasswordPage({ onCancel, onChangePassword }: ChangePasswor
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
+  const [showPasswords, setShowPasswords] = React.useState(false)
   const [error, setError] = React.useState("")
   const [success, setSuccess] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const redirectTimeoutRef = React.useRef<number | null>(null)
+  const minimumPasswordLength = 8
+
+  React.useEffect(() => {
+    void import("../../assets/auth.css")
+
+    return () => {
+      if (redirectTimeoutRef.current !== null) {
+        window.clearTimeout(redirectTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  function handleCancel() {
+    if (redirectTimeoutRef.current !== null) {
+      window.clearTimeout(redirectTimeoutRef.current)
+      redirectTimeoutRef.current = null
+    }
+    onCancel()
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError("")
     setSuccess("")
+
     if (!currentPassword || !newPassword || !confirmPassword) {
       setError("All fields are required.")
+      return
+    }
+    if (newPassword.length < minimumPasswordLength) {
+      setError(`New password must be at least ${minimumPasswordLength} characters.`)
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New password and confirmation do not match.")
       return
     }
 
@@ -405,6 +435,11 @@ export function ChangePasswordPage({ onCancel, onChangePassword }: ChangePasswor
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
+      setShowPasswords(false)
+      redirectTimeoutRef.current = window.setTimeout(() => {
+        redirectTimeoutRef.current = null
+        onCancel()
+      }, 2000)
     } catch (changeError) {
       setError(changeError instanceof Error ? changeError.message : "Password update failed.")
     } finally {
@@ -413,55 +448,105 @@ export function ChangePasswordPage({ onCancel, onChangePassword }: ChangePasswor
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-container">
-        <div className="auth-header">
-          <img src="/logo.svg" className="auth-logo" alt="SMARTFLOW" />
-          <h1 className="auth-title">SMARTFLOW</h1>
-          <p className="auth-subtitle">AI-Driven Traffic Simulation Platform</p>
-        </div>
+    <div className="auth-page auth-page-change-password">
+      <div className="auth-shell auth-shell-change-password">
+        <AuthVisualPanel
+          subline="Account Security"
+          kicker="Protected workspace"
+          title="Keep your simulation workspace secure."
+          description="Refresh your credentials without leaving the SmartFlow control environment or interrupting your active research session."
+          rlStatus="Session active"
+        />
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <h2 className="form-title">Change Password</h2>
-          <p className="form-description">Update your SmartFlow account password.</p>
-          <div className={error ? "alert alert-error" : "alert alert-error hidden"}>{error}</div>
-          <div className={success ? "alert alert-success" : "alert alert-success hidden"}>{success}</div>
-          <AuthField
-            id="current-password-input"
-            label="Current Password"
-            placeholder="Enter current password"
-            type="password"
-            autoComplete="current-password"
-            value={currentPassword}
-            onChange={setCurrentPassword}
-          />
-          <AuthField
-            id="new-password-input"
-            label="New Password"
-            placeholder="Enter new password"
-            type="password"
-            autoComplete="new-password"
-            value={newPassword}
-            onChange={setNewPassword}
-          />
-          <AuthField
-            id="confirm-password-input"
-            label="Confirm New Password"
-            placeholder="Confirm new password"
-            type="password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-          />
-          <Button className="btn btn-primary btn-full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Updating Password..." : "Update Password"}
-          </Button>
-          <div className="auth-footer">
-            <button type="button" onClick={onCancel}>
-              Back to workspace
-            </button>
+        <section className="auth-form-panel">
+          <div className="auth-form-card">
+            <div className="auth-form-header">
+              <div className="auth-form-eyebrow">Security settings</div>
+              <h1 className="auth-form-title">Change password</h1>
+              <p className="auth-form-description">
+                Verify your current password, then create a new password for your SmartFlow account.
+              </p>
+            </div>
+
+            <form className="auth-form-content" onSubmit={handleSubmit} noValidate>
+              {error ? (
+                <div className="alert alert-error" role="alert">
+                  {error}
+                </div>
+              ) : null}
+              {success ? (
+                <div className="alert alert-success auth-password-success" role="status" aria-live="polite">
+                  {success} Returning to the workspace in two seconds.
+                </div>
+              ) : null}
+
+              <AuthSection title="Verify Identity">
+                <AuthField
+                  id="current-password-input"
+                  label="Current Password"
+                  placeholder="Enter your current password"
+                  type={showPasswords ? "text" : "password"}
+                  autoComplete="current-password"
+                  hint="Required to confirm that this account belongs to you."
+                  value={currentPassword}
+                  onChange={setCurrentPassword}
+                />
+              </AuthSection>
+
+              <AuthSection title="New Credentials">
+                <div className="form-row">
+                  <AuthField
+                    id="new-password-input"
+                    label="New Password"
+                    placeholder="Create a new password"
+                    type={showPasswords ? "text" : "password"}
+                    autoComplete="new-password"
+                    hint={`Use at least ${minimumPasswordLength} characters.`}
+                    value={newPassword}
+                    onChange={setNewPassword}
+                  />
+                  <AuthField
+                    id="confirm-password-input"
+                    label="Confirm Password"
+                    placeholder="Repeat your new password"
+                    type={showPasswords ? "text" : "password"}
+                    autoComplete="new-password"
+                    hint="Must match the new password."
+                    value={confirmPassword}
+                    onChange={setConfirmPassword}
+                  />
+                </div>
+              </AuthSection>
+
+              <div className="auth-password-actions">
+                <Button
+                  className="auth-password-visibility"
+                  type="button"
+                  variant="outline"
+                  aria-pressed={showPasswords}
+                  onClick={() => setShowPasswords((isVisible) => !isVisible)}
+                  disabled={isSubmitting || Boolean(success)}
+                >
+                  {showPasswords ? "Hide all passwords" : "Show all passwords"}
+                </Button>
+              </div>
+
+              <Button
+                className="btn btn-primary btn-full"
+                type="submit"
+                disabled={isSubmitting || Boolean(success)}
+              >
+                {isSubmitting ? "Updating Password..." : "Update Password"}
+              </Button>
+              <div className="auth-footer">
+                <span>Keep your current password? </span>
+                <button type="button" onClick={handleCancel} disabled={isSubmitting}>
+                  Back to workspace
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+        </section>
       </div>
     </div>
   )

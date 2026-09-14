@@ -1074,3 +1074,41 @@
         gap: 0;
     }
 }
+
+/* Change-password split-panel refinements. */
+.auth-page-change-password .auth-shell-change-password {
+    width: min(1080px, calc(100vw - 48px));
+}
+
+.auth-page-change-password .auth-form-card {
+    width: min(430px, 100%);
+}
+
+.auth-page-change-password .auth-password-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 14px 0 18px;
+}
+
+.auth-page-change-password .auth-password-visibility {
+    min-width: 156px;
+}
+
+.auth-page-change-password .auth-password-success {
+    align-items: flex-start;
+}
+
+.auth-page-change-password .auth-footer button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+@media (max-width: 620px) {
+    .auth-page-change-password .auth-password-actions {
+        justify-content: stretch;
+    }
+
+    .auth-page-change-password .auth-password-visibility {
+        width: 100%;
+    }
+}
