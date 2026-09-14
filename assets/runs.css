@@ -1,0 +1,277 @@
+/*
+ * SMARTFLOW — Runs & Reports Page Styles
+ */
+
+/* ── Runs Controls & Filters ───────────────────────────────────── */
+.runs-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.runs-toolbar-filters {
+    width: 100%;
+}
+
+.runs-toolbar-filters.filter-row {
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+
+.runs-toolbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-bottom: 0;
+}
+
+.runs-table-section .table-actions {
+    margin-top: 0;
+}
+
+@media (max-width: 1100px) {
+    .runs-toolbar-filters.filter-row {
+        grid-template-columns: repeat(2, minmax(160px, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .runs-toolbar-filters.filter-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+
+.filter-row .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.filter-row label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+}
+
+/* ── KPI Row Overrides ─────────────────────────────────────────── */
+.runs-kpi-row {
+    margin-bottom: 20px;
+}
+
+/* ── Table Action Toolbar ───────────────────────────────────────── */
+.table-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.runs-table-section .section-content {
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
+.table-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-weight: 500;
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+    transition: all var(--duration) var(--ease-out);
+}
+
+/* ── Generate Reports Section ───────────────────────────────────── */
+.report-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.report-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: all var(--duration) var(--ease-out);
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.report-card:hover {
+    border-color: var(--accent-dim);
+    background: var(--bg-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 230, 118, 0.06);
+}
+
+.report-card i {
+    font-size: 32px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    transition: transform var(--duration) var(--ease-out);
+}
+
+.report-card:hover i {
+    transform: scale(1.1);
+}
+
+.report-card h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.report-card p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.5;
+    flex: 1; /* Pushes the button to the bottom */
+}
+
+.report-card .btn {
+    width: 100%;
+}
+
+/* ── Dash DataTable overrides for Dark Mode ─────────────────────── */
+.dash-table-container {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-lg) !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dash-table-container .dash-spreadsheet-container {
+    background: transparent !important;
+}
+
+/* Header style override */
+.dash-table-container .dash-header {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    color: var(--text-primary) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
+    font-size: 10.5px !important;
+    border-bottom: 1px solid var(--border-default) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+    padding: 12px 14px !important;
+}
+
+/* Cell overrides */
+.dash-table-container .dash-cell {
+    background-color: var(--bg-card) !important;
+    color: var(--text-secondary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+    padding: 12px 14px !important;
+    font-family: var(--font-sans) !important;
+    font-size: 12.5px !important;
+    transition: background-color var(--duration) var(--ease-out) !important;
+}
+
+.dash-table-container .dash-row-odd .dash-cell {
+    background-color: rgba(255, 255, 255, 0.015) !important;
+}
+
+/* Row Hover */
+.dash-table-container tr:hover .dash-cell {
+    background-color: var(--bg-hover) !important;
+}
+
+/* Selected row highlight */
+.dash-table-container tr.selected-row .dash-cell {
+    background-color: var(--accent-subtle) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Custom styles for pagination */
+.dash-table-container .previous-next-container {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    padding: 12px 16px !important;
+    background-color: rgba(0, 0, 0, 0.15) !important;
+    border-top: 1px solid var(--border-subtle) !important;
+}
+
+.dash-table-container .previous-next-container button {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-default) !important;
+    color: var(--text-secondary) !important;
+    border-radius: var(--radius-sm) !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all var(--duration) var(--ease-out) !important;
+}
+
+.dash-table-container .previous-next-container button:hover:not([disabled]) {
+    background: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-hover) !important;
+}
+
+.dash-table-container .previous-next-container button[disabled] {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+}
+
+/* Filter cells styling */
+.dash-table-container .dash-filter {
+    background-color: var(--bg-input) !important;
+    border-bottom: 1px solid var(--border-default) !important;
+}
+
+/* Visually hide native DataTable filters while keeping them in the DOM */
+.dash-table-container .dash-filter {
+    height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.dash-table-container .dash-filter input {
+    height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    opacity: 0 !important;
+}
+
+.dash-table-container .dash-filter input {
+    background-color: var(--bg-deepest) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-sm) !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    width: 100% !important;
+    transition: all var(--duration) var(--ease-out) !important;
+}
+
+.dash-table-container .dash-filter input:focus {
+    border-color: var(--accent) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px var(--accent-glow) !important;
+}

@@ -1,0 +1,203 @@
+/*
+ * SMARTFLOW - RL Training Page
+ */
+
+.rl-training-page {
+    gap: 12px;
+    padding: 12px 16px 16px;
+}
+
+.rl-training-page .page-header {
+    margin-bottom: 0;
+}
+
+.rl-training-page .stats-row {
+    grid-template-columns: repeat(4, minmax(170px, 1fr));
+    gap: 10px;
+    margin-bottom: 0;
+}
+
+.rl-training-page .kpi-card {
+    min-height: 72px;
+    padding: 14px 16px;
+}
+
+.rl-training-page .section {
+    margin-bottom: 0;
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.rl-training-page .section-header {
+    min-height: 48px;
+    padding: 12px 16px;
+}
+
+.rl-training-page .section-content {
+    padding: 14px 16px;
+}
+
+.rl-training-queue-section .section-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rl-training-form-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2.5fr;
+    gap: 60px;
+    align-items: start;
+}
+
+.rl-training-form-left {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rl-training-form-right {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(130px, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+.rl-training-form-left .form-group,
+.rl-training-form-right .form-group {
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.rl-training-page .input-field {
+    min-width: 0;
+}
+
+.rl-training-page input[type="number"] {
+    appearance: textfield !important;
+    -moz-appearance: textfield !important;
+}
+
+.rl-training-page input[type="number"]::-webkit-inner-spin-button,
+.rl-training-page input[type="number"]::-webkit-outer-spin-button {
+    margin: 0 !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    display: none !important;
+}
+
+.rl-training-advanced {
+    margin-top: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.rl-training-advanced summary {
+    cursor: pointer;
+    padding: 12px 14px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.45px;
+}
+
+.rl-training-advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    padding: 0 14px 14px;
+}
+
+.rl-training-advanced-grid h4 {
+    margin: 0 0 10px;
+    color: var(--accent);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.rl-training-resume-label {
+    min-height: 20px;
+    margin-top: 0;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.rl-training-live-grid {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr);
+    gap: 14px;
+    align-items: stretch;
+}
+
+.rl-training-console {
+    height: 310px;
+    min-height: 310px;
+    max-height: 310px;
+    overflow: auto;
+    margin: 0;
+    padding: 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: rgba(2, 6, 23, 0.74);
+    color: #cbd5e1;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+.rl-training-page .dash-graph,
+.rl-training-page .js-plotly-plot {
+    min-height: 300px;
+}
+
+.rl-training-live-grid .section,
+.rl-training-evaluation-section {
+    min-height: 410px;
+}
+
+.rl-training-live-grid .section-content,
+.rl-training-evaluation-section .section-content {
+    min-height: 348px;
+}
+
+.rl-training-evaluation-section .section-content {
+    padding-bottom: 10px;
+}
+
+.rl-training-models-section .section-content {
+    padding: 0;
+}
+
+@media (max-width: 1100px) {
+    .rl-training-page .stats-row {
+        grid-template-columns: repeat(2, minmax(170px, 1fr));
+    }
+
+    .rl-training-form-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .rl-training-form-right {
+        grid-template-columns: repeat(2, minmax(150px, 1fr));
+    }
+
+    .rl-training-live-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .rl-training-page {
+        padding: 10px;
+    }
+
+    .rl-training-page .stats-row,
+    .rl-training-form-right {
+        grid-template-columns: 1fr;
+    }
+}

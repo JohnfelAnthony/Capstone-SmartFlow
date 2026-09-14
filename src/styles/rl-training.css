@@ -1,0 +1,304 @@
+.rl-training-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+.rl-training-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 0 10px;
+}
+
+.rl-training-hero h1 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.rl-training-hero p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 15px;
+}
+
+.rl-hero-actions,
+.rl-secondary-actions,
+.rl-algorithm-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rl-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(18px, 4vw, 54px);
+  padding: 20px 0 22px;
+}
+
+.rl-strip-metric {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 14px;
+}
+
+.rl-strip-metric > svg {
+  width: 40px;
+  height: 40px;
+  color: var(--primary);
+  stroke-width: 2.4;
+}
+
+.rl-strip-metric.info > svg {
+  color: var(--chart-2);
+}
+
+.rl-strip-metric.warning > svg {
+  color: var(--chart-3);
+}
+
+.rl-strip-metric.purple > svg {
+  color: var(--chart-4);
+}
+
+.rl-strip-metric div div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rl-strip-metric strong {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rl-strip-metric span {
+  color: var(--muted-foreground);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.rl-strip-metric small {
+  display: block;
+  margin-top: 4px;
+  max-width: 240px;
+  overflow: hidden;
+  color: color-mix(in oklch, var(--muted-foreground), var(--primary) 18%);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rl-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--primary), transparent 91%);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.rl-notice.running {
+  background: color-mix(in oklch, var(--chart-3), transparent 90%);
+}
+
+.rl-notice svg {
+  color: var(--primary);
+}
+
+.rl-training-grid {
+  display: grid;
+  grid-template-columns: minmax(440px, 1.05fr) minmax(360px, 0.95fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.rl-queue-card,
+.rl-jobs-card,
+.rl-models-card,
+.rl-items-card {
+  min-width: 0;
+}
+
+.rl-console-card,
+.rl-chart-card {
+  min-width: 0;
+}
+
+.rl-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rl-checkbox-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--card), var(--background) 18%);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rl-form-grid,
+.rl-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rl-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rl-field-wide {
+  grid-column: span 2;
+}
+
+.rl-field > span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rl-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rl-resume-badge {
+  max-width: min(100%, 520px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rl-console {
+  min-height: 318px;
+  max-height: 460px;
+  margin: 0;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #050812;
+  color: #d5f7df;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.rl-chart-shell {
+  height: 320px;
+  min-width: 0;
+}
+
+.rl-jobs-card,
+.rl-models-card,
+.rl-items-card {
+  grid-column: span 1;
+}
+
+.rl-table-shell {
+  overflow-x: auto;
+}
+
+.rl-table-shell tr.selected {
+  background: color-mix(in oklch, var(--primary), transparent 90%);
+}
+
+.rl-status-badge {
+  text-transform: capitalize;
+}
+
+.rl-progress {
+  position: relative;
+  width: 120px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--muted), var(--foreground) 8%);
+}
+
+.rl-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.rl-path-cell {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .rl-training-grid,
+  .rl-metric-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .rl-queue-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .rl-training-page {
+    padding: 14px;
+  }
+
+  .rl-training-hero,
+  .rl-hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rl-training-grid,
+  .rl-metric-strip,
+  .rl-form-grid,
+  .rl-advanced-grid,
+  .rl-mini-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rl-field-wide {
+    grid-column: auto;
+  }
+
+  .rl-strip-metric strong {
+    font-size: 26px;
+  }
+}

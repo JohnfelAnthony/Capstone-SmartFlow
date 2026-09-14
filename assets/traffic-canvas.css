@@ -1,0 +1,64 @@
+/* ===================================================================
+   SmartFlow Traffic — 2D Canvas Viewport & View Mode Toggle
+   Separate stylesheet for the 2D Canvas visualization mode.
+   =================================================================== */
+
+/* -- 2D Canvas Viewport ---------------------------------------- */
+.canvas-viewport {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.traffic-canvas-element {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* -- View Mode Toggle (3D / 2D Map) ---------------------------- */
+.viz-toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+}
+
+.viz-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease-out);
+    font-family: var(--font-sans);
+}
+
+.viz-toggle-btn i {
+    font-size: 12px;
+}
+
+.viz-toggle-btn:hover {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.viz-toggle-btn.active {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+}
+
+.viz-toggle-btn.active i {
+    color: var(--accent);
+}

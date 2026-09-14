@@ -1,0 +1,22 @@
+{
+  "mode": "tagum_j1_single_intersection",
+  "net_file": "tagum1.net.xml",
+  "controlled_tls_ids": [
+    "J1"
+  ],
+  "route_edges": [
+    "-E2",
+    "-E1",
+    "E3",
+    "E0",
+    "E2",
+    "E1",
+    "-E3",
+    "-E0"
+  ],
+  "visual_center": {
+    "x": -22.41,
+    "y": 4.76
+  },
+  "visual_radius_m": 80.0
+}

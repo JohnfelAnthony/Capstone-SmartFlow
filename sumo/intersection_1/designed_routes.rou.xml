@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vType id="car" vClass="passenger" accel="2.6" decel="4.5" sigma="0.5" length="4.5" minGap="2.5" maxSpeed="13.89"/>
+    <vType id="bus" vClass="bus" accel="1.2" decel="3.5" sigma="0.45" length="11.0" minGap="3.0" maxSpeed="11.11"/>
+    <vType id="truck" vClass="truck" accel="1.1" decel="3.0" sigma="0.45" length="8.5" minGap="3.0" maxSpeed="10.0"/>
+    <vType id="emergency" vClass="emergency" accel="3.0" decel="5.0" sigma="0.2" length="5.5" minGap="2.0" maxSpeed="16.67" color="1,0,0"/>
+
+    <route id="west_to_east" edges="1337657045#0 1337657045#1 1337657045#2 1337657045#3"/>
+    <route id="east_to_west" edges="-1337657045#3 -1337657045#2 -1337657045#1 -1337657045#0"/>
+    <route id="north_to_south" edges="180969633#0 180969633#1 180970197#0 180970197#1"/>
+    <route id="south_to_north" edges="-180970197#1 -180970197#0 -180969633#1 -180969633#0"/>
+    <route id="west_to_south" edges="1337657045#0 1337657045#1 180970197#0 180970197#1"/>
+    <route id="south_to_east" edges="-180970197#1 -180970197#0 1337657045#2 1337657045#3"/>
+    <route id="emergency_west_to_east" edges="1337657045#0 1337657045#1 1337657045#2 1337657045#3"/>
+
+    <flow id="flow_west_to_east" type="car" route="west_to_east" begin="0" end="10000" vehsPerHour="420" departLane="best"/>
+    <flow id="flow_east_to_west" type="car" route="east_to_west" begin="0" end="10000" vehsPerHour="390" departLane="best"/>
+    <flow id="flow_north_to_south" type="car" route="north_to_south" begin="0" end="10000" vehsPerHour="180" departLane="best"/>
+    <flow id="flow_south_to_north" type="car" route="south_to_north" begin="0" end="10000" vehsPerHour="180" departLane="best"/>
+    <flow id="flow_west_to_south" type="car" route="west_to_south" begin="0" end="10000" vehsPerHour="80" departLane="best"/>
+    <flow id="flow_south_to_east" type="car" route="south_to_east" begin="0" end="10000" vehsPerHour="80" departLane="best"/>
+    <flow id="flow_bus_east_to_west" type="bus" route="east_to_west" begin="0" end="10000" vehsPerHour="36" departLane="best"/>
+    <flow id="flow_truck_west_to_east" type="truck" route="west_to_east" begin="0" end="10000" vehsPerHour="30" departLane="best"/>
+</routes>

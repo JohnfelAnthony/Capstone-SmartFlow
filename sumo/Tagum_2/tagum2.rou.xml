@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-05-31T22:01:30.602678+08:00 by Eclipse SUMO netedit 1.26.0
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+
+    <vType id="Emergency" vClass="emergency" guiShape="emergency"/>
+    <vType id="bigPed" length="0.70" vClass="pedestrian" guiShape="pedestrian" width="1.30" height="2.00" color="orange"/>
+    <!-- Vehicles, persons and containers (sorted by depart) -->
+    <flow id="f_0" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="E5" to="E3"/>
+    <flow id="f_1" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="E5" to="E4"/>
+    <flow id="f_10" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="-E3" to="-E5"/>
+    <flow id="f_2" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="E5" to="-E2"/>
+    <flow id="f_3" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="E2" to="-E5"/>
+    <flow id="f_4" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="E2" to="E4"/>
+    <flow id="f_5" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="E2" to="E3"/>
+    <flow id="f_6" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="-E4" to="-E2"/>
+    <flow id="f_7" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="-E4" to="-E5"/>
+    <flow id="f_8" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="-E3" to="E4"/>
+    <flow id="f_9" begin="0.00" end="3600.00" perHour="600.00" departSpeed="random" from="-E3" to="-E2"/>
+    <person id="p_0" type="bigPed" depart="0.00">
+        <personTrip from="-E4" to="-E2"/>
+    </person>
+    <person id="p_1" type="bigPed" depart="0.00">
+        <personTrip from="-E4" to="E3"/>
+    </person>
+    <person id="p_2" type="bigPed" depart="0.00">
+        <personTrip from="E5" to="-E5"/>
+    </person>
+    <person id="p_3" type="bigPed" depart="0.00">
+        <personTrip from="E5" to="E3"/>
+    </person>
+    <person id="p_4" type="bigPed" depart="0.00">
+        <personTrip from="E5" to="-E2"/>
+    </person>
+    <person id="p_5" type="bigPed" depart="0.00">
+        <personTrip from="-E4" to="E4"/>
+    </person>
+    <person id="p_6" type="bigPed" depart="0.00">
+        <personTrip from="-E3" to="E3"/>
+    </person>
+    <person id="p_7" type="bigPed" depart="0.00">
+        <personTrip from="-E3" to="E4"/>
+    </person>
+    <person id="p_8" type="bigPed" depart="0.00">
+        <personTrip from="E2" to="-E2"/>
+    </person>
+    <person id="p_9" type="bigPed" depart="0.00">
+        <personTrip from="E2" to="-E5"/>
+    </person>
+</routes>

@@ -1,0 +1,335 @@
+
+/* ===================================================================
+   REDESIGN — Signal Control System
+   Focus rings, loading states, action dropdowns, page accents,
+   expandable rows, storage bar, keyboard accessibility
+   =================================================================== */
+
+/* -- Focus Ring System ------------------------------------------ */
+.btn:focus-visible,
+.icon-btn-sm:focus-visible,
+.nav-item:focus-visible,
+.filter-input:focus-visible,
+.input-field:focus-visible,
+.textarea-field:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.dash-dropdown:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.data-table tbody tr:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: var(--accent-subtle);
+}
+
+/* -- Loading State ---------------------------------------------- */
+.btn-loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    color: var(--text-primary);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Table loading overlay */
+.table-loading {
+    position: relative;
+    min-height: 120px;
+}
+
+.table-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 15, 26, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    z-index: 5;
+}
+
+.table-loading::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    z-index: 6;
+}
+
+/* -- Action Dropdown (row actions) ----------------------------- */
+.action-dropdown-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.action-dropdown-trigger {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+    background: var(--bg-input);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--duration) var(--ease-out);
+}
+
+.action-dropdown-trigger:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
+.action-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 180px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    padding: 4px 0;
+    z-index: 100;
+}
+
+.action-dropdown-wrap:hover .action-dropdown-menu,
+.action-dropdown-wrap.open .action-dropdown-menu {
+    display: block;
+}
+
+.action-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--duration) var(--ease-out);
+    white-space: nowrap;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-sans);
+}
+
+.action-dropdown-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.action-dropdown-item i {
+    width: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.action-dropdown-item.danger {
+    color: var(--error);
+}
+
+.action-dropdown-item.danger i {
+    color: var(--error);
+}
+
+.action-dropdown-item.danger:hover {
+    background: rgba(239, 83, 80, 0.08);
+}
+
+.action-dropdown-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 4px 0;
+}
+
+/* -- Page Accent System ----------------------------------------- */
+.admin-page-users .page-header h1 { color: var(--page-users); }
+.admin-page-users .section-header i { color: var(--page-users); }
+.admin-page-users .kpi-card-compact:hover { border-color: color-mix(in srgb, var(--page-users) 25%, transparent); }
+
+.admin-page-roles .page-header h1 { color: var(--page-roles); }
+.admin-page-roles .section-header i { color: var(--page-roles); }
+.admin-page-roles .perm-matrix thead th.role-col.selected::after { background: var(--page-roles); }
+
+.admin-page-audit .page-header h1 { color: var(--page-audit); }
+.admin-page-audit .section-header i { color: var(--page-audit); }
+
+.admin-page-backups .page-header h1 { color: var(--page-backups); }
+.admin-page-backups .section-header i { color: var(--page-backups); }
+
+/* -- Expandable Row Detail -------------------------------------- */
+.expandable-row {
+    cursor: pointer;
+}
+
+.expand-row-detail {
+    display: none;
+}
+
+.expand-row-detail.open {
+    display: table-row;
+}
+
+.expand-row-detail td {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.expand-row-content {
+    padding: 14px 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* -- Storage Visualization Bar ---------------------------------- */
+.storage-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.storage-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-input);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.storage-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--page-backups);
+    transition: width 0.5s var(--ease-out);
+}
+
+.storage-bar-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* -- Confirmation Modal Enhancements ---------------------------- */
+.modal-danger .modal-header {
+    border-bottom-color: rgba(239, 83, 80, 0.2);
+}
+
+.modal-danger .modal-header h2 {
+    color: var(--error);
+}
+
+.modal-warning .modal-header {
+    border-bottom-color: rgba(255, 167, 38, 0.2);
+}
+
+.modal-warning .modal-header h2 {
+    color: var(--warning);
+}
+
+/* -- Filter Toolbar Restack (audit) ----------------------------- */
+.filter-toolbar-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.filter-toolbar-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* -- Audit Row Expand Toggle ------------------------------------ */
+.audit-expand-btn {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--duration) var(--ease-out);
+    background: none;
+    border: none;
+    font-family: var(--font-sans);
+}
+
+.audit-expand-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.audit-expand-btn.expanded i {
+    transform: rotate(90deg);
+}
+
+.audit-expand-btn i {
+    font-size: 10px;
+    transition: transform var(--duration) var(--ease-out);
+}
+
+/* -- Pending Section Elevated (users page) ---------------------- */
+.pending-section-elevated {
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 167, 38, 0.15);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.pending-section-elevated .section-header {
+    background: linear-gradient(180deg, rgba(255, 167, 38, 0.06) 0%, transparent 100%);
+    border-bottom-color: rgba(255, 167, 38, 0.12);
+}
+
+.pending-section-elevated .section-header i {
+    color: var(--warning);
+}
+
+/* -- Admin page responsive -------------------------------------- */
+@media (max-width: 1200px) {
+    .filter-toolbar-stacked .filter-toolbar-row {
+        flex-wrap: wrap;
+    }
+}

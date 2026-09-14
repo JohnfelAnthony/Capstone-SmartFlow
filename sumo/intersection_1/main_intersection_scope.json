@@ -1,0 +1,48 @@
+{
+  "mode": "single_intersection",
+  "description": "Main Tagum City intersection only, with short adjacent approach roads for queue formation.",
+  "net_file": "inter_ped.net.xml",
+  "route_file": "designed_routes.rou.xml",
+  "visual_center": {
+    "x": 528.0,
+    "y": 870.0
+  },
+  "visual_radius_m": 260.0,
+  "controlled_tls_ids": ["7900968103", "7900968104", "7900968105", "7900968106"],
+  "route_edges": [
+    "1337657045#0",
+    "1337657045#1",
+    "1337657045#2",
+    "1337657045#3",
+    "-1337657045#3",
+    "-1337657045#2",
+    "-1337657045#1",
+    "-1337657045#0",
+    "180969633#0",
+    "180969633#1",
+    "-180969633#1",
+    "-180969633#0",
+    "180970197#0",
+    "180970197#1",
+    "-180970197#1",
+    "-180970197#0"
+  ],
+  "approaches": {
+    "west": {
+      "entry_edge": "1337657045#0",
+      "exit_edge": "-1337657045#0"
+    },
+    "east": {
+      "entry_edge": "-1337657045#3",
+      "exit_edge": "1337657045#3"
+    },
+    "north": {
+      "entry_edge": "180969633#0",
+      "exit_edge": "-180969633#0"
+    },
+    "south": {
+      "entry_edge": "-180970197#1",
+      "exit_edge": "180970197#1"
+    }
+  }
+}

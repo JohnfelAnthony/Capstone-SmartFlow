@@ -1,0 +1,151 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "SMARTFLOW Asset Generator"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "Crosswalk"
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ],
+      "name": "Crosswalk"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3",
+      "min": [
+        -2.0,
+        0.02,
+        -1.5
+      ],
+      "max": [
+        2.0,
+        0.02,
+        1.5
+      ]
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 0,
+      "componentType": 5123,
+      "count": 6,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 48,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 48,
+      "byteLength": 48,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 96,
+      "byteLength": 32,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 128,
+      "byteLength": 12,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 140,
+      "byteLength": 489
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "data:application/octet-stream;base64,AAAAwArXozwAAMC/AAAAQArXozwAAMC/AAAAQArXozwAAMA/AAAAwArXozwAAMA/AAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAgD8AAIA/AAAAAAAAgD8AAAEAAgAAAAIAAwCJUE5HDQoaCgAAAA1JSERSAAAAgAAAAIAIBgAAAMM+YcsAAAGwSURBVHic7dKxCQAxDARBd6X+K/OX8IFxYHYOlI9g1768mTk6vru+9foDfALgEwCfAPgEwCcAPgHwCYBPAHwC4BMA398EEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuO8DKT3Lm8YTXRgAAAAASUVORK5CYII=",
+      "byteLength": 629
+    }
+  ],
+  "materials": [
+    {
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "roughnessFactor": 0.9,
+        "metallicFactor": 0,
+        "baseColorTexture": {
+          "index": 0,
+          "texCoord": 0
+        }
+      }
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/png",
+      "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAABsElEQVR4nO3SsQkAMQwEQXel/ivzl/CBcWB2DpSPYNe+vJk5Or67vvX6A3wC4BMAnwD4BMAnAD4B8AmATwB8AuATAN/fBBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLhPAHGfAOI+AcR9Aoj7BBD3CSDuE0DcJ4C4TwBxnwDiPgHEfQKI+wQQ9wkg7hNA3CeAuE8AcZ8A4j4BxH0CiPsEEPcJIO4TQNwngLjvAyk9y5vGE10YAAAAAElFTkSuQmCC"
+    }
+  ],
+  "textures": [
+    {
+      "source": 0,
+      "sampler": 0
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-05-31T22:27:02.872413+08:00 by Eclipse SUMO sumo 1.26.0
+-->
+
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="tagum2.net.xml"/>
+        <route-files value="tagum2.rou.xml"/>
+        <additional-files value="tagum2.add.xml"/>
+    </input>
+
+</sumoConfiguration>
