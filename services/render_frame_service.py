@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 import time
 
-from simulation.sumo_config import DEFAULT_INTERSECTION_ID
-from simulation.sumo_state import canonical_signal_states
+from simulation.road_network import NETWORK_ID as DEFAULT_INTERSECTION_ID
+from simulation.signal_state import canonical_signal_states
 
 
 MAX_RENDER_VEHICLES = 120
@@ -64,8 +64,11 @@ def _serialize_pedestrian_entity(raw_pedestrian: dict) -> dict:
 
 
 def _serialize_visual_payload(raw_visual: dict | None) -> dict:
-    constraint_marker = raw_visual.get("constraint_marker", {}) if isinstance(raw_visual, dict) else {}
+    raw_visual = raw_visual if isinstance(raw_visual, dict) else {}
+    constraint_marker = raw_visual.get("constraint_marker", {})
     return {
+        "closed_lanes": [str(lane) for lane in raw_visual.get("closed_lanes", [])],
+        "slow_lanes": {str(lane): _safe_float(factor, 1) for lane, factor in raw_visual.get("slow_lanes", {}).items()},
         "constraint_marker": {
             "active": bool(constraint_marker.get("active")),
             "x": _safe_float(constraint_marker.get("x")),
@@ -135,6 +138,9 @@ def build_render_frame(
             "frame_count": int(playback.get("frame_count", 0) or 0),
         },
         "render_mode": "live" if live_mode_active else "playback" if bool(playback) else "idle",
+        "vehicle_count": int(state.get("vehicle_count", len(state.get("vehicles", [])))),
+        "pedestrian_count": int(state.get("pedestrian_count", len(state.get("pedestrians", [])))),
+        "render_limits": {"vehicles": max_vehicle_count, "pedestrians": max_pedestrian_count},
         "vehicles": [
             _serialize_vehicle_entity(vehicle)
             for vehicle in state.get("vehicles", [])[:max_vehicle_count]

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import config
 import database
-from simulation.sumo_engine import SumoSimulationEngine
+from simulation.traffic_engine import TrafficEngine
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def _build_manifest(
     *,
     run_id: int,
     scenario: dict | None,
-    engine: SumoSimulationEngine,
+    engine: TrafficEngine,
     duration_limit: int,
     frame_count: int,
     raw_path: Path,
@@ -97,7 +97,9 @@ def _build_manifest(
     actual_duration = float(getattr(engine, "simulation_time", 0) or 0)
     step_length = float(getattr(engine, "step_length", 0.1) or 0.1)
     return {
-        "manifest_version": 1,
+        "manifest_version": 2,
+        "experiment": engine.experiment_metadata(),
+        "network": engine.network.payload,
         "generated_at": _utc_now_iso(),
         "app": {
             "name": config.APP_NAME,
@@ -147,21 +149,23 @@ def generate_timeline(
     seed: int | None = None,
     control_mode: str | None = None,
 ):
-    """Run sumo headlessly as fast as possible to generate a timeline."""
+    """Run the Python engine headlessly as fast as possible to generate a timeline."""
 
     def _worker():
-        engine = SumoSimulationEngine(seed=seed)
-        if str(control_mode or "").strip().lower().replace("_", "-") in {"rl", "rl-control", "rl-controller"}:
-            engine.configure_rl_control()
-        scenario = database.get_scenario_by_id(scenario_id)
-        if scenario:
-            engine.configure_from_scenario(scenario)
-
-        timeline_path, gzip_path, manifest_path = _artifact_paths(run_id)
-        estimated_frame_count = _estimated_frame_count(duration_limit, getattr(engine, "step_length", 0.1))
-
+        engine = None
+        timeline_path = None
         try:
+            engine = TrafficEngine(seed=seed)
+            timeline_path, gzip_path, manifest_path = _artifact_paths(run_id)
+            estimated_frame_count = _estimated_frame_count(duration_limit, engine.step_length)
+            scenario = database.get_scenario_by_id(scenario_id)
+            if not scenario:
+                raise ValueError("Scenario not found")
+            engine.configure_from_scenario(scenario)
+            from services.native_controller import apply_controller
+            apply_controller(engine, control_mode)
             engine.start(duration_limit)
+            engine.run_id = str(run_id)
             if engine.status == "error":
                 logger.error("Timeline generator failed to start: %s", engine.last_error)
                 database.update_run(
@@ -214,7 +218,7 @@ def generate_timeline(
                                 }
                             )
 
-            final_metrics = engine.to_dict().get("metrics", {})
+            final_metrics = {**engine.to_dict().get("metrics", {}), "experiment": engine.experiment_metadata()}
             _save_metrics(run_id, final_metrics)
             compression = {}
             if config.TIMELINE_GZIP_ENABLED:
@@ -238,6 +242,8 @@ def generate_timeline(
                 run_id,
                 run_mode="pre-record",
                 status="completed",
+                control_mode=engine.controller_provenance,
+                rl_model_id=(getattr(engine.runtime_policy, "artifact_metadata", {}) or {}).get("model_id"),
                 end_time=_utc_now_iso(),
                 duration_seconds=float(engine.simulation_time),
                 timeline_path=str(canonical_timeline_path),
@@ -286,7 +292,7 @@ def generate_timeline(
                 status="error",
                 end_time=_utc_now_iso(),
                 duration_seconds=float(getattr(engine, "simulation_time", 0) or 0),
-                timeline_path=str(timeline_path),
+                timeline_path=str(timeline_path) if timeline_path is not None else None,
                 notes=str(exc),
             )
             database.log_audit_event(
@@ -297,7 +303,9 @@ def generate_timeline(
             if on_complete:
                 on_complete("error", str(exc))
         finally:
-            engine.stop()
+            if engine is not None:
+                engine.stop()
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
+    return thread

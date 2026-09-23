@@ -262,6 +262,7 @@ class Scenario(BaseModel):
     emergency_mode: str
     road_constraint: str
     intersection_id: str
+    engine_config: dict[str, Any] = Field(default_factory=dict)
     lane_closure_config: dict[str, Any] = Field(default_factory=dict)
     construction_config: dict[str, Any] = Field(default_factory=dict)
     accident_config: dict[str, Any] = Field(default_factory=dict)
@@ -285,6 +286,7 @@ class ScenarioWriteRequest(BaseModel):
     emergency_mode: str = Field(default="Disabled", min_length=1, max_length=80)
     road_constraint: str = Field(default="None", min_length=1, max_length=120)
     intersection_id: str = Field(default="tagum_1", min_length=1, max_length=80)
+    engine_config: dict[str, Any] = Field(default_factory=dict)
     lane_closure_config: dict[str, Any] = Field(default_factory=dict)
     construction_config: dict[str, Any] = Field(default_factory=dict)
     accident_config: dict[str, Any] = Field(default_factory=dict)
@@ -292,6 +294,7 @@ class ScenarioWriteRequest(BaseModel):
 
 
 class SimulationConfigureRequest(BaseModel):
+    engine_config: dict[str, Any] | None = None
     scenario_id: int | None = Field(default=None, ge=1)
     intersection_id: str | None = Field(default=None, min_length=1, max_length=80)
     traffic_density: str | None = Field(default=None, min_length=1, max_length=40)
@@ -299,14 +302,14 @@ class SimulationConfigureRequest(BaseModel):
     emergency_mode: str | None = Field(default=None, min_length=1, max_length=80)
     road_constraint: str | None = Field(default=None, min_length=1, max_length=120)
     duration_seconds: int | None = Field(default=None, ge=1, le=24 * 60 * 60)
-    seed: int | None = Field(default=None, ge=0)
+    seed: int | None = Field(default=None, ge=0, le=2**32-1)
     control_mode: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class SimulationStartRequest(BaseModel):
     scenario_id: int | None = Field(default=None, ge=1)
     duration_seconds: int | None = Field(default=None, ge=1, le=24 * 60 * 60)
-    seed: int | None = Field(default=None, ge=0)
+    seed: int | None = Field(default=None, ge=0, le=2**32-1)
     control_mode: str | None = Field(default=None, min_length=1, max_length=80)
 
 
@@ -317,7 +320,7 @@ class SimulationStepRequest(BaseModel):
 class TimelineGenerateRequest(BaseModel):
     scenario_id: int = Field(ge=1)
     duration_seconds: int = Field(default=300, ge=1, le=24 * 60 * 60)
-    seed: int | None = Field(default=None, ge=0)
+    seed: int | None = Field(default=None, ge=0, le=2**32-1)
     control_mode: str | None = Field(default="fixed-time", min_length=1, max_length=80)
 
 

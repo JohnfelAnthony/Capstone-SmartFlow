@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from typing import Iterable, Protocol
 
 from .ql_agent import TabularQLearningAgent
-from .sumo_engine import RL_SERVICE_ACTIONS
+from .model_contract import validate_neural_artifact
+from .traffic_engine import RL_SERVICE_ACTIONS
 
 try:
     from stable_baselines3 import DQN, PPO
@@ -142,6 +144,7 @@ class DQLRuntimePolicy:
                 "DQL runtime requires stable-baselines3 and torch. "
                 "Install the locked requirements first: .venv\\Scripts\\python.exe -m pip install -r requirements.txt"
             )
+        validate_neural_artifact(model_path)
         return cls(DQN.load(str(model_path)))
 
     def predict(self, observation=None, info: dict | None = None) -> PolicyPrediction:
@@ -188,6 +191,7 @@ class PPORuntimePolicy:
                 "PPO runtime requires stable-baselines3 and torch. "
                 "Install the locked requirements first: .venv\\Scripts\\python.exe -m pip install -r requirements.txt"
             )
+        validate_neural_artifact(model_path)
         return cls(PPO.load(str(model_path)))
 
     def predict(self, observation=None, info: dict | None = None) -> PolicyPrediction:
@@ -219,16 +223,17 @@ class PPORuntimePolicy:
 
 def load_runtime_policy(controller_provenance: str, model_path: str | Path | None = None) -> RuntimePolicy:
     normalized_provenance = str(controller_provenance or "").strip().lower().replace("_", "-")
-    if normalized_provenance == "ql":
-        if model_path is None:
-            raise ValueError("model_path is required for QL runtime policy.")
-        return QLRuntimePolicy.load(model_path)
-    if normalized_provenance == "dql":
-        if model_path is None:
-            raise ValueError("model_path is required for DQL runtime policy.")
-        return DQLRuntimePolicy.load(model_path)
-    if normalized_provenance == "ppo":
-        if model_path is None:
-            raise ValueError("model_path is required for PPO runtime policy.")
-        return PPORuntimePolicy.load(model_path)
-    raise ValueError(f"Unsupported runtime policy: {controller_provenance}")
+    loaders = {"ql": QLRuntimePolicy, "dql": DQLRuntimePolicy, "ppo": PPORuntimePolicy}
+    if normalized_provenance not in loaders:
+        raise ValueError(f"Unsupported runtime policy: {controller_provenance}")
+    if model_path is None:
+        raise ValueError("model_path is required for an RL runtime policy")
+    path = Path(model_path)
+    policy = loaders[normalized_provenance].load(path)
+    with path.open("rb") as stream:
+        model_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+    policy.artifact_metadata = {"algorithm": normalized_provenance, "filename": path.name, "sha256": model_hash}
+    if normalized_provenance != "ql":
+        metadata_path = path.with_suffix(".metadata.json")
+        policy.artifact_metadata["metadata_sha256"] = hashlib.sha256(metadata_path.read_bytes()).hexdigest()
+    return policy

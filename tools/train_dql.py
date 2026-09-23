@@ -23,7 +23,7 @@ from simulation.dql_training import (
     train_deep_q_learning,
 )
 from simulation.rl_env import SmartFlowRLEnv
-from simulation.sumo_engine import RL_SERVICE_ACTIONS
+from simulation.traffic_engine import RL_SERVICE_ACTIONS
 
 
 def _parse_seed_set(raw_seed_set: str) -> tuple[int, ...]:
@@ -77,7 +77,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
     parser.add_argument("--max-steps-per-episode", type=int, default=None)
-    parser.add_argument("--intersection-id", default="tagum_1")
+    parser.add_argument("--intersection-id", default="tagum_network")
+    parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-name", default="SMARTFLOW DQL Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -168,6 +169,13 @@ def main() -> int:
         "emergency_mode": args.emergency_mode,
         "road_constraint": args.road_constraint,
     }
+    if args.scenario_id is not None:
+        database.init_db()
+        saved = database.get_scenario_by_id(args.scenario_id)
+        if not saved or saved.get("is_archived"):
+            raise SystemExit("Saved scenario missing or archived")
+        scenario = saved
+
     total_timesteps = calculate_dql_timesteps(
         episodes=args.episodes,
         evaluation_seconds=args.evaluation_seconds,

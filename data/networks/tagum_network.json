@@ -1,0 +1,499 @@
+{
+  "id": "tagum_network",
+  "version": 1,
+  "name": "Tagum connected study network",
+  "source": {
+    "provider": "OpenStreetMap",
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "bbox": [
+      7.443,
+      125.801,
+      7.451,
+      125.81
+    ],
+    "downloaded_at": "2026-09-21T14:10:12.782841+00:00",
+    "query": "[out:json][timeout:35];way[\"highway\"~\"^(primary|secondary|tertiary|residential|unclassified|living_street|primary_link|secondary_link|tertiary_link)$\"](7.443,125.801,7.451,125.810);(._;>;);out body;",
+    "origin": {
+      "lat": 7.446999999999999,
+      "lon": 125.8055
+    },
+    "projection": "local equirectangular, metres; study area only",
+    "assumptions": [
+      "One modeled lane per permitted direction, 3.3 m wide",
+      "30 km/h study speed; not a verified posted limit",
+      "Experimental traffic signals at the five selected junctions",
+      "OSM turn restrictions and lane tags require field review",
+      "Boundary stubs truncated at 110 m; no invented road alignment",
+      "Synthetic demand; not measured Tagum counts"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "1226402048",
+      "x": -100.13767541982574,
+      "y": -33.073171999906705,
+      "lat": 7.4467029,
+      "lon": 125.8045928,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "1217544499",
+      "x": -100.39155180055701,
+      "y": 42.92499200004787,
+      "lat": 7.4473856,
+      "lon": 125.8045905,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "376306710",
+      "x": 13.5327149555013,
+      "y": -105.95437599991996,
+      "lat": 7.4460482,
+      "lon": 125.8056226,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "1217544567",
+      "x": 14.62548720654321,
+      "y": -32.305063999927874,
+      "lat": 7.4467098,
+      "lon": 125.8056325,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "1217544575",
+      "x": 14.702753931522802,
+      "y": 43.64857200009958,
+      "lat": 7.4473921,
+      "lon": 125.8056332,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "boundary_1",
+      "x": 14.687523801010343,
+      "y": -215.94831408984533,
+      "boundary": true
+    },
+    {
+      "id": "boundary_2",
+      "x": -89.89491999084855,
+      "y": -105.52753828521605,
+      "boundary": true
+    },
+    {
+      "id": "boundary_3",
+      "x": 123.53206491376163,
+      "y": -105.57622591392567,
+      "boundary": true
+    },
+    {
+      "id": "boundary_4",
+      "x": -99.92837182351236,
+      "y": -95.48688822880074,
+      "boundary": true
+    },
+    {
+      "id": "boundary_6",
+      "x": -100.61219315928577,
+      "y": 109.31283122859844,
+      "boundary": true
+    },
+    {
+      "id": "boundary_8",
+      "x": -203.9850289962802,
+      "y": -33.94643586822938,
+      "boundary": true
+    },
+    {
+      "id": "boundary_11",
+      "x": 14.769898222938979,
+      "y": 109.98070112328521,
+      "boundary": true
+    }
+  ],
+  "roads": [
+    {
+      "id": "road0",
+      "source": "376306710",
+      "target": "1217544567",
+      "shape": [
+        [
+          13.533,
+          -105.954
+        ],
+        [
+          14.625,
+          -32.305
+        ]
+      ],
+      "oneway": false,
+      "name": "Jose Abad Santos Street",
+      "osm_way_id": 31614926,
+      "osm_node_ids": [
+        376306710,
+        1217544567
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Jose Abad Santos Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road1",
+      "source": "376306710",
+      "target": "boundary_1",
+      "shape": [
+        [
+          13.533,
+          -105.954
+        ],
+        [
+          14.688,
+          -215.948
+        ]
+      ],
+      "oneway": false,
+      "name": "Jose Abad Santos Street",
+      "osm_way_id": 31614926,
+      "osm_node_ids": [
+        376306710,
+        1403016980
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Jose Abad Santos Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road2",
+      "source": "376306710",
+      "target": "boundary_2",
+      "shape": [
+        [
+          13.533,
+          -105.954
+        ],
+        [
+          -8.952,
+          -105.865
+        ],
+        [
+          -56.14,
+          -105.665
+        ],
+        [
+          -89.895,
+          -105.528
+        ]
+      ],
+      "oneway": false,
+      "name": "Lapu-Lapu Street",
+      "osm_way_id": 33196699,
+      "osm_node_ids": [
+        376306710,
+        6507770770,
+        6507770771,
+        376307147
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "4",
+        "name": "Lapu-Lapu Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road3",
+      "source": "376306710",
+      "target": "boundary_3",
+      "shape": [
+        [
+          13.533,
+          -105.954
+        ],
+        [
+          110.988,
+          -105.62
+        ],
+        [
+          123.532,
+          -105.576
+        ]
+      ],
+      "oneway": false,
+      "name": "Lapu-Lapu Street",
+      "osm_way_id": 33196699,
+      "osm_node_ids": [
+        376306710,
+        12119388541,
+        9560208784,
+        12119388579,
+        13355801068,
+        13355801071,
+        1192141660,
+        10654283987,
+        10654283986,
+        1403009029,
+        7051582398,
+        7051582401,
+        1252428252,
+        7051583455,
+        4462012055
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "4",
+        "name": "Lapu-Lapu Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road4",
+      "source": "boundary_4",
+      "target": "1226402048",
+      "shape": [
+        [
+          -99.928,
+          -95.487
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Osmeña Street",
+      "osm_way_id": 31614940,
+      "osm_node_ids": [
+        376307147,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Osmeña Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road5",
+      "source": "1217544499",
+      "target": "1217544575",
+      "shape": [
+        [
+          -100.392,
+          42.925
+        ],
+        [
+          14.703,
+          43.649
+        ]
+      ],
+      "oneway": false,
+      "name": "Mabini Street",
+      "osm_way_id": 1113257006,
+      "osm_node_ids": [
+        1217544499,
+        1217544575
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Mabini Street",
+        "surface": "paved"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road6",
+      "source": "1217544499",
+      "target": "boundary_6",
+      "shape": [
+        [
+          -100.392,
+          42.925
+        ],
+        [
+          -100.612,
+          109.313
+        ]
+      ],
+      "oneway": false,
+      "name": "Osmeña Street",
+      "osm_way_id": 31614940,
+      "osm_node_ids": [
+        1217544499,
+        1226398954
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Osmeña Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road7",
+      "source": "1217544499",
+      "target": "1226402048",
+      "shape": [
+        [
+          -100.392,
+          42.925
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Osmeña Street",
+      "osm_way_id": 31614940,
+      "osm_node_ids": [
+        1217544499,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Osmeña Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road8",
+      "source": "boundary_8",
+      "target": "1226402048",
+      "shape": [
+        [
+          -203.985,
+          -33.946
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Arellano Street",
+      "osm_way_id": 105732736,
+      "osm_node_ids": [
+        1217544505,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "lanes": "2",
+        "name": "Arellano Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road9",
+      "source": "1217544567",
+      "target": "1217544575",
+      "shape": [
+        [
+          14.625,
+          -32.305
+        ],
+        [
+          14.703,
+          43.649
+        ]
+      ],
+      "oneway": false,
+      "name": "Jose Abad Santos Street",
+      "osm_way_id": 31614926,
+      "osm_node_ids": [
+        1217544567,
+        1217544575
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Jose Abad Santos Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road10",
+      "source": "1217544567",
+      "target": "1226402048",
+      "shape": [
+        [
+          14.625,
+          -32.305
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Arellano Street",
+      "osm_way_id": 105732736,
+      "osm_node_ids": [
+        1217544567,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "lanes": "2",
+        "name": "Arellano Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road11",
+      "source": "1217544575",
+      "target": "boundary_11",
+      "shape": [
+        [
+          14.703,
+          43.649
+        ],
+        [
+          14.77,
+          109.981
+        ]
+      ],
+      "oneway": false,
+      "name": "Jose Abad Santos Street",
+      "osm_way_id": 31614926,
+      "osm_node_ids": [
+        1217544575,
+        1226398952
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Jose Abad Santos Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    }
+  ]
+}

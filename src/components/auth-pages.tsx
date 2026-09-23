@@ -120,11 +120,11 @@ function AuthVisualPanel({
 
       <div className="auth-proof-row auth-proof-row-inline">
         <div className="auth-proof-inline-item">
-          <span>SUMO</span>
+          <span>Python</span>
           <strong>Connected</strong>
         </div>
         <div className="auth-proof-inline-item">
-          <span>TraCI</span>
+          <span>WebSocket</span>
           <strong>Live bridge</strong>
         </div>
         <div className="auth-proof-inline-item">
@@ -180,8 +180,8 @@ export function LoginPage({ onNavigate, onLogin }: LoginPageProps) {
       <div className="auth-shell auth-shell-login">
         <AuthVisualPanel
           subline="Traffic Intelligence"
-          kicker="Tagum City main intersection"
-          title="Coordinate live SUMO traffic with confidence."
+          kicker="Tagum connected road network"
+          title="Coordinate live Python traffic with confidence."
           description="Monitor queues, signal phases, pedestrians, and emergency priority from one research-grade control room."
           rlStatus="Planning"
         />
@@ -284,7 +284,7 @@ export function RegisterPage({ onNavigate, onRegister }: RegisterPageProps) {
           subline="Research Lab Access"
           kicker="Simulation workspace"
           title="Join the team improving adaptive traffic control."
-          description="Create an account for scenario experiments, SUMO runs, performance reports, and upcoming controller research."
+          description="Create an account for scenario experiments, Python runs, performance reports, and upcoming controller research."
           rlStatus="Ready"
         />
 

@@ -83,14 +83,14 @@ const durationOptions: SelectOption[] = [
   { label: "15 Minutes (900s)", value: "900" },
 ]
 
-const trafficDensityOptions = ["Low", "Medium", "High", "Very High"]
+const trafficDensityOptions = ["Single", "Low", "Medium", "High", "Very High"]
 const pedestrianDensityOptions = ["Low", "None", "Medium", "High"]
 const emergencyModeOptions = ["Disabled", "Enabled (1 Ambulance)", "Enabled (2 Vehicles)"]
 const roadConstraintOptions = ["None", "Lane Closure", "Construction", "Accident", "Flooding", "Temporary Blockage"]
 
 const defaultSettings: ScenarioSettings = {
-  trafficDensity: "Medium",
-  pedestrianDensity: "Medium",
+  trafficDensity: "Single",
+  pedestrianDensity: "None",
   emergencyMode: "Disabled",
   roadConstraint: "None",
 }
@@ -324,7 +324,7 @@ function SimulationView({
         {showLiveCanvas && visualizationMode === "2d" ? (
           <SimulationCanvas2D frame={renderFrame} intersectionId={intersectionId} />
         ) : showLiveCanvas ? (
-          <SimulationScene3D onUnavailable={onThreeUnavailable} />
+          <SimulationScene3D frame={renderFrame} intersectionId={intersectionId} onUnavailable={onThreeUnavailable} />
         ) : (
           <div className="sf-sim-grid" aria-hidden="true" />
         )}
@@ -884,7 +884,7 @@ export function DashboardPage({
         ])
         if (!isMounted) return
 
-        const nextScenarios = scenarioResponse.scenarios
+        const nextScenarios = [...scenarioResponse.scenarios].sort((a, b) => Number(b.traffic_density === "Single") - Number(a.traffic_density === "Single"))
         setScenarios(nextScenarios)
         setSimulation(simulationResponse)
         setRenderFrame(renderFrameFromSimulation(simulationResponse))
@@ -979,9 +979,7 @@ export function DashboardPage({
     }
     applySimulationAction(() =>
       startSimulation({
-        scenario_id: Number(selectedScenarioId),
         duration_seconds: Number(durationSeconds),
-        control_mode: "fixed-time",
       })
     )
   }

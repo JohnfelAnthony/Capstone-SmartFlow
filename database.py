@@ -14,6 +14,7 @@ from pathlib import Path
 import config
 
 SCENARIO_JSON_FIELDS = (
+    "engine_config",
     "lane_closure_config",
     "construction_config",
     "accident_config",
@@ -372,6 +373,8 @@ def _migrate_scenarios():
             row["name"]
             for row in conn.execute("PRAGMA table_info(scenarios)").fetchall()
         }
+        if columns and "engine_config" not in columns:
+            conn.execute("ALTER TABLE scenarios ADD COLUMN engine_config TEXT DEFAULT '{}'")
         if columns and "intersection_id" not in columns:
             conn.execute("ALTER TABLE scenarios ADD COLUMN intersection_id TEXT DEFAULT 'tagum_1'")
 
@@ -553,24 +556,12 @@ def seed_data():
         cursor = conn.execute("SELECT COUNT(*) FROM scenarios")
         if cursor.fetchone()[0] == 0:
             scenarios = [
-                ('Tagum City — Main Intersection',
-                 'Primary high-volume intersection: Pioneer Ave & Apokon Rd',
-                 'High', 'Medium', 'Disabled', 'None', 'tagum_1',
+                ('Tagum — Single Car Demo', 'Five connected OSM junctions; one car; synthetic study signals.',
+                 'Single', 'None', 'Disabled', 'None', 'tagum_network',
                  '{}', '{}', '{}', '{}', None, 1, 0),
-                ('Tagum City — Secondary Route',
-                 'Secondary route with moderate traffic volume',
-                 'Medium', 'Low', 'Disabled', 'None', 'tagum_1',
+                ('Tagum — Network Traffic', 'Synthetic traffic for engine experiments; not measured counts.',
+                 'Medium', 'Low', 'Disabled', 'None', 'tagum_network',
                  '{}', '{}', '{}', '{}', None, 1, 0),
-                ('Emergency Vehicle Scenario',
-                 'High traffic with active emergency vehicle priority',
-                 'Very High', 'Medium', 'Enabled (1 Ambulance)', 'None', 'tagum_1',
-                 '{}', '{}', '{}', '{}', None, 1, 0),
-                ('Lane Closure — Construction',
-                 'Moderate traffic with lane closure due to road construction',
-                 'Medium', 'Low', 'Disabled', 'None', 'tagum_1',
-                 '{"enabled": true, "approach": "north", "lanes_closed": 1}',
-                 '{"enabled": true, "approach": "north", "speed_reduction": 0.5}',
-                 '{}', '{}', None, 1, 0),
             ]
             conn.executemany(
                 """INSERT INTO scenarios (name, description, traffic_density,
@@ -588,18 +579,12 @@ def seed_data():
             )
 
         idempotent_official_scenarios = [
-            (
-                'Tagum City — J6 Secondary Intersection',
-                'Baseline SMARTFLOW scenario for the Tagum 2 / J6 secondary intersection.',
-                'Medium', 'Low', 'Disabled', 'None', 'tagum_2',
-                '{}', '{}', '{}', '{}', None, 1, 0,
-            ),
-            (
-                'Tagum City — J6 Peak Hour',
-                'Peak-hour traffic profile for the Tagum 2 / J6 secondary intersection.',
-                'High', 'Medium', 'Disabled', 'None', 'tagum_2',
-                '{}', '{}', '{}', '{}', None, 1, 0,
-            ),
+            ('Tagum — Single Car Demo', 'Five connected OSM junctions; one car; synthetic study signals.',
+             'Single', 'None', 'Disabled', 'None', 'tagum_network',
+             '{}', '{}', '{}', '{}', None, 1, 0),
+            ('Tagum — Network Traffic', 'Synthetic traffic for engine experiments; not measured counts.',
+             'Medium', 'Low', 'Disabled', 'None', 'tagum_network',
+             '{}', '{}', '{}', '{}', None, 1, 0),
         ]
         for scenario_row in idempotent_official_scenarios:
             conn.execute(
@@ -868,8 +853,9 @@ def create_scenario(name, intersection_id='tagum_1', description='', traffic_den
                     lane_closure_config='{}',
                     construction_config='{}', accident_config='{}',
                     flooding_config='{}', created_by=None,
-                    is_official=0, is_archived=0):
+                    is_official=0, is_archived=0, engine_config='{}'):
     for field_name, cfg in (
+        ("engine_config", engine_config),
         ("lane_closure_config", lane_closure_config),
         ("construction_config", construction_config),
         ("accident_config", accident_config),
@@ -882,12 +868,12 @@ def create_scenario(name, intersection_id='tagum_1', description='', traffic_den
             """INSERT INTO scenarios (name, description, traffic_density,
                pedestrian_density, emergency_mode, road_constraint, intersection_id,
                lane_closure_config, construction_config, accident_config,
-               flooding_config, created_by, is_official, is_archived)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               flooding_config, created_by, is_official, is_archived, engine_config)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (name, description, traffic_density, pedestrian_density,
              emergency_mode, road_constraint, intersection_id, lane_closure_config,
              construction_config, accident_config, flooding_config,
-             created_by, is_official, is_archived)
+             created_by, is_official, is_archived, engine_config)
         )
         return cursor.lastrowid
 

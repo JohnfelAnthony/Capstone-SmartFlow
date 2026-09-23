@@ -516,8 +516,9 @@
 
 .sf-three-foundation-label {
   position: absolute;
-  top: 14px;
-  right: 54px;
+  top: 52px;
+  right: 12px;
+  max-width: calc(100% - 24px);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -526,7 +527,7 @@
   padding: 8px 10px;
   background: rgba(10, 15, 26, 0.82);
   color: #ffffff;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .sf-three-foundation-label span {

@@ -913,6 +913,8 @@ def get_scenario(scenario_id: int, user: dict = Depends(require_current_user)) -
 
 
 def scenario_write_values(payload: ScenarioWriteRequest) -> dict:
+    from simulation.traffic_engine import TrafficEngine
+    TrafficEngine().configure_from_scenario(payload.model_dump())
     return {
         "name": payload.name.strip(),
         "description": payload.description or "",
@@ -925,6 +927,7 @@ def scenario_write_values(payload: ScenarioWriteRequest) -> dict:
         "construction_config": json.dumps(payload.construction_config),
         "accident_config": json.dumps(payload.accident_config),
         "flooding_config": json.dumps(payload.flooding_config),
+        "engine_config": json.dumps(payload.engine_config),
     }
 
 
@@ -1102,8 +1105,15 @@ def compare_signature(run: SimulationRunRecord, timeline: CompareTimelineMeta) -
     return (run.scenario_id, timeline.intersection_id, run.seed, duration)
 
 
-def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta) -> str:
-    return "|".join(str(part) for part in compare_signature(run, timeline))
+def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta, manifest: dict) -> str:
+    import hashlib
+    experiment = manifest.get("experiment", {})
+    if not experiment:
+        return f"legacy-unverified-{run.id}"
+    # Identical full inputs are required for a controller comparison. Historical
+    # scenario IDs alone are insufficient because users can edit saved scenarios.
+    signature = {key: experiment.get(key) for key in ("engine_version", "network_sha256", "seed", "duration_seconds", "measurement_start", "demand_sha256", "config")}
+    return hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
 
 
 def compare_run_label(run: SimulationRunRecord, manifest: dict) -> str:
@@ -1122,7 +1132,7 @@ def compare_run_option(row: dict) -> CompareRunOption:
         run=run,
         label=compare_run_label(run, manifest),
         timeline=timeline,
-        compatibility_key=compare_key(run, timeline),
+        compatibility_key=compare_key(run, timeline, manifest),
     )
 
 
@@ -1281,7 +1291,12 @@ def update_scenario(
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scenario not found.")
     try:
-        database.update_scenario(scenario_id, **scenario_write_values(payload))
+        # Older clients omit native settings. Omission preserves stored values;
+        # an explicitly supplied object replaces that field ({} clears it).
+        merged = scenario_model(row).model_dump(include=set(ScenarioWriteRequest.model_fields))
+        merged.update(payload.model_dump(exclude_unset=True))
+        candidate = ScenarioWriteRequest.model_validate(merged)
+        database.update_scenario(scenario_id, **scenario_write_values(candidate))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     database.log_audit_event(
@@ -1571,7 +1586,7 @@ def load_playback(
     require_any_permission(user, [("simulation", "view"), ("dashboard", "view")])
     try:
         simulation = simulation_runtime.load_playback(payload.run_id)
-    except SimulationRuntimeError as exc:
+    except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     database.log_audit_event(
         user_id=user["id"],
@@ -1587,7 +1602,7 @@ def start_playback(user: dict = Depends(require_current_user)) -> SimulationActi
     require_any_permission(user, [("simulation", "run"), ("dashboard", "view")])
     try:
         simulation = simulation_runtime.start_playback()
-    except SimulationRuntimeError as exc:
+    except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     return simulation_action_response("Playback started.", simulation)
 
@@ -1600,7 +1615,7 @@ def seek_playback(
     require_any_permission(user, [("simulation", "run"), ("dashboard", "view")])
     try:
         simulation = simulation_runtime.seek_playback(payload.frame_index)
-    except SimulationRuntimeError as exc:
+    except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     return simulation_action_response("Playback seeked.", simulation)
 
@@ -1613,7 +1628,7 @@ def configure_simulation(
     require_permission(user, "simulation", "run")
     try:
         simulation = simulation_runtime.configure(payload)
-    except SimulationRuntimeError as exc:
+    except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     database.log_audit_event(
         user_id=user["id"],
@@ -1632,7 +1647,7 @@ def start_simulation(
     require_permission(user, "simulation", "run")
     try:
         simulation = simulation_runtime.start(payload, user_id=user["id"])
-    except SimulationRuntimeError as exc:
+    except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     database.log_audit_event(
         user_id=user["id"],
@@ -1677,7 +1692,10 @@ def step_simulation(
     user: dict = Depends(require_current_user),
 ) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
-    simulation = simulation_runtime.step(payload.num_ticks)
+    try:
+        simulation = simulation_runtime.step(payload.num_ticks)
+    except (SimulationRuntimeError, ValueError) as exc:
+        raise simulation_conflict(exc) from exc
     return simulation_action_response("Simulation advanced.", simulation)
 
 

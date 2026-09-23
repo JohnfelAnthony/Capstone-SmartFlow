@@ -32,7 +32,7 @@ export default function App() {
   const [activePage, setActivePage] = React.useState("Login")
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null)
   const [isSessionLoading, setIsSessionLoading] = React.useState(true)
-  const [visualizationMode, setVisualizationMode] = React.useState<VisualizationMode>("2d")
+  const [visualizationMode, setVisualizationMode] = React.useState<VisualizationMode>("3d")
   const pageTitleByPage: Record<string, string> = {
     Dashboard: "Live Simulation View",
     Scenarios: "Scenario Library",

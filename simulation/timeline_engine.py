@@ -1,9 +1,11 @@
 import json
 import logging
 import gzip
+import copy
+import math
 from pathlib import Path
 
-from simulation.sumo_config import DEFAULT_INTERSECTION_ID
+from simulation.road_network import NETWORK_ID as DEFAULT_INTERSECTION_ID
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,14 @@ class TimelinePlaybackEngine:
         self.duration_limit = 300
         
         manifest = self._load_manifest()
+        from simulation.traffic_engine import ENGINE_VERSION
+        from simulation.road_network import load_network
+        experiment = manifest.get("experiment", {})
+        experiment = experiment if isinstance(experiment, dict) else {}
+        if experiment.get("engine_version") != ENGINE_VERSION or experiment.get("network_sha256") != load_network().fingerprint:
+            self.status = "error"
+            self.last_error = "Recording is incompatible with the current native engine/network; generate a new recording."
+            return
         controller = manifest.get("controller", {}) if isinstance(manifest, dict) else {}
         if controller:
             self.source_controller_provenance = str(
@@ -52,10 +62,27 @@ class TimelinePlaybackEngine:
                 with opener(self.timeline_path, "rt", encoding="utf-8") as f:
                     for line in f:
                         if line.strip():
-                            self._frames.append(json.loads(line))
-                if self._frames:
-                    self._hydrate_from_frame(self._frames[0])
+                            frame = json.loads(line)
+                            if not isinstance(frame, dict) or frame.get("engine_version") != ENGINE_VERSION:
+                                raise ValueError("Timeline contains an incompatible frame")
+                            time = float(frame["time"])
+                            step = float(frame["step_length"])
+                            if not math.isfinite(time) or not math.isfinite(step) or step <= 0:
+                                raise ValueError("Timeline contains invalid time/step values")
+                            expected = len(self._frames)*step
+                            if abs(time-expected) > 1e-6 or (self._frames and step != self._frames[0]["step_length"]):
+                                raise ValueError("Timeline frames must be continuous from time zero")
+                            self._frames.append(frame)
+                timeline = manifest.get("timeline", {})
+                if not self._frames or len(self._frames) != timeline.get("frame_count"):
+                    raise ValueError("Timeline is empty or its frame count does not match the manifest")
+                if self._frames[-1].get("status") != "completed" or abs(self._frames[-1]["time"]-float(timeline["actual_duration_seconds"])) > 1e-6:
+                    raise ValueError("Timeline is incomplete or its duration does not match the manifest")
+                self.duration_limit = float(timeline["actual_duration_seconds"])
+                self.seed = int(experiment["seed"])
+                self._hydrate_from_frame(self._frames[0])
             except Exception as e:
+                self._frames.clear()
                 self.last_error = f"Failed to load timeline: {e}"
                 self.status = "error"
         else:
@@ -79,7 +106,8 @@ class TimelinePlaybackEngine:
     def _load_manifest(self) -> dict:
         try:
             if self.manifest_path.exists():
-                return json.loads(self.manifest_path.read_text(encoding="utf-8"))
+                manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+                return manifest if isinstance(manifest, dict) else {}
         except Exception as exc:
             logger.warning("Failed to read timeline manifest %s: %s", self.manifest_path, exc)
         return {}
@@ -114,6 +142,7 @@ class TimelinePlaybackEngine:
             
         self.duration_limit = duration_limit
         self._current_frame_idx = 0
+        self._hydrate_from_frame(self._frames[0])
         self.status = "running"
         self.last_action = "Started Playback"
         
@@ -142,11 +171,13 @@ class TimelinePlaybackEngine:
         self._hydrate_from_frame(self._frames[self._current_frame_idx])
         
     def step(self, num_ticks: int = 1):
+        if isinstance(num_ticks, bool) or not isinstance(num_ticks, int) or num_ticks < 0:
+            raise ValueError("Tick count must be non-negative")
         if self.status != "running":
             return
             
         self._current_frame_idx += num_ticks
-        if self._current_frame_idx >= len(self._frames):
+        if self._current_frame_idx >= len(self._frames)-1:
             # Reached end of playback
             self._current_frame_idx = max(0, len(self._frames) - 1)
             self.status = "completed"
@@ -161,7 +192,7 @@ class TimelinePlaybackEngine:
 
         idx = min(self._current_frame_idx, len(self._frames) - 1)
         frame = self._frames[idx]
-        state = dict(frame)
+        state = copy.deepcopy(frame)
         self._hydrate_from_frame(state)
         state["status"] = self.status
         state["playback"] = {

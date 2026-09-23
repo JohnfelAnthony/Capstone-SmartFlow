@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from threading import Event, RLock, Thread, current_thread
+from threading import Event, RLock, Thread
+from time import monotonic
 from typing import Any
 
 import database
@@ -12,8 +13,9 @@ from backend.schemas import (
     SimulationStateResponse,
 )
 from services.simulation_flow import FlowState, build_flow_snapshot
-from simulation.sumo_config import DEFAULT_INTERSECTION_ID, SUMO_STEP_LENGTH
-from simulation.sumo_engine import SumoSimulationEngine
+from simulation.road_network import NETWORK_ID as DEFAULT_INTERSECTION_ID
+from simulation.traffic_engine import STEP_LENGTH
+from simulation.traffic_engine import TrafficEngine
 from simulation.timeline_engine import TimelinePlaybackEngine
 
 
@@ -28,7 +30,7 @@ class SimulationRuntimeError(RuntimeError):
 class SimulationRuntime:
     def __init__(self) -> None:
         self._lock = RLock()
-        self._engine: SumoSimulationEngine | None = None
+        self._engine: TrafficEngine | None = None
         self._selected_scenario_id: int | None = None
         self._selected_scenario_name: str | None = None
         self._duration_seconds = DEFAULT_DURATION_SECONDS
@@ -47,39 +49,41 @@ class SimulationRuntime:
 
     def configure(self, payload: SimulationConfigureRequest) -> SimulationStateResponse:
         with self._lock:
-            if self._run_mode == "playback":
-                self._run_mode = "live"
-                self._replace_engine(seed=payload.seed if payload.seed is not None else self._seed)
-
-            engine = self._get_engine(seed=payload.seed)
-            if engine.status in {"running", "paused"}:
+            if self._engine is not None and self._engine.status in {"running", "paused"}:
                 raise SimulationRuntimeError("Stop or reset the current run before changing scenario settings.")
-
-            if payload.seed is not None and payload.seed != self._seed:
-                self._replace_engine(seed=payload.seed)
-                engine = self._get_engine()
-
+            candidate_seed = self._seed if payload.seed is None else int(payload.seed)
+            candidate = TrafficEngine(seed=candidate_seed)
+            if isinstance(self._engine, TrafficEngine) and payload.scenario_id is None:
+                candidate.configure(**self._engine.config)
+                candidate.current_scenario_name = self._engine.current_scenario_name
             scenario = self._scenario_from_request(payload.scenario_id)
             if scenario:
-                engine.configure_from_scenario(self._engine_scenario_payload(scenario))
-                self._selected_scenario_id = int(scenario["id"])
-                self._selected_scenario_name = str(scenario["name"])
-            else:
-                self._selected_scenario_id = None
-                self._selected_scenario_name = "Custom scenario"
-
+                candidate.configure_from_scenario(self._engine_scenario_payload(scenario))
             overrides = self._configure_overrides(payload)
             if overrides:
-                engine.configure(**overrides)
-
+                candidate.configure(**overrides)
+            from services.native_controller import apply_controller
+            mode = apply_controller(candidate, payload.control_mode or (self._control_mode if self._run_mode == "live" else "fixed-time"))
+            # Commit only after all inputs and the model contract have been checked.
+            self._finalize_terminal_run_locked()
+            self._stop_background_runner_locked()
+            self._engine, self._seed, self._control_mode = candidate, candidate_seed, mode
+            self._run_mode = "live"
+            if scenario:
+                self._selected_scenario_id = int(scenario["id"])
+                self._selected_scenario_name = str(scenario["name"])
             if payload.duration_seconds is not None:
                 self._duration_seconds = int(payload.duration_seconds)
-            self._apply_control_mode(payload.control_mode)
             return self._response()
 
     def start(self, payload: SimulationStartRequest | None = None, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
             payload = payload or SimulationStartRequest()
+            active = self._engine is not None and self._engine.status in {"running", "paused"}
+            if active and payload.model_dump(exclude_none=True):
+                raise SimulationRuntimeError("Stop or reset the current run before changing start settings.")
+            if self._run_mode == "playback" and payload.scenario_id is None:
+                raise SimulationRuntimeError("Use playback/start for a recording, or configure a scenario for a live run.")
             if payload.scenario_id is not None or payload.seed is not None or payload.control_mode is not None:
                 self.configure(
                     SimulationConfigureRequest(
@@ -97,13 +101,17 @@ class SimulationRuntime:
 
             engine = self._get_engine()
             self._run_mode = "live"
-            if engine.status not in {"running", "paused"} and self._active_run_id is None:
-                self._begin_run_locked(engine, user_id=user_id)
+            self._finalize_terminal_run_locked()
+            new_run = engine.status not in {"running", "paused"} and self._active_run_id is None
+            # Validate and initialize before allocating a database run. Invalid
+            # demand must not leave a permanent 'running' row behind.
             engine.start(self._duration_seconds)
+            if new_run:
+                self._begin_run_locked(engine, user_id=user_id)
             if engine.status == "running":
                 self._start_background_runner_locked()
             elif engine.status == "error":
-                self._finalize_run_locked("error", engine.last_error or "SUMO startup failed.")
+                self._finalize_run_locked("error", engine.last_error or "Python engine startup failed.")
             return self._response()
 
     def pause(self) -> SimulationStateResponse:
@@ -140,7 +148,7 @@ class SimulationRuntime:
                 reset_status = "error" if engine.status == "error" else "stopped"
                 reset_reason = engine.last_error if reset_status == "error" else "Simulation reset manually."
                 self._finalize_run_locked(reset_status, reset_reason or "Simulation reset.")
-            engine.reset()
+            self._control_mode = "fixed-time"
             self._replace_engine(seed=self._seed)
             self._selected_scenario_id = None
             self._selected_scenario_name = None
@@ -152,7 +160,14 @@ class SimulationRuntime:
     def step(self, num_ticks: int = 1) -> SimulationStateResponse:
         with self._lock:
             engine = self._get_engine()
-            engine.step(num_ticks)
+            try:
+                engine.step(num_ticks)
+            except Exception as exc:
+                engine.status = "error"
+                engine.last_error = f"Traffic engine failed: {exc}"
+                self._finalize_terminal_run_locked()
+                raise SimulationRuntimeError(engine.last_error) from exc
+            self._finalize_terminal_run_locked()
             return self._response()
 
     def load_playback(self, run_id: int) -> SimulationStateResponse:
@@ -168,6 +183,11 @@ class SimulationRuntime:
             if not timeline_path:
                 raise SimulationRuntimeError("Recorded run has no timeline artifact.")
 
+            playback_engine = TimelinePlaybackEngine(int(run_id), timeline_path)
+            if playback_engine.status == "error":
+                raise SimulationRuntimeError(playback_engine.last_error)
+            playback_engine.seek(0)
+            # Loading/validating the candidate cannot interrupt a live run.
             self._stop_background_runner_locked()
             if (
                 self._engine is not None
@@ -180,10 +200,6 @@ class SimulationRuntime:
             elif self._engine is not None:
                 self._engine.stop()
 
-            playback_engine = TimelinePlaybackEngine(int(run_id), timeline_path)
-            if playback_engine.status == "error":
-                raise SimulationRuntimeError(playback_engine.last_error)
-            playback_engine.seek(0)
             self._engine = playback_engine
             self._run_mode = "playback"
             self._control_mode = "playback"
@@ -211,7 +227,7 @@ class SimulationRuntime:
             self._engine.seek(frame_index)
             return self._response()
 
-    def _get_engine(self, *, seed: int | None = None) -> SumoSimulationEngine:
+    def _get_engine(self, *, seed: int | None = None) -> TrafficEngine:
         if self._engine is None:
             self._replace_engine(seed=seed if seed is not None else self._seed)
         return self._engine
@@ -221,7 +237,7 @@ class SimulationRuntime:
         if self._engine is not None:
             self._engine.stop()
         self._seed = int(seed)
-        self._engine = SumoSimulationEngine(seed=self._seed)
+        self._engine = TrafficEngine(seed=self._seed)
         self._engine.current_scenario_name = "No scenario selected"
         self._apply_control_mode(self._control_mode)
 
@@ -233,54 +249,64 @@ class SimulationRuntime:
         self._runner_thread = Thread(
             target=self._run_step_loop,
             args=(stop_event,),
-            name="smartflow-sumo-runtime",
+            name="smartflow-native-runtime",
             daemon=True,
         )
         self._runner_thread.start()
 
     def _stop_background_runner_locked(self) -> None:
         stop_event = self._runner_stop_event
-        runner_thread = self._runner_thread
         if stop_event is not None:
             stop_event.set()
-        if (
-            runner_thread is not None
-            and runner_thread.is_alive()
-            and current_thread() is not runner_thread
-        ):
-            runner_thread.join(timeout=2)
+        # A runner may be waiting for this lock. Never join it while holding it.
+        # It checks its own cancellation event after acquiring the lock below.
         self._runner_stop_event = None
         self._runner_thread = None
 
     def _run_step_loop(self, stop_event: Event) -> None:
-        while not stop_event.wait(SUMO_STEP_LENGTH):
+        next_tick = monotonic() + STEP_LENGTH
+        while not stop_event.wait(max(0.0, next_tick-monotonic())):
             with self._lock:
+                if stop_event.is_set():
+                    return
                 engine = self._engine
                 if engine is None:
                     return
                 if engine.status == "running":
-                    engine.step(1)
+                    try:
+                        engine.step(1)
+                    except Exception as exc:
+                        engine.status = "error"
+                        engine.last_error = f"Traffic engine failed: {exc}"
                 if engine.status in {"completed", "error", "stopped"}:
-                    if self._active_run_id is not None:
-                        if engine.status == "completed":
-                            reason = f"Simulation automatically completed at {engine.duration_limit}s limit."
-                        elif engine.status == "error":
-                            reason = engine.last_error or "Simulation ended with an error."
-                        else:
-                            reason = "Simulation stopped."
-                        self._finalize_run_locked(engine.status, reason)
+                    self._finalize_terminal_run_locked()
                     stop_event.set()
                     return
+            # Include computation in the wall-clock budget; do not add a full
+            # sleep after every step or skip simulation ticks under load.
+            next_tick = max(next_tick+STEP_LENGTH, monotonic())
+
+    def _finalize_terminal_run_locked(self):
+        engine = self._engine
+        if engine is None or self._active_run_id is None or engine.status not in {"completed", "error", "stopped"}:
+            return
+        reason = (f"Simulation automatically completed at {engine.duration_limit}s limit."
+                  if engine.status == "completed" else engine.last_error
+                  if engine.status == "error" else "Simulation stopped.")
+        self._finalize_run_locked(engine.status, reason)
 
     def _utc_now(self) -> str:
         return datetime.now(UTC).isoformat()
 
-    def _normalize_control_mode(self, engine: SumoSimulationEngine) -> str:
-        return str(getattr(engine, "controller_type", self._control_mode) or self._control_mode).strip().lower().replace("_", "-")
+    def _normalize_control_mode(self, engine: TrafficEngine) -> str:
+        return str(getattr(engine, "controller_provenance", self._control_mode) or self._control_mode).strip().lower().replace("_", "-")
 
-    def _metrics_payload(self, engine: SumoSimulationEngine) -> dict[str, Any]:
+    def _metrics_payload(self, engine: TrafficEngine) -> dict[str, Any]:
         metrics = getattr(engine, "_last_metrics", {}) or {}
-        return metrics if isinstance(metrics, dict) else {}
+        result = dict(metrics) if isinstance(metrics, dict) else {}
+        if hasattr(engine, "experiment_metadata"):
+            result["experiment"] = engine.experiment_metadata()
+        return result
 
     def _save_run_metrics(self, run_id: int, metrics: dict[str, Any]) -> None:
         database.save_run_metrics(
@@ -293,19 +319,21 @@ class SimulationRuntime:
             raw_metrics_json=json.dumps(metrics),
         )
 
-    def _begin_run_locked(self, engine: SumoSimulationEngine, *, user_id: int | None) -> None:
+    def _begin_run_locked(self, engine: TrafficEngine, *, user_id: int | None) -> None:
         scenario_id = self._selected_scenario_id if self._selected_scenario_id is not None else None
         self._active_run_id = database.create_run(
             scenario_id=scenario_id,
             user_id=user_id,
             run_mode="live",
             control_mode=self._normalize_control_mode(engine),
+            rl_model_id=(getattr(engine.runtime_policy, "artifact_metadata", {}) or {}).get("model_id"),
             status="running",
             seed=getattr(engine, "seed", None),
             notes=f"SMARTFLOW FastAPI live run ({self._duration_seconds}s limit)",
         )
         self._active_run_saved = False
         self._active_run_user_id = user_id
+        engine.run_id = str(self._active_run_id)
         database.log_audit_event(
             user_id=user_id,
             action="api_start_simulation_run",
@@ -349,41 +377,21 @@ class SimulationRuntime:
         return scenario
 
     def _engine_scenario_payload(self, scenario: dict[str, Any]) -> dict[str, Any]:
-        road_constraint = str(scenario.get("road_constraint") or "None")
-        normalized_constraint = road_constraint.lower()
-        return {
-            "id": scenario["id"],
-            "name": scenario["name"],
-            "intersection_id": scenario.get("intersection_id") or DEFAULT_INTERSECTION_ID,
-            "traffic_density": scenario.get("traffic_density") or "Medium",
-            "pedestrian_density": scenario.get("pedestrian_density") or "Medium",
-            "emergency_mode": scenario.get("emergency_mode") or "Disabled",
-            "road_constraint": road_constraint,
-            "lane_closure": "lane" in normalized_constraint,
-            "construction": "construct" in normalized_constraint,
-            "accident": "accident" in normalized_constraint,
-            "flooding": "flood" in normalized_constraint,
-            "temp_blockage": "block" in normalized_constraint,
-        }
+        return dict(scenario)
 
     def _configure_overrides(self, payload: SimulationConfigureRequest) -> dict[str, Any]:
-        payload_dict = payload.dict(exclude_none=True)
+        payload_dict = payload.model_dump(exclude_none=True)
         for ignored_key in ("scenario_id", "duration_seconds", "seed", "control_mode"):
             payload_dict.pop(ignored_key, None)
+        native = payload_dict.pop("engine_config", {})
+        payload_dict.update(native)
         return payload_dict
 
     def _apply_control_mode(self, control_mode: str | None) -> None:
-        if control_mode:
-            self._control_mode = str(control_mode).strip().lower().replace("_", "-")
-        if self._engine is None:
-            return
-        if self._control_mode in {"rl", "rl-control", "rl-controller"}:
-            self._engine.configure_rl_control()
-            self._control_mode = "rl"
-            return
-        if hasattr(self._engine, "disable_rl_control"):
-            self._engine.disable_rl_control()
-        self._control_mode = "fixed-time"
+        from services.native_controller import apply_controller
+        requested = control_mode or self._control_mode
+        if self._engine is not None:
+            self._control_mode = apply_controller(self._engine, requested)
 
     def _response(self) -> SimulationStateResponse:
         engine = self._engine
@@ -407,7 +415,7 @@ class SimulationRuntime:
     def _idle_state(self) -> dict[str, Any]:
         return {
             "time": 0.0,
-            "step_length": SUMO_STEP_LENGTH,
+            "step_length": STEP_LENGTH,
             "status": "stopped",
             "phase": "ALL_RED",
             "phase_remaining": 0.0,
@@ -429,7 +437,7 @@ class SimulationRuntime:
             },
             "dashboard": {
                 "current_scenario_name": "No scenario selected",
-                "control_mode_label": "Fixed-Time (SUMO/TraCI)",
+                "control_mode_label": "Fixed-Time (Python)",
                 "controller_provenance": "fixed-time",
                 "controller_provenance_label": "Fixed-Time",
                 "last_action": "Not started",

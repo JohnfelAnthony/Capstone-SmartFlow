@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .model_contract import native_contract, validate_neural_artifact
+
 import json
 import statistics
 from dataclasses import asdict, dataclass
@@ -181,6 +183,7 @@ def train_ppo(
             "reward_version": REWARD_VERSION,
             "action_space_version": ACTION_SPACE_VERSION,
             **(metadata or {}),
+            "native_contract": native_contract(),
         }
 
     def save_artifact(model, path: Path, *, status: str) -> tuple[Path, Path]:
@@ -213,6 +216,7 @@ def train_ppo(
 
     try:
         if resume_model_path:
+            validate_neural_artifact(resume_model_path)
             model = PPO.load(str(resume_model_path), env=env)
         else:
             model = build_ppo_model(env, config)

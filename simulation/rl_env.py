@@ -17,8 +17,9 @@ except ImportError:  # pragma: no cover - optional dependency during initial sca
 
 from .rl_reward import calculate_reward
 from .rl_state import RLSnapshot, extract_rl_snapshot
-from .sumo_config import SUMO_STEP_LENGTH
-from .sumo_engine import RL_SERVICE_ACTIONS, SumoSimulationEngine
+from .traffic_engine import STEP_LENGTH
+from .traffic_engine import RL_SERVICE_ACTIONS, TrafficEngine
+from .scenario_config import number
 
 RL_CONTROLLER_LABELS = {
     "ql": "Q-Learning",
@@ -66,14 +67,17 @@ class SmartFlowRLEnv(BaseEnv):
 
         self.base_seed = int(seed)
         self.scenario = dict(scenario or {})
-        self.warmup_seconds = max(float(warmup_seconds), 0.0)
-        self.evaluation_seconds = max(float(evaluation_seconds), SUMO_STEP_LENGTH)
-        self.decision_interval_seconds = max(float(decision_interval_seconds), SUMO_STEP_LENGTH)
-        self.minimum_green_hold_seconds = max(float(minimum_green_hold_seconds), SUMO_STEP_LENGTH)
+        self.warmup_seconds = number(warmup_seconds, "warmup", 0, 86400)
+        self.evaluation_seconds = number(evaluation_seconds, "evaluation duration", STEP_LENGTH, 86400)
+        self.decision_interval_seconds = number(decision_interval_seconds, "decision interval", STEP_LENGTH, 60)
+        self.minimum_green_hold_seconds = number(minimum_green_hold_seconds, "minimum green", 5, 60)
+        for value in (self.warmup_seconds, self.evaluation_seconds, self.decision_interval_seconds):
+            if abs(value/STEP_LENGTH-round(value/STEP_LENGTH)) > 1e-7:
+                raise ValueError("RL durations must be multiples of 0.1 seconds")
         self.controller_provenance = normalized_provenance
         self.controller_label = str(controller_label or RL_CONTROLLER_LABELS[normalized_provenance])
         self.total_episode_seconds = self.warmup_seconds + self.evaluation_seconds
-        self.engine: SumoSimulationEngine | None = None
+        self.engine: TrafficEngine | None = None
         self._last_snapshot: RLSnapshot | None = None
         self._step_index = 0
 
@@ -95,22 +99,18 @@ class SmartFlowRLEnv(BaseEnv):
             return np.asarray(snapshot.observation, dtype=np.float32)
         return list(snapshot.observation)
 
-    def _build_engine(self, seed: int) -> SumoSimulationEngine:
-        engine = SumoSimulationEngine(seed=seed)
+    def _build_engine(self, seed: int) -> TrafficEngine:
+        engine = TrafficEngine(seed=seed)
         if self.scenario:
             engine.configure_from_scenario(self.scenario)
-        engine.start(duration_limit=int(round(self.total_episode_seconds)))
+        engine.start(duration_limit=self.total_episode_seconds)
         if engine.status == "error":
-            raise RuntimeError(engine.last_error or "SUMO engine failed to start for RL environment.")
-        engine.configure_rl_control(
-            decision_interval=self.decision_interval_seconds,
-            minimum_green_hold=self.minimum_green_hold_seconds,
-            controller_label=self.controller_label,
-            controller_provenance=self.controller_provenance,
-        )
+            raise RuntimeError(engine.last_error or "Python engine failed to start for RL environment.")
         return engine
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+        if gym is not None:
+            super().reset(seed=seed)
         if self.engine is not None:
             self.engine.stop()
 
@@ -133,10 +133,16 @@ class SmartFlowRLEnv(BaseEnv):
             self.scenario = merged_scenario
 
         self.engine = self._build_engine(runtime_seed)
-        warmup_ticks = int(round(self.warmup_seconds / SUMO_STEP_LENGTH))
+        warmup_ticks = int(round(self.warmup_seconds / STEP_LENGTH))
         if warmup_ticks > 0:
             self.engine.step(num_ticks=warmup_ticks)
-
+        self.engine.reset_metrics()
+        self.engine.configure_rl_control(
+            decision_interval=self.decision_interval_seconds,
+            minimum_green_hold=self.minimum_green_hold_seconds,
+            controller_label=self.controller_label,
+            controller_provenance=self.controller_provenance,
+        )
         self._last_snapshot = extract_rl_snapshot(self.engine)
         self._step_index = 0
         reset_info = {
@@ -158,7 +164,7 @@ class SmartFlowRLEnv(BaseEnv):
 
         action_name = RL_SERVICE_ACTIONS[action_index]
         action_result = self.engine.apply_rl_action(action_name)
-        decision_ticks = max(1, int(round(self.decision_interval_seconds / SUMO_STEP_LENGTH)))
+        decision_ticks = max(1, int(round(self.decision_interval_seconds / STEP_LENGTH)))
         self.engine.step(num_ticks=decision_ticks)
 
         current_snapshot = extract_rl_snapshot(self.engine)
@@ -166,8 +172,10 @@ class SmartFlowRLEnv(BaseEnv):
         self._last_snapshot = current_snapshot
         self._step_index += 1
 
-        terminated = self.engine.status in {"completed", "stopped"}
-        truncated = self.engine.status == "error"
+        terminated = self.engine.status == "stopped"
+        truncated = self.engine.status == "completed"
+        if self.engine.status == "error":
+            raise RuntimeError(self.engine.last_error)
         info = {
             "action_name": action_name,
             "action_result": action_result,

@@ -1,0 +1,70 @@
+{
+  "name": "Tagum synthetic peak with temporary disruption",
+  "intersection_id": "tagum_network",
+  "traffic_density": "none",
+  "pedestrian_density": "medium",
+  "emergency_mode": "Enabled (1 Ambulance)",
+  "engine_config": {
+    "demand_source": {
+      "kind": "synthetic",
+      "description": "Demonstration inputs, not observed Tagum counts"
+    },
+    "vehicle_mix": {
+      "car": 65,
+      "motorcycle": 15,
+      "tricycle": 10,
+      "bus": 5,
+      "truck": 5
+    },
+    "demand_windows": [
+      {
+        "start": 0,
+        "end": 120,
+        "vehicles_per_hour": 900,
+        "label": "ordinary"
+      },
+      {
+        "start": 120,
+        "end": 240,
+        "vehicles_per_hour": 1800,
+        "label": "peak"
+      },
+      {
+        "start": 240,
+        "end": 360,
+        "vehicles_per_hour": 900,
+        "label": "recovery"
+      }
+    ],
+    "events": [
+      {
+        "time": 90,
+        "lane_id": "road0f",
+        "speed_factor": 0.35,
+        "label": "construction starts"
+      },
+      {
+        "time": 150,
+        "lane_id": "road0f",
+        "closed": true,
+        "label": "temporary closure"
+      },
+      {
+        "time": 210,
+        "lane_id": "road0f",
+        "closed": false,
+        "speed_factor": 1,
+        "label": "reopened"
+      }
+    ],
+    "signal_plans": {
+      "1226402048": {
+        "green_seconds": 20,
+        "minimum_green": 10,
+        "maximum_green": 60,
+        "yellow_seconds": 3,
+        "all_red_seconds": 1
+      }
+    }
+  }
+}

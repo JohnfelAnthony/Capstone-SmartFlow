@@ -93,7 +93,7 @@ def build_training_command(algorithm: str, settings: dict, advanced: dict | None
         "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", 20.0))),
         "--evaluation-seconds", str(float(_setting(settings, "evaluation_seconds", 300.0))),
         "--seeds", str(_setting(settings, "seeds", DEFAULT_SEEDS)),
-        "--intersection-id", str(_setting(settings, "intersection_id", "tagum_1")),
+        "--intersection-id", str(_setting(settings, "intersection_id", "tagum_network")),
         "--traffic-density", str(_setting(settings, "traffic_density", "medium")),
         "--pedestrian-density", str(_setting(settings, "pedestrian_density", "medium")),
         "--emergency-mode", str(_setting(settings, "emergency_mode", "disabled")),
@@ -133,6 +133,8 @@ def build_training_command(algorithm: str, settings: dict, advanced: dict | None
     for key, flag in flag_map[algorithm].items():
         if key in algorithm_advanced and algorithm_advanced[key] not in {None, ""}:
             command.extend([flag, str(algorithm_advanced[key])])
+    if settings.get("scenario_id") is not None:
+        command.extend(["--scenario-id", str(int(settings["scenario_id"]))])
     return command
 
 
@@ -148,7 +150,7 @@ def build_evaluation_command(algorithms: list[str], settings: dict, model_paths:
         "--seeds", str(_setting(settings, "seeds", DEFAULT_SEEDS)),
         "--duration-seconds", str(float(_setting(settings, "evaluation_seconds", 300.0))),
         "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", 20.0))),
-        "--intersection-id", str(_setting(settings, "intersection_id", "tagum_1")),
+        "--intersection-id", str(_setting(settings, "intersection_id", "tagum_network")),
         "--traffic-density", str(_setting(settings, "traffic_density", "medium")),
         "--pedestrian-density", str(_setting(settings, "pedestrian_density", "medium")),
         "--emergency-mode", str(_setting(settings, "emergency_mode", "disabled")),
@@ -157,6 +159,8 @@ def build_evaluation_command(algorithms: list[str], settings: dict, model_paths:
     for algorithm, model_path in model_paths.items():
         if algorithm in MODEL_FLAG and model_path:
             command.extend([MODEL_FLAG[algorithm], str(model_path)])
+    if settings.get("scenario_id") is not None:
+        command.extend(["--scenario-id", str(int(settings["scenario_id"]))])
     return command
 
 

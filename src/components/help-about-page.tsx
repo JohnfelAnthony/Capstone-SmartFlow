@@ -57,7 +57,7 @@ const quickStartSteps: HelpStep[] = [
   {
     title: "Select Control Mode",
     icon: SlidersHorizontalIcon,
-    description: "Use the dashboard controls to run fixed-time SUMO/TraCI control, or prepare a recorded timeline for playback.",
+    description: "Use the dashboard controls to run fixed-time Python control, or prepare a recorded timeline for playback.",
   },
   {
     title: "Run the Simulation",
@@ -119,7 +119,7 @@ const faqs: FaqItem[] = [
   {
     question: "How is the AI reinforcement learning model trained?",
     answer:
-      "SMARTFLOW keeps RL training in Python. React starts and monitors training through backend services, while SUMO, TraCI, reward calculation, and model artifacts stay in the Python runtime.",
+      "SMARTFLOW keeps RL training in Python. React starts and monitors training through backend services, while traffic simulation, reward calculation, and model artifacts stay in the Python runtime.",
   },
   {
     question: "Can I run multiple simulations at the same time?",
@@ -139,7 +139,7 @@ const faqs: FaqItem[] = [
   {
     question: "How do pre-recorded timelines work?",
     answer:
-      "A pre-record run fast-forwards SUMO in the backend, writes frame data to timeline artifacts, saves the run record in SQLite, and lets the dashboard load the recording for playback.",
+      "A pre-record run fast-forwards Python in the backend, writes frame data to timeline artifacts, saves the run record in SQLite, and lets the dashboard load the recording for playback.",
   },
 ]
 
@@ -147,10 +147,10 @@ const systemSpecs = [
   ["App Version", "v1.0.0 migration build"],
   ["Frontend", "React, Vite, TypeScript"],
   ["API Layer", "FastAPI with HTTP and WebSocket endpoints"],
-  ["Simulation Engine", "SUMO with TraCI"],
+  ["Simulation Engine", "Native Python traffic model"],
   ["Database", "SQLite3 with local run, metric, scenario, user, and session data"],
   ["Authentication", "Werkzeug PBKDF2 password hashing with SQLite sessions"],
-  ["Runtime Assets", "SUMO networks, generated visual-network JSON, timelines, and model artifacts"],
+  ["Runtime Assets", "OSM road networks, generated visual-network JSON, timelines, and model artifacts"],
   ["Target Area", "Tagum City traffic intersections"],
 ]
 
@@ -196,7 +196,7 @@ export function HelpAboutPage() {
         <div className="help-hero-system">
           <RouteIcon />
           <span>SMARTFLOW Traffic</span>
-          <strong>SUMO + FastAPI + React</strong>
+          <strong>Python + FastAPI + React</strong>
         </div>
       </section>
 

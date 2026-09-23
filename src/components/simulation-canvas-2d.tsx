@@ -72,7 +72,7 @@ function configureTransform(network: VisualNetwork, width: number, height: numbe
   let maxY = network.bounds?.max_y ?? 50
 
   const signalShape = network.signals[0]?.shape
-  if (signalShape?.length) {
+  if (network.scope.mode !== "connected-network" && signalShape?.length) {
     minX = Math.min(...signalShape.map((point) => point.x)) - 15
     maxX = Math.max(...signalShape.map((point) => point.x)) + 15
     minY = Math.min(...signalShape.map((point) => point.y)) - 15

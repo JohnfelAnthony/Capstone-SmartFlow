@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from .sumo_engine import RL_SERVICE_ACTIONS, SumoSimulationEngine, phase_family_from_name
+from .traffic_engine import RL_SERVICE_ACTIONS, TrafficEngine, phase_family_from_name
 
 APPROACH_ORDER = ("north", "east", "south", "west")
 PHASE_FAMILY_ORDER = ("NORTH", "EAST", "SOUTH", "WEST", "PEDESTRIAN")
-INTERSECTION_ORDER = ("tagum_1", "tagum_2")
+INTERSECTION_ORDER = ("tagum_network", "custom_network")
 
 MAX_QUEUE_COUNT = 30.0
 MAX_WAIT_SECONDS = 120.0
@@ -94,15 +94,12 @@ def _is_action_valid_for_snapshot(snapshot_state: dict, target_phase_family: str
     return remaining_switch_seconds <= 0.0
 
 
-def _phase_elapsed_seconds(engine: SumoSimulationEngine) -> float:
-    current_phase_duration = float(engine.rl_minimum_green_hold)
-    if hasattr(engine, "_phase_duration_from_sequence"):
-        current_phase_duration = float(engine._phase_duration_from_sequence(engine.phase, fallback_seconds=current_phase_duration))
-    return max(0.0, current_phase_duration - max(float(engine.phase_remaining), 0.0))
+def _phase_elapsed_seconds(engine: TrafficEngine) -> float:
+    return engine.signals[engine.controlled_junction].elapsed
 
 
 def _runtime_vehicle_records(
-    engine: SumoSimulationEngine,
+    engine: TrafficEngine,
     fallback_vehicles: list[dict],
     emergency_vehicle_ids: set[str],
 ) -> list[dict]:
@@ -134,7 +131,7 @@ def _runtime_vehicle_records(
     return records
 
 
-def _runtime_pedestrian_waiting_count(engine: SumoSimulationEngine, fallback_pedestrians: list[dict]) -> int:
+def _runtime_pedestrian_waiting_count(engine: TrafficEngine, fallback_pedestrians: list[dict]) -> int:
     connection = engine.connection
     if connection is None:
         return sum(1 for pedestrian in fallback_pedestrians if bool(pedestrian.get("stopped")))
@@ -154,7 +151,7 @@ def _runtime_pedestrian_waiting_count(engine: SumoSimulationEngine, fallback_ped
     return waiting_count
 
 
-def extract_rl_snapshot(engine: SumoSimulationEngine) -> RLSnapshot:
+def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
     runtime_state = engine.build_rl_runtime_state()
     metrics = runtime_state.get("metrics", {})
     vehicles = _runtime_vehicle_records(
@@ -162,7 +159,7 @@ def extract_rl_snapshot(engine: SumoSimulationEngine) -> RLSnapshot:
         list(runtime_state.get("vehicles", [])),
         set(runtime_state.get("emergency_vehicle_ids", [])),
     )
-    pedestrians = list(runtime_state.get("pedestrians", []))
+    pedestrians = [ped for ped in runtime_state.get("pedestrians", []) if ped.get("lane_id") == engine.controlled_junction]
     approach_lanes = runtime_state.get("approach_lanes", {})
     connection = engine.connection
 
@@ -194,6 +191,8 @@ def extract_rl_snapshot(engine: SumoSimulationEngine) -> RLSnapshot:
             continue
 
         emergency_presence_by_approach[approach] = 1
+        if connection is None and lane_id in engine.network.lanes:
+            emergency_proximity_by_approach[approach] = max(emergency_proximity_by_approach[approach], _normalize(float(vehicle.get("lane_position", 0)), engine.network.lanes[lane_id].length))
         if connection is not None and lane_id:
             if lane_id not in lane_length_cache:
                 try:
@@ -223,9 +222,12 @@ def extract_rl_snapshot(engine: SumoSimulationEngine) -> RLSnapshot:
         "phase_family": phase_family,
         "remaining_switch_seconds": remaining_switch_seconds,
     }
+    signal = engine.signals[engine.controlled_junction]
     valid_action_mask = tuple(
-        1 if _is_action_valid_for_snapshot(snapshot_state, phase_family_from_name(engine.get_green_phase_for_action(action_name) or "")) else 0
-        for action_name in RL_SERVICE_ACTIONS
+        int(action.removeprefix("SERVE_").lower() in signal.approaches and
+            (action.removeprefix("SERVE_").lower() == signal.family or
+             (signal.stage == "green" and signal.elapsed >= signal.minimum_green)))
+        for action in RL_SERVICE_ACTIONS
     )
 
     observation = [

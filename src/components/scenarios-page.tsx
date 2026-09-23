@@ -68,7 +68,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-type ScenarioDensity = "Low" | "Medium" | "High" | "Very High"
+type ScenarioDensity = "Single" | "Low" | "Medium" | "High" | "Very High"
 type ScenarioCategory = "all" | "official" | "user" | "active" | "archived"
 type ScenarioTypeFilter = "all" | "official" | "user"
 type ScenarioStateFilter = "all" | "active" | "archived"
@@ -115,6 +115,7 @@ type ScenarioDraft = {
 }
 
 const densityOrder: Record<ScenarioDensity, number> = {
+  Single: 0,
   Low: 1,
   Medium: 2,
   High: 3,
@@ -124,7 +125,7 @@ const densityOrder: Record<ScenarioDensity, number> = {
 const emptyScenarioDraft: ScenarioDraft = {
   name: "",
   description: "",
-  intersectionId: "tagum_1",
+  intersectionId: "tagum_network",
   trafficDensity: "Medium",
   pedestrianDensity: "Medium",
   emergencyMode: "Disabled",
@@ -132,7 +133,7 @@ const emptyScenarioDraft: ScenarioDraft = {
 }
 
 function normalizeDensity(value: string): ScenarioDensity {
-  if (value === "Low" || value === "Medium" || value === "High" || value === "Very High") {
+  if (value === "Single" || value === "Low" || value === "Medium" || value === "High" || value === "Very High") {
     return value
   }
   return "Medium"
@@ -163,7 +164,7 @@ function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
     id: scenario.id,
     name: scenario.name,
     description: scenario.description ?? "",
-    intersectionId: scenario.intersection_id || "tagum_1",
+    intersectionId: "tagum_network",
     trafficDensity: normalizeDensity(scenario.traffic_density),
     pedestrianDensity: scenario.pedestrian_density || "Medium",
     emergencyMode: scenario.emergency_mode || "Disabled",
@@ -202,8 +203,9 @@ function formatDate(value: string) {
 
 function formatIntersection(intersectionId: string) {
   return {
-    tagum_1: "Tagum 1 - Main",
-    tagum_2: "Tagum 2 - Secondary",
+    tagum_network: "Tagum — 5 connected junctions",
+    tagum_1: "Legacy scenario (uses connected network)",
+    tagum_2: "Legacy scenario (uses connected network)",
   }[intersectionId] ?? intersectionId.replace("_", " ").toUpperCase()
 }
 
@@ -555,7 +557,8 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
                 onChange={(value) => setDensity(value as "all" | ScenarioDensity)}
                 options={[
                   { label: "All Density", value: "all" },
-                  { label: "Low", value: "Low" },
+                  { label: "Single car", value: "Single" },
+                      { label: "Low", value: "Low" },
                   { label: "Medium", value: "Medium" },
                   { label: "High", value: "High" },
                   { label: "Very High", value: "Very High" },
@@ -686,8 +689,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
                     value={draft.intersectionId}
                     onChange={(value) => setDraft((current) => ({ ...current, intersectionId: value }))}
                     options={[
-                      { label: "Tagum 1 - Main", value: "tagum_1" },
-                      { label: "Tagum 2 - Secondary", value: "tagum_2" },
+                      { label: "Tagum — 5 connected junctions", value: "tagum_network" },
                     ]}
                   />
                 </label>
@@ -697,6 +699,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
                     value={draft.trafficDensity}
                     onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))}
                     options={[
+                      { label: "Single car", value: "Single" },
                       { label: "Low", value: "Low" },
                       { label: "Medium", value: "Medium" },
                       { label: "High", value: "High" },
@@ -711,6 +714,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
                     onChange={(value) => setDraft((current) => ({ ...current, pedestrianDensity: value }))}
                     options={[
                       { label: "None", value: "None" },
+                      { label: "Single car", value: "Single" },
                       { label: "Low", value: "Low" },
                       { label: "Medium", value: "Medium" },
                       { label: "High", value: "High" },

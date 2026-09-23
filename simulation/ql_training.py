@@ -74,6 +74,7 @@ def train_tabular_q_learning(
                     float(reward),
                     next_state,
                     next_valid_action_mask=next_valid_action_mask,
+                    terminated=terminated,
                 )
 
                 total_reward += float(reward)

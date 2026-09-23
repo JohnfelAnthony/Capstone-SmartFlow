@@ -195,6 +195,7 @@ def scenario_model(row: dict) -> Scenario:
         road_constraint=str(row.get("road_constraint") or "None"),
         intersection_id=str(row.get("intersection_id") or "tagum_1"),
         lane_closure_config=_json_object(row.get("lane_closure_config")),
+        engine_config=_json_object(row.get("engine_config")),
         construction_config=_json_object(row.get("construction_config")),
         accident_config=_json_object(row.get("accident_config")),
         flooding_config=_json_object(row.get("flooding_config")),

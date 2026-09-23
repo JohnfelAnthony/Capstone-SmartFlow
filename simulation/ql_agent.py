@@ -99,6 +99,7 @@ class TabularQLearningAgent:
         next_state: Iterable[int],
         *,
         next_valid_action_mask: Iterable[int] | None = None,
+        terminated: bool = False,
     ) -> QLearningUpdate:
         action_index = int(action)
         if action_index < 0 or action_index >= self.action_count:
@@ -107,7 +108,7 @@ class TabularQLearningAgent:
         q_values = self.get_q_values(state)
         next_q_values = self.get_q_values(next_state)
         next_valid_actions = self._valid_action_indices(next_valid_action_mask)
-        best_future_q = max(next_q_values[next_action] for next_action in next_valid_actions)
+        best_future_q = 0.0 if terminated else max(next_q_values[next_action] for next_action in next_valid_actions)
 
         old_value = q_values[action_index]
         target = float(reward) + self.config.gamma * best_future_q
@@ -127,13 +128,14 @@ class TabularQLearningAgent:
         return self.epsilon
 
     def to_artifact(self, *, metadata: dict | None = None) -> dict:
+        from .model_contract import native_contract
         return {
             "algorithm": "ql",
             "artifact_type": "tabular_q_table",
             "action_count": self.action_count,
             "config": asdict(self.config),
             "epsilon": round(float(self.epsilon), 8),
-            "metadata": dict(metadata or {}),
+            "metadata": {**(metadata or {}), "native_contract": native_contract()},
             "q_table": [
                 {
                     "state": list(state),
@@ -170,6 +172,8 @@ class TabularQLearningAgent:
     @classmethod
     def load(cls, path: str | Path) -> "TabularQLearningAgent":
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        from .model_contract import validate_metadata
+        validate_metadata(payload.get("metadata", {}))
         return cls.from_artifact(payload)
 
     @property

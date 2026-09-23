@@ -20,9 +20,9 @@ from services.rl_reporting_service import (
     primary_evaluation_score,
 )
 from simulation.rl_policy_runtime import RuntimePolicy, load_runtime_policy
-from simulation.rl_state import extract_rl_snapshot
-from simulation.sumo_config import SUMO_STEP_LENGTH
-from simulation.sumo_engine import SumoSimulationEngine
+from simulation.scenario_config import number
+from simulation.traffic_engine import STEP_LENGTH
+from simulation.traffic_engine import TrafficEngine
 
 
 DEFAULT_SEEDS = (11, 22, 33, 44, 55)
@@ -140,22 +140,12 @@ def _find_rl_model_id_by_path(model_path: Path | None) -> int | None:
         return int(row["id"]) if row else None
 
 
-def _reset_official_metrics(engine: SumoSimulationEngine):
-    queue_by_approach = dict(getattr(engine, "_last_metrics", {}).get("queue_by_approach", {}))
-    engine.metrics.reset()
-    engine._chart_traffic_flow = []
-    engine._chart_wait_time = []
-    engine._chart_queue_length = []
-    engine._chart_throughput = []
-    engine._last_metrics = engine.metrics.to_dict(
-        active_vehicle_count=len(getattr(engine, "_last_vehicle_sample", [])),
-        active_pedestrian_count=len(getattr(engine, "_last_pedestrian_sample", [])),
-        queue_by_approach=queue_by_approach,
-    )
+def _reset_official_metrics(engine: TrafficEngine):
+    engine.reset_metrics()
 
 
 def _configure_engine_for_controller(
-    engine: SumoSimulationEngine,
+    engine: TrafficEngine,
     controller: str,
     policies: dict[str, RuntimePolicy],
     *,
@@ -168,44 +158,13 @@ def _configure_engine_for_controller(
     if controller in {"ql", "dql", "ppo"}:
         if controller not in policies:
             raise ValueError(f"{controller.upper()} controller requires a runtime policy.")
-        controller_labels = {
-            "ql": "Q-Learning",
-            "dql": "Deep Q-Learning",
-            "ppo": "PPO",
-        }
-        engine.configure_rl_control(
+        engine.set_runtime_policy(
+            policies[controller],
             decision_interval=decision_interval_seconds,
             minimum_green_hold=minimum_green_hold_seconds,
-            controller_label=controller_labels[controller],
-            controller_provenance=controller,
         )
         return
     raise ValueError(f"Unsupported controller: {controller}")
-
-
-def _apply_policy_if_due(
-    *,
-    engine: SumoSimulationEngine,
-    controller: str,
-    policies: dict[str, RuntimePolicy],
-    next_decision_time: float,
-) -> float:
-    policy = policies.get(controller)
-    if policy is None:
-        return next_decision_time
-    if engine.simulation_time + 1e-9 < next_decision_time:
-        return next_decision_time
-
-    snapshot = extract_rl_snapshot(engine)
-    prediction = policy.predict(
-        observation=snapshot.observation,
-        info={
-            "ql_state": snapshot.ql_state,
-            "valid_action_mask": snapshot.valid_action_mask,
-        }
-    )
-    engine.apply_rl_action(prediction.action_name)
-    return next_decision_time + float(engine.rl_decision_interval)
 
 
 def _build_manifest(
@@ -214,7 +173,7 @@ def _build_manifest(
     scenario_id: int,
     scenario: dict,
     controller: str,
-    engine: SumoSimulationEngine,
+    engine: TrafficEngine,
     requested_duration_seconds: float,
     frame_count: int,
     raw_path: Path,
@@ -223,7 +182,9 @@ def _build_manifest(
     compression: dict,
 ) -> dict:
     return {
-        "manifest_version": 1,
+        "manifest_version": 2,
+        "experiment": engine.experiment_metadata(),
+        "network": engine.network.payload,
         "generated_at": _utc_now_iso(),
         "app": {
             "name": config.APP_NAME,
@@ -249,9 +210,9 @@ def _build_manifest(
         "timeline": {
             "requested_duration_seconds": float(requested_duration_seconds),
             "actual_duration_seconds": float(engine.simulation_time),
-            "step_length_seconds": SUMO_STEP_LENGTH,
+            "step_length_seconds": STEP_LENGTH,
             "frame_count": int(frame_count),
-            "estimated_frame_count": int(round(requested_duration_seconds / SUMO_STEP_LENGTH)) + 1,
+            "estimated_frame_count": int(round(requested_duration_seconds / STEP_LENGTH)) + 1,
         },
         "artifacts": {
             "timeline_jsonl": str(raw_path.relative_to(ROOT)),
@@ -277,8 +238,13 @@ def _run_controller_once(
     model_ids: dict[str, int | None],
     record_timeline: bool,
 ) -> dict:
+    duration_seconds = number(duration_seconds, "measurement duration", STEP_LENGTH, 86400)
+    warmup_seconds = number(warmup_seconds, "warmup", 0, 86400)
+    for value in (duration_seconds, warmup_seconds):
+        if abs(value/STEP_LENGTH-round(value/STEP_LENGTH)) > 1e-7:
+            raise ValueError("Evaluation durations must be multiples of 0.1 seconds")
     total_duration_seconds = float(warmup_seconds) + float(duration_seconds)
-    engine = SumoSimulationEngine(seed=seed)
+    engine = TrafficEngine(seed=seed)
     engine.configure_from_scenario(scenario)
     _configure_engine_for_controller(
         engine,
@@ -287,6 +253,9 @@ def _run_controller_once(
         decision_interval_seconds=decision_interval_seconds,
         minimum_green_hold_seconds=minimum_green_hold_seconds,
     )
+
+    if warmup_seconds > 0:
+        engine.disable_rl_control()
 
     run_id = database.create_run(
         scenario_id=scenario_id,
@@ -304,12 +273,12 @@ def _run_controller_once(
     frame_count = 0
     metrics = {}
     official_metrics_reset = warmup_seconds <= 0
-    next_decision_time = 0.0
 
     try:
-        engine.start(duration_limit=int(round(total_duration_seconds)))
+        engine.start(duration_limit=total_duration_seconds)
+        engine.run_id = str(run_id)
         if engine.status == "error":
-            raise RuntimeError(engine.last_error or "SUMO engine failed to start.")
+            raise RuntimeError(engine.last_error or "Python engine failed to start.")
 
         if record_timeline:
             raw_path, gzip_path, manifest_path = _artifact_paths(run_id)
@@ -318,21 +287,17 @@ def _run_controller_once(
             frame_count += 1
 
         while engine.status == "running":
-            next_decision_time = _apply_policy_if_due(
-                engine=engine,
-                controller=controller,
-                policies=policies,
-                next_decision_time=next_decision_time,
-            )
             engine.step(1)
             if not official_metrics_reset and engine.simulation_time >= warmup_seconds:
                 _reset_official_metrics(engine)
                 official_metrics_reset = True
+                _configure_engine_for_controller(engine, controller, policies, decision_interval_seconds=decision_interval_seconds, minimum_green_hold_seconds=minimum_green_hold_seconds)
             if record_timeline and engine.status in {"running", "completed"}:
                 timeline_file.write(json.dumps(engine.to_dict()) + "\n")
                 frame_count += 1
 
         metrics = dict(engine.to_dict().get("metrics", {}))
+        metrics["experiment"] = engine.experiment_metadata()
         metrics["rl_total_phase_switches"] = int(getattr(engine, "rl_total_phase_switches", 0) or 0)
         database.save_run_metrics(
             run_id=run_id,
@@ -376,6 +341,7 @@ def _run_controller_once(
         return {
             "run_id": run_id,
             "controller": controller,
+            "experiment": engine.experiment_metadata(),
             "seed": seed,
             "status": "completed",
             "duration_seconds": float(engine.simulation_time),
@@ -415,6 +381,15 @@ def _build_summary(results: list[dict]) -> dict:
         "max_queue",
         "throughput",
         "avg_ped_delay",
+        "avg_travel_time",
+        "avg_admitted_boundary_wait",
+        "boundary_wait_seconds",
+        "unfinished_vehicles",
+        "pending_demand",
+        "dropped_vehicles",
+        "requested_vehicles",
+        "vehicle_conservation_error",
+        "pedestrian_conservation_error",
         "rl_total_phase_switches",
     )
     summary: dict[str, dict] = {}
@@ -470,7 +445,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-seconds", type=float, default=20.0)
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
-    parser.add_argument("--intersection-id", default="tagum_1")
+    parser.add_argument("--intersection-id", default="tagum_network")
+    parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -496,7 +472,14 @@ def main() -> int:
         "emergency_mode": args.emergency_mode,
         "road_constraint": args.road_constraint,
     }
-    scenario_id = _find_or_create_scenario(scenario)
+    if args.scenario_id is not None:
+        database.init_db()
+        saved = database.get_scenario_by_id(args.scenario_id)
+        if not saved or saved.get("is_archived"):
+            raise SystemExit("Saved scenario missing or archived")
+        scenario = saved
+
+    scenario_id = args.scenario_id or _find_or_create_scenario(scenario)
     model_paths = {
         "ql": args.ql_model or _latest_model_path("ql"),
         "dql": args.dql_model or _latest_model_path("dql"),
