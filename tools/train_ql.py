@@ -15,6 +15,7 @@ from simulation.ql_agent import QLearningConfig, TabularQLearningAgent
 from simulation.ql_training import QLEpisodeResult, train_tabular_q_learning
 from simulation.rl_env import SmartFlowRLEnv
 from simulation.traffic_engine import RL_SERVICE_ACTIONS
+from tools.training_inputs import cumulative_training_seeds, load_training_scenario
 
 
 def _parse_seed_set(raw_seed_set: str) -> tuple[int, ...]:
@@ -61,6 +62,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-steps-per-episode", type=int, default=None)
     parser.add_argument("--intersection-id", default="tagum_network")
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
+    parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
     parser.add_argument("--scenario-name", default="SMARTFLOW QL Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -191,12 +193,8 @@ def main() -> int:
         "emergency_mode": args.emergency_mode,
         "road_constraint": args.road_constraint,
     }
-    if args.scenario_id is not None:
-        database.init_db()
-        saved = database.get_scenario_by_id(args.scenario_id)
-        if not saved or saved.get("is_archived"):
-            raise SystemExit("Saved scenario missing or archived")
-        scenario = saved
+    scenario = load_training_scenario(args, scenario)
+    seed_history = cumulative_training_seeds(args.seeds, args.resume_model, "ql", scenario)
 
     config = QLearningConfig(
         alpha=args.alpha,
@@ -253,7 +251,7 @@ def main() -> int:
             model_name=f"QL {scenario['intersection_id']} {output_path.stem}",
             output_path=output_path,
             scenario=scenario,
-            seed_set=args.seeds,
+            seed_set=seed_history,
         )
 
     def save_training_artifact(*, status: str, path: Path | None = None) -> Path:
@@ -261,11 +259,14 @@ def main() -> int:
         all_episode_dicts = previous_episodes + [result.to_dict() for result in completed_results]
         metadata = _build_metadata(
             scenario=scenario,
-            seed_set=args.seeds,
+            seed_set=seed_history,
             episodes=all_episode_dicts,
             status=status,
             resume_model=args.resume_model,
         )
+        metadata.update(warmup_seconds=args.warmup_seconds, evaluation_seconds=args.evaluation_seconds,
+                        decision_interval_seconds=args.decision_interval_seconds,
+                        minimum_green_hold_seconds=args.minimum_green_hold_seconds)
         return agent.save(artifact_path, metadata=metadata)
 
     def print_progress(result: QLEpisodeResult):

@@ -150,6 +150,7 @@ class BackupListResponse(BaseModel):
 class BackupActionResponse(BaseModel):
     message: str
     backup: BackupRecord | None = None
+    restore_path: str | None = None
 
 
 class RLModelRecord(BaseModel):
@@ -159,6 +160,13 @@ class RLModelRecord(BaseModel):
     checkpoint_path: str | None = None
     training_date: str | None = None
     best_evaluation_score: float | None = None
+    compatible: bool = False
+    compatibility_message: str = ""
+    controlled_junction: str | None = None
+    decision_interval_seconds: float = 5
+    minimum_green_hold_seconds: float = 10
+    training_status: str | None = None
+    checkpoints: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RLModelListResponse(BaseModel):
@@ -210,6 +218,7 @@ class RLLogLine(BaseModel):
 
 
 class RLTrainingStatusResponse(BaseModel):
+    active_job_id: int | None = None
     job: RLTrainingJob | None = None
     items: list[RLTrainingJobItem] = Field(default_factory=list)
     log_lines: list[RLLogLine] = Field(default_factory=list)
@@ -293,6 +302,22 @@ class ScenarioWriteRequest(BaseModel):
     flooding_config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ObservationImportRequest(BaseModel):
+    kind: str
+    source_kind: str = "synthetic"
+    csv_text: str
+    source_description: str
+    collected_on: str
+    collection_start: str | None = None
+    collection_end: str | None = None
+    engine_config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ObservationImportResponse(BaseModel):
+    engine_config: dict[str, Any]
+    summary: dict[str, Any]
+
+
 class SimulationConfigureRequest(BaseModel):
     engine_config: dict[str, Any] | None = None
     scenario_id: int | None = Field(default=None, ge=1)
@@ -315,6 +340,10 @@ class SimulationStartRequest(BaseModel):
 
 class SimulationStepRequest(BaseModel):
     num_ticks: int = Field(default=1, ge=1, le=600)
+
+
+class SimulationSpeedRequest(BaseModel):
+    speed_multiplier: float = Field(ge=0.25, le=4)
 
 
 class TimelineGenerateRequest(BaseModel):
@@ -345,6 +374,7 @@ class SimulationRunRecord(BaseModel):
     end_time: str | None = None
     duration_seconds: float = 0
     seed: int | None = None
+    rl_model_id: int | None = None
     notes: str | None = None
     timeline_path: str | None = None
     is_favorite: bool = False
@@ -377,6 +407,7 @@ class CompareRunOption(BaseModel):
     label: str
     timeline: CompareTimelineMeta
     compatibility_key: str
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
 
 class CompareRunListResponse(BaseModel):
@@ -408,6 +439,7 @@ class ComparePairResponse(BaseModel):
     left: CompareRunBundle
     right: CompareRunBundle
     frame_count: int
+    comparison_type: str
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -425,6 +457,11 @@ class TimelineGenerateResponse(BaseModel):
 
 class SimulationStateResponse(BaseModel):
     status: str
+    owner_user_id: int | None = None
+    owner_name: str | None = None
+    active_run_id: int | None = None
+    run_mode: str = "live"
+    speed_multiplier: float = 1
     selected_scenario_id: int | None = None
     selected_scenario_name: str | None = None
     duration_seconds: int

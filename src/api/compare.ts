@@ -14,6 +14,15 @@ export type CompareRunOption = {
   label: string
   timeline: CompareTimelineMeta
   compatibility_key: string
+  provenance: {
+    engine_version?: string | null
+    network_sha256?: string | null
+    demand_sha256?: string | null
+    demand_source?: string | null
+    demand_description?: string | null
+    model_id?: number | null
+    model_sha256?: string | null
+  }
 }
 
 export type CompareRunListResponse = {
@@ -45,6 +54,7 @@ export type ComparePairResponse = {
   left: CompareRunBundle
   right: CompareRunBundle
   frame_count: number
+  comparison_type: "signal" | "routing" | "repeat"
   warnings: string[]
 }
 

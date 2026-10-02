@@ -18,7 +18,7 @@ VEHICLE_TYPES = {
 DEFAULTS = {
     "traffic_density": "single", "pedestrian_density": "none", "emergency_mode": "disabled",
     "road_constraint": "None", "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
-    "events": [], "signal_plans": {}, "demand_windows": [], "trips": [],
+    "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
     "vehicle_mix": {"car": 1.0}, "routing_mode": "adaptive", "reroute_interval": 15.0,
     "reroute_improvement": 0.15, "pedestrian_speed": 1.4, "crossing_length": 18.0,
@@ -62,10 +62,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     for key in ("slow_lanes", "signal_plans", "vehicle_mix", "demand_source"):
         if not isinstance(result[key], dict):
             raise ValueError(f"{key} must be an object")
-    for key in ("closed_lanes", "events", "demand_windows", "trips"):
+    for key in ("closed_lanes", "events", "demand_windows", "trips", "pedestrian_trips"):
         if not isinstance(result[key], list):
             raise ValueError(f"{key} must be a list")
-    for key in ("events", "demand_windows", "trips"):
+    for key in ("events", "demand_windows", "trips", "pedestrian_trips"):
         if any(not isinstance(item, dict) for item in result[key]):
             raise ValueError(f"{key} entries must be objects")
     if any(not isinstance(item, dict) for item in result["signal_plans"].values()):
@@ -73,7 +73,8 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     if any(not isinstance(lane, str) for lane in result["closed_lanes"]):
         raise ValueError("Closed lanes must contain lane IDs")
     requested = result.pop("intersection_id", network.id)
-    if not isinstance(requested, str) or requested not in {network.id, "tagum_1", "tagum_2", "tagum_3"}:
+    legacy_ids = {"tagum_1", "tagum_2", "tagum_3"} if network.id == "tagum_network" else set()
+    if not isinstance(requested, str) or requested not in {network.id, *legacy_ids}:
         raise ValueError("Unknown road network")
     result.setdefault("controlled_junction", network.intersections[0])
     if result["controlled_junction"] not in network.intersections:
@@ -188,6 +189,13 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         trip.setdefault("vehicle_type", "car")
         if not isinstance(trip["vehicle_type"], str) or trip["vehicle_type"] not in VEHICLE_TYPES:
             raise ValueError("Unknown trip vehicle type")
+    for trip in result["pedestrian_trips"]:
+        if trip.keys() - {"time", "junction"}:
+            raise ValueError("Unknown pedestrian trip field")
+        trip["time"] = number(trip.get("time"), "pedestrian trip time")
+        if trip.get("junction") not in network.intersections:
+            raise ValueError("Unknown pedestrian trip junction")
+    result["pedestrian_trips"].sort(key=lambda trip: trip["time"])
     return result
 
 

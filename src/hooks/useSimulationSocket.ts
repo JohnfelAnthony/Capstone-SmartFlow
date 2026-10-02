@@ -14,6 +14,31 @@ function reconnectDelay(attempt: number) {
   return Math.min(exponentialDelay, RECONNECT_MAX_DELAY_MS) + Math.round(Math.random() * RECONNECT_JITTER_MS)
 }
 
+function validFrame(value: unknown): value is RenderFrame {
+  if (!value || typeof value !== "object") return false
+  const frame = value as Partial<RenderFrame>
+  const vehicles = frame.vehicles
+  const pedestrians = frame.pedestrians
+  const visual = frame.visual
+  if (!Number.isFinite(frame.time) || !Number.isFinite(frame.render_ts) || !Number.isFinite(frame.step_length) ||
+    typeof frame.status !== "string" || typeof frame.flow_state !== "string" ||
+    typeof frame.intersection_id !== "string" || typeof frame.phase !== "string" ||
+    !Number.isSafeInteger(frame.vehicle_count) || !Number.isSafeInteger(frame.pedestrian_count) ||
+    !Array.isArray(vehicles) || !Array.isArray(pedestrians) ||
+    vehicles.length > 1000 || pedestrians.length > 1000 ||
+    !visual || !Array.isArray(visual.closed_lanes) || !visual.closed_lanes.every((lane) => typeof lane === "string") ||
+    !visual.slow_lanes || typeof visual.slow_lanes !== "object" || Array.isArray(visual.slow_lanes) ||
+    !Object.values(visual.slow_lanes).every(Number.isFinite) ||
+    !frame.traffic_lights || typeof frame.traffic_lights !== "object" ||
+    !frame.junction_controls || typeof frame.junction_controls !== "object") return false
+  return vehicles.every((vehicle) => vehicle && typeof vehicle.id === "string" &&
+    Number.isFinite(vehicle.x) && Number.isFinite(vehicle.y) && Number.isFinite(vehicle.angle) &&
+    Number.isFinite(vehicle.length) && Number.isFinite(vehicle.width)) &&
+    pedestrians.every((pedestrian) => pedestrian && typeof pedestrian.id === "string" &&
+      Number.isFinite(pedestrian.x) && Number.isFinite(pedestrian.y)) &&
+    Object.values(frame.traffic_lights).every((signal) => signal && typeof signal.state === "string")
+}
+
 export function useSimulationSocket({ enabled }: { enabled: boolean }) {
   const [status, setStatus] = React.useState<SimulationSocketStatus>("idle")
   const [latestFrame, setLatestFrame] = React.useState<RenderFrame | null>(null)
@@ -74,10 +99,13 @@ export function useSimulationSocket({ enabled }: { enabled: boolean }) {
 
       socket.addEventListener("message", (event) => {
         try {
-          setLatestFrame(JSON.parse(event.data) as RenderFrame)
+          const frame: unknown = JSON.parse(event.data)
+          if (!validFrame(frame)) throw new Error("Invalid simulation frame")
+          setLatestFrame(frame)
           setErrorMessage(null)
         } catch {
           setErrorMessage("Simulation stream sent an unreadable frame.")
+          socket?.close(1011, "Invalid frame")
         }
       })
 
@@ -109,13 +137,16 @@ export function useSimulationSocket({ enabled }: { enabled: boolean }) {
     }
 
     if (!enabled) {
-      setStatus("idle")
-      setLatestFrame(null)
-      setErrorMessage(null)
       reconnectAttemptRef.current = 0
-      setReconnectAttempt(0)
-      setNextRetryMs(null)
-      return undefined
+      queueMicrotask(() => {
+        if (closedByEffect) return
+        setStatus("idle")
+        setLatestFrame(null)
+        setErrorMessage(null)
+        setReconnectAttempt(0)
+        setNextRetryMs(null)
+      })
+      return () => { closedByEffect = true }
     }
 
     connect()

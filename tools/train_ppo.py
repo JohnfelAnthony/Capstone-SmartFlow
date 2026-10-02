@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.training_inputs import cumulative_training_seeds, load_training_scenario
+
 from simulation.ppo_training import (
     ACTION_SPACE_VERSION,
     OBSERVATION_VERSION,
@@ -79,6 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-steps-per-episode", type=int, default=None)
     parser.add_argument("--intersection-id", default="tagum_network")
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
+    parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
     parser.add_argument("--scenario-name", default="SMARTFLOW PPO Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -169,12 +172,8 @@ def main() -> int:
         "emergency_mode": args.emergency_mode,
         "road_constraint": args.road_constraint,
     }
-    if args.scenario_id is not None:
-        database.init_db()
-        saved = database.get_scenario_by_id(args.scenario_id)
-        if not saved or saved.get("is_archived"):
-            raise SystemExit("Saved scenario missing or archived")
-        scenario = saved
+    scenario = load_training_scenario(args, scenario)
+    seed_history = cumulative_training_seeds(args.seeds, args.resume_model, "ppo", scenario)
 
     total_timesteps = calculate_ppo_timesteps(
         episodes=args.episodes,
@@ -212,6 +211,8 @@ def main() -> int:
     print(f"Scenario: {json.dumps(scenario, sort_keys=True)}")
     print(f"Episodes: {args.episodes}, seeds: {args.seeds}")
     print(f"Timesteps: {total_timesteps}")
+    if total_timesteps % args.n_steps:
+        print(f"PPO completes full {args.n_steps}-step rollouts; actual learning may exceed the requested {total_timesteps} timesteps.")
     if args.resume_model:
         print(f"Resuming PPO model from: {args.resume_model}")
     if args.checkpoint_every > 0:
@@ -227,14 +228,14 @@ def main() -> int:
             model_name=f"PPO {scenario['intersection_id']} {output_path.stem}",
             output_path=output_path,
             scenario=scenario,
-            seed_set=args.seeds,
+            seed_set=seed_history,
             best_score=None,
         )
 
     def print_progress(event: PPOProgressEvent):
         progress_events.append(event)
         elapsed_seconds = perf_counter() - training_started_at
-        progress_ratio = event.timesteps_finished / max(total_timesteps, 1)
+        progress_ratio = min(event.timesteps_finished / max(total_timesteps, 1), 1)
         estimated_total_seconds = elapsed_seconds / progress_ratio if progress_ratio > 0 else 0.0
         remaining_seconds = max(estimated_total_seconds - elapsed_seconds, 0.0)
         print(
@@ -269,7 +270,7 @@ def main() -> int:
             output_path=output_path,
             metadata={
                 "scenario": scenario,
-                "seed_set": list(args.seeds),
+                "seed_set": list(seed_history),
                 "action_labels": list(RL_SERVICE_ACTIONS),
                 "episodes_requested": args.episodes,
                 "warmup_seconds": args.warmup_seconds,

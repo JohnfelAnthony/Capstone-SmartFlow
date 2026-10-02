@@ -29,16 +29,16 @@ def _parse_timestamp(value: str | None) -> datetime | None:
         return None
     for parser in (datetime.fromisoformat, lambda raw: datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")):
         try:
-            return parser(value)
+            parsed = parser(value)
+            return parsed.astimezone(UTC).replace(tzinfo=None) if parsed.tzinfo else parsed
         except (TypeError, ValueError):
             continue
     return None
 
 
 def request_ip_address(request: Request) -> str:
-    forwarded_for = (request.headers.get("X-Forwarded-For") or "").strip()
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
+    # The client controls X-Forwarded-For unless a trusted proxy has already
+    # resolved it into request.client. Never use that header for lockout keys.
     return (request.client.host if request.client else "").strip()
 
 
@@ -98,7 +98,7 @@ def clear_api_session(response: Response, token: str | None, user: dict | None =
     response.delete_cookie(API_SESSION_COOKIE, path="/")
 
 
-def _user_from_token(token: str | None) -> dict | None:
+def _user_from_token(token: str | None, *, refresh_session: bool = True) -> dict | None:
     if not token:
         return None
     db_session = database.get_session_by_token(token)
@@ -112,7 +112,8 @@ def _user_from_token(token: str | None) -> dict | None:
     if not user or user["status"] != "active":
         database.delete_session_by_token(token)
         return None
-    database.update_session_expiry(token, _session_expiry_string())
+    if refresh_session:
+        database.update_session_expiry(token, _session_expiry_string())
     return user
 
 
@@ -131,8 +132,8 @@ def optional_current_user(
     return _user_from_token(smartflow_api_session)
 
 
-def api_user_from_session_token(token: str | None) -> dict | None:
-    return _user_from_token(token)
+def api_user_from_session_token(token: str | None, *, refresh_session: bool = False) -> dict | None:
+    return _user_from_token(token, refresh_session=refresh_session)
 
 
 def require_permission(user: dict, page: str, action: str = "view") -> None:

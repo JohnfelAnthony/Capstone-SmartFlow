@@ -7,6 +7,13 @@ export type RLModelRecord = {
   checkpoint_path: string | null
   training_date: string | null
   best_evaluation_score: number | null
+  compatible: boolean
+  compatibility_message: string
+  controlled_junction: string | null
+  decision_interval_seconds: number
+  minimum_green_hold_seconds: number
+  training_status: string | null
+  checkpoints: Array<{ id: number; episode: number; path: string; compatible: boolean; compatibility_message: string }>
 }
 
 export type RLTrainingJob = {
@@ -54,6 +61,7 @@ export type RLLogLine = {
 }
 
 export type RLTrainingStatusResponse = {
+  active_job_id: number | null
   job: RLTrainingJob | null
   items: RLTrainingJobItem[]
   log_lines: RLLogLine[]
@@ -61,17 +69,18 @@ export type RLTrainingStatusResponse = {
 }
 
 export type RLTrainingSettings = {
+  scenario_id: number | null
+  evaluation_scenario_id: number | null
   episodes: number
   seeds: string
+  evaluation_seeds: string
   warmup_seconds: number
   evaluation_seconds: number
-  intersection_id: string
-  traffic_density: string
-  pedestrian_density: string
-  emergency_mode: string
-  road_constraint: string
+  decision_interval_seconds: number
+  minimum_green_hold_seconds: number
   checkpoint_every: number
-  resume_model?: string | null
+  resume_model_id?: number | null
+  resume_checkpoint_id?: number | null
 }
 
 export type RLAdvancedSettings = {

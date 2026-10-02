@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import config
+from services.scenario_storage import validate_scenario_json_size
 
 SCENARIO_JSON_FIELDS = (
     "engine_config",
@@ -47,11 +48,7 @@ def _validate_json_object(field_name: str, raw_json: str | None):
     if not isinstance(raw_json, str):
         raise ValueError(f"JSON configuration for '{field_name}' must be a string.")
 
-    payload_bytes = len(raw_json.encode("utf-8"))
-    if payload_bytes > config.SCENARIO_CONFIG_MAX_BYTES:
-        raise ValueError(
-            f"JSON configuration for '{field_name}' exceeds the {config.SCENARIO_CONFIG_MAX_BYTES}-byte limit."
-        )
+    validate_scenario_json_size(field_name, raw_json)
 
     try:
         parsed = json.loads(raw_json)
@@ -552,24 +549,33 @@ def seed_data():
                 settings
             )
 
+        from simulation.road_network import NETWORK_ID, load_network
+
+        active_network = load_network()
+        network_label = "Tagum" if active_network.id == NETWORK_ID else active_network.payload.get("name", active_network.id)
+        network_description = (
+            "Five connected OSM junctions; one car; synthetic study signals."
+            if active_network.id == NETWORK_ID else "Configured network; one car; synthetic study signals."
+        )
+        official_scenarios = [
+            (f"{network_label} — Single Car Demo", network_description,
+             'Single', 'None', 'Disabled', 'None', active_network.id,
+             '{}', '{}', '{}', '{}', None, 1, 0),
+            (f"{network_label} — Network Traffic", 'Synthetic traffic for engine experiments; not measured counts.',
+             'Medium', 'Low', 'Disabled', 'None', active_network.id,
+             '{}', '{}', '{}', '{}', None, 1, 0),
+        ]
+
         # Seed scenarios if empty
         cursor = conn.execute("SELECT COUNT(*) FROM scenarios")
         if cursor.fetchone()[0] == 0:
-            scenarios = [
-                ('Tagum — Single Car Demo', 'Five connected OSM junctions; one car; synthetic study signals.',
-                 'Single', 'None', 'Disabled', 'None', 'tagum_network',
-                 '{}', '{}', '{}', '{}', None, 1, 0),
-                ('Tagum — Network Traffic', 'Synthetic traffic for engine experiments; not measured counts.',
-                 'Medium', 'Low', 'Disabled', 'None', 'tagum_network',
-                 '{}', '{}', '{}', '{}', None, 1, 0),
-            ]
             conn.executemany(
                 """INSERT INTO scenarios (name, description, traffic_density,
                    pedestrian_density, emergency_mode, road_constraint, intersection_id,
                    lane_closure_config, construction_config, accident_config,
                    flooding_config, created_by, is_official, is_archived)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                scenarios
+                official_scenarios
             )
 
             conn.execute(
@@ -578,15 +584,7 @@ def seed_data():
                 (None, 'system', 'database', 'Database initialized with seed data')
             )
 
-        idempotent_official_scenarios = [
-            ('Tagum — Single Car Demo', 'Five connected OSM junctions; one car; synthetic study signals.',
-             'Single', 'None', 'Disabled', 'None', 'tagum_network',
-             '{}', '{}', '{}', '{}', None, 1, 0),
-            ('Tagum — Network Traffic', 'Synthetic traffic for engine experiments; not measured counts.',
-             'Medium', 'Low', 'Disabled', 'None', 'tagum_network',
-             '{}', '{}', '{}', '{}', None, 1, 0),
-        ]
-        for scenario_row in idempotent_official_scenarios:
+        for scenario_row in official_scenarios:
             conn.execute(
                 """INSERT INTO scenarios (name, description, traffic_density,
                    pedestrian_density, emergency_mode, road_constraint, intersection_id,
@@ -615,6 +613,7 @@ def seed_data():
                 (2, 'performance', 'view'),
                 (2, 'ai-agent', 'view'),
                 (2, 'rl-training', 'view'),
+                (2, 'rl-training', 'run'),
                 (2, 'runs-reports', 'view'),
                 (2, 'runs-reports', 'export'),
                 (2, 'compare', 'view'),
@@ -1105,6 +1104,19 @@ def create_rl_checkpoint(
         return cursor.lastrowid
 
 
+def list_rl_checkpoints(model_id):
+    with get_db() as conn:
+        return [dict(row) for row in conn.execute(
+            "SELECT * FROM rl_checkpoints WHERE model_id = ? ORDER BY id DESC", (model_id,)
+        ).fetchall()]
+
+
+def get_rl_checkpoint_by_id(checkpoint_id):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM rl_checkpoints WHERE id = ?", (checkpoint_id,)).fetchone()
+        return dict(row) if row else None
+
+
 def get_rl_model_by_id(model_id):
     with get_db() as conn:
         cursor = conn.execute("SELECT * FROM rl_models WHERE id = ?", (model_id,))
@@ -1169,6 +1181,28 @@ def create_rl_training_job_item(*, job_id, algorithm, sequence_index, command=No
             ),
         )
         return cursor.lastrowid
+
+
+def create_rl_training_job_with_items(*, user_id=None, algorithms, settings, log_path, commands):
+    """Persist a queued job and every item in one transaction."""
+    if len(algorithms) != len(commands) or not algorithms:
+        raise ValueError("Each training algorithm needs exactly one command")
+    with get_db() as conn:
+        cursor = conn.execute(
+            """INSERT INTO rl_training_jobs
+               (user_id, status, selected_algorithms_json, settings_json, log_path, message)
+               VALUES (?, 'queued', ?, ?, ?, 'Queued')""",
+            (user_id, json.dumps(algorithms), json.dumps(settings), log_path),
+        )
+        job_id = int(cursor.lastrowid)
+        for index, (algorithm, command) in enumerate(zip(algorithms, commands)):
+            conn.execute(
+                """INSERT INTO rl_training_job_items
+                   (job_id, algorithm, sequence_index, status, command_json, message)
+                   VALUES (?, ?, ?, 'queued', ?, 'Queued')""",
+                (job_id, algorithm, index, json.dumps(command)),
+            )
+        return job_id
 
 
 def update_rl_training_job(job_id, **kwargs):
@@ -1554,7 +1588,7 @@ def _resolve_backup_path(filename: str) -> Path:
     normalized_name = os.path.basename(str(filename or '').strip())
     if normalized_name != filename:
         raise ValueError('Invalid backup filename')
-    if not normalized_name.startswith('smartflow_backup_') or not normalized_name.endswith('.db'):
+    if not normalized_name.startswith('smartflow_backup_') or not normalized_name.endswith(('.db', '.zip')):
         raise ValueError('Unsupported backup filename')
 
     backups_dir = _backups_directory()

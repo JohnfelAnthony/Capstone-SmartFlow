@@ -83,6 +83,7 @@ export type BackupRecord = {
 export type BackupActionResponse = {
   message: string
   backup: BackupRecord | null
+  restore_path?: string | null
 }
 
 export function listAdminUsers(params: { roleId?: number; status?: string } = {}) {

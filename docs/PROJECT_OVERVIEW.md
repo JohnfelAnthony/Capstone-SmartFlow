@@ -4,6 +4,8 @@ Reviewed: **2026-09-23** (Asia/Singapore). Applies to the React/Python applicati
 
 Navigation: [Start here](../README.md) · [Architecture and plan](ARCHITECTURE_AND_PLAN.md) · [Progress and handoff](PROGRESS_AND_HANDOFF.md)
 
+For the latest interrupted implementation and targeted source-reading instructions, see [IMPLEMENTATION_HANDOFF.md](../IMPLEMENTATION_HANDOFF.md), sections 1–4 and 11. This overview explains purpose and research scope; earlier verification mentions below are dated checkpoints, not certification of the latest worktree.
+
 **Planning update:** the owner reported approximately 35 days remaining in the September 22 discussion, giving a provisional deadline around October 27, 2026. The exact date and whether RL must control one junction, every junction independently, or coordinate the network remain unconfirmed. The current single-junction environment is an implementation fact, not proof of academic acceptance. The [technical-lead review](ARCHITECTURE_AND_PLAN.md) sets an early scope decision and protects five final days for corrections and rehearsal.
 
 ## Purpose

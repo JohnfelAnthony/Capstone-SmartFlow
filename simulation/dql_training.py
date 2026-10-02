@@ -92,10 +92,11 @@ def require_dql_dependencies():
 
 
 class DQLProgressCallback(BaseCallback if BaseCallback is not None else object):
-    def __init__(self, on_episode_complete: Callable[[DQLProgressEvent], None] | None = None):
+    def __init__(self, on_episode_complete: Callable[[DQLProgressEvent], None] | None = None, *, starting_timesteps: int = 0):
         if BaseCallback is not None:
             super().__init__()
         self.on_episode_complete = on_episode_complete
+        self.starting_timesteps = starting_timesteps
         self.episodes_finished = 0
         self._episode_reward = 0.0
         self._episode_length = 0
@@ -112,8 +113,8 @@ class DQLProgressCallback(BaseCallback if BaseCallback is not None else object):
                 self.on_episode_complete(
                     DQLProgressEvent(
                         episodes_finished=self.episodes_finished,
-                        timesteps_finished=int(getattr(self, "num_timesteps", 0) or 0),
-                        total_timesteps=int(getattr(self.model, "_total_timesteps", 0) or 0),
+                        timesteps_finished=max(0, int(getattr(self, "num_timesteps", 0) or 0) - self.starting_timesteps),
+                        total_timesteps=max(0, int(getattr(self.model, "_total_timesteps", 0) or 0) - self.starting_timesteps),
                         last_episode_reward=round(self._episode_reward, 6),
                         last_episode_length=self._episode_length,
                     )
@@ -228,7 +229,7 @@ def train_deep_q_learning(
         try:
             model.learn(
                 total_timesteps=config.total_timesteps,
-                callback=DQLProgressCallback(record_progress),
+                callback=DQLProgressCallback(record_progress, starting_timesteps=int(model.num_timesteps)),
                 progress_bar=False,
                 reset_num_timesteps=not bool(resume_model_path),
             )

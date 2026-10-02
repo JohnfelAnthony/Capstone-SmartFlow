@@ -152,6 +152,16 @@ def build_render_frame(
             if isinstance(pedestrian, dict)
         ],
         "visual": _serialize_visual_payload(state.get("visual", {})),
+        "junction_controls": {
+            _safe_text(junction, max_length=32): {
+                "mode": _safe_text(control.get("mode"), max_length=24),
+                "controller": _safe_text(control.get("controller"), max_length=48),
+                "selected_for_rl": bool(control.get("selected_for_rl")),
+                "phase": _safe_text(control.get("phase"), max_length=32),
+            }
+            for junction, control in (state.get("junction_controls") or {}).items()
+            if isinstance(control, dict)
+        },
         "traffic_lights": _serialize_traffic_lights(state.get("traffic_lights")),
     }
     if sequence is not None:

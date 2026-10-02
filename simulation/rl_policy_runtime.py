@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable, Protocol
 
 from .ql_agent import TabularQLearningAgent
-from .model_contract import validate_neural_artifact
+from .model_contract import validate_neural_artifact, artifact_metadata, training_junction
 from .traffic_engine import RL_SERVICE_ACTIONS
 
 try:
@@ -233,6 +233,10 @@ def load_runtime_policy(controller_provenance: str, model_path: str | Path | Non
     with path.open("rb") as stream:
         model_hash = hashlib.file_digest(stream, "sha256").hexdigest()
     policy.artifact_metadata = {"algorithm": normalized_provenance, "filename": path.name, "sha256": model_hash}
+    metadata = artifact_metadata(normalized_provenance, path)
+    policy.artifact_metadata.update(training_junction=training_junction(metadata),
+        decision_interval_seconds=metadata.get("decision_interval_seconds", 5),
+        minimum_green_hold_seconds=metadata.get("minimum_green_hold_seconds", 10))
     if normalized_provenance != "ql":
         metadata_path = path.with_suffix(".metadata.json")
         policy.artifact_metadata["metadata_sha256"] = hashlib.sha256(metadata_path.read_bytes()).hexdigest()

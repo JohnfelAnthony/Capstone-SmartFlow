@@ -3,6 +3,11 @@ import { apiRequest } from "@/api/client"
 
 export type SimulationStatePayload = {
   status: string
+  owner_user_id: number | null
+  owner_name: string | null
+  active_run_id: number | null
+  run_mode: string
+  speed_multiplier: number
   selected_scenario_id: number | null
   selected_scenario_name: string | null
   duration_seconds: number
@@ -23,6 +28,8 @@ export type SimulationStatePayload = {
     scenario?: Record<string, unknown>
     dashboard?: Record<string, unknown>
     playback?: {
+      source_controller?: string
+      source_controller_label?: string
       frame_index?: number
       frame_count?: number
       progress_percent?: number
@@ -30,12 +37,15 @@ export type SimulationStatePayload = {
     vehicles?: RenderVehicle[]
     pedestrians?: RenderPedestrian[]
     visual?: {
+      closed_lanes?: string[]
+      slow_lanes?: Record<string, number>
       constraint_marker?: {
         active?: boolean
         x?: number
         y?: number
       }
     }
+    junction_controls?: Record<string, { mode: string; controller: string; selected_for_rl: boolean; phase: string }>
     traffic_lights?: Record<string, { state: string; phase: string }>
     charts?: Record<string, unknown>
     flow?: {
@@ -86,6 +96,7 @@ export type SimulationRunRecord = {
   end_time: string | null
   duration_seconds: number
   seed: number | null
+  rl_model_id: number | null
   notes: string | null
   timeline_path: string | null
   is_favorite: boolean
@@ -153,8 +164,14 @@ export function stopSimulation() {
   return apiRequest<SimulationActionResponse>("/api/simulation/stop", { method: "POST" })
 }
 
-export function resetSimulation() {
-  return apiRequest<SimulationActionResponse>("/api/simulation/reset", { method: "POST" })
+export function resetSimulation(force = false) {
+  return apiRequest<SimulationActionResponse>(`/api/simulation/reset${force ? "?force=true" : ""}`, { method: "POST" })
+}
+
+export function setSimulationSpeed(speedMultiplier: number) {
+  return apiRequest<SimulationActionResponse>("/api/simulation/speed", {
+    method: "POST", body: { speed_multiplier: speedMultiplier },
+  })
 }
 
 export function stepSimulation(numTicks = 10) {

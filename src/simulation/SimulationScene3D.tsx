@@ -5,6 +5,7 @@ import {
   PerspectiveCamera, Scene, SphereGeometry, SRGBColorSpace, WebGLRenderer,
 } from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js"
 import { FocusIcon, RotateCcwIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getVisualNetwork, type VisualNetwork, type VisualPoint } from "@/api/visual-network"
@@ -33,19 +34,22 @@ function ribbon(points: VisualPoint[], width: number, elevation = 0) {
 
 type CarView = { group: Group; previous: RenderVehicle; target: RenderVehicle; updatedAt: number }
 
-export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
+export function SimulationScene3D({ frame, intersectionId, onUnavailable, onPerformanceSample }: {
   frame: RenderFrame | null
   intersectionId?: string | null
   onUnavailable?: (message: string) => void
+  onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void
 }) {
   const hostRef = React.useRef<HTMLDivElement | null>(null)
   const frameRef = React.useRef(frame)
+  const performanceSampleRef = React.useRef(onPerformanceSample)
   const resetViewRef = React.useRef<() => void>(() => undefined)
   const followRef = React.useRef(false)
   const [following, setFollowing] = React.useState(false)
   const [network, setNetwork] = React.useState<VisualNetwork | null>(null)
   const [error, setError] = React.useState("")
   React.useEffect(() => { frameRef.current = frame }, [frame])
+  React.useEffect(() => { performanceSampleRef.current = onPerformanceSample }, [onPerformanceSample])
   React.useEffect(() => {
     let active = true
     getVisualNetwork(intersectionId).then((result) => {
@@ -101,19 +105,28 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
     const markingMaterial = new MeshStandardMaterial({ color: 0xf4f0dc, roughness: 1, side: 2 })
     const poleMaterial = new MeshStandardMaterial({ color: 0x30363b })
     const bodyMaterial = new MeshStandardMaterial({ color: 0xf4b73d, roughness: 0.65 })
+    const emergencyMaterial = new MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.65 })
+    const emergencyRed = new MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.5 })
+    const emergencyBlue = new MeshStandardMaterial({ color: 0x2563eb, emissive: 0x2563eb, emissiveIntensity: 0.5 })
+    const pedestrianMaterial = new MeshStandardMaterial({ color: 0xf97316, roughness: 0.8 })
     const glassMaterial = new MeshStandardMaterial({ color: 0x314c60, roughness: 0.45 })
     const tireMaterial = new MeshStandardMaterial({ color: 0x202327 })
     const geometries: BufferGeometry[] = []
-    const materials = [roadMaterial, markingMaterial, poleMaterial, bodyMaterial, glassMaterial, tireMaterial]
+    const materials = [roadMaterial, markingMaterial, poleMaterial, bodyMaterial, emergencyMaterial, emergencyRed, emergencyBlue, pedestrianMaterial, glassMaterial, tireMaterial]
+    const laneMaterials = new Map<string, MeshStandardMaterial>()
+    const markingGeometries: BufferGeometry[] = []
     const addMesh = (geometry: BufferGeometry, material: MeshStandardMaterial, parent: Group | Scene = scene) => {
       geometries.push(geometry)
       const mesh = new Mesh(geometry, material)
       parent.add(mesh)
       return mesh
     }
-    for (const road of network.roads) {
+    for (const road of [...network.roads, ...network.internal_lanes]) {
       for (const lane of road.lanes) {
-        addMesh(ribbon(lane.shape, lane.width), roadMaterial)
+        const laneMaterial = roadMaterial.clone()
+        materials.push(laneMaterial)
+        laneMaterials.set(lane.id, laneMaterial)
+        addMesh(ribbon(lane.shape, lane.width, 0.01), laneMaterial)
         // Fine edge markings follow the actual polyline rather than a rectangular grid.
         const edge = lane.shape.map((point, index) => {
           const a = lane.shape[Math.max(0, index - 1)]
@@ -121,8 +134,11 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
           const heading = Math.atan2(b.y - a.y, b.x - a.x)
           return { x: point.x + Math.sin(heading) * (lane.width / 2 - 0.12), y: point.y - Math.cos(heading) * (lane.width / 2 - 0.12) }
         })
-        addMesh(ribbon(edge, 0.1, 0.025), markingMaterial)
+        markingGeometries.push(ribbon(edge, 0.1, 0.025))
       }
+    }
+    for (const crossing of network.crossings) {
+      for (const lane of crossing.lanes) markingGeometries.push(ribbon(lane.shape, lane.width, 0.035))
     }
     for (const junction of network.signals) {
       const vertices: number[] = []
@@ -138,7 +154,7 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
     }
     const lamps = new Map<string, MeshStandardMaterial>()
     for (const signal of network.signal_groups) {
-      addMesh(ribbon(signal.stop_line, 0.3, 0.04), markingMaterial)
+      markingGeometries.push(ribbon(signal.stop_line, 0.3, 0.04))
       const heading = signal.heading * Math.PI / 180
       const x = signal.anchor.x + Math.sin(heading) * 2.2
       const z = -signal.anchor.y + Math.cos(heading) * 2.2
@@ -152,26 +168,44 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
       lamp.position.set(x, 3.6, z)
       lamps.set(signal.signal_id, material)
     }
+    if (markingGeometries.length) {
+      const combinedMarkings = mergeGeometries(markingGeometries)
+      if (combinedMarkings) addMesh(combinedMarkings, markingMaterial)
+      markingGeometries.forEach((geometry) => geometry.dispose())
+    }
     const carBody = new BoxGeometry(4.5, 0.7, 1.8)
     const carCabin = new BoxGeometry(2.15, 0.65, 1.6)
-    const carWheel = new BoxGeometry(0.7, 0.6, 0.22)
-    geometries.push(carBody, carCabin, carWheel)
-    const createCar = () => {
+    const wheelParts = [-3.5, -1.0].flatMap((x) => [-0.88, 0.88].map((z) =>
+      new BoxGeometry(0.7, 0.6, 0.22).translate(x, 0.35, z)))
+    const carWheels = mergeGeometries(wheelParts)
+    wheelParts.forEach((geometry) => geometry.dispose())
+    if (!carWheels) throw new Error("Unable to build shared vehicle wheels")
+    geometries.push(carBody, carCabin, carWheels)
+    const createCar = (vehicle: RenderVehicle) => {
       const group = new Group()
-      const body = new Mesh(carBody, bodyMaterial)
-      body.position.y = 0.65
+      const isEmergency = vehicle.emergency || vehicle.visual_type === "emergency"
+      const body = new Mesh(carBody, isEmergency ? emergencyMaterial : bodyMaterial)
+      body.position.set(-2.25, 0.65, 0)
       const cabin = new Mesh(carCabin, glassMaterial)
-      cabin.position.set(-0.25, 1.25, 0)
+      cabin.position.set(-2.5, 1.25, 0)
       group.add(body, cabin)
-      for (const x of [-1.4, 1.4]) for (const z of [-0.88, 0.88]) {
-        const wheel = new Mesh(carWheel, tireMaterial)
-        wheel.position.set(x, 0.35, z)
-        group.add(wheel)
+      if (isEmergency) {
+        const red = new Mesh(new BoxGeometry(0.55, 0.18, 0.48), emergencyRed)
+        const blue = new Mesh(new BoxGeometry(0.55, 0.18, 0.48), emergencyBlue)
+        geometries.push(red.geometry, blue.geometry)
+        red.position.set(-2, 1.65, -0.35)
+        blue.position.set(-2, 1.65, 0.35)
+        group.add(red, blue)
       }
+      group.add(new Mesh(carWheels, tireMaterial))
       scene.add(group)
+      group.scale.set(Math.max(vehicle.length, 1) / 4.5, 1, Math.max(vehicle.width, 0.5) / 1.8)
       return group
     }
     const cars = new Map<string, CarView>()
+    const pedestrians = new Map<string, Mesh>()
+    const pedestrianGeometry = new CylinderGeometry(0.25, 0.25, 1.5, 8)
+    geometries.push(pedestrianGeometry)
     let lastFrame: RenderFrame | null = null
     const resize = () => {
       const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight)
@@ -185,10 +219,19 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
     resetView()
     let animationId = 0
     let wasFollowing = false
+    let sampleStartedAt = performance.now()
+    let previousRenderAt = sampleStartedAt
+    let renderedFrames = 0
+    let frameIntervals: number[] = []
     const animate = () => {
       const nextFrame = frameRef.current
       const now = performance.now()
       if (nextFrame && nextFrame !== lastFrame) {
+        const closedLanes = new Set(nextFrame.visual.closed_lanes)
+        for (const [laneId, material] of laneMaterials) {
+          const restricted = nextFrame.visual.slow_lanes[laneId] < 1
+          material.color.setHex(closedLanes.has(laneId) ? 0xb91c1c : restricted ? 0xb87916 : 0x414852)
+        }
         const activeIds = new Set(nextFrame.vehicles.map((vehicle) => vehicle.id))
         for (const [id, car] of cars) if (!activeIds.has(id)) { scene.remove(car.group); cars.delete(id) }
         for (const vehicle of nextFrame.vehicles) {
@@ -198,8 +241,19 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
             car.target = vehicle
             car.updatedAt = now
           } else {
-            cars.set(vehicle.id, { group: createCar(), previous: vehicle, target: vehicle, updatedAt: now })
+            cars.set(vehicle.id, { group: createCar(vehicle), previous: vehicle, target: vehicle, updatedAt: now })
           }
+        }
+        const pedestrianIds = new Set(nextFrame.pedestrians.map((pedestrian) => pedestrian.id))
+        for (const [id, mesh] of pedestrians) if (!pedestrianIds.has(id)) { scene.remove(mesh); pedestrians.delete(id) }
+        for (const pedestrian of nextFrame.pedestrians) {
+          let mesh = pedestrians.get(pedestrian.id)
+          if (!mesh) {
+            mesh = new Mesh(pedestrianGeometry, pedestrianMaterial)
+            scene.add(mesh)
+            pedestrians.set(pedestrian.id, mesh)
+          }
+          mesh.position.set(pedestrian.x, 0.8, -pedestrian.y)
         }
         for (const [id, material] of lamps) {
           const state = nextFrame.traffic_lights[id]?.state ?? "r"
@@ -227,6 +281,20 @@ export function SimulationScene3D({ frame, intersectionId, onUnavailable }: {
       wasFollowing = followRef.current
       controls.update()
       renderer.render(scene, camera)
+      renderedFrames += 1
+      frameIntervals.push(now - previousRenderAt)
+      previousRenderAt = now
+      if (now - sampleStartedAt >= 2000 && performanceSampleRef.current) {
+        const ordered = frameIntervals.sort((a, b) => a - b)
+        performanceSampleRef.current({
+          fps: Math.round(renderedFrames * 1000 / (now - sampleStartedAt)),
+          p95FrameMs: Math.round(ordered[Math.min(ordered.length - 1, Math.floor(ordered.length * .95))] * 10) / 10,
+          drawCalls: renderer.info.render.calls,
+        })
+        sampleStartedAt = now
+        renderedFrames = 0
+        frameIntervals = []
+      }
       animationId = requestAnimationFrame(animate)
     }
     animate()

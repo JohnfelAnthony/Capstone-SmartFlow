@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist/**', 'tmp/**', '.venv/**', 'data/**', 'node_modules/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -18,5 +18,9 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+  },
+  {
+    files: ['src/components/data-table.tsx', 'src/components/ui/{badge,button,sidebar,tabs,toggle}.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 ])

@@ -132,7 +132,10 @@ const permissionGroups: PermissionGroup[] = [
   {
     label: "RL Training",
     icon: GraduationCapIcon,
-    items: [{ page: "rl-training", action: "view", description: "View RL Training Jobs and Model Management" }],
+    items: [
+      { page: "rl-training", action: "view", description: "View RL Training Jobs and Models" },
+      { page: "rl-training", action: "run", description: "Start, stop, and evaluate training jobs" },
+    ],
   },
   {
     label: "Runs and Reports Export",
@@ -205,6 +208,7 @@ const fallbackPermissions: PermissionMap = {
     "scenarios:edit",
     "performance:view",
     "rl-training:view",
+    "rl-training:run",
     "runs-reports:view",
     "runs-reports:export",
     "compare:view",
@@ -323,7 +327,9 @@ export function RoleAccessControlPage() {
   }, [])
 
   React.useEffect(() => {
-    void loadRoles()
+    let active = true
+    queueMicrotask(() => { if (active) void loadRoles() })
+    return () => { active = false }
   }, [loadRoles])
 
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[1]

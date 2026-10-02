@@ -16,5 +16,7 @@ def apply_controller(engine, control_mode: str | None):
     from simulation.rl_policy_runtime import load_runtime_policy
     policy = load_runtime_policy(algorithm, record["checkpoint_path"])
     policy.artifact_metadata["model_id"] = int(model_id)
-    engine.set_runtime_policy(policy)
+    engine.set_runtime_policy(policy,
+        decision_interval=policy.artifact_metadata["decision_interval_seconds"],
+        minimum_green_hold=policy.artifact_metadata["minimum_green_hold_seconds"])
     return mode

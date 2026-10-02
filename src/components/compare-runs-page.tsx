@@ -64,6 +64,8 @@ const kpiRows = [
   { key: "max_queue_length", label: "Max Queue", unit: "veh", lowerIsBetter: true },
   { key: "throughput", label: "Throughput", unit: "veh", lowerIsBetter: false },
   { key: "avg_pedestrian_delay", label: "Ped Delay", unit: "s", lowerIsBetter: true },
+  { key: "scheduled_vehicles", label: "Scheduled Vehicles", unit: "veh", lowerIsBetter: null },
+  { key: "unfinished_vehicles", label: "Unfinished Vehicles", unit: "veh", lowerIsBetter: true },
 ]
 
 function compareErrorMessage(error: unknown, fallback: string) {
@@ -82,8 +84,9 @@ function formatNumber(value: number | null | undefined, digits = 1) {
 }
 
 function metricValue(metrics: Record<string, unknown>, key: string) {
-  const value = metrics[key]
-  return typeof value === "number" && Number.isFinite(value) ? value : 0
+  const raw = metrics.raw_metrics as Record<string, unknown> | undefined
+  const value = metrics[key] ?? raw?.[key]
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function runModeLabel(value: string | null | undefined) {
@@ -125,11 +128,11 @@ function RunSelect({
 function StatStrip({ pair }: { pair: ComparePairResponse | null }) {
   const frameCount = pair?.frame_count ?? 0
   const duration = pair ? Math.min(pair.left.option.timeline.actual_duration_seconds, pair.right.option.timeline.actual_duration_seconds) : 0
-  const compatible = pair ? "Loaded" : "Waiting"
+  const compatible = pair ? `${pair.comparison_type[0].toUpperCase()}${pair.comparison_type.slice(1)}` : "Waiting"
   const stats = [
     { label: "Comparable Frames", value: frameCount.toLocaleString(), icon: ActivityIcon },
     { label: "Synced Duration", value: `${formatNumber(duration, 1)}s`, icon: ClockIcon },
-    { label: "Pair Status", value: compatible, icon: GitCompareArrowsIcon },
+    { label: "Comparison", value: compatible, icon: GitCompareArrowsIcon },
     { label: "Intersection", value: pair?.left.option.timeline.intersection_id ?? "None", icon: BarChart3Icon },
   ]
   return (
@@ -163,6 +166,7 @@ function RunMetaCard({ bundle, side }: { bundle: CompareRunBundle | null; side: 
   }
 
   const { run, timeline } = bundle.option
+  const provenance = bundle.option.provenance
   return (
     <Card className="compare-run-card">
       <CardHeader>
@@ -177,6 +181,11 @@ function RunMetaCard({ bundle, side }: { bundle: CompareRunBundle | null; side: 
             <span>Controller</span>
             <strong>{runModeLabel(run.control_mode)}</strong>
           </div>
+          <div><span>Model</span><strong>{provenance.model_id ? `#${provenance.model_id}` : "Fixed-time / none"}</strong></div>
+          <div><span>Model SHA-256</span><strong>{provenance.model_sha256 ?? "—"}</strong></div>
+          <div><span>Demand</span><strong>{provenance.demand_source ?? "Unknown"}: {provenance.demand_description ?? "—"}</strong></div>
+          <div><span>Demand SHA-256</span><strong>{provenance.demand_sha256 ?? "—"}</strong></div>
+          <div><span>Network SHA-256</span><strong>{provenance.network_sha256 ?? "—"}</strong></div>
           <div>
             <span>Seed</span>
             <strong>{run.seed ?? "None"}</strong>
@@ -321,18 +330,17 @@ function KpiTable({ pair }: { pair: ComparePairResponse | null }) {
             {kpiRows.map((row) => {
               const left = pair ? metricValue(pair.left.metrics, row.key) : 0
               const right = pair ? metricValue(pair.right.metrics, row.key) : 0
-              const delta = right - left
-              const isNeutral = Math.abs(delta) < 0.0001
-              const isGood = row.lowerIsBetter ? delta < 0 : delta > 0
+              const delta = left === null || right === null ? null : right - left
+              const isNeutral = delta === null || Math.abs(delta) < 0.0001 || row.lowerIsBetter === null
+              const isGood = delta !== null && (row.lowerIsBetter ? delta < 0 : delta > 0)
               return (
                 <TableRow key={row.key}>
                   <TableCell>{row.label}</TableCell>
-                  <TableCell>{formatNumber(left, row.key === "throughput" ? 0 : 2)} {row.unit}</TableCell>
-                  <TableCell>{formatNumber(right, row.key === "throughput" ? 0 : 2)} {row.unit}</TableCell>
+                  <TableCell>{left === null ? "—" : formatNumber(left, row.key.includes("vehicles") || row.key === "throughput" ? 0 : 2)} {row.unit}</TableCell>
+                  <TableCell>{right === null ? "—" : formatNumber(right, row.key.includes("vehicles") || row.key === "throughput" ? 0 : 2)} {row.unit}</TableCell>
                   <TableCell>
                     <Badge variant={isNeutral ? "secondary" : isGood ? "default" : "destructive"}>
-                      {delta >= 0 ? "+" : ""}
-                      {formatNumber(delta, row.key === "throughput" ? 0 : 2)}
+                      {delta === null ? "—" : `${delta >= 0 ? "+" : ""}${formatNumber(delta, row.key.includes("vehicles") || row.key === "throughput" ? 0 : 2)}`}
                     </Badge>
                   </TableCell>
                 </TableRow>
@@ -374,13 +382,13 @@ export function CompareRunsPage() {
   }, [])
 
   React.useEffect(() => {
-    void loadRuns()
+    let active = true
+    queueMicrotask(() => { if (active) void loadRuns() })
+    return () => { active = false }
   }, [loadRuns])
 
   React.useEffect(() => {
     if (leftRunId === noSelection) {
-      setCompatibleRuns([])
-      setRightRunId(noSelection)
       return
     }
     let isMounted = true
@@ -428,7 +436,8 @@ export function CompareRunsPage() {
       const response = await getComparePair(Number(leftRunId), Number(rightRunId))
       setPair(response)
       setFrameIndex(0)
-      setNotice(response.warnings.length ? response.warnings.join(" ") : "Compare pair loaded from recorded timeline artifacts.")
+      const comparisonLabel = `${response.comparison_type[0].toUpperCase()}${response.comparison_type.slice(1)} comparison loaded.`
+      setNotice([comparisonLabel, ...response.warnings].join(" "))
     } catch (error) {
       setPair(null)
       setNotice(compareErrorMessage(error, "Unable to load compare pair."))

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/api/client"
+import type { NativeScenarioConfig } from "@/api/native-scenario"
 
 export type ApiScenario = {
   id: number
@@ -9,6 +10,7 @@ export type ApiScenario = {
   emergency_mode: string
   road_constraint: string
   intersection_id: string
+  engine_config: NativeScenarioConfig
   lane_closure_config: Record<string, unknown>
   construction_config: Record<string, unknown>
   accident_config: Record<string, unknown>
@@ -32,6 +34,7 @@ export type ScenarioWritePayload = {
   emergency_mode: string
   road_constraint: string
   intersection_id: string
+  engine_config?: NativeScenarioConfig
   lane_closure_config?: Record<string, unknown>
   construction_config?: Record<string, unknown>
   accident_config?: Record<string, unknown>

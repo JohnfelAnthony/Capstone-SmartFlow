@@ -20,6 +20,7 @@ from .rl_state import RLSnapshot, extract_rl_snapshot
 from .traffic_engine import STEP_LENGTH
 from .traffic_engine import RL_SERVICE_ACTIONS, TrafficEngine
 from .scenario_config import number
+from .training_control import check_training_cancelled
 
 RL_CONTROLLER_LABELS = {
     "ql": "Q-Learning",
@@ -109,6 +110,7 @@ class SmartFlowRLEnv(BaseEnv):
         return engine
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+        check_training_cancelled()
         if gym is not None:
             super().reset(seed=seed)
         if self.engine is not None:
@@ -134,8 +136,9 @@ class SmartFlowRLEnv(BaseEnv):
 
         self.engine = self._build_engine(runtime_seed)
         warmup_ticks = int(round(self.warmup_seconds / STEP_LENGTH))
-        if warmup_ticks > 0:
-            self.engine.step(num_ticks=warmup_ticks)
+        for tick in range(0, warmup_ticks, 100):
+            check_training_cancelled()
+            self.engine.step(num_ticks=min(100, warmup_ticks - tick))
         self.engine.reset_metrics()
         self.engine.configure_rl_control(
             decision_interval=self.decision_interval_seconds,
@@ -155,6 +158,7 @@ class SmartFlowRLEnv(BaseEnv):
         return self._format_observation(self._last_snapshot), reset_info
 
     def step(self, action: int):
+        check_training_cancelled()
         if self.engine is None or self._last_snapshot is None:
             raise RuntimeError("Call reset() before step() in SmartFlowRLEnv.")
 

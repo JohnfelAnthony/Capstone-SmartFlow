@@ -28,6 +28,8 @@ import {
 
 import { ApiError } from "@/api/client"
 import { listScenarios, type ApiScenario } from "@/api/scenarios"
+import { getNativeScenarioOptions, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions } from "@/api/native-scenario"
+import { listRLModels, type RLModelRecord } from "@/api/rl"
 import {
   configureSimulation,
   getSimulationState,
@@ -37,6 +39,7 @@ import {
   resetSimulation,
   resumeSimulation,
   seekPlayback,
+  setSimulationSpeed,
   startSimulation,
   startPlayback,
   stopSimulation,
@@ -52,13 +55,6 @@ import type { VisualizationMode } from "@/simulation/visualization-mode"
 type SelectOption = {
   label: string
   value: string
-}
-
-type ScenarioSettings = {
-  trafficDensity: string
-  pedestrianDensity: string
-  emergencyMode: string
-  roadConstraint: string
 }
 
 type ChartHistoryPoint = {
@@ -83,17 +79,6 @@ const durationOptions: SelectOption[] = [
   { label: "15 Minutes (900s)", value: "900" },
 ]
 
-const trafficDensityOptions = ["Single", "Low", "Medium", "High", "Very High"]
-const pedestrianDensityOptions = ["Low", "None", "Medium", "High"]
-const emergencyModeOptions = ["Disabled", "Enabled (1 Ambulance)", "Enabled (2 Vehicles)"]
-const roadConstraintOptions = ["None", "Lane Closure", "Construction", "Accident", "Flooding", "Temporary Blockage"]
-
-const defaultSettings: ScenarioSettings = {
-  trafficDensity: "Single",
-  pedestrianDensity: "None",
-  emergencyMode: "Disabled",
-  roadConstraint: "None",
-}
 
 function metricNumber(metrics: Record<string, number> | undefined, key: string) {
   const value = metrics?.[key]
@@ -134,16 +119,6 @@ function playbackInfo(simulation: SimulationStatePayload | null) {
     frameIndex: Number.isFinite(frameIndex) ? frameIndex : 0,
     frameCount: Number.isFinite(frameCount) ? frameCount : 0,
     progress: Number.isFinite(progress) ? progress : 0,
-  }
-}
-
-function scenarioSettings(scenario: ApiScenario | undefined): ScenarioSettings {
-  if (!scenario) return defaultSettings
-  return {
-    trafficDensity: scenario.traffic_density || defaultSettings.trafficDensity,
-    pedestrianDensity: scenario.pedestrian_density || defaultSettings.pedestrianDensity,
-    emergencyMode: scenario.emergency_mode || defaultSettings.emergencyMode,
-    roadConstraint: scenario.road_constraint || defaultSettings.roadConstraint,
   }
 }
 
@@ -190,20 +165,26 @@ function renderFrameFromSimulation(simulation: SimulationStatePayload | null): R
     ns_state: signalStates.ns,
     ew_state: signalStates.ew,
     render_mode: simulation.control_mode === "playback" ? "playback" : simulation.status === "running" ? "live" : "idle",
+    vehicle_count: Number(state.vehicle_count ?? state.vehicles?.length ?? 0),
+    pedestrian_count: Number(state.pedestrian_count ?? state.pedestrians?.length ?? 0),
     playback: {
       active: Boolean(state.playback),
       frame_index: Number(state.playback?.frame_index ?? 0),
       frame_count: Number(state.playback?.frame_count ?? 0),
     },
-    vehicles: state.vehicles ?? [],
-    pedestrians: state.pedestrians ?? [],
+    render_limits: { vehicles: 80, pedestrians: 32 },
+    vehicles: (state.vehicles ?? []).slice(0, 80),
+    pedestrians: (state.pedestrians ?? []).slice(0, 32),
     visual: {
+      closed_lanes: state.visual?.closed_lanes ?? [],
+      slow_lanes: state.visual?.slow_lanes ?? {},
       constraint_marker: {
         active: Boolean(state.visual?.constraint_marker?.active),
         x: Number(state.visual?.constraint_marker?.x ?? 0),
         y: Number(state.visual?.constraint_marker?.y ?? 0),
       },
     },
+    junction_controls: state.junction_controls ?? {},
     traffic_lights: state.traffic_lights ?? {},
   }
 }
@@ -223,6 +204,7 @@ function mergeRenderFrame(simulation: SimulationStatePayload | null, frame: Rend
       vehicles: frame.vehicles,
       pedestrians: frame.pedestrians,
       visual: frame.visual,
+      junction_controls: frame.junction_controls,
       scenario: {
         ...(simulation.state.scenario ?? {}),
         intersection_id: frame.intersection_id,
@@ -284,24 +266,30 @@ function SimulationView({
   durationSeconds,
   simulation,
   renderFrame,
+  connectionStatus,
   visualizationMode,
   isBusy,
+  canOperate,
   onScenarioChange,
   onDurationChange,
   onConfigure,
   onThreeUnavailable,
+  onPerformanceSample,
 }: {
   scenarios: ApiScenario[]
   selectedScenarioId: string
   durationSeconds: string
   simulation: SimulationStatePayload | null
   renderFrame: RenderFrame | null
+  connectionStatus: string
   visualizationMode: VisualizationMode
   isBusy: boolean
+  canOperate: boolean
   onScenarioChange: (scenarioId: string) => void
   onDurationChange: (duration: string) => void
   onConfigure: () => void
   onThreeUnavailable: (message: string) => void
+  onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void
 }) {
   const state = simulation?.state
   const dashboard = state?.dashboard
@@ -311,7 +299,9 @@ function SimulationView({
       : scenarios.find((scenario) => String(scenario.id) === selectedScenarioId)?.name ?? "Select a scenario"
   const phase = String(state?.phase ?? "ALL_RED").replaceAll("_", " ")
   const phaseRemaining = Number(state?.phase_remaining ?? 0)
-  const statusLabel = simulation?.state.flow?.live_indicator_label ?? "IDLE"
+  const statusLabel = simulation?.status === "running" && connectionStatus !== "open"
+    ? `STREAM ${connectionStatus.toUpperCase()}`
+    : simulation?.state.flow?.live_indicator_label ?? "IDLE"
   const intersectionId =
     renderFrame?.intersection_id ??
     (typeof state?.scenario?.intersection_id === "string" ? state.scenario.intersection_id : null)
@@ -324,7 +314,8 @@ function SimulationView({
         {showLiveCanvas && visualizationMode === "2d" ? (
           <SimulationCanvas2D frame={renderFrame} intersectionId={intersectionId} />
         ) : showLiveCanvas ? (
-          <SimulationScene3D frame={renderFrame} intersectionId={intersectionId} onUnavailable={onThreeUnavailable} />
+          <SimulationScene3D frame={renderFrame} intersectionId={intersectionId} onUnavailable={onThreeUnavailable}
+            onPerformanceSample={onPerformanceSample} />
         ) : (
           <div className="sf-sim-grid" aria-hidden="true" />
         )}
@@ -335,7 +326,7 @@ function SimulationView({
               label="Select Scenario"
               options={scenarios.map((scenario) => ({ label: scenario.name, value: String(scenario.id) }))}
               value={selectedScenarioId}
-              disabled={isBusy || scenarios.length === 0}
+              disabled={isBusy || !canOperate || scenarios.length === 0}
               onChange={onScenarioChange}
             />
             <SelectField
@@ -349,10 +340,10 @@ function SimulationView({
               label="Duration Limit"
               options={durationOptions}
               value={durationSeconds}
-              disabled={isBusy}
+              disabled={isBusy || !canOperate}
               onChange={onDurationChange}
             />
-            <button className="sf-primary-btn" type="button" disabled={isBusy || !selectedScenarioId} onClick={onConfigure}>
+            <button className="sf-primary-btn" type="button" disabled={isBusy || !canOperate || !selectedScenarioId} onClick={onConfigure}>
               {isBusy ? "Applying..." : "Apply Configuration"}
             </button>
           </div>
@@ -379,13 +370,20 @@ function SimulationView({
 }
 
 function ControlPanel({
-  settings,
+  selectedScenario,
+  scenarioConfig,
+  models,
+  controlMode,
+  seed,
   simulation,
   recordedRuns,
   selectedRecordedRunId,
   isBusy,
+  canOperate,
   canStart,
-  onSettingChange,
+  onControlModeChange,
+  onSeedChange,
+  onSpeedChange,
   onApplyScenario,
   onRecordedRunChange,
   onRefreshRecordings,
@@ -397,13 +395,20 @@ function ControlPanel({
   onStop,
   onReset,
 }: {
-  settings: ScenarioSettings
+  selectedScenario: ApiScenario | null
+  scenarioConfig: NativeScenarioConfig | null
+  models: RLModelRecord[]
+  controlMode: string
+  seed: string
   simulation: SimulationStatePayload | null
   recordedRuns: SimulationRunRecord[]
   selectedRecordedRunId: string
   isBusy: boolean
+  canOperate: boolean
   canStart: boolean
-  onSettingChange: (key: keyof ScenarioSettings, value: string) => void
+  onControlModeChange: (value: string) => void
+  onSeedChange: (value: string) => void
+  onSpeedChange: (value: number) => void
   onApplyScenario: () => void
   onRecordedRunChange: (runId: string) => void
   onRefreshRecordings: () => void
@@ -434,21 +439,21 @@ function ControlPanel({
           <button
             className="start"
             type="button"
-            disabled={isBusy || (!isPlayback && !canStart) || isRunning}
+            disabled={isBusy || !canOperate || (!isPlayback && !canStart) || isRunning}
             onClick={isPlayback ? onStartPlayback : isPaused ? onPause : onStart}
           >
             <FaPlay />
             {isPlayback ? "Play Recording" : isPaused ? "Resume Simulation" : "Start Simulation"}
           </button>
-          <button className="pause" type="button" disabled={isBusy || !isRunning} onClick={onPause}>
+          <button className="pause" type="button" disabled={isBusy || !canOperate || !isRunning} onClick={onPause}>
             <FaPause />
             Pause
           </button>
-          <button className="stop" type="button" disabled={isBusy || (!isRunning && !isPaused)} onClick={onStop}>
+          <button className="stop" type="button" disabled={isBusy || !canOperate || (!isRunning && !isPaused)} onClick={onStop}>
             <FaSquare />
             Stop Simulation
           </button>
-          <button className="reset" type="button" disabled={isBusy} onClick={onReset}>
+          <button className="reset" type="button" disabled={isBusy || !canOperate} onClick={onReset}>
             <FaRotateRight />
             Reset Simulation
           </button>
@@ -456,36 +461,31 @@ function ControlPanel({
       </section>
 
       <section className="sf-card sf-settings-card">
-        <CardTitle icon={SlidersHorizontalIcon}>Scenario Settings</CardTitle>
+        <CardTitle icon={SlidersHorizontalIcon}>Saved Scenario and Controller</CardTitle>
+        {isPlayback ? <p>Recording: {simulation?.selected_scenario_name ?? "Saved scenario"}.</p>
+          : <p>{selectedScenario?.name ?? "Select a scenario"}: {selectedScenario?.traffic_density ?? "—"} traffic, {selectedScenario?.pedestrian_density ?? "—"} pedestrians. Controlled junction: {scenarioConfig?.controlled_junction ?? "loading"}. {scenarioConfig?.events?.length ?? 0} timed road events. Edit these settings on the Scenarios page.</p>}
         <SelectField
-          label="Traffic Density"
-          options={trafficDensityOptions.map((option) => ({ label: option, value: option }))}
-          value={settings.trafficDensity}
-          disabled={isBusy || isRunning || isPaused}
-          onChange={(value) => onSettingChange("trafficDensity", value)}
+          label="Signal controller"
+          options={[
+            ...(isPlayback ? [{ label: simulation?.state.playback?.source_controller_label ?? "Unknown recorded controller", value: "playback" }] : []),
+            { label: "Fixed-time baseline (saved plans with shared safety and emergency priority)", value: "fixed-time" },
+            ...models.filter((model) => model.compatible && model.controlled_junction === scenarioConfig?.controlled_junction)
+              .map((model) => ({ label: `${model.algorithm} model #${model.id} · ${model.name ?? "trained policy"}`, value: `${model.algorithm.toLowerCase()}:${model.id}` })),
+          ]}
+          value={isPlayback ? "playback" : controlMode}
+          disabled={isBusy || !canOperate || isRunning || isPaused || isPlayback}
+          onChange={onControlModeChange}
         />
-        <SelectField
-          label="Pedestrian Density"
-          options={pedestrianDensityOptions.map((option) => ({ label: option, value: option }))}
-          value={settings.pedestrianDensity}
-          disabled={isBusy || isRunning || isPaused}
-          onChange={(value) => onSettingChange("pedestrianDensity", value)}
-        />
-        <SelectField
-          label="Emergency Vehicle"
-          options={emergencyModeOptions.map((option) => ({ label: option, value: option }))}
-          value={settings.emergencyMode}
-          disabled={isBusy || isRunning || isPaused}
-          onChange={(value) => onSettingChange("emergencyMode", value)}
-        />
-        <SelectField
-          label="Road Constraint"
-          options={roadConstraintOptions.map((option) => ({ label: option, value: option }))}
-          value={settings.roadConstraint}
-          disabled={isBusy || isRunning || isPaused}
-          onChange={(value) => onSettingChange("roadConstraint", value)}
-        />
-        <button className="sf-apply-btn" type="button" disabled={isBusy || isRunning || isPaused || !canStart} onClick={onApplyScenario}>
+        <label className="sf-setting-group">
+          <span>Run seed (0–4294967295)</span>
+          <input type="number" min="0" max="4294967295" step="1" value={isPlayback ? simulation?.seed ?? "" : seed} disabled={isBusy || !canOperate || isRunning || isPaused || isPlayback} onChange={(event) => onSeedChange(event.target.value)} />
+        </label>
+        <SelectField label="Playback speed" value={String(simulation?.speed_multiplier ?? 1)}
+          options={[0.25, 0.5, 1, 2, 4].map((value) => ({ value: String(value), label: `${value}×` }))}
+          disabled={isBusy || !canOperate} onChange={(value) => onSpeedChange(Number(value))} />
+        {isPlayback ? <p>Recorded controller: {simulation?.state.playback?.source_controller_label ?? "Unknown"}; seed {simulation?.seed ?? "—"}. Playback displays saved frames.</p>
+          : <p>Active: {simulation?.control_mode ?? "none"}; seed {simulation?.seed ?? "—"}. The selected controller applies only to its trained junction. Other junctions follow saved plans.</p>}
+        <button className="sf-apply-btn" type="button" disabled={isBusy || !canOperate || isRunning || isPaused || !canStart} onClick={onApplyScenario}>
           <CheckIcon />
           Apply Scenario
         </button>
@@ -495,7 +495,7 @@ function ControlPanel({
         <CardTitle icon={AreaChartIcon}>Recorded Playback</CardTitle>
         <label className="sf-setting-group">
           <span>Recording</span>
-          <select value={selectedRecordedRunId} disabled={isBusy || recordedRuns.length === 0} onChange={(event) => onRecordedRunChange(event.target.value)}>
+          <select value={selectedRecordedRunId} disabled={isBusy || !canOperate || recordedRuns.length === 0} onChange={(event) => onRecordedRunChange(event.target.value)}>
             <option value="">Select recording</option>
             {recordedRuns.map((run) => (
               <option key={run.id} value={run.id} disabled={run.status !== "completed"}>
@@ -508,10 +508,10 @@ function ControlPanel({
           <button type="button" disabled={isBusy} onClick={onRefreshRecordings}>
             Refresh
           </button>
-          <button type="button" disabled={isBusy || !canLoadRecording} onClick={onLoadRecording}>
+          <button type="button" disabled={isBusy || !canOperate || !canLoadRecording} onClick={onLoadRecording}>
             Load
           </button>
-          <button type="button" disabled={isBusy || !isPlayback || isRunning} onClick={onStartPlayback}>
+          <button type="button" disabled={isBusy || !canOperate || !isPlayback || isRunning} onClick={onStartPlayback}>
             <FaPlay />
             Play
           </button>
@@ -528,7 +528,7 @@ function ControlPanel({
             min="0"
             max={Math.max(playback.frameCount - 1, 0)}
             value={Math.min(playback.frameIndex, Math.max(playback.frameCount - 1, 0))}
-            disabled={isBusy || !isPlayback || playback.frameCount <= 1}
+            disabled={isBusy || !canOperate || !isPlayback || playback.frameCount <= 1}
             onChange={(event) => onSeekPlayback(Number(event.target.value))}
           />
           <span>{compactNumber(playback.progress)}%</span>
@@ -790,18 +790,30 @@ function AnalyticsSection({
 }
 
 export function DashboardPage({
+  currentUserId,
+  isAdmin,
+  canRunSimulation,
   visualizationMode,
   onVisualizationModeChange,
 }: {
+  currentUserId: number
+  isAdmin: boolean
+  canRunSimulation: boolean
   visualizationMode: VisualizationMode
   onVisualizationModeChange: (mode: VisualizationMode) => void
 }) {
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = React.useState("")
   const [durationSeconds, setDurationSeconds] = React.useState("300")
-  const [settings, setSettings] = React.useState<ScenarioSettings>(defaultSettings)
+  const [scenarioResolution, setScenarioResolution] = React.useState<{ id: string; config: NativeScenarioConfig | null } | null>(null)
+  const [nativeOptions, setNativeOptions] = React.useState<NativeScenarioOptions | null>(null)
+  const [models, setModels] = React.useState<RLModelRecord[]>([])
+  const [controlMode, setControlMode] = React.useState("fixed-time")
+  const [seed, setSeed] = React.useState("42")
   const [simulation, setSimulation] = React.useState<SimulationStatePayload | null>(null)
   const [renderFrame, setRenderFrame] = React.useState<RenderFrame | null>(null)
+  const [renderPerformance, setRenderPerformance] = React.useState<{ fps: number; p95FrameMs: number; drawCalls: number } | null>(null)
+  const showPerformance = new URLSearchParams(window.location.search).has("perf")
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
   const [chartHistory, setChartHistory] = React.useState<ChartHistoryPoint[]>([])
@@ -812,6 +824,9 @@ export function DashboardPage({
   const lastChartBucket = React.useRef<number | null>(null)
 
   const canConfigure = Boolean(selectedScenarioId)
+  const canOperate = canRunSimulation && (simulation?.owner_user_id == null || simulation.owner_user_id === currentUserId)
+  const scenarioConfig = scenarioResolution?.id === selectedScenarioId ? scenarioResolution.config : null
+  const selectedScenario = scenarios.find((scenario) => String(scenario.id) === selectedScenarioId) ?? null
   const streamEnabled = simulation?.status === "running" || simulation?.status === "paused"
   const {
     latestFrame,
@@ -859,17 +874,20 @@ export function DashboardPage({
       setNotice("Select a scenario before applying configuration.")
       return
     }
+    const parsedSeed = Number(seed)
+    if (!Number.isInteger(parsedSeed) || parsedSeed < 0 || parsedSeed > 4294967295 || seed.trim() === "") {
+      setNotice("Run seed must be a whole number from 0 to 4294967295.")
+      return
+    }
     return applySimulationAction(() =>
       configureSimulation({
         scenario_id: Number(selectedScenarioId),
         duration_seconds: Number(durationSeconds),
-        traffic_density: settings.trafficDensity,
-        pedestrian_density: settings.pedestrianDensity,
-        emergency_mode: settings.emergencyMode,
-        road_constraint: settings.roadConstraint,
+        seed: parsedSeed,
+        control_mode: controlMode,
       })
     )
-  }, [applySimulationAction, canConfigure, durationSeconds, selectedScenarioId, settings])
+  }, [applySimulationAction, canConfigure, controlMode, durationSeconds, seed, selectedScenarioId])
 
   React.useEffect(() => {
     let isMounted = true
@@ -877,10 +895,12 @@ export function DashboardPage({
     async function loadDashboard() {
       setIsBusy(true)
       try {
-        const [scenarioResponse, simulationResponse, runsResponse] = await Promise.all([
+        const [scenarioResponse, simulationResponse, runsResponse, modelResponse, optionsResponse] = await Promise.all([
           listScenarios(),
           getSimulationState(),
           listSimulationRuns({ runMode: "pre-record", limit: 30 }),
+          listRLModels(),
+          getNativeScenarioOptions(),
         ])
         if (!isMounted) return
 
@@ -889,6 +909,8 @@ export function DashboardPage({
         setSimulation(simulationResponse)
         setRenderFrame(renderFrameFromSimulation(simulationResponse))
         setRecordedRuns(runsResponse.runs)
+        setModels(modelResponse.models)
+        setNativeOptions(optionsResponse)
         const firstCompletedRun = runsResponse.runs.find((run) => run.status === "completed")
         setSelectedRecordedRunId(firstCompletedRun ? String(firstCompletedRun.id) : "")
         const activeScenarioId =
@@ -898,7 +920,8 @@ export function DashboardPage({
               ? String(nextScenarios[0].id)
               : ""
         setSelectedScenarioId(activeScenarioId)
-        setSettings(scenarioSettings(nextScenarios.find((scenario) => String(scenario.id) === activeScenarioId)))
+        setSeed(String(simulationResponse.seed))
+        setControlMode(simulationResponse.control_mode === "playback" ? "fixed-time" : simulationResponse.control_mode)
         setNotice("Simulation controls are connected to FastAPI.")
       } catch (error) {
         if (isMounted) setNotice(apiMessage(error))
@@ -914,6 +937,21 @@ export function DashboardPage({
   }, [])
 
   React.useEffect(() => {
+    const scenarioId = Number(selectedScenarioId)
+    if (!scenarioId) return
+    let cancelled = false
+    void resolveNativeScenario(scenarioId).then((response) => {
+      if (!cancelled) setScenarioResolution({ id: selectedScenarioId, config: response.engine_config })
+    }).catch((error) => {
+      if (!cancelled) {
+        setScenarioResolution({ id: selectedScenarioId, config: null })
+        setNotice(apiMessage(error))
+      }
+    })
+    return () => { cancelled = true }
+  }, [selectedScenarioId])
+
+  React.useEffect(() => {
     const hasGeneratingRun = recordedRuns.some((run) => run.status === "running")
     if (!hasGeneratingRun) return
     const intervalId = window.setInterval(() => {
@@ -921,6 +959,19 @@ export function DashboardPage({
     }, 3000)
     return () => window.clearInterval(intervalId)
   }, [loadRecordedRuns, recordedRuns])
+
+  React.useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (stateRefreshInFlight.current) return
+      stateRefreshInFlight.current = true
+      getSimulationState().then((nextSimulation) => {
+        setSimulation(nextSimulation)
+        if (streamStatus !== "open") setRenderFrame(renderFrameFromSimulation(nextSimulation))
+      }).catch((error) => setNotice(apiMessage(error)))
+        .finally(() => { stateRefreshInFlight.current = false })
+    }, 2000)
+    return () => window.clearInterval(intervalId)
+  }, [streamStatus])
 
   React.useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -938,14 +989,14 @@ export function DashboardPage({
     getSimulationState()
       .then((nextSimulation) => {
         setSimulation(nextSimulation)
-        setRenderFrame(renderFrameFromSimulation(nextSimulation))
+        if (streamStatus !== "open") setRenderFrame(renderFrameFromSimulation(nextSimulation))
       })
       .catch((error) => setNotice(apiMessage(error)))
       .finally(() => {
         stateRefreshInFlight.current = false
       })
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [latestFrame])
+  }, [latestFrame, streamStatus])
 
   React.useEffect(() => {
     if (!simulation) return
@@ -957,11 +1008,7 @@ export function DashboardPage({
 
   function handleScenarioChange(scenarioId: string) {
     setSelectedScenarioId(scenarioId)
-    setSettings(scenarioSettings(scenarios.find((scenario) => String(scenario.id) === scenarioId)))
-  }
-
-  function handleSettingChange(key: keyof ScenarioSettings, value: string) {
-    setSettings((current) => ({ ...current, [key]: value }))
+    setControlMode("fixed-time")
   }
 
   const handleThreeUnavailable = React.useCallback(
@@ -977,9 +1024,17 @@ export function DashboardPage({
       setNotice("Select and apply a scenario before starting.")
       return
     }
+    const parsedSeed = Number(seed)
+    if (!Number.isInteger(parsedSeed) || parsedSeed < 0 || parsedSeed > 4294967295 || seed.trim() === "") {
+      setNotice("Run seed must be a whole number from 0 to 4294967295.")
+      return
+    }
     applySimulationAction(() =>
       startSimulation({
+        scenario_id: Number(selectedScenarioId),
         duration_seconds: Number(durationSeconds),
+        seed: parsedSeed,
+        control_mode: controlMode,
       })
     )
   }
@@ -1024,21 +1079,31 @@ export function DashboardPage({
           durationSeconds={durationSeconds}
           simulation={simulation}
           renderFrame={renderFrame}
+          connectionStatus={streamStatus}
           visualizationMode={visualizationMode}
           isBusy={isBusy}
+          canOperate={canOperate}
           onScenarioChange={handleScenarioChange}
           onDurationChange={setDurationSeconds}
           onConfigure={configureSelectedScenario}
           onThreeUnavailable={handleThreeUnavailable}
+          onPerformanceSample={showPerformance ? setRenderPerformance : undefined}
         />
         <ControlPanel
-          settings={settings}
+          selectedScenario={selectedScenario}
+          scenarioConfig={scenarioConfig}
+          models={models}
+          controlMode={controlMode}
+          seed={seed}
           simulation={simulation}
           recordedRuns={recordedRuns}
           selectedRecordedRunId={selectedRecordedRunId}
           isBusy={isBusy}
+          canOperate={canOperate}
           canStart={canConfigure}
-          onSettingChange={handleSettingChange}
+          onControlModeChange={setControlMode}
+          onSeedChange={setSeed}
+          onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }}
           onApplyScenario={configureSelectedScenario}
           onRecordedRunChange={setSelectedRecordedRunId}
           onRefreshRecordings={() => void loadRecordedRuns().catch((error) => setNotice(apiMessage(error)))}
@@ -1051,6 +1116,34 @@ export function DashboardPage({
           onReset={() => applySimulationAction(resetSimulation)}
         />
       </div>
+      <section className="sf-card" aria-label="Live road and controller state">
+        <h2>Road and junction state at {compactNumber(renderFrame?.time ?? 0, 1)}s</h2>
+        <p>Shared session: {simulation?.owner_name ? `${simulation.owner_name} controls ${simulation.run_mode}${simulation.active_run_id ? ` run #${simulation.active_run_id}` : " configuration"}` : "available"}. Speed {simulation?.speed_multiplier ?? 1}×. {!canRunSimulation ? "Your role has view access only." : canOperate ? "" : "Controls are read-only until the owner resets the session."}</p>
+        {!canOperate && isAdmin && <button type="button" className="sf-apply-btn" disabled={isBusy}
+          onClick={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")}>Take over shared session (stop and reset)</button>}
+        {streamEnabled && streamStatus !== "open" && <p role="status">Live stream {streamStatus}; displayed positions may be delayed. {streamNotice}</p>}
+        <p>Showing {renderFrame?.vehicles.length ?? 0} of {renderFrame?.vehicle_count ?? simulation?.state.vehicle_count ?? 0} vehicles and {renderFrame?.pedestrians.length ?? 0} of {renderFrame?.pedestrian_count ?? simulation?.state.pedestrian_count ?? 0} pedestrians in the renderer.</p>
+        {showPerformance && visualizationMode === "3d" && renderPerformance &&
+          <p role="status">3D renderer: {renderPerformance.fps} fps; p95 frame interval {renderPerformance.p95FrameMs} ms; {renderPerformance.drawCalls} draw calls.</p>}
+        <p>Legend: red lane = closed to new entry; amber lane = reduced speed. The lists identify direction and controller in text.</p>
+        <div className="flex flex-wrap gap-6">
+          <div>
+            <h3>Affected directed lanes</h3>
+            {[...(renderFrame?.visual.closed_lanes ?? []).map((id) => ({ id, detail: "closed to new entry" })),
+              ...Object.entries(renderFrame?.visual.slow_lanes ?? {}).filter(([, factor]) => factor < 1).map(([id, factor]) => ({ id, detail: `${Math.round(factor * 100)}% speed` }))].length ? (
+              <ul>{[...(renderFrame?.visual.closed_lanes ?? []).map((id) => ({ id, detail: "closed to new entry" })),
+                ...Object.entries(renderFrame?.visual.slow_lanes ?? {}).filter(([, factor]) => factor < 1).map(([id, factor]) => ({ id, detail: `${Math.round(factor * 100)}% speed` }))]
+                .map(({ id, detail }) => <li key={`${id}-${detail}`}>{nativeOptions?.lanes.find((lane) => lane.id === id)?.label ?? id}: {detail}</li>)}</ul>
+            ) : <p>No active lane restriction.</p>}
+          </div>
+          <div>
+            <h3>Actual junction controllers</h3>
+            <ul>{Object.entries(renderFrame?.junction_controls ?? {}).map(([id, control]) => (
+              <li key={id}>{nativeOptions?.junctions.find((junction) => junction.id === id)?.label ?? id}: {control.controller} · {control.phase}</li>
+            ))}</ul>
+          </div>
+        </div>
+      </section>
       <KpiRow simulation={simulation} />
       <AnalyticsSection simulation={simulation} chartHistory={chartHistory} />
       <footer className="sf-dashboard-footer">

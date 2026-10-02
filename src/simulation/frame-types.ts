@@ -34,6 +34,9 @@ export type RenderFrame = {
   ns_state: string
   ew_state: string
   render_mode: "idle" | "live" | "playback" | string
+  vehicle_count: number
+  pedestrian_count: number
+  render_limits?: { vehicles: number; pedestrians: number }
   playback: {
     active: boolean
     frame_index: number
@@ -42,11 +45,14 @@ export type RenderFrame = {
   vehicles: RenderVehicle[]
   pedestrians: RenderPedestrian[]
   visual: {
+    closed_lanes: string[]
+    slow_lanes: Record<string, number>
     constraint_marker?: {
       active: boolean
       x: number
       y: number
     }
   }
+  junction_controls: Record<string, { mode: string; controller: string; selected_for_rl: boolean; phase: string }>
   traffic_lights: Record<string, { state: string; phase: string }>
 }

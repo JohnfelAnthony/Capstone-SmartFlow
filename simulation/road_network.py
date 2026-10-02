@@ -6,12 +6,14 @@ import copy
 import hashlib
 import json
 import math
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 NETWORK_ID = "tagum_network"
-NETWORK_PATH = Path(__file__).resolve().parents[1] / "data/networks/tagum_network.json"
+NETWORK_PATH = Path(os.environ.get("SMARTFLOW_NETWORK_PATH") or
+                    Path(__file__).resolve().parents[1] / "data/networks/tagum_network.json")
 Point = tuple[float, float]
 
 
@@ -193,7 +195,7 @@ class RoadNetwork:
         return []
 
     def visual(self) -> dict:
-        roads, signal_groups, signals = [], [], []
+        roads, internal_lanes, signal_groups, signals = [], [], [], []
         points = [point for road in self.payload["roads"] for point in road["shape"]]
         point_dict = lambda p: {"x": p[0], "y": p[1]}
         for index, lane in enumerate(self.lanes.values()):
@@ -204,6 +206,19 @@ class RoadNetwork:
                 signal_groups.append({"id": lane.id, "signal_id": lane.id, "lane_id": lane.id, "from_edge_id": lane.id, "kind": "vehicle", "width": 3.3, "heading": math.degrees(heading), "anchor": {"x": x, "y": y}, "stop_line": [point_dict((x + math.sin(heading)*1.65, y-math.cos(heading)*1.65)), point_dict((x-math.sin(heading)*1.65, y+math.cos(heading)*1.65))], "link_indices": [0], "via_lane_ids": []})
         for node_id in self.intersections:
             node = self.nodes[node_id]
+            for incoming in self.incoming[node_id]:
+                for outgoing in self.outgoing[node_id]:
+                    if not self.turn_allowed(incoming, outgoing):
+                        continue
+                    connector = self.connector(incoming, outgoing)
+                    connector_shape = [point_dict(point) for point in connector]
+                    connector_id = f"{incoming}->{outgoing}"
+                    internal_lanes.append({"index": len(internal_lanes), "function": "internal", "toward_intersection": True,
+                                           "away_from_intersection": True, "shape": connector_shape,
+                                           "lanes": [{"id": connector_id, "index": 0, "width": 3.3, "allow": "passenger",
+                                                      "disallow": "", "source_length": length(connector),
+                                                      "clip_start_position": 0, "clip_end_position": length(connector),
+                                                      "shape": connector_shape}]})
             corners = []
             for lane_id in self.incoming[node_id]+self.outgoing[node_id]:
                 lane = self.lanes[lane_id]
@@ -211,7 +226,7 @@ class RoadNetwork:
                 corners.extend((x + sign*math.sin(heading)*1.7, y-sign*math.cos(heading)*1.7) for sign in (-1, 1))
             polygon = [point_dict(point) for point in convex_hull(corners)]
             signals.append({"id": node_id, "kind": "traffic_light", "x": node["x"], "y": node["y"], "shape": polygon})
-        return {"version": 2, "network_id": self.id, "source_net": "OpenStreetMap cached study network", "scope": {"mode": "connected-network"}, "bounds": {"min_x": min(p[0] for p in points)-20, "max_x": max(p[0] for p in points)+20, "min_y": min(p[1] for p in points)-20, "max_y": max(p[1] for p in points)+20}, "roads": roads, "internal_lanes": [], "crossings": [], "walking_areas": [], "signals": signals, "signal_groups": signal_groups, "polygons": [], "source": self.payload["source"], "junctions": [self.nodes[node_id] for node_id in self.intersections]}
+        return {"version": 2, "network_id": self.id, "source_net": "OpenStreetMap cached study network", "scope": {"mode": "connected-network"}, "bounds": {"min_x": min(p[0] for p in points)-20, "max_x": max(p[0] for p in points)+20, "min_y": min(p[1] for p in points)-20, "max_y": max(p[1] for p in points)+20}, "roads": roads, "internal_lanes": internal_lanes, "crossings": [], "walking_areas": [], "signals": signals, "signal_groups": signal_groups, "polygons": [], "source": self.payload["source"], "junctions": [self.nodes[node_id] for node_id in self.intersections]}
 
 
 def load_network(path: Path = NETWORK_PATH) -> RoadNetwork:

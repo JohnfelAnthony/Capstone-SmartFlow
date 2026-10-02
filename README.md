@@ -1,21 +1,32 @@
 # SmartFlow
 
-Documentation reviewed: **2026-09-23** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend.
+Documentation reviewed: **2026-10-02** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend.
 
 SmartFlow is a capstone traffic simulation and decision-support project for a bounded study area in Tagum City. It is intended to compare traffic signal strategies and adaptive routes under ordinary traffic, peak demand and road disruptions. The current direction is a **React web application, a custom Python traffic engine, and a dynamic Three.js visualization**. SUMO is being replaced in the active application.
 
-**Current status:** implementation is in progress. After the documentation review, the owner requested resumed engine work. The resulting `native-3` checkpoint passed all **40 Python tests**, API compilation and a three-seed synthetic headless experiment on September 23. Field calibration, research-scale RL evaluation, current frontend acceptance and deployment readiness remain outstanding. The plan uses the owner's approximately 35-day deadline estimate; required RL coverage still needs adviser confirmation.
+**Latest captured status, October 2:** approved audit priorities 1–6 remain repaired. The delivery pass adds four CSV blank templates and current-network synthetic examples, import guidance, explicit measurement/provenance report columns, and manuscript draft wording. A clean separate-location installation passed 99 Python tests, API compilation, lint, build and startup smoke. After the final CSV attachment change, its four focused tests, compilation, lint and builds passed again. An isolated browser verified all eight template downloads, import/save/reopen, restored replay/model loading and CSV/JSON report contents. Lint has zero errors and the existing TanStack warning. Evidence and remaining deployment/research decisions are in [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md). The September 23 [implementation handoff](IMPLEMENTATION_HANDOFF.md), sections 1–4 and 11, remains the historical repair map and task index. Synthetic software checks do not establish Tagum controller effectiveness; field observations, calibration and final study decisions remain open.
 
-## Read these four documents in order
+## Start a new implementation chat here
+
+Open **this SmartFlow folder** as the workspace. Read [AGENTS.md](AGENTS.md), this README, handoff sections 1–4 and 11, and the project overview. Then read only the source and tests for the selected delivery slice. No parent Trapik2 files are needed to understand the current scope and recorded history. Documentation provides orientation; the relevant source still needs inspection before it is changed.
+
+## Documentation index
 
 | Document | What it answers |
 | --- | --- |
 | [README.md](README.md) | Where to start, how to run the new stack, and where the main files live. |
+| [Implementation handoff](IMPLEMENTATION_HANDOFF.md) | Latest interrupted state, six approved areas, all 31 backlog tasks, acceptance criteria and a targeted code-reading map. Read sections 1–4 and 11 first; other sections as needed. |
 | [Project purpose and scope](docs/PROJECT_OVERVIEW.md) | Why the project exists, chapter requirements, users, agreed direction and research boundaries. |
 | [Architecture and delivery plan](docs/ARCHITECTURE_AND_PLAN.md) | Technical-lead review, alternatives, decisions, architecture, 35-day delivery plan, risks and release/recovery gates. |
-| [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md) | What exists, what was actually verified, known gaps, and where implementation should resume. |
+| [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md) | Latest status pointer and dated verification evidence; clearly separates the earlier passing checkpoint from later unfinished work. |
+| [Research preparation](docs/RESEARCH_METHOD.md) | Observation form, calibration/evaluation protocol, metric definitions and open study decisions. |
+| [Field recording procedure](docs/FIELD_RECORDING_PROTOCOL.md) | Roadside phone placement, coverage, signal and pedestrian observations, collection forms and pilot quality checks. |
+| [Video observation tool plan](docs/VIDEO_OBSERVATION_TOOL_PLAN.md) | Temporary offline Python tool inside SmartFlow, selected open-source stack, review workflow and evidence exports. |
+| [Field data integration plan](docs/FIELD_DATA_SMARTFLOW_INTEGRATION.md) | Required demand/signal fidelity changes, dataset conversion, calibration, validation and field-informed RL experiments. |
+| [Single-host deployment](deploy/README.md) | Production environment, single-worker startup, storage and recovery checklist. |
+| [Project history and chapter archive](PROJECT_HISTORY_AND_MIGRATION.md) | Both codebases, old/revised chapter comparison, source PDFs and relocation checklist. Read sections 1–9 for history; appendices only for specific research questions. |
 
-These are the four maintained working documents. The separately requested [Project history, chapter archive and migration record](PROJECT_HISTORY_AND_MIGRATION.md) preserves both codebases' history, the full text of the old and revised manuscripts, source PDFs and a relocation checklist. Read it before moving SmartFlow away from its parent. `AGENTS.md` and Markdown under skill/tool directories are supporting instructions. Earlier migration plans and status reports are superseded. Do not use the parent folder's Dash application as the specification for this React application.
+The four foundation documents remain README, overview, architecture and progress. The owner subsequently requested the implementation handoff and historical archive. Keep these existing documents focused instead of creating overlapping status files. `AGENTS.md` is the short agent entry point; skill/tool Markdown is task-specific guidance. The archive's full manuscripts are reference material, not required startup reading. Do not use the parent folder's Dash application as the specification for this React application.
 
 ## Start locally
 
@@ -24,7 +35,7 @@ Run commands from **`SmartFlow`**, not its parent directory. The working develop
 First-time setup:
 
 ```powershell
-npm install
+npm ci
 npm run venv:create
 npm run venv:install
 ```
@@ -48,26 +59,56 @@ The API defaults to `http://127.0.0.1:8000`. Open the URL printed by Vite, norma
 | Setting | Purpose |
 | --- | --- |
 | `SMARTFLOW_SECRET_KEY` | Session secret; provide an explicit value for deployment. |
+| `SMARTFLOW_ENV`, `SMARTFLOW_PUBLIC_BASE_URL`, `SMARTFLOW_ALLOWED_ORIGINS` | Production mode, public HTTPS origin and exact browser origins; see [deployment guide](deploy/README.md). |
 | `SMARTFLOW_BOOTSTRAP_ADMIN_PASSWORD` | Initial administrator password for a fresh database. |
 | `SMARTFLOW_DB_PATH` | Database location; defaults to `data/smartflow.db` inside this folder. |
+| `SMARTFLOW_SCENARIO_CONFIG_MAX_BYTES` | Positive serialized UTF-8 byte limit per scenario JSON field, shared by demand import and saving; defaults to 2 MiB (2,097,152 bytes). Expanded arrival schedules count toward it. |
+| `SMARTFLOW_NETWORK_PATH` | Optional native network path, used when running an isolated restored bundle. |
+| `SMARTFLOW_MAX_RECORDING_SECONDS` | Optional per-recording duration limit; defaults to 3,600 seconds. |
 | `SMARTFLOW_API_HOST`, `SMARTFLOW_API_PORT` | API bind address and port. |
 | `SMARTFLOW_API_RELOAD` | Opt-in development auto-reload. Otherwise restart the API after Python changes. |
 | `VITE_SMARTFLOW_API_BASE_URL` | Frontend API address. |
 
 Recreate `.venv` when moving the project to another machine. A pre-existing `dist/` build or running server may predate the latest source edits.
 
+For a teammate's clean setup, copy the source, dependency manifests, `data/networks`, `data/scenarios` and documentation into a separate folder. Install Node/npm and Python, then run the first-time setup above in that folder. Build with `npm run build`; recreate dependencies instead of copying `node_modules`, `.venv` or an old `dist`. Keep the original database and artifact directories together when preserving results, or use a verified ZIP restore for relocation. A clean source copy seeds demonstration scenarios; it does not contain your saved research inputs or models.
+
+To rehearse the package from the current checkout, choose a **new, nonexistent** target directory:
+
+```powershell
+.venv/Scripts/python.exe tools/verify_standalone.py tmp/team-install-check
+```
+
+This copies source and checks manuscript PDF hashes, installs from the npm lockfile into a fresh dependency directory, creates a new Python environment, runs the full Python tests, API compilation, lint and build, then checks login/configure/start/stop against an isolated database. It leaves the copy and evidence available for inspection. Browser import/replay/export checks follow these automated checks.
+
+In **Scenarios → Create/Edit → CSV import**, choose a schema and download its blank template or synthetic example. Examples use IDs from the currently loaded network and select the synthetic source label. Fill blank templates with actual records before importing; keep originals and collection provenance. Detailed columns and units are in [Research preparation](docs/RESEARCH_METHOD.md#csv-template-and-import-guide).
+
 ## Verification commands
 
-The Python suite and API compilation passed for the September 23 `native-3` checkpoint. The frontend build and complete browser workflow still need current-source acceptance. Run these checks after further changes or relocation:
+Run these checks after implementation or relocation; the latest dated results are in [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md):
 
 ```powershell
 .venv/Scripts/python.exe -m pip install -r requirements-dev.txt
 .venv/Scripts/python.exe -m unittest discover -s tests -v
 npm run check:api
+npm run lint
 npm run build
 ```
 
 Use an isolated database for integration checks. Tests create temporary databases; `data/native-verification.db` is a separate development verification database, not the canonical research dataset. The detailed evidence and pending checks are in [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md).
+
+## Backup and local capacity checks
+
+An administrator can create a ZIP bundle on **Backup & Restore** after stopping live runs, recordings and training. It contains a SQLite snapshot and referenced artifacts. **Verify restore** creates an isolated directory and returns its path; read `restore_environment.json` there to start a separate API against that copy. Supply a separate `SMARTFLOW_SECRET_KEY` when launching it. Legacy `.db` entries contain SQLite only and are staged without replacing the live database. The active SQLite download is an export, not an artifact backup.
+
+To repeat the synthetic native capacity measurement on the machine that will run SmartFlow:
+
+```powershell
+.venv/Scripts/python.exe -m tools.measure_native_capacity --duration-seconds 60 --output tmp/capacity.json
+.venv/Scripts/python.exe -m tools.measure_native_capacity --duration-seconds 300 --densities 'high,very high' --output tmp/capacity-stress.json
+```
+
+The command reports step and frame cost, simulation/wall ratio, process memory, recording size and demand conservation. Add `?perf=1` to the app URL to show the 3D render-loop fps and draw calls during a visible production-build run. Hidden tabs and Vite hot reload can distort browser fps. The local September 27 measurements and limits are in the progress document; they do not certify other hardware or real-world traffic capacity.
 
 ## Headless experiments
 

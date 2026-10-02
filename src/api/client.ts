@@ -1,5 +1,6 @@
 function defaultApiBaseUrl() {
   if (typeof window === "undefined") return "http://127.0.0.1:8000"
+  if (window.location.protocol === "https:") return window.location.origin
   const hostname = window.location.hostname || "127.0.0.1"
   return `http://${hostname}:8000`
 }

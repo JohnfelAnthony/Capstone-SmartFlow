@@ -47,6 +47,10 @@ export default function App() {
     Help: "Help & Documentation",
   }
   const pageTitle = pageTitleByPage[activePage] ?? activePage
+  const can = (page: string, action: string) => Boolean(currentUser && (
+    currentUser.role.toLowerCase() === "admin" ||
+    currentUser.permissions.some((permission) => permission.page === page && permission.action === action)
+  ))
 
   React.useEffect(() => {
     let isMounted = true
@@ -152,9 +156,12 @@ export default function App() {
           />
           <div className="flex min-h-0 flex-1 flex-col">
             {activePage === "Scenarios" ? (
-              <ScenariosPage onOpenDashboard={() => setActivePage("Dashboard")} />
+              <ScenariosPage onOpenDashboard={() => setActivePage("Dashboard")}
+                permissions={{ create: can("scenarios", "create"), edit: can("scenarios", "edit"),
+                  run: can("simulation", "run") }} />
             ) : activePage === "RL Training" ? (
-              <RLTrainingPage />
+              <RLTrainingPage currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
+                canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
             ) : activePage === "Runs & Reports" ? (
               <RunsReportsPage onOpenDashboard={() => setActivePage("Dashboard")} />
             ) : activePage === "Compare Runs" ? (
@@ -176,6 +183,9 @@ export default function App() {
               <HelpAboutPage />
             ) : (
               <DashboardPage
+                currentUserId={currentUser!.id}
+                isAdmin={currentUser!.role.toLowerCase() === "admin"}
+                canRunSimulation={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "simulation" && permission.action === "run")}
                 visualizationMode={visualizationMode}
                 onVisualizationModeChange={setVisualizationMode}
               />

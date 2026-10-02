@@ -116,7 +116,9 @@ export function BackupRestorePage() {
   }, [])
 
   React.useEffect(() => {
-    void loadBackups()
+    let active = true
+    queueMicrotask(() => { if (active) void loadBackups() })
+    return () => { active = false }
   }, [loadBackups])
 
   const selectedBackup = backups.find((backup) => backup.id === selectedBackupId) ?? backups[0] ?? null
@@ -148,7 +150,9 @@ export function BackupRestorePage() {
   function requestRestore(backup: BackupSnapshot) {
     setSelectedBackupId(backup.id)
     setPendingAction("restore")
-    setAlert(`Restore requested for '${backup.filename}'. Confirm to apply the database snapshot and invalidate sessions.`)
+    setAlert(backup.filename.endsWith(".zip")
+      ? `Verify '${backup.filename}' in a separate restore directory. The live application will stay in place.`
+      : `Legacy SQLite will be copied to a separate restore directory. Models and recordings are not included.`)
   }
 
   function requestDelete(backup: BackupSnapshot) {
@@ -171,7 +175,7 @@ export function BackupRestorePage() {
             status: backup.id === selectedBackup.id ? "restored" : backup.status,
           }))
         )
-        setAlert(`${response.message} You may need to sign in again.`)
+        setAlert(`${response.message}${response.restore_path ? ` Restored files: ${response.restore_path}` : ""}`)
       } else {
         const response = await deleteBackup(selectedBackup.id)
         const nextBackups = backups.filter((backup) => backup.id !== selectedBackup.id)
@@ -209,11 +213,11 @@ export function BackupRestorePage() {
       <section className="backup-hero">
         <div>
           <h1>Backup & Restore</h1>
-          <p>Create database snapshots, restore from backups, or download the active SQLite file.</p>
+          <p>Save the database with referenced artifacts and verify a restore in separate storage.</p>
         </div>
         <Button onClick={createBackup} disabled={isLoading}>
           <PlusIcon data-icon="inline-start" />
-          {isLoading ? "Working" : "Backup Database"}
+          {isLoading ? "Working" : "Create Backup Bundle"}
         </Button>
       </section>
 
@@ -247,7 +251,7 @@ export function BackupRestorePage() {
               <FileArchiveIcon />
               Backup Snapshots
             </CardTitle>
-            <CardDescription>View, restore, or delete saved database copies.</CardDescription>
+            <CardDescription>Download bundles and verify isolated restores. Older .db entries contain SQLite only.</CardDescription>
             <CardAction>
               <Badge variant="secondary">{backups.length} snapshots</Badge>
             </CardAction>
@@ -285,7 +289,7 @@ export function BackupRestorePage() {
                           </Button>
                           <Button variant="outline" size="sm" onClick={() => requestRestore(backup)}>
                             <ArchiveRestoreIcon data-icon="inline-start" />
-                            Restore
+                            {backup.filename.endsWith(".zip") ? "Verify restore" : "Stage SQLite"}
                           </Button>
                           <Button variant="destructive" size="sm" onClick={() => requestDelete(backup)}>
                             <Trash2Icon data-icon="inline-start" />
@@ -301,7 +305,7 @@ export function BackupRestorePage() {
               <div className="backup-empty-state">
                 <HistoryIcon />
                 <strong>No backup snapshots yet</strong>
-                <span>Create your first backup using the Database Actions panel.</span>
+                <span>Create your first database and artifact bundle.</span>
               </div>
             )}
           </CardContent>
@@ -313,25 +317,25 @@ export function BackupRestorePage() {
               <DatabaseIcon />
               Database Actions
             </CardTitle>
-            <CardDescription>Create new backups or export the live database.</CardDescription>
+            <CardDescription>Create a portable bundle or export SQLite alone.</CardDescription>
           </CardHeader>
           <CardContent className="backup-action-stack">
             <div className="backup-action-tile">
               <DatabaseBackupIcon />
               <div>
-                <strong>Create Local Snapshot</strong>
-                <span>Save a point-in-time copy of the entire database.</span>
+                <strong>Create Backup Bundle</strong>
+                <span>Save a SQLite snapshot with referenced models, recordings, imports, and network files.</span>
               </div>
               <Button onClick={createBackup} disabled={isLoading}>
                 <DatabaseBackupIcon data-icon="inline-start" />
-                Backup Database
+                Create Bundle
               </Button>
             </div>
             <div className="backup-action-tile">
               <DownloadIcon />
               <div>
                 <strong>Export Active SQLite</strong>
-                <span>Download the current database file to your local machine.</span>
+                <span>SQLite alone omits model and recording files; use a bundle for recovery.</span>
               </div>
               <Button variant="outline" onClick={downloadDatabase} disabled={isLoading}>
                 <DownloadIcon data-icon="inline-start" />

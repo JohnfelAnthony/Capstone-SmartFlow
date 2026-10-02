@@ -31,6 +31,11 @@ import {
   type ScenarioWritePayload,
 } from "@/api/scenarios"
 import { configureSimulation, generateTimeline, startSimulation } from "@/api/simulation"
+import { listRLModels, type RLModelRecord } from "@/api/rl"
+import { downloadObservationTemplate, getNativeScenarioOptions, importObservationCsv, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions } from "@/api/native-scenario"
+import { NativeNumber, NativeScenarioControls, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,13 +73,14 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-type ScenarioDensity = "Single" | "Low" | "Medium" | "High" | "Very High"
+type ScenarioDensity = "None" | "Single" | "Low" | "Medium" | "High" | "Very High"
 type ScenarioCategory = "all" | "official" | "user" | "active" | "archived"
 type ScenarioTypeFilter = "all" | "official" | "user"
 type ScenarioStateFilter = "all" | "active" | "archived"
 type ScenarioViewMode = "cards" | "table"
 type ScenarioSort = "name_asc" | "name_desc" | "date_desc" | "date_asc" | "density_desc"
 type ScenarioFormMode = "create" | "edit"
+type ScenarioPermissions = { create: boolean; edit: boolean; run: boolean }
 
 type DisruptionConfig = {
   enabled: boolean
@@ -102,6 +108,7 @@ type ScenarioRecord = {
   accident: DisruptionConfig
   flooding: DisruptionConfig
   constraintsJson: string
+  engineConfig: NativeScenarioConfig
 }
 
 type ScenarioDraft = {
@@ -112,9 +119,11 @@ type ScenarioDraft = {
   pedestrianDensity: string
   emergencyMode: string
   roadConstraint: string
+  engineConfig: NativeScenarioConfig
 }
 
 const densityOrder: Record<ScenarioDensity, number> = {
+  None: 0,
   Single: 0,
   Low: 1,
   Medium: 2,
@@ -125,18 +134,16 @@ const densityOrder: Record<ScenarioDensity, number> = {
 const emptyScenarioDraft: ScenarioDraft = {
   name: "",
   description: "",
-  intersectionId: "tagum_network",
+  intersectionId: "",
   trafficDensity: "Medium",
   pedestrianDensity: "Medium",
   emergencyMode: "Disabled",
   roadConstraint: "None",
+  engineConfig: {},
 }
 
 function normalizeDensity(value: string): ScenarioDensity {
-  if (value === "Single" || value === "Low" || value === "Medium" || value === "High" || value === "Very High") {
-    return value
-  }
-  return "Medium"
+  return (Object.keys(densityOrder) as ScenarioDensity[]).find((density) => density.toLowerCase() === value.toLowerCase()) ?? "Medium"
 }
 
 function disruptionFromApi(value: Record<string, unknown>): DisruptionConfig {
@@ -164,7 +171,7 @@ function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
     id: scenario.id,
     name: scenario.name,
     description: scenario.description ?? "",
-    intersectionId: "tagum_network",
+    intersectionId: scenario.intersection_id,
     trafficDensity: normalizeDensity(scenario.traffic_density),
     pedestrianDensity: scenario.pedestrian_density || "Medium",
     emergencyMode: scenario.emergency_mode || "Disabled",
@@ -187,6 +194,7 @@ function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
       null,
       2
     ),
+    engineConfig: scenario.engine_config ?? {},
   }
 }
 
@@ -242,47 +250,18 @@ function draftFromScenario(scenario: ScenarioRecord): ScenarioDraft {
     pedestrianDensity: scenario.pedestrianDensity,
     emergencyMode: scenario.emergencyMode,
     roadConstraint: scenario.roadConstraint,
+    engineConfig: structuredClone(scenario.engineConfig),
   }
 }
 
-function constraintPayloadFromScenario(scenario?: ScenarioRecord | null) {
-  if (!scenario) {
-    return {
-      lane_closure_config: {},
-      construction_config: {},
-      accident_config: {},
-      flooding_config: {},
-    }
-  }
-  try {
-    const parsed = JSON.parse(scenario.constraintsJson) as Partial<ScenarioWritePayload>
-    return {
-      lane_closure_config: parsed.lane_closure_config ?? {},
-      construction_config: parsed.construction_config ?? {},
-      accident_config: parsed.accident_config ?? {},
-      flooding_config: parsed.flooding_config ?? {},
-    }
-  } catch {
-    return {
-      lane_closure_config: {},
-      construction_config: {},
-      accident_config: {},
-      flooding_config: {},
-    }
-  }
-}
-
-function payloadFromDraft(draft: ScenarioDraft, scenario?: ScenarioRecord | null): ScenarioWritePayload {
-  const constraints = constraintPayloadFromScenario(scenario)
+function payloadFromDraft(draft: ScenarioDraft): ScenarioWritePayload {
   return {
-    name: draft.name,
-    description: draft.description,
-    intersection_id: draft.intersectionId,
-    traffic_density: draft.trafficDensity,
-    pedestrian_density: draft.pedestrianDensity,
-    emergency_mode: draft.emergencyMode,
-    road_constraint: draft.roadConstraint,
-    ...constraints,
+    name: draft.name, description: draft.description, intersection_id: draft.intersectionId,
+    traffic_density: draft.trafficDensity, pedestrian_density: draft.pedestrianDensity,
+    emergency_mode: draft.emergencyMode, road_constraint: "None",
+    lane_closure_config: {}, construction_config: {}, accident_config: {}, flooding_config: {},
+    engine_config: { ...draft.engineConfig, traffic_density: draft.trafficDensity.toLowerCase(),
+      pedestrian_density: draft.pedestrianDensity.toLowerCase(), emergency_mode: draft.emergencyMode.toLowerCase(), road_constraint: "None" },
   }
 }
 
@@ -298,7 +277,7 @@ function ScenarioSelect({
   className?: string
 }) {
   return (
-    <Select value={value} onValueChange={(nextValue) => nextValue !== null && onChange(nextValue)}>
+    <Select items={options} value={value} onValueChange={(nextValue) => nextValue !== null && onChange(nextValue)}>
       <SelectTrigger className={cn("w-full", className)}>
         <SelectValue />
       </SelectTrigger>
@@ -314,7 +293,6 @@ function ScenarioSelect({
     </Select>
   )
 }
-
 function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -328,7 +306,9 @@ function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
   )
 }
 
-export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => void }) {
+export function ScenariosPage({ onOpenDashboard, permissions }: {
+  onOpenDashboard?: () => void; permissions: ScenarioPermissions
+}) {
   const [scenarios, setScenarios] = React.useState<ScenarioRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSaving, setIsSaving] = React.useState(false)
@@ -340,12 +320,41 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
   const [sort, setSort] = React.useState<ScenarioSort>("name_asc")
   const [viewMode, setViewMode] = React.useState<ScenarioViewMode>("cards")
   const [selectedId, setSelectedId] = React.useState<number | null>(null)
+  const [recordingScenarioId, setRecordingScenarioId] = React.useState<number | null>(null)
+  const [recordingModels, setRecordingModels] = React.useState<RLModelRecord[]>([])
+  const [recordControlMode, setRecordControlMode] = React.useState("fixed-time")
+  const [recordDuration, setRecordDuration] = React.useState(300)
+  const [recordSeed, setRecordSeed] = React.useState(42)
+  const [recordError, setRecordError] = React.useState("")
   const [notice, setNotice] = React.useState("Loading scenarios from SQLite...")
   const [formMode, setFormMode] = React.useState<ScenarioFormMode | null>(null)
   const [editingScenarioId, setEditingScenarioId] = React.useState<number | null>(null)
   const [draft, setDraft] = React.useState<ScenarioDraft>(emptyScenarioDraft)
+  const [nativeOptions, setNativeOptions] = React.useState<NativeScenarioOptions | null>(null)
+  const [formError, setFormError] = React.useState("")
+  const [importKind, setImportKind] = React.useState<"trips" | "od_counts" | "turn_counts" | "pedestrian_counts">("trips")
+  const [importSourceKind, setImportSourceKind] = React.useState<"synthetic" | "observed">("synthetic")
+  const [importDescription, setImportDescription] = React.useState("")
+  const [importDate, setImportDate] = React.useState(new Date().toISOString().slice(0, 10))
+  const [importCollectionStart, setImportCollectionStart] = React.useState("")
+  const [importCollectionEnd, setImportCollectionEnd] = React.useState("")
+  const [importFile, setImportFile] = React.useState<File | null>(null)
+  const [importNotice, setImportNotice] = React.useState("")
+  const [isImporting, setIsImporting] = React.useState(false)
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = React.useState(false)
+  const [isResolving, setIsResolving] = React.useState(false)
+  const [editConfigReady, setEditConfigReady] = React.useState(true)
+  const editRequest = React.useRef(0)
+
+  React.useEffect(() => {
+    let mounted = true
+    getNativeScenarioOptions().then((options) => { if (mounted) setNativeOptions(options) })
+      .catch((error) => { if (mounted) setNotice(error instanceof Error ? error.message : "Unable to load network choices.") })
+    return () => { mounted = false }
+  }, [])
 
   const selectedScenario = scenarios.find((scenario) => scenario.id === selectedId) ?? null
+  const recordingScenario = scenarios.find((scenario) => scenario.id === recordingScenarioId) ?? null
 
   const loadScenarios = React.useCallback(async () => {
     setIsLoading(true)
@@ -362,7 +371,9 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
   }, [])
 
   React.useEffect(() => {
-    void loadScenarios()
+    let active = true
+    queueMicrotask(() => { if (active) void loadScenarios() })
+    return () => { active = false }
   }, [loadScenarios])
 
   const filteredScenarios = React.useMemo(() => {
@@ -401,27 +412,54 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
   }
 
   function openCreateForm() {
+    if (!permissions.create) return
+    editRequest.current += 1
+    setFormError("")
+    setEditConfigReady(true)
+    setIsResolving(false)
     setFormMode("create")
     setEditingScenarioId(null)
-    setDraft(emptyScenarioDraft)
+    setDraft({ ...emptyScenarioDraft, intersectionId: nativeOptions?.network_id ?? "",
+      engineConfig: structuredClone(nativeOptions?.defaults ?? {}) })
   }
 
-  function openEditForm(scenario: ScenarioRecord) {
+  async function openEditForm(scenario: ScenarioRecord) {
+    if (!permissions.edit) return
+    const request = ++editRequest.current
+    setSelectedId(null)
     setFormMode("edit")
     setEditingScenarioId(scenario.id)
     setDraft(draftFromScenario(scenario))
+    setFormError("")
+    setEditConfigReady(false)
+    setIsResolving(true)
+    try {
+      const result = await resolveNativeScenario(scenario.id)
+      if (request !== editRequest.current) return
+      setDraft((current) => ({ ...current, engineConfig: result.engine_config,
+        trafficDensity: normalizeDensity(String(result.engine_config.traffic_density)),
+        pedestrianDensity: String(result.engine_config.pedestrian_density),
+        emergencyMode: String(result.engine_config.emergency_mode) }))
+      setEditConfigReady(true)
+    } catch (error) {
+      if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load native settings.")
+    } finally {
+      if (request === editRequest.current) setIsResolving(false)
+    }
   }
 
   async function saveScenarioDraft() {
+    if (formMode === "edit" ? !permissions.edit : !permissions.create) return
+    if (!nativeOptions || isResolving || !editConfigReady) return
+    setFormError("")
     if (!draft.name.trim()) {
-      setNotice("Scenario name is required.")
+      setFormError("Scenario name is required.")
       return
     }
     setIsSaving(true)
     try {
       if (formMode === "edit" && editingScenarioId !== null) {
-        const existingScenario = scenarios.find((scenario) => scenario.id === editingScenarioId)
-        const updated = await updateScenario(editingScenarioId, payloadFromDraft(draft, existingScenario))
+        const updated = await updateScenario(editingScenarioId, payloadFromDraft(draft))
         setScenarios((current) => current.map((scenario) => scenario.id === updated.id ? scenarioFromApi(updated) : scenario))
         setNotice(`"${updated.name}" updated in SQLite.`)
       } else {
@@ -433,13 +471,57 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
       setEditingScenarioId(null)
       setDraft(emptyScenarioDraft)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to save scenario.")
+      setFormError(error instanceof Error ? error.message : "Unable to save scenario.")
     } finally {
       setIsSaving(false)
     }
   }
 
+  async function downloadImportTemplate(example: boolean) {
+    setIsDownloadingTemplate(true)
+    setFormError("")
+    try {
+      const result = await downloadObservationTemplate(importKind, example)
+      if (example) {
+        setImportSourceKind("synthetic")
+        setImportDescription(`Synthetic ${importKind} example for ${result.network_id}; no field observations`)
+      }
+      setImportNotice(`${example ? "Synthetic example" : "Blank template"} downloaded for ${result.network_id}. ${example ? "Use Synthetic sample provenance; example values are not field observations." : "Add your data rows before importing."}`)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to download CSV template.")
+    } finally {
+      setIsDownloadingTemplate(false)
+    }
+  }
+
+  async function importCsvToDraft() {
+    if (!importFile || !nativeOptions || !editConfigReady) {
+      setFormError("Choose a CSV file and wait for scenario settings to load.")
+      return
+    }
+    setIsImporting(true)
+    setFormError("")
+    setImportNotice("")
+    try {
+      const response = await importObservationCsv({
+        kind: importKind, source_kind: importSourceKind, csv_text: await importFile.text(),
+        source_description: importDescription, collected_on: importDate, engine_config: draft.engineConfig,
+        collection_start: importSourceKind === "observed" ? importCollectionStart || undefined : undefined,
+        collection_end: importSourceKind === "observed" ? importCollectionEnd || undefined : undefined,
+      })
+      setDraft((current) => ({ ...current, engineConfig: response.engine_config,
+        trafficDensity: importKind === "pedestrian_counts" ? current.trafficDensity : "None",
+        pedestrianDensity: importKind === "pedestrian_counts" ? "none" : current.pedestrianDensity }))
+      setImportNotice(`Validated ${response.summary.row_count} rows and ${response.summary.arrival_count} arrivals. Source SHA-256: ${response.summary.sha256}. Save the scenario to use them.`)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to import CSV.")
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   async function toggleArchiveScenario(scenario: ScenarioRecord) {
+    if (!permissions.edit) return
     setIsSaving(true)
     try {
       const updated = scenario.isArchived
@@ -455,20 +537,31 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
   }
 
   async function launchScenario(scenario: ScenarioRecord, action: "load" | "live" | "record") {
+    if (!permissions.run) return
     if (scenario.isArchived) {
       setNotice(`"${scenario.name}" is archived. Restore it before loading or running.`)
       return
     }
+    if (action === "record") {
+      setSelectedId(null)
+      setRecordingScenarioId(scenario.id)
+      setRecordControlMode("fixed-time")
+      setRecordDuration(300)
+      setRecordSeed(42)
+      setRecordError("")
+      try {
+        const response = await listRLModels()
+        setRecordingModels(response.models.filter((model) => model.compatible &&
+          (!model.controlled_junction || model.controlled_junction === scenario.engineConfig.controlled_junction)))
+      } catch (error) {
+        setRecordingModels([])
+        setRecordError(error instanceof Error ? error.message : "Unable to load saved models.")
+      }
+      return
+    }
     setIsSaving(true)
     try {
-      if (action === "record") {
-        const response = await generateTimeline({
-          scenario_id: scenario.id,
-          duration_seconds: 300,
-          control_mode: "fixed-time",
-        })
-        setNotice(`"${scenario.name}" pre-record timeline started as run #${response.run.id}.`)
-      } else if (action === "live") {
+      if (action === "live") {
         await startSimulation({ scenario_id: scenario.id, duration_seconds: 300, control_mode: "fixed-time" })
         setNotice(`"${scenario.name}" started as a live FastAPI simulation.`)
       } else {
@@ -478,6 +571,33 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
       onOpenDashboard?.()
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to launch scenario.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function startRecording() {
+    if (!permissions.run) return
+    if (!recordingScenario) return
+    if (!Number.isInteger(recordDuration) || recordDuration < 1 || recordDuration > 86400 ||
+        !Number.isInteger(recordSeed) || recordSeed < 0 || recordSeed > 4294967295) {
+      setRecordError("Enter an integer duration from 1 to 86400 seconds and a seed from 0 to 4294967295.")
+      return
+    }
+    setIsSaving(true)
+    setRecordError("")
+    try {
+      const response = await generateTimeline({
+        scenario_id: recordingScenario.id,
+        duration_seconds: recordDuration,
+        seed: recordSeed,
+        control_mode: recordControlMode,
+      })
+      setNotice(`"${recordingScenario.name}" ${recordControlMode} recording started as run #${response.run.id}.`)
+      setRecordingScenarioId(null)
+      onOpenDashboard?.()
+    } catch (error) {
+      setRecordError(error instanceof Error ? error.message : "Unable to start recording.")
     } finally {
       setIsSaving(false)
     }
@@ -494,7 +614,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
             <RotateCcwIcon data-icon="inline-start" />
             {isLoading ? "Refreshing" : "Refresh"}
           </Button>
-          <Button onClick={openCreateForm} disabled={isSaving}>
+          <Button onClick={openCreateForm} disabled={isSaving || !nativeOptions || !permissions.create}>
             <PlusIcon data-icon="inline-start" />
             New Scenario
           </Button>
@@ -620,6 +740,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
                     key={scenario.id}
                     scenario={scenario}
                     selectedId={selectedId}
+                    permissions={permissions}
                     onArchive={toggleArchiveScenario}
                     onEdit={openEditForm}
                     onLaunch={launchScenario}
@@ -631,6 +752,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
               <ScenarioTable
                 scenarios={filteredScenarios}
                 selectedId={selectedId}
+                permissions={permissions}
                 onArchive={toggleArchiveScenario}
                 onEdit={openEditForm}
                 onLaunch={launchScenario}
@@ -654,6 +776,7 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
           {selectedScenario ? (
             <ScenarioDetailSheet
               scenario={selectedScenario}
+              permissions={permissions}
               onArchive={toggleArchiveScenario}
               onEdit={openEditForm}
               onLaunch={launchScenario}
@@ -666,96 +789,111 @@ export function ScenariosPage({ onOpenDashboard }: { onOpenDashboard?: () => voi
         <SheetContent className="scenario-sheet" side="right">
           <SheetHeader>
             <SheetTitle>{formMode === "edit" ? "Edit Scenario" : "New Scenario"}</SheetTitle>
-            <SheetDescription>Save scenario settings to the existing SQLite scenario table.</SheetDescription>
+            <SheetDescription>Configure demand, signal plans and scheduled road changes. Saved settings are shared by live runs, recordings and training.</SheetDescription>
           </SheetHeader>
           <div className="scenario-sheet-scroll">
-            <div className="scenario-form px-4">
-              <label className="scenario-form-full">
-                <span>Name</span>
-                <Input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
-              </label>
-              <label className="scenario-form-full">
-                <span>Description</span>
-                <textarea
-                  className="scenario-textarea"
-                  value={draft.description}
-                  onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
-                />
-              </label>
-              <div className="scenario-form-grid">
-                <label>
-                  <span>Intersection</span>
-                  <ScenarioSelect
-                    value={draft.intersectionId}
-                    onChange={(value) => setDraft((current) => ({ ...current, intersectionId: value }))}
-                    options={[
-                      { label: "Tagum — 5 connected junctions", value: "tagum_network" },
-                    ]}
-                  />
-                </label>
-                <label>
-                  <span>Traffic Density</span>
-                  <ScenarioSelect
-                    value={draft.trafficDensity}
-                    onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))}
-                    options={[
-                      { label: "Single car", value: "Single" },
-                      { label: "Low", value: "Low" },
-                      { label: "Medium", value: "Medium" },
-                      { label: "High", value: "High" },
-                      { label: "Very High", value: "Very High" },
-                    ]}
-                  />
-                </label>
-                <label>
-                  <span>Pedestrians</span>
-                  <ScenarioSelect
-                    value={draft.pedestrianDensity}
-                    onChange={(value) => setDraft((current) => ({ ...current, pedestrianDensity: value }))}
-                    options={[
-                      { label: "None", value: "None" },
-                      { label: "Single car", value: "Single" },
-                      { label: "Low", value: "Low" },
-                      { label: "Medium", value: "Medium" },
-                      { label: "High", value: "High" },
-                    ]}
-                  />
-                </label>
-                <label>
-                  <span>Emergency Mode</span>
-                  <ScenarioSelect
-                    value={draft.emergencyMode}
-                    onChange={(value) => setDraft((current) => ({ ...current, emergencyMode: value }))}
-                    options={[
-                      { label: "Disabled", value: "Disabled" },
-                      { label: "Enabled (1 Ambulance)", value: "Enabled (1 Ambulance)" },
-                      { label: "Enabled (2 Vehicles)", value: "Enabled (2 Vehicles)" },
-                    ]}
-                  />
-                </label>
-                <label>
-                  <span>Road Constraint</span>
-                  <ScenarioSelect
-                    value={draft.roadConstraint}
-                    onChange={(value) => setDraft((current) => ({ ...current, roadConstraint: value }))}
-                    options={[
-                      { label: "None", value: "None" },
-                      { label: "Lane Closure", value: "Lane Closure" },
-                      { label: "Construction", value: "Construction" },
-                      { label: "Accident", value: "Accident" },
-                      { label: "Flooding", value: "Flooding" },
-                      { label: "Temporary Blockage", value: "Temporary Blockage" },
-                    ]}
-                  />
-                </label>
-              </div>
-            </div>
+            <FieldGroup className="px-4 pb-4">
+              {formError && <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>}
+              {!editConfigReady && !isResolving && nativeOptions && <Button variant="outline" onClick={() => {
+                setDraft((current) => ({ ...current, intersectionId: nativeOptions.network_id,
+                  engineConfig: structuredClone(nativeOptions.defaults) }))
+                setEditConfigReady(true)
+                setFormError("")
+              }}>Replace unsupported settings with native defaults</Button>}
+              <Field>
+                <FieldLabel htmlFor="scenario-name">Name</FieldLabel>
+                <Input id="scenario-name" value={draft.name} maxLength={160} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="scenario-description">Description</FieldLabel>
+                <textarea id="scenario-description" className="scenario-textarea" maxLength={2000} value={draft.description}
+                  onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
+              </Field>
+              <p className="text-sm text-muted-foreground">{nativeOptions?.network_name ?? "Loading road network..."}. This network is provisional; demand is synthetic unless identified otherwise.</p>
+              <FieldGroup className="grid sm:grid-cols-2">
+                <NativeSelect label="Traffic density" value={draft.trafficDensity.toLowerCase()}
+                  options={["None", "Single", "Low", "Medium", "High", "Very High"].map((label) => ({ label, value: label.toLowerCase() }))}
+                  onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />
+                <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()}
+                  options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
+                  onChange={(pedestrianDensity) => setDraft((current) => ({ ...current, pedestrianDensity }))} />
+                <NativeSelect label="Emergency vehicles" value={draft.emergencyMode.toLowerCase()}
+                  options={[{ label: "Disabled", value: "disabled" }, { label: "One ambulance", value: "enabled (1 ambulance)" },
+                    { label: "Enabled", value: "enabled" }, { label: "One vehicle", value: "enabled (1 vehicle)" }, { label: "Two vehicles", value: "enabled (2 vehicles)" }]}
+                  onChange={(emergencyMode) => setDraft((current) => ({ ...current, emergencyMode }))} />
+              </FieldGroup>
+              <fieldset className="rounded-lg border p-3 flex flex-col gap-3">
+                <legend className="font-medium">Import demand CSV</legend>
+                <p className="text-sm text-muted-foreground">Network boundary IDs: {nativeOptions?.boundaries.map((item) => `${item.id} (${item.label})`).join(", ") ?? "loading"}. Junction IDs: {nativeOptions?.junctions.map((item) => item.id).join(", ") ?? "loading"}.</p>
+                <NativeSelect label="CSV schema" value={importKind} options={[
+                  { value: "trips", label: "Trips: time_s, source, destination, vehicle_type" },
+                  { value: "od_counts", label: "OD counts: start_s, end_s, source, destination, count" },
+                  { value: "turn_counts", label: "Turn counts: start_s, end_s, source, destination, junction, from_lane, to_lane, count" },
+                  { value: "pedestrian_counts", label: "Pedestrians: start_s, end_s, junction, count" },
+                ]} onChange={(value) => setImportKind(value as typeof importKind)} />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" disabled={isDownloadingTemplate || !nativeOptions} onClick={() => void downloadImportTemplate(false)}>Download blank template</Button>
+                  <Button type="button" variant="outline" size="sm" disabled={isDownloadingTemplate || !nativeOptions} onClick={() => void downloadImportTemplate(true)}>Download synthetic example</Button>
+                </div>
+                <Alert><AlertDescription>Templates match the selected CSV schema. Synthetic examples use the loaded network's IDs and invented counts; never report them as field observations. A blank template needs at least one data row.</AlertDescription></Alert>
+                <p className="text-sm text-muted-foreground">Use exact boundary IDs for source/destination and junction or directed lane IDs where required. Times are seconds from simulation start, not clock times. Counts are non-negative whole numbers; vehicle_type can be car, motorcycle, tricycle, bus, truck or emergency. Keep unknown measurements outside this CSV instead of entering zero.</p>
+                {importKind === "turn_counts" && <p className="text-sm text-muted-foreground">Lane IDs (source → target): {nativeOptions?.lanes.map((lane) => `${lane.id} (${lane.source} → ${lane.target})`).join(", ") ?? "loading"}. The supplied boundary route must include the recorded turn; later rerouting may change it.</p>}
+                <NativeSelect label="Data provenance" value={importSourceKind} options={[
+                  { value: "synthetic", label: "Synthetic sample" }, { value: "observed", label: "Field observation" },
+                ]} onChange={(value) => setImportSourceKind(value as typeof importSourceKind)} />
+                <Field><FieldLabel htmlFor="import-description">Source description</FieldLabel>
+                  <Input id="import-description" value={importDescription} maxLength={500} onChange={(event) => setImportDescription(event.target.value)} /></Field>
+                <Field><FieldLabel htmlFor="import-date">Collection or sample date</FieldLabel>
+                  <Input id="import-date" type="date" value={importDate} onChange={(event) => setImportDate(event.target.value)} /></Field>
+                <Field><FieldLabel htmlFor="import-file">CSV file</FieldLabel>
+                  <Input id="import-file" type="file" accept=".csv,text/csv" onChange={(event) => setImportFile(event.target.files?.[0] ?? null)} /></Field>
+                {importSourceKind === "observed" && <FieldGroup>
+                  <Field><FieldLabel htmlFor="import-collection-start">Collection start (optional)</FieldLabel>
+                    <Input id="import-collection-start" placeholder="2026-01-01T07:00:00+08:00" value={importCollectionStart} onChange={(event) => setImportCollectionStart(event.target.value)} /></Field>
+                  <Field><FieldLabel htmlFor="import-collection-end">Collection end (optional)</FieldLabel>
+                    <Input id="import-collection-end" placeholder="2026-01-01T08:00:00+08:00" value={importCollectionEnd} onChange={(event) => setImportCollectionEnd(event.target.value)} /></Field>
+                  <p className="text-sm text-muted-foreground">Enter both timestamps with a UTC offset to declare a collection period. Same-date held-out inputs require disjoint periods. CSV time 0 is the collection start and simulation start, including any warmup.</p>
+                </FieldGroup>}
+                <p className="text-sm text-muted-foreground">Times are seconds from simulation start. Count bins create evenly spaced arrivals; actual arrival times are unknown. Vehicle imports replace vehicle trips and windows; pedestrian imports replace the pedestrian schedule.</p>
+                <Button type="button" variant="outline" disabled={isImporting || !nativeOptions || !editConfigReady} onClick={() => void importCsvToDraft()}>{isImporting ? "Validating..." : "Validate and apply to draft"}</Button>
+                {importNotice && <p role="status" className="text-sm">{importNotice}</p>}
+              </fieldset>
+              {isResolving ? <p role="status">Loading saved native settings...</p> : nativeOptions && editConfigReady &&
+                <NativeScenarioControls value={draft.engineConfig} options={nativeOptions}
+                  onChange={(engineConfig) => setDraft((current) => ({ ...current, engineConfig }))} />}
+            </FieldGroup>
           </div>
           <SheetFooter className="scenario-sheet-footer">
             <Button variant="outline" onClick={() => setFormMode(null)}>Cancel</Button>
-            <Button onClick={() => void saveScenarioDraft()} disabled={isSaving}>
+            <Button onClick={() => void saveScenarioDraft()} disabled={isSaving || isResolving || !nativeOptions || !editConfigReady ||
+              (formMode === "edit" ? !permissions.edit : !permissions.create)}>
               {isSaving ? "Saving..." : "Save Scenario"}
             </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={Boolean(recordingScenario)} onOpenChange={(open) => !open && setRecordingScenarioId(null)}>
+        <SheetContent className="scenario-sheet" side="right">
+          <SheetHeader>
+            <SheetTitle>Record scenario</SheetTitle>
+            <SheetDescription>{recordingScenario?.name ?? "Saved scenario"}. Choose a controller and matched seed for a comparable timeline.</SheetDescription>
+          </SheetHeader>
+          <div className="scenario-sheet-scroll">
+            <FieldGroup className="px-4 pb-4">
+              {recordError && <Alert variant="destructive"><AlertDescription>{recordError}</AlertDescription></Alert>}
+              <NativeSelect label="Recording controller" value={recordControlMode} options={[
+                { value: "fixed-time", label: "Fixed-time baseline" },
+                ...recordingModels.map((model) => ({ value: `${model.algorithm}:${model.id}`, label: `${model.algorithm.toUpperCase()} model #${model.id} · ${model.name ?? "Saved model"}` })),
+              ]} onChange={setRecordControlMode} />
+              <NativeNumber label="Recording duration (seconds)" value={recordDuration} onChange={setRecordDuration} min={1} max={86400} step={1} />
+              <NativeNumber label="Recording seed" value={recordSeed} onChange={setRecordSeed} min={0} max={4294967295} step={1} />
+              <p className="text-sm text-muted-foreground">Record the fixed-time baseline and selected model with the same saved scenario, seed and duration. A completed timeline appears in Compare Runs and Runs & Reports.</p>
+            </FieldGroup>
+          </div>
+          <SheetFooter className="scenario-sheet-footer">
+            <Button variant="outline" onClick={() => setRecordingScenarioId(null)}>Cancel</Button>
+            <Button onClick={() => void startRecording()} disabled={isSaving || !permissions.run}>{isSaving ? "Starting..." : "Start recording"}</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -789,6 +927,7 @@ function ScenarioMetric({
 function ScenarioCard({
   scenario,
   selectedId,
+  permissions,
   onArchive,
   onEdit,
   onView,
@@ -796,6 +935,7 @@ function ScenarioCard({
 }: {
   scenario: ScenarioRecord
   selectedId: number | null
+  permissions: ScenarioPermissions
   onArchive: (scenario: ScenarioRecord) => void
   onEdit: (scenario: ScenarioRecord) => void
   onView: (scenario: ScenarioRecord) => void
@@ -820,22 +960,22 @@ function ScenarioCard({
           <ScenarioMeta icon={TriangleAlertIcon} label="Emergency" value={scenario.emergencyMode} />
         </div>
         <div className="scenario-card-actions">
-          <Button size="sm" onClick={() => onLaunch(scenario, "load")}>
+          <Button size="sm" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "load")}>
             <PlayIcon data-icon="inline-start" />
             Load
           </Button>
-          <Button size="sm" variant="outline" onClick={() => onLaunch(scenario, "live")}>
+          <Button size="sm" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "live")}>
             <BoltIcon data-icon="inline-start" />
             Live
           </Button>
-          <Button size="sm" variant="outline" onClick={() => onLaunch(scenario, "record")}>
+          <Button size="sm" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "record")}>
             <FilmIcon data-icon="inline-start" />
             Record
           </Button>
-          <Button size="icon-sm" variant="outline" onClick={() => onEdit(scenario)} aria-label="Edit scenario">
+          <Button size="icon-sm" variant="outline" disabled={!permissions.edit} onClick={() => onEdit(scenario)} aria-label="Edit scenario">
             <PencilIcon />
           </Button>
-          <Button size="icon-sm" variant="outline" onClick={() => onArchive(scenario)} aria-label={scenario.isArchived ? "Restore scenario" : "Archive scenario"}>
+          <Button size="icon-sm" variant="outline" disabled={!permissions.edit} onClick={() => onArchive(scenario)} aria-label={scenario.isArchived ? "Restore scenario" : "Archive scenario"}>
             <ArchiveIcon />
           </Button>
           <Button size="icon-sm" variant="ghost" onClick={() => onView(scenario)} aria-label="View details">
@@ -850,6 +990,7 @@ function ScenarioCard({
 function ScenarioTable({
   scenarios,
   selectedId,
+  permissions,
   onArchive,
   onEdit,
   onView,
@@ -857,6 +998,7 @@ function ScenarioTable({
 }: {
   scenarios: ScenarioRecord[]
   selectedId: number | null
+  permissions: ScenarioPermissions
   onArchive: (scenario: ScenarioRecord) => void
   onEdit: (scenario: ScenarioRecord) => void
   onView: (scenario: ScenarioRecord) => void
@@ -898,19 +1040,19 @@ function ScenarioTable({
                 <TableCell>{formatDate(scenario.updatedAt)}</TableCell>
                 <TableCell>
                   <div className="scenario-table-actions">
-                    <Button size="icon-xs" onClick={() => onLaunch(scenario, "load")} aria-label="Load dashboard">
+                    <Button size="icon-xs" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "load")} aria-label="Load dashboard">
                       <PlayIcon />
                     </Button>
-                    <Button size="icon-xs" variant="outline" onClick={() => onLaunch(scenario, "live")} aria-label="Run live">
+                    <Button size="icon-xs" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "live")} aria-label="Run live">
                       <BoltIcon />
                     </Button>
-                    <Button size="icon-xs" variant="outline" onClick={() => onLaunch(scenario, "record")} aria-label="Pre-record">
+                    <Button size="icon-xs" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "record")} aria-label="Pre-record">
                       <FilmIcon />
                     </Button>
-                    <Button size="icon-xs" variant="outline" onClick={() => onEdit(scenario)} aria-label="Edit">
+                    <Button size="icon-xs" variant="outline" disabled={!permissions.edit} onClick={() => onEdit(scenario)} aria-label="Edit">
                       <PencilIcon />
                     </Button>
-                    <Button size="icon-xs" variant="outline" onClick={() => onArchive(scenario)} aria-label={scenario.isArchived ? "Restore" : "Archive"}>
+                    <Button size="icon-xs" variant="outline" disabled={!permissions.edit} onClick={() => onArchive(scenario)} aria-label={scenario.isArchived ? "Restore" : "Archive"}>
                       <ArchiveIcon />
                     </Button>
                     <Button size="icon-xs" variant="ghost" onClick={() => onView(scenario)} aria-label="View">
@@ -949,11 +1091,13 @@ function ScenarioMeta({
 
 function ScenarioDetailSheet({
   scenario,
+  permissions,
   onArchive,
   onEdit,
   onLaunch,
 }: {
   scenario: ScenarioRecord
+  permissions: ScenarioPermissions
   onArchive: (scenario: ScenarioRecord) => void
   onEdit: (scenario: ScenarioRecord) => void
   onLaunch: (scenario: ScenarioRecord, action: "load" | "live" | "record") => void
@@ -980,44 +1124,39 @@ function ScenarioDetailSheet({
           <Card>
             <CardHeader>
               <CardTitle>Disruptions</CardTitle>
-              <CardDescription>Read from the existing SQLite scenario configuration fields.</CardDescription>
+              <CardDescription>Native disruption schedule and controller configuration.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-2 sm:grid-cols-2">
-              <DisruptionSummary label="Lane Closure" value={scenario.laneClosure} />
-              <DisruptionSummary label="Construction" value={scenario.construction} />
-              <DisruptionSummary label="Accident" value={scenario.accident} />
-              <DisruptionSummary label="Flooding" value={scenario.flooding} />
-            </CardContent>
+            <CardContent><NativeScenarioSummary config={scenario.engineConfig} options={null} /></CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle>Advanced JSON</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="scenario-json-preview">{scenario.constraintsJson}</pre>
+              <pre className="scenario-json-preview">{JSON.stringify(scenario.engineConfig, null, 2)}</pre>
             </CardContent>
           </Card>
         </div>
       </div>
       <SheetFooter className="scenario-sheet-footer">
         <div className="grid grid-cols-2 gap-2">
-          <Button onClick={() => onLaunch(scenario, "load")}>
+          <Button disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "load")}>
             <PlayIcon data-icon="inline-start" />
             Load
           </Button>
-          <Button variant="outline" onClick={() => onLaunch(scenario, "live")}>
+          <Button variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "live")}>
             <BoltIcon data-icon="inline-start" />
             Live
           </Button>
-          <Button variant="outline" onClick={() => onLaunch(scenario, "record")}>
+          <Button variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "record")}>
             <FilmIcon data-icon="inline-start" />
             Record
           </Button>
-          <Button variant="outline" onClick={() => onEdit(scenario)}>
+          <Button variant="outline" disabled={!permissions.edit} onClick={() => onEdit(scenario)}>
             <PencilIcon data-icon="inline-start" />
             Edit
           </Button>
-          <Button variant="outline" onClick={() => onArchive(scenario)}>
+          <Button variant="outline" disabled={!permissions.edit} onClick={() => onArchive(scenario)}>
             <ArchiveIcon data-icon="inline-start" />
             {scenario.isArchived ? "Restore" : "Archive"}
           </Button>
@@ -1051,15 +1190,5 @@ function ScenarioSchematic({ scenario }: { scenario: ScenarioRecord }) {
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function DisruptionSummary({ label, value }: { label: string; value: DisruptionConfig }) {
-  return (
-    <div className="scenario-disruption-summary">
-      <span>{label}</span>
-      <strong>{value.enabled ? "Enabled" : "Disabled"}</strong>
-      <small>{value.enabled ? `${value.approach} approach` : "No active disruption"}</small>
-    </div>
   )
 }

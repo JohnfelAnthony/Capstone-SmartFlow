@@ -113,6 +113,7 @@ const data = {
 function canViewPage(currentUser: CurrentUser | null, page: string) {
   if (!currentUser) return false
   if (currentUser.role.toLowerCase() === "admin") return true
+  if (page.startsWith("admin-")) return false
   return currentUser.permissions.some((permission) => permission.page === page && permission.action === "view")
 }
 

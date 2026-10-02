@@ -275,7 +275,8 @@ export function UserManagementPage() {
   }, [])
 
   React.useEffect(() => {
-    void loadUsers()
+    const timer = window.setTimeout(() => { void loadUsers() }, 0)
+    return () => window.clearTimeout(timer)
   }, [loadUsers])
 
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null

@@ -13,7 +13,8 @@ from backend.schemas import (
     SimulationStateResponse,
 )
 from services.simulation_flow import FlowState, build_flow_snapshot
-from simulation.road_network import NETWORK_ID as DEFAULT_INTERSECTION_ID
+from services.workload_admission import WorkloadConflict, workload_admission
+from simulation.road_network import load_network
 from simulation.traffic_engine import STEP_LENGTH
 from simulation.traffic_engine import TrafficEngine
 from simulation.timeline_engine import TimelinePlaybackEngine
@@ -42,13 +43,30 @@ class SimulationRuntime:
         self._active_run_id: int | None = None
         self._active_run_saved = False
         self._active_run_user_id: int | None = None
+        self._owner_user_id: int | None = None
+        self._owner_name: str | None = None
+        self._speed_multiplier = 1.0
+        self._workload_lease = None
+
+    def _assert_owner(self, user_id: int | None) -> None:
+        if user_id is not None and self._owner_user_id is not None and user_id != self._owner_user_id:
+            raise SimulationRuntimeError(
+                f"The shared simulation is controlled by {self._owner_name or 'another operator'}. "
+                "Ask that operator to reset it before changing the session."
+            )
+
+    def _claim_owner(self, user_id: int | None, owner_name: str | None = None) -> None:
+        if user_id is not None and self._owner_user_id is None:
+            self._owner_user_id = user_id
+            self._owner_name = owner_name or f"User #{user_id}"
 
     def get_state(self) -> SimulationStateResponse:
         with self._lock:
             return self._response()
 
-    def configure(self, payload: SimulationConfigureRequest) -> SimulationStateResponse:
+    def configure(self, payload: SimulationConfigureRequest, *, user_id: int | None = None, owner_name: str | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             if self._engine is not None and self._engine.status in {"running", "paused"}:
                 raise SimulationRuntimeError("Stop or reset the current run before changing scenario settings.")
             candidate_seed = self._seed if payload.seed is None else int(payload.seed)
@@ -74,10 +92,34 @@ class SimulationRuntime:
                 self._selected_scenario_name = str(scenario["name"])
             if payload.duration_seconds is not None:
                 self._duration_seconds = int(payload.duration_seconds)
+            self._claim_owner(user_id, owner_name)
             return self._response()
 
-    def start(self, payload: SimulationStartRequest | None = None, *, user_id: int | None = None) -> SimulationStateResponse:
+    def start(self, payload: SimulationStartRequest | None = None, *, user_id: int | None = None, owner_name: str | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
+            self._finalize_terminal_run_locked()
+            existing = self._workload_lease
+            try:
+                self._workload_lease = workload_admission.acquire("live simulation", existing)
+            except WorkloadConflict as exc:
+                raise SimulationRuntimeError(str(exc)) from exc
+            try:
+                return self._start_live(payload, user_id=user_id, owner_name=owner_name)
+            except BaseException:
+                if existing is None:
+                    self._stop_background_runner_locked()
+                    try:
+                        if self._engine is not None:
+                            self._engine.stop()
+                            self._finalize_terminal_run_locked()
+                    finally:
+                        self._release_workload_locked()
+                raise
+
+    def _start_live(self, payload: SimulationStartRequest | None = None, *, user_id: int | None = None, owner_name: str | None = None) -> SimulationStateResponse:
+        with self._lock:
+            self._assert_owner(user_id)
             payload = payload or SimulationStartRequest()
             active = self._engine is not None and self._engine.status in {"running", "paused"}
             if active and payload.model_dump(exclude_none=True):
@@ -91,7 +133,7 @@ class SimulationRuntime:
                         duration_seconds=payload.duration_seconds,
                         seed=payload.seed,
                         control_mode=payload.control_mode,
-                    )
+                    ), user_id=user_id, owner_name=owner_name
                 )
             elif payload.duration_seconds is not None:
                 self._duration_seconds = int(payload.duration_seconds)
@@ -106,59 +148,79 @@ class SimulationRuntime:
             # Validate and initialize before allocating a database run. Invalid
             # demand must not leave a permanent 'running' row behind.
             engine.start(self._duration_seconds)
+            self._claim_owner(user_id, owner_name)
             if new_run:
                 self._begin_run_locked(engine, user_id=user_id)
             if engine.status == "running":
                 self._start_background_runner_locked()
             elif engine.status == "error":
                 self._finalize_run_locked("error", engine.last_error or "Python engine startup failed.")
+            if engine.status not in {"running", "paused"}:
+                self._release_workload_locked()
             return self._response()
 
-    def pause(self) -> SimulationStateResponse:
+    def pause(self, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             self._get_engine().pause()
             if self._active_run_id is not None:
                 database.update_run(self._active_run_id, status="paused")
             return self._response()
 
-    def resume(self) -> SimulationStateResponse:
+    def resume(self, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             self._get_engine().resume()
             if self._active_run_id is not None:
                 database.update_run(self._active_run_id, status="running")
             return self._response()
 
-    def stop(self) -> SimulationStateResponse:
+    def stop(self, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             self._stop_background_runner_locked()
             engine = self._get_engine()
             should_finalize = engine.status in {"running", "paused", "error"} and self._active_run_id is not None
             stop_status = "error" if engine.status == "error" else "stopped"
             stop_reason = engine.last_error if stop_status == "error" else "Simulation stopped manually."
             engine.stop()
-            if should_finalize:
-                self._finalize_run_locked(stop_status, stop_reason or "Simulation stopped.")
+            try:
+                if should_finalize:
+                    self._finalize_run_locked(stop_status, stop_reason or "Simulation stopped.")
+            finally:
+                self._release_workload_locked()
             return self._response()
 
-    def reset(self) -> SimulationStateResponse:
+    def reset(self, *, user_id: int | None = None, force: bool = False) -> SimulationStateResponse:
         with self._lock:
+            if not force:
+                self._assert_owner(user_id)
             self._stop_background_runner_locked()
             engine = self._get_engine()
-            if engine.status in {"running", "paused", "error"} and self._active_run_id is not None:
-                reset_status = "error" if engine.status == "error" else "stopped"
-                reset_reason = engine.last_error if reset_status == "error" else "Simulation reset manually."
-                self._finalize_run_locked(reset_status, reset_reason or "Simulation reset.")
+            try:
+                if engine.status in {"running", "paused", "error"} and self._active_run_id is not None:
+                    reset_status = "error" if engine.status == "error" else "stopped"
+                    reset_reason = engine.last_error if reset_status == "error" else "Simulation reset manually."
+                    self._finalize_run_locked(reset_status, reset_reason or "Simulation reset.")
+            finally:
+                engine.stop()
+                self._release_workload_locked()
             self._control_mode = "fixed-time"
+            self._release_workload_locked()
             self._replace_engine(seed=self._seed)
             self._selected_scenario_id = None
             self._selected_scenario_name = None
             self._duration_seconds = DEFAULT_DURATION_SECONDS
             self._control_mode = "fixed-time"
             self._run_mode = "live"
+            self._owner_user_id = None
+            self._owner_name = None
+            self._speed_multiplier = 1.0
             return self._response()
 
-    def step(self, num_ticks: int = 1) -> SimulationStateResponse:
+    def step(self, num_ticks: int = 1, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             engine = self._get_engine()
             try:
                 engine.step(num_ticks)
@@ -170,8 +232,9 @@ class SimulationRuntime:
             self._finalize_terminal_run_locked()
             return self._response()
 
-    def load_playback(self, run_id: int) -> SimulationStateResponse:
+    def load_playback(self, run_id: int, *, user_id: int | None = None, owner_name: str | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             run = database.get_run_by_id(run_id)
             if not run:
                 raise SimulationRuntimeError("Recorded run not found.")
@@ -201,6 +264,8 @@ class SimulationRuntime:
                 self._engine.stop()
 
             self._engine = playback_engine
+            self._release_workload_locked()
+            self._seed = playback_engine.seed
             self._run_mode = "playback"
             self._control_mode = "playback"
             self._selected_scenario_id = int(run["scenario_id"]) if run.get("scenario_id") is not None else None
@@ -209,10 +274,12 @@ class SimulationRuntime:
             self._active_run_id = None
             self._active_run_saved = False
             self._active_run_user_id = None
+            self._claim_owner(user_id, owner_name)
             return self._response()
 
-    def start_playback(self) -> SimulationStateResponse:
+    def start_playback(self, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             if self._run_mode != "playback" or self._engine is None:
                 raise SimulationRuntimeError("Load a recorded run before playback.")
             self._engine.start(self._duration_seconds)
@@ -220,11 +287,21 @@ class SimulationRuntime:
                 self._start_background_runner_locked()
             return self._response()
 
-    def seek_playback(self, frame_index: int) -> SimulationStateResponse:
+    def seek_playback(self, frame_index: int, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
+            self._assert_owner(user_id)
             if self._run_mode != "playback" or self._engine is None or not hasattr(self._engine, "seek"):
                 raise SimulationRuntimeError("Load a recorded run before seeking.")
             self._engine.seek(frame_index)
+            return self._response()
+
+    def set_speed(self, speed_multiplier: float, *, user_id: int | None = None, owner_name: str | None = None) -> SimulationStateResponse:
+        with self._lock:
+            self._assert_owner(user_id)
+            if speed_multiplier not in {0.25, 0.5, 1.0, 2.0, 4.0}:
+                raise SimulationRuntimeError("Speed must be 0.25×, 0.5×, 1×, 2×, or 4×.")
+            self._claim_owner(user_id, owner_name)
+            self._speed_multiplier = speed_multiplier
             return self._response()
 
     def _get_engine(self, *, seed: int | None = None) -> TrafficEngine:
@@ -264,7 +341,7 @@ class SimulationRuntime:
         self._runner_thread = None
 
     def _run_step_loop(self, stop_event: Event) -> None:
-        next_tick = monotonic() + STEP_LENGTH
+        next_tick = monotonic() + STEP_LENGTH / self._speed_multiplier
         while not stop_event.wait(max(0.0, next_tick-monotonic())):
             with self._lock:
                 if stop_event.is_set():
@@ -284,7 +361,7 @@ class SimulationRuntime:
                     return
             # Include computation in the wall-clock budget; do not add a full
             # sleep after every step or skip simulation ticks under load.
-            next_tick = max(next_tick+STEP_LENGTH, monotonic())
+            next_tick = max(next_tick+STEP_LENGTH / self._speed_multiplier, monotonic())
 
     def _finalize_terminal_run_locked(self):
         engine = self._engine
@@ -293,7 +370,14 @@ class SimulationRuntime:
         reason = (f"Simulation automatically completed at {engine.duration_limit}s limit."
                   if engine.status == "completed" else engine.last_error
                   if engine.status == "error" else "Simulation stopped.")
-        self._finalize_run_locked(engine.status, reason)
+        try:
+            self._finalize_run_locked(engine.status, reason)
+        finally:
+            self._release_workload_locked()
+
+    def _release_workload_locked(self):
+        workload_admission.release(self._workload_lease)
+        self._workload_lease = None
 
     def _utc_now(self) -> str:
         return datetime.now(UTC).isoformat()
@@ -402,8 +486,16 @@ class SimulationRuntime:
             state = engine.to_dict()
             status = str(state.get("status") or engine.status)
         state["flow"] = self._flow_snapshot(status)
+        if isinstance(engine, TimelinePlaybackEngine):
+            state["playback"].update(source_controller=engine.source_controller_provenance,
+                                      source_controller_label=engine.source_controller_label)
         return SimulationStateResponse(
             status=status,
+            owner_user_id=self._owner_user_id,
+            owner_name=self._owner_name,
+            active_run_id=self._active_run_id,
+            run_mode=self._run_mode,
+            speed_multiplier=self._speed_multiplier,
             selected_scenario_id=self._selected_scenario_id,
             selected_scenario_name=self._selected_scenario_name,
             duration_seconds=self._duration_seconds,
@@ -429,7 +521,7 @@ class SimulationRuntime:
             "metrics": {},
             "events": [],
             "scenario": {
-                "intersection_id": DEFAULT_INTERSECTION_ID,
+                "intersection_id": load_network().id,
                 "traffic_density": "medium",
                 "pedestrian_density": "medium",
                 "emergency_mode": "disabled",

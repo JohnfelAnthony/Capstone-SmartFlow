@@ -12,8 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.training_inputs import load_training_scenario
+from simulation.training_control import check_training_cancelled
+
 import config
 import database
+from services.timeline_artifacts import timeline_artifact_paths
+from services.observation_identity import has_observed_inputs, validate_observed_holdout
+from simulation.model_contract import artifact_metadata
 from services.rl_reporting_service import (
     build_combined_ranking,
     load_model_learning_summary,
@@ -85,12 +91,7 @@ def _latest_model_path(controller: str) -> Path | None:
 
 
 def _artifact_paths(run_id: int) -> tuple[Path, Path, Path]:
-    timeline_dir = ROOT / "assets" / "generated" / "timelines"
-    timeline_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = timeline_dir / f"run_{run_id}.jsonl"
-    gzip_path = timeline_dir / f"run_{run_id}.jsonl.gz"
-    manifest_path = timeline_dir / f"run_{run_id}.manifest.json"
-    return raw_path, gzip_path, manifest_path
+    return timeline_artifact_paths(run_id)
 
 
 def _write_gzip_copy(source_path: Path, gzip_path: Path) -> dict:
@@ -215,10 +216,10 @@ def _build_manifest(
             "estimated_frame_count": int(round(requested_duration_seconds / STEP_LENGTH)) + 1,
         },
         "artifacts": {
-            "timeline_jsonl": str(raw_path.relative_to(ROOT)),
-            "timeline_jsonl_gz": str(gzip_path.relative_to(ROOT)),
-            "manifest_json": str(manifest_path.relative_to(ROOT)),
-            "timeline_path_canonical": str(gzip_path.relative_to(ROOT) if gzip_path.exists() else raw_path.relative_to(ROOT)),
+            "timeline_jsonl": str(raw_path),
+            "timeline_jsonl_gz": str(gzip_path),
+            "manifest_json": str(manifest_path),
+            "timeline_path_canonical": str(gzip_path if gzip_path.exists() else raw_path),
             "compression": compression,
         },
     }
@@ -287,6 +288,7 @@ def _run_controller_once(
             frame_count += 1
 
         while engine.status == "running":
+            check_training_cancelled()
             engine.step(1)
             if not official_metrics_reset and engine.simulation_time >= warmup_seconds:
                 _reset_official_metrics(engine)
@@ -328,7 +330,7 @@ def _run_controller_once(
                 compression=compression,
             )
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-            timeline_path = str(gzip_path.relative_to(ROOT) if gzip_path.exists() else raw_path.relative_to(ROOT))
+            timeline_path = str(gzip_path if gzip_path.exists() else raw_path)
 
         database.update_run(
             run_id,
@@ -348,10 +350,10 @@ def _run_controller_once(
             "metrics": metrics,
             "timeline_path": timeline_path,
         }
-    except Exception as exc:
+    except (Exception, KeyboardInterrupt) as exc:
         database.update_run(
             run_id,
-            status="error",
+            status="interrupted" if isinstance(exc, KeyboardInterrupt) else "error",
             end_time=_utc_now_iso(),
             duration_seconds=float(getattr(engine, "simulation_time", 0.0) or 0.0),
             notes=str(exc),
@@ -447,6 +449,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
     parser.add_argument("--intersection-id", default="tagum_network")
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
+    parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -472,14 +475,8 @@ def main() -> int:
         "emergency_mode": args.emergency_mode,
         "road_constraint": args.road_constraint,
     }
-    if args.scenario_id is not None:
-        database.init_db()
-        saved = database.get_scenario_by_id(args.scenario_id)
-        if not saved or saved.get("is_archived"):
-            raise SystemExit("Saved scenario missing or archived")
-        scenario = saved
+    scenario = load_training_scenario(args, scenario)
 
-    scenario_id = args.scenario_id or _find_or_create_scenario(scenario)
     model_paths = {
         "ql": args.ql_model or _latest_model_path("ql"),
         "dql": args.dql_model or _latest_model_path("dql"),
@@ -493,8 +490,17 @@ def main() -> int:
         model_path = model_paths[controller]
         if model_path is None:
             raise SystemExit(f"No {controller.upper()} model found. Pass --{controller}-model or train {controller.upper()} first.")
+        metadata = artifact_metadata(controller, model_path)
+        trained_scenario = metadata.get("scenario")
+        if not isinstance(trained_scenario, dict):
+            if has_observed_inputs(scenario):
+                raise ValueError("Model lacks its training snapshot for held-out observed evaluation.")
+        else:
+            validate_observed_holdout(trained_scenario, scenario)
         policies[controller] = load_runtime_policy(controller, model_path)
         model_ids[controller] = _find_rl_model_id_by_path(model_path)
+
+    scenario_id = args.scenario_id or _find_or_create_scenario(scenario)
 
     timeline_seed = args.record_timeline_seed
     if timeline_seed is None:

@@ -101,7 +101,19 @@ function formatMode(value: string | null | undefined) {
 
 function metricNumber(run: SimulationRunRecord, key: string) {
   const value = run.metrics?.[key]
-  return typeof value === "number" && Number.isFinite(value) ? value : 0
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function rawRunMetrics(run: SimulationRunRecord): Record<string, unknown> {
+  const raw = run.metrics?.raw_metrics
+  return raw && typeof raw === "object" ? raw as Record<string, unknown> : {}
+}
+
+function demandSourceKind(run: SimulationRunRecord) {
+  const experiment = rawRunMetrics(run).experiment as Record<string, unknown> | undefined
+  const config = experiment?.config as Record<string, unknown> | undefined
+  const source = config?.demand_source as Record<string, unknown> | undefined
+  return typeof source?.kind === "string" ? source.kind : "—"
 }
 
 function compactNumber(value: number, digits = 0) {
@@ -233,9 +245,9 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
   const completedRuns = runs.filter((run) => run.status === "completed")
   const avgWait =
     completedRuns.length > 0
-      ? completedRuns.reduce((sum, run) => sum + metricNumber(run, "avg_waiting_time"), 0) / completedRuns.length
+      ? completedRuns.reduce((sum, run) => sum + (metricNumber(run, "avg_waiting_time") ?? 0), 0) / completedRuns.length
       : 0
-  const throughputTotal = completedRuns.reduce((sum, run) => sum + metricNumber(run, "throughput"), 0)
+  const throughputTotal = completedRuns.reduce((sum, run) => sum + (metricNumber(run, "throughput") ?? 0), 0)
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true)
@@ -263,21 +275,23 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
   }, [filters])
 
   React.useEffect(() => {
-    void loadData()
+    let active = true
+    queueMicrotask(() => { if (active) void loadData() })
+    return () => { active = false }
   }, [loadData])
 
   React.useEffect(() => {
     let isMounted = true
-    setTimelinePreview(null)
+    queueMicrotask(() => { if (isMounted) setTimelinePreview(null) })
 
     const hasRecordedTimeline =
       selectedRun?.status === "completed" && selectedRun.run_mode === "pre-record" && Boolean(selectedRun.timeline_path)
     if (!selectedRun || !hasRecordedTimeline) {
-      setIsTimelineLoading(false)
-      return
+      queueMicrotask(() => { if (isMounted) setIsTimelineLoading(false) })
+      return () => { isMounted = false }
     }
 
-    setIsTimelineLoading(true)
+    queueMicrotask(() => { if (isMounted) setIsTimelineLoading(true) })
     getRunTimeline(selectedRun.id)
       .then((response) => {
         if (isMounted) {
@@ -298,7 +312,7 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
     return () => {
       isMounted = false
     }
-  }, [selectedRun?.id, selectedRun?.run_mode, selectedRun?.status, selectedRun?.timeline_path])
+  }, [selectedRun])
 
   function toggleSelected(runId: number, checked: boolean) {
     setSelectedRunIds((current) => {
@@ -340,7 +354,7 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
     }
     try {
       await exportRuns(selectedIds, format)
-      setAlert(`Export started for ${selectedIds.length} run${selectedIds.length === 1 ? "" : "s"}.`)
+      setAlert(`Exported ${selectedIds.length} run${selectedIds.length === 1 ? "" : "s"} as ${format.toUpperCase()}.`)
     } catch (error) {
       setAlert(runsErrorMessage(error, "Unable to export selected runs."))
     }
@@ -444,7 +458,8 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
               options={[
                 { label: "All Control Modes", value: "all" },
                 { label: "Fixed-Time", value: "fixed-time" },
-                { label: "RL Agent", value: "rl-agent" },
+                ...[...new Set(runs.map((run) => run.control_mode))].filter((mode) => mode !== "fixed-time" && mode !== "playback")
+                  .map((mode) => ({ label: formatMode(mode), value: mode })),
                 { label: "Playback", value: "playback" },
               ]}
             />
@@ -503,8 +518,8 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
                       <TableCell>{run.scenario_name ?? "Unknown"}</TableCell>
                       <TableCell>{formatMode(run.run_mode)} / {formatMode(run.control_mode)}</TableCell>
                       <TableCell><StatusBadge status={run.status} /></TableCell>
-                      <TableCell>{compactNumber(metricNumber(run, "avg_waiting_time"), 1)}s</TableCell>
-                      <TableCell>{compactNumber(metricNumber(run, "throughput"))}</TableCell>
+                      <TableCell>{metricNumber(run, "avg_waiting_time") === null ? "—" : `${compactNumber(metricNumber(run, "avg_waiting_time")!, 1)}s`}</TableCell>
+                      <TableCell>{metricNumber(run, "throughput") === null ? "—" : compactNumber(metricNumber(run, "throughput")!)}</TableCell>
                       <TableCell>{formatDate(run.start_time)}</TableCell>
                       <TableCell>
                         <div className="runs-row-actions">
@@ -558,9 +573,13 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
               <div className="runs-detail-grid">
                 <div><span>Scenario</span><strong>{selectedRun.scenario_name ?? "Unknown"}</strong></div>
                 <div><span>Duration</span><strong>{compactNumber(selectedRun.duration_seconds, 1)}s</strong></div>
-                <div><span>Max Queue</span><strong>{compactNumber(metricNumber(selectedRun, "max_queue_length"))}</strong></div>
-                <div><span>Pedestrian Delay</span><strong>{compactNumber(metricNumber(selectedRun, "avg_pedestrian_delay"), 1)}s</strong></div>
+                <div><span>Max Queue</span><strong>{metricNumber(selectedRun, "max_queue_length") === null ? "—" : compactNumber(metricNumber(selectedRun, "max_queue_length")!)}</strong></div>
+                <div><span>Pedestrian Delay</span><strong>{metricNumber(selectedRun, "avg_pedestrian_delay") === null ? "—" : `${compactNumber(metricNumber(selectedRun, "avg_pedestrian_delay")!, 1)}s`}</strong></div>
                 <div><span>Seed</span><strong>{selectedRun.seed ?? "--"}</strong></div>
+                <div><span>Model ID</span><strong>{selectedRun.rl_model_id ?? "None"}</strong></div>
+                <div><span>Scheduled vehicles</span><strong>{String(rawRunMetrics(selectedRun).scheduled_vehicles ?? "—")}</strong></div>
+                <div><span>Unfinished vehicles</span><strong>{String(rawRunMetrics(selectedRun).unfinished_vehicles ?? "—")}</strong></div>
+                <div><span>Demand source</span><strong>{demandSourceKind(selectedRun)}</strong></div>
                 <div><span>Timeline</span><strong>{selectedRun.timeline_path ? "Available" : "None"}</strong></div>
               </div>
             ) : (

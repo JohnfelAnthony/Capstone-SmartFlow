@@ -32,6 +32,8 @@ const colors = {
   green: "#00ff00",
   off: "#333333",
   constraint: "#ff0000",
+  closedLane: "#b91c1c",
+  slowLane: "#b87916",
 }
 
 const carPalette = [
@@ -263,7 +265,7 @@ function drawDashPolygons(ctx: CanvasRenderingContext2D, network: VisualNetwork,
     })
 }
 
-function drawStaticNetwork(ctx: CanvasRenderingContext2D, network: VisualNetwork, transform: CanvasTransform) {
+function drawStaticNetwork(ctx: CanvasRenderingContext2D, network: VisualNetwork, transform: CanvasTransform, frame: RenderFrame | null) {
   ctx.fillStyle = colors.grass
   ctx.fillRect(0, 0, transform.width, transform.height)
   drawDashPolygons(ctx, network, transform)
@@ -280,7 +282,9 @@ function drawStaticNetwork(ctx: CanvasRenderingContext2D, network: VisualNetwork
       if (isPedestrianLane(lane)) return
       const shape = extrapolateLaneShape(lane.shape, road)
       const polygon = expandLaneToPolygon(shape, lane.width || 3.2)
-      drawPolygon(ctx, polygon, transform, colors.road)
+      const isClosed = frame?.visual.closed_lanes.includes(lane.id) ?? false
+      const isSlow = (frame?.visual.slow_lanes[lane.id] ?? 1) < 1
+      drawPolygon(ctx, polygon, transform, isClosed ? colors.closedLane : isSlow ? colors.slowLane : colors.road)
       if (previousVehicleShape) {
         const previousShape = previousVehicleShape
         const separator = shape.slice(0, Math.min(shape.length, previousShape.length)).map((point, index) => ({
@@ -293,15 +297,15 @@ function drawStaticNetwork(ctx: CanvasRenderingContext2D, network: VisualNetwork
     })
   })
 
+  network.signals.forEach((signal) => {
+    drawPolygon(ctx, signal.shape, transform, colors.road)
+  })
+
   network.internal_lanes.forEach((road) => {
     road.lanes.forEach((lane) => {
       const polygon = expandLaneToPolygon(lane.shape, lane.width || (isPedestrianLane(lane) ? 2 : 3))
       drawPolygon(ctx, polygon, transform, isPedestrianLane(lane) ? colors.sidewalk : colors.internalRoad)
     })
-  })
-
-  network.signals.forEach((signal) => {
-    drawPolygon(ctx, signal.shape, transform, colors.road)
   })
 
   network.walking_areas.forEach((area) => {
@@ -374,14 +378,16 @@ function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, wi
 
 function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, transform: CanvasTransform) {
   const position = toCanvas({ x: vehicle.x, y: vehicle.y }, transform)
-  const length = Math.max(3.6, Number(vehicle.length || 4.5)) * transform.scale
-  const width = Math.max(1.4, Number(vehicle.width || 1.8)) * transform.scale
+  const length = Math.max(0.5, Number(vehicle.length || 4.5)) * transform.scale
+  const width = Math.max(0.5, Number(vehicle.width || 1.8)) * transform.scale
   const angle = ((Number(vehicle.angle || 0) - 90) * Math.PI) / 180
   const isEmergency = vehicle.emergency || vehicle.visual_type === "ambulance" || vehicle.visual_type === "emergency"
 
   ctx.save()
   ctx.translate(position.x, position.y)
   ctx.rotate(angle)
+  // Native vehicle coordinates mark the center; the shape below spans -length to zero.
+  ctx.translate(length / 2, 0)
 
   if (isEmergency) {
     ctx.fillStyle = colors.emergency
@@ -453,6 +459,8 @@ function drawPedestrian(ctx: CanvasRenderingContext2D, pedestrian: RenderPedestr
 }
 
 function drawConstraint(ctx: CanvasRenderingContext2D, frame: RenderFrame, transform: CanvasTransform) {
+  // Directed lane coloring already locates native restrictions on the map.
+  if (frame.visual.closed_lanes.length || Object.keys(frame.visual.slow_lanes).length) return
   const marker = frame.visual.constraint_marker
   if (!marker?.active) return
   const center = toCanvas({ x: marker.x, y: marker.y }, transform)
@@ -535,7 +543,7 @@ export function SimulationCanvas2D({
     if (!ctx) return
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const transform = configureTransform(network, width, height)
-    drawStaticNetwork(ctx, network, transform)
+    drawStaticNetwork(ctx, network, transform, frame)
     drawSignals(ctx, network, transform, frame)
     drawDynamicEntities(ctx, frame, transform)
   }, [frame, network, resizeTick])

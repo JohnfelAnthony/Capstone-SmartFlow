@@ -179,6 +179,8 @@ class TrafficEngine:
             signal.external = self.rl_control_enabled and node == self.controlled_junction
             self.signals[node] = signal
         self.arrivals = arrivals
+        self.pedestrian_arrivals = self.config["pedestrian_trips"]
+        self.pedestrian_arrival_index = 0
         self.demand_fingerprint = schedule_hash(self.arrivals)
         self.arrival_index = self.requested_vehicles = self.lifetime_completed = 0
         self.lifetime_pedestrians_completed = self.dropped_pedestrians = 0
@@ -233,12 +235,11 @@ class TrafficEngine:
         if self.status in {"running", "paused"}:
             raise ValueError("Stop the run before changing scenario settings")
         candidate = validate_config(self.config, settings, self.network)
+        arrivals = build_schedule(candidate, self.network, self.seed, self.duration_limit)
         self.config = candidate
         for key in ("traffic_density", "pedestrian_density", "emergency_mode", "road_constraint", "green_seconds", "controlled_junction"):
             setattr(self, key, candidate[key])
-        self.closed_lanes = set(candidate["closed_lanes"])
-        self.slow_lanes = dict(candidate["slow_lanes"])
-        self.scheduled_events = copy.deepcopy(candidate["events"])
+        self._reset_state(arrivals=arrivals)
         self._add_event("configuration", "Scenario configured for the Python engine")
 
     def configure_from_scenario(self, scenario: dict):
@@ -366,6 +367,17 @@ class TrafficEngine:
             route = self.network.route(arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None)
             if route and self.add_vehicle(route, vehicle_type=arrival.vehicle_type, requested_at=arrival.time):
                 self.pending_demand.remove(arrival)
+        while self.pedestrian_arrival_index < len(self.pedestrian_arrivals) and self.pedestrian_arrivals[self.pedestrian_arrival_index]["time"] <= self.simulation_time:
+            trip = self.pedestrian_arrivals[self.pedestrian_arrival_index]
+            self.pedestrian_arrival_index += 1
+            if trip["time"] >= self.duration_limit:
+                continue
+            self.pedestrian_serial += 1
+            if len(self.pedestrians) < 1000:
+                pedestrian = Pedestrian(f"ped-{self.pedestrian_serial}", trip["junction"])
+                self.pedestrians[pedestrian.id] = pedestrian
+            else:
+                self.dropped_pedestrians += 1
         while self.pedestrian_density != "none" and self.simulation_time >= self.next_pedestrian_time and self.next_pedestrian_time < self.duration_limit:
             self.pedestrian_serial += 1
             junction = self.pedestrian_random.choice(self.network.intersections)
@@ -421,6 +433,9 @@ class TrafficEngine:
         from .model_contract import native_contract
         if self.network.fingerprint != native_contract()["network_sha256"]:
             raise ValueError("Saved policies currently support only the versioned default study network")
+        training_node = getattr(policy, "artifact_metadata", {}).get("training_junction")
+        if training_node and training_node != self.controlled_junction:
+            raise ValueError("Selected model was trained for a different controlled junction")
         self.configure_rl_control(decision_interval=decision_interval, minimum_green_hold=minimum_green_hold,
                                   controller_label=policy.controller_provenance.upper(), controller_provenance=policy.controller_provenance)
         self.runtime_policy = policy
@@ -545,7 +560,10 @@ class TrafficEngine:
             if "closed" in event:
                 self.close_lane(event["lane_id"], event["closed"])
             if "speed_factor" in event:
-                self.slow_lanes[event["lane_id"]] = event["speed_factor"]
+                if event["speed_factor"] == 1:
+                    self.slow_lanes.pop(event["lane_id"], None)
+                else:
+                    self.slow_lanes[event["lane_id"]] = event["speed_factor"]
                 self._add_event("constraint", f"Lane {event['lane_id']} speed factor {event['speed_factor']}")
             self.applied_events.add(index)
 
@@ -647,7 +665,7 @@ class TrafficEngine:
             if lane.target in self.signals:
                 signal = self.signals[lane.target]
                 lights[lane.id] = {"state": "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.family == lane.approach else "y" if signal.stage == "yellow" and signal.family == lane.approach else "r", "phase": signal.phase}
-        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "emergency_mode": self.emergency_mode, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes)}, "traffic_lights": lights, "experiment": self.experiment_metadata()})
+        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "emergency_mode": self.emergency_mode, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
 
     get_state = to_dict
 
@@ -730,6 +748,20 @@ class TrafficEngine:
         for pedestrian in self.pedestrians.values():
             pedestrian.wait = 0.0
         self._refresh_metrics()
+
+    def junction_controls(self):
+        return {node: {"mode": signal.mode,
+                       "controller": self.controller_provenance if signal.external else
+                       "all-way-stop" if signal.mode == "all_way_stop" else "fixed-time",
+                       "selected_for_rl": node == self.controlled_junction,
+                       "phase": signal.phase, "remaining": signal.remaining,
+                       "phase_order": list(signal.approaches),
+                       "green_seconds": signal.green_seconds,
+                       "minimum_green": signal.minimum_green,
+                       "maximum_green": signal.maximum_green,
+                       "yellow_seconds": signal.yellow_seconds,
+                       "all_red_seconds": signal.all_red_seconds}
+                for node, signal in self.signals.items()}
 
     def experiment_metadata(self):
         return {"engine_version": ENGINE_VERSION, "network_id": self.network.id,

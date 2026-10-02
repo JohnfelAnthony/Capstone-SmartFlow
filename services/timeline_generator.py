@@ -7,6 +7,8 @@ from pathlib import Path
 
 import config
 import database
+from services.timeline_artifacts import timeline_artifact_paths, timeline_directory
+from services.workload_admission import workload_admission
 from simulation.traffic_engine import TrafficEngine
 
 logger = logging.getLogger(__name__)
@@ -28,13 +30,12 @@ def _save_metrics(run_id: int, metrics: dict):
     )
 
 
+def _timeline_directory() -> Path:
+    return timeline_directory()
+
+
 def _artifact_paths(run_id: int) -> tuple[Path, Path, Path]:
-    timeline_dir = Path("assets/generated/timelines")
-    timeline_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = timeline_dir / f"run_{run_id}.jsonl"
-    gzip_path = timeline_dir / f"run_{run_id}.jsonl.gz"
-    manifest_path = timeline_dir / f"run_{run_id}.manifest.json"
-    return raw_path, gzip_path, manifest_path
+    return timeline_artifact_paths(run_id)
 
 
 def _estimated_frame_count(duration_limit: int, step_length: float) -> int:
@@ -58,7 +59,7 @@ def _write_gzip_copy(source_path: Path, gzip_path: Path) -> dict:
 
 def _prune_old_raw_timelines():
     keep_recent_raw = max(int(config.TIMELINE_KEEP_RECENT_RAW), 0)
-    timeline_dir = Path("assets/generated/timelines")
+    timeline_dir = _timeline_directory()
     raw_files = sorted(
         timeline_dir.glob("run_*.jsonl"),
         key=lambda path: path.stat().st_mtime,
@@ -148,8 +149,10 @@ def generate_timeline(
     *,
     seed: int | None = None,
     control_mode: str | None = None,
+    workload_lease=None,
 ):
     """Run the Python engine headlessly as fast as possible to generate a timeline."""
+    lease = workload_lease if workload_lease is not None else workload_admission.acquire("recording")
 
     def _worker():
         engine = None
@@ -303,9 +306,16 @@ def generate_timeline(
             if on_complete:
                 on_complete("error", str(exc))
         finally:
-            if engine is not None:
-                engine.stop()
+            try:
+                if engine is not None:
+                    engine.stop()
+            finally:
+                workload_admission.release(lease)
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
+    try:
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+    except BaseException:
+        workload_admission.release(lease)
+        raise
     return thread

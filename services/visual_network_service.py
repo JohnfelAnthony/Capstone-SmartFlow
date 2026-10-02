@@ -1,8 +1,10 @@
-"""One cached metric network shared by the native engine and both renderers."""
+"""One metric network shared by the native engine and both renderers."""
 from simulation.road_network import NETWORK_ID, load_network
 
 
 def load_client_visual_network(intersection_id: str | None = None) -> dict:
-    if intersection_id not in {None, NETWORK_ID, "tagum_1", "tagum_2", "tagum_3"}:
+    network = load_network()
+    legacy_ids = {"tagum_1", "tagum_2", "tagum_3"} if network.id == NETWORK_ID else set()
+    if intersection_id not in {None, network.id, *legacy_ids}:
         raise ValueError("Unknown network")
-    return load_network().visual()
+    return network.visual()

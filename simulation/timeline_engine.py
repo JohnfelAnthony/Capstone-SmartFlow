@@ -24,6 +24,7 @@ class TimelinePlaybackEngine:
         self.controller_provenance = "recorded-playback"
         self.controller_provenance_label = "Recorded Playback"
         self.source_controller_provenance = "unknown"
+        self.source_controller_label = "Unknown recorded controller"
         self.current_scenario_name = "Recorded Scenario"
         self.intersection_id = DEFAULT_INTERSECTION_ID
         self.traffic_density = "low"
@@ -53,6 +54,7 @@ class TimelinePlaybackEngine:
             return
         controller = manifest.get("controller", {}) if isinstance(manifest, dict) else {}
         if controller:
+            self.source_controller_label = str(controller.get("label") or controller.get("provenance_label") or "Unknown recorded controller")
             self.source_controller_provenance = str(
                 controller.get("provenance") or self.source_controller_provenance
             )
@@ -91,13 +93,12 @@ class TimelinePlaybackEngine:
 
     @staticmethod
     def _resolve_timeline_path(run_id: int, explicit_timeline_path: str | None) -> Path:
-        candidates = []
         if explicit_timeline_path:
-            candidates.append(Path(explicit_timeline_path))
-        candidates.extend([
+            return Path(explicit_timeline_path)
+        candidates = [
             Path(f"assets/generated/timelines/run_{run_id}.jsonl"),
             Path(f"assets/generated/timelines/run_{run_id}.jsonl.gz"),
-        ])
+        ]
         for candidate in candidates:
             if candidate.exists():
                 return candidate

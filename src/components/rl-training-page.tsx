@@ -22,6 +22,7 @@ import {
 } from "recharts"
 
 import { ApiError } from "@/api/client"
+import { resolveNativeScenario, type NativeScenarioConfig } from "@/api/native-scenario"
 import { listScenarios, type ApiScenario } from "@/api/scenarios"
 import {
   evaluateRLModel,
@@ -49,6 +50,8 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
@@ -83,23 +86,19 @@ const algorithmOptions: { value: AlgorithmId; label: string }[] = [
   { value: "ppo", label: "PPO" },
 ]
 
-const trafficDensityOptions = ["low", "medium", "high", "very high"]
-const pedestrianDensityOptions = ["low", "medium", "high"]
-const emergencyOptions = ["disabled", "enabled"]
-const roadOptions = ["None", "Constraint type", "Severity", "Lane affected"]
-
 const defaultSettings: RLTrainingSettings = {
+  scenario_id: null,
+  evaluation_scenario_id: null,
   episodes: 150,
   seeds: "11,22,33,44,55",
+  evaluation_seeds: "101,102,103,104,105",
   warmup_seconds: 20,
   evaluation_seconds: 300,
-  intersection_id: "tagum_1",
-  traffic_density: "medium",
-  pedestrian_density: "medium",
-  emergency_mode: "disabled",
-  road_constraint: "None",
+  decision_interval_seconds: 5,
+  minimum_green_hold_seconds: 10,
   checkpoint_every: 25,
-  resume_model: null,
+  resume_model_id: null,
+  resume_checkpoint_id: null,
 }
 
 const defaultAdvanced: RLAdvancedSettings = {
@@ -141,10 +140,6 @@ function formatDate(value: string | null) {
 
 function statusLabel(value: string | null | undefined) {
   return String(value || "idle").replaceAll("_", " ").replaceAll("-", " ")
-}
-
-function isActiveJob(job: RLTrainingJob | null) {
-  return job ? ["queued", "running", "stopping"].includes(job.status) : false
 }
 
 function selectedAlgorithmLabel(algorithms: string[]) {
@@ -192,7 +187,7 @@ function ScenarioSelect({
   return (
     <Select value={selectedScenarioId} onValueChange={(value) => value !== null && onChange(value)}>
       <SelectTrigger className="w-full">
-        <SelectValue />
+        <SelectValue>{(value: string | null) => scenarios.find((scenario) => String(scenario.id) === value)?.name ?? "Select a scenario"}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
@@ -207,51 +202,35 @@ function ScenarioSelect({
   )
 }
 
-function OptionSelect({
-  value,
-  options,
-  onChange,
-}: {
-  value: string
-  options: string[]
-  onChange: (value: string) => void
-}) {
-  return (
-    <Select value={value} onValueChange={(nextValue) => nextValue !== null && onChange(nextValue)}>
-      <SelectTrigger className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  )
-}
-
 function NumberField({
   label,
   value,
   onChange,
+  min,
+  max,
+  step = 1,
 }: {
   label: string
   value: number
   onChange: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
 }) {
+  const id = React.useId()
   return (
-    <label className="rl-field">
-      <span>{label}</span>
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Input
+        id={id}
         type="number"
+        min={min}
+        max={max}
+        step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-    </label>
+    </Field>
   )
 }
 
@@ -278,14 +257,16 @@ function ProgressBar({ value }: { value: number }) {
   )
 }
 
-export function RLTrainingPage() {
+export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean }) {
   const [algorithms, setAlgorithms] = React.useState<AlgorithmId[]>(["ql"])
   const [settings, setSettings] = React.useState<RLTrainingSettings>(defaultSettings)
   const [advanced, setAdvanced] = React.useState<RLAdvancedSettings>(defaultAdvanced)
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = React.useState("")
-  const [activeJobId, setActiveJobId] = React.useState<number | null>(null)
+  const [scenarioResolution, setScenarioResolution] = React.useState<{ id: string; config: NativeScenarioConfig | null } | null>(null)
+  const [viewedJobId, setViewedJobId] = React.useState<number | null>(null)
   const [status, setStatus] = React.useState<RLTrainingStatusResponse>({
+    active_job_id: null,
     job: null,
     items: [],
     log_lines: [],
@@ -293,35 +274,57 @@ export function RLTrainingPage() {
   })
   const [jobs, setJobs] = React.useState<RLTrainingJob[]>([])
   const [selectedModelId, setSelectedModelId] = React.useState<number | null>(null)
+  const [selectedCheckpointId, setSelectedCheckpointId] = React.useState<number | null>(null)
   const [alert, setAlert] = React.useState("RL training console loaded.")
   const [isLoading, setIsLoading] = React.useState(false)
+  const [pendingAction, setPendingAction] = React.useState(false)
+  const requestId = React.useRef(0)
+  const viewedJobRef = React.useRef<number | null>(null)
+  const inFlightRefreshes = React.useRef<Set<number | null>>(new Set())
 
-  const selectedModel = status.models.find((model) => model.id === selectedModelId) ?? status.models[0] ?? null
-  const activeJob = status.job
-  const activeItem = status.items.find((item) => item.id === activeJob?.current_item_id) ?? status.items[0] ?? null
+  const scenarioConfig = scenarioResolution?.id === selectedScenarioId ? scenarioResolution.config : null
+  const scenarioLoading = Boolean(selectedScenarioId && scenarioResolution?.id !== selectedScenarioId)
+  const selectedModel = status.models.find((model) => model.id === selectedModelId) ?? null
+  const selectedModelMatchesScenario = Boolean(selectedModel && scenarioConfig && selectedModel.controlled_junction === scenarioConfig.controlled_junction)
+  const viewedJob = status.job
+  const serverActiveJobId = status.active_job_id
+  const activeJob = jobs.find((job) => job.id === serverActiveJobId)
+  const canStopActiveJob = Boolean(canRunTraining && serverActiveJobId && (isAdmin || activeJob?.user_id === currentUserId))
+  const selectedScenario = scenarios.find((item) => String(item.id) === selectedScenarioId) ?? null
+  const activeItem = status.items.find((item) => item.id === viewedJob?.current_item_id) ?? status.items[0] ?? null
   const rewardPoints = React.useMemo(() => parseRewardPoints(status.log_lines), [status.log_lines])
   const consoleText = status.log_lines.length
     ? status.log_lines.slice(-140).map((line) => line.text).join("\n")
     : "No training output yet."
 
-  const refreshStatus = React.useCallback(async (jobId: number | null = activeJobId) => {
+  const refreshStatus = React.useCallback(async (jobId: number | null = viewedJobRef.current) => {
+    if (inFlightRefreshes.current.has(jobId)) return
+    inFlightRefreshes.current.add(jobId)
+    const thisRequest = ++requestId.current
     setIsLoading(true)
     try {
       const [nextStatus, nextJobs] = await Promise.all([
         getRLTrainingStatus(jobId),
         listRLTrainingJobs({ limit: 30 }),
       ])
-      setStatus(nextStatus)
-      setJobs(nextJobs.jobs)
-      setActiveJobId((current) => current ?? nextStatus.job?.id ?? null)
-      setSelectedModelId((current) => current ?? nextStatus.models[0]?.id ?? null)
-      setAlert("RL training status refreshed from SQLite.")
+      if (thisRequest === requestId.current && jobId === viewedJobRef.current) {
+        setStatus(nextStatus)
+        setJobs(nextJobs.jobs)
+      }
     } catch (error) {
-      setAlert(rlErrorMessage(error, "Unable to refresh RL training status."))
+      if (thisRequest === requestId.current) setAlert(rlErrorMessage(error, "Unable to refresh RL training status."))
     } finally {
-      setIsLoading(false)
+      inFlightRefreshes.current.delete(jobId)
+      if (thisRequest === requestId.current) setIsLoading(false)
     }
-  }, [activeJobId])
+  }, [])
+
+  function viewJob(jobId: number | null) {
+    if (jobId !== viewedJobRef.current) requestId.current += 1
+    viewedJobRef.current = jobId
+    setViewedJobId(jobId)
+    void refreshStatus(jobId)
+  }
 
   React.useEffect(() => {
     let isMounted = true
@@ -336,11 +339,15 @@ export function RLTrainingPage() {
         if (!isMounted) return
         setScenarios(scenarioResponse.scenarios)
         setSelectedScenarioId(String(scenarioResponse.scenarios[0]?.id ?? ""))
+        setSettings((current) => ({ ...current,
+          scenario_id: scenarioResponse.scenarios[0]?.id ?? null,
+          evaluation_scenario_id: scenarioResponse.scenarios.find((scenario) => scenario.id !== scenarioResponse.scenarios[0]?.id)?.id ?? null,
+        }))
         setStatus(statusResponse)
         setJobs(jobsResponse.jobs)
-        setActiveJobId(statusResponse.job?.id ?? null)
-        setSelectedModelId(statusResponse.models[0]?.id ?? null)
-        setAlert("RL training data loaded from SQLite.")
+        const initialJobId = statusResponse.job?.id ?? null
+        viewedJobRef.current = initialJobId
+        setViewedJobId(initialJobId)
       } catch (error) {
         if (isMounted) {
           setAlert(rlErrorMessage(error, "Unable to load RL training data."))
@@ -355,32 +362,27 @@ export function RLTrainingPage() {
   }, [])
 
   React.useEffect(() => {
-    if (!selectedScenarioId) {
-      return
-    }
-    const scenario = scenarios.find((item) => String(item.id) === selectedScenarioId)
-    if (!scenario) {
-      return
-    }
-    setSettings((current) => ({
-      ...current,
-      intersection_id: scenario.intersection_id || "tagum_1",
-      traffic_density: String(scenario.traffic_density || "medium").toLowerCase(),
-      pedestrian_density: String(scenario.pedestrian_density || "medium").toLowerCase(),
-      emergency_mode: String(scenario.emergency_mode || "").toLowerCase().includes("enabled") ? "enabled" : "disabled",
-      road_constraint: scenario.road_constraint || "None",
-    }))
-  }, [scenarios, selectedScenarioId])
+    const scenarioId = Number(selectedScenarioId)
+    if (!scenarioId) return
+    let cancelled = false
+    void resolveNativeScenario(scenarioId).then((response) => {
+      if (!cancelled) setScenarioResolution({ id: selectedScenarioId, config: response.engine_config })
+    }).catch((error) => {
+      if (!cancelled) {
+        setScenarioResolution({ id: selectedScenarioId, config: null })
+        setAlert(rlErrorMessage(error, "Unable to load saved scenario settings."))
+      }
+    })
+    return () => { cancelled = true }
+  }, [selectedScenarioId])
 
   React.useEffect(() => {
-    if (!isActiveJob(activeJob)) {
-      return
-    }
+    if (!serverActiveJobId) return
     const intervalId = window.setInterval(() => {
-      void refreshStatus(activeJobId)
+      void refreshStatus(viewedJobRef.current)
     }, 1500)
     return () => window.clearInterval(intervalId)
-  }, [activeJob, activeJobId, refreshStatus])
+  }, [serverActiveJobId, viewedJobId, refreshStatus])
 
   function toggleAlgorithm(algorithm: AlgorithmId, checked: boolean) {
     setAlgorithms((current) => {
@@ -391,65 +393,113 @@ export function RLTrainingPage() {
     })
   }
 
+  function validateSettings(values: RLTrainingSettings = settings) {
+    if (!values.scenario_id || !scenarioConfig || scenarioLoading) return "Select a saved scenario and wait for its settings to load."
+    if (!values.evaluation_scenario_id || values.evaluation_scenario_id === values.scenario_id) return "Choose a different saved scenario for held-out evaluation."
+    if (!algorithms.length) return "Select at least one algorithm."
+    const ranges: Array<[string, number, number, number, boolean]> = [
+      ["Episodes", values.episodes, 1, 100000, true],
+      ["Warmup seconds", values.warmup_seconds, 0, 86400, false],
+      ["Evaluation seconds", values.evaluation_seconds, 0.1, 86400, false],
+      ["Decision interval", values.decision_interval_seconds, 0.1, 60, false],
+      ["Minimum green hold", values.minimum_green_hold_seconds, 5, 60, false],
+      ["Checkpoint every", values.checkpoint_every, 0, 100000, true],
+    ]
+    for (const [label, value, min, max, integer] of ranges) {
+      if (!Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value))) {
+        return `${label} must be ${integer ? "a whole number" : "a number"} from ${min} to ${max}.`
+      }
+    }
+    if (values.warmup_seconds + values.evaluation_seconds > 86400) return "Warmup and evaluation together must not exceed 86400 seconds."
+    if (values.decision_interval_seconds > values.evaluation_seconds) return "Decision interval must not exceed evaluation seconds."
+    if (![values.warmup_seconds, values.evaluation_seconds, values.decision_interval_seconds].every((value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-7)) return "Time settings must use 0.1-second increments."
+    const seeds = values.seeds.split(",").map((value) => value.trim())
+    if (seeds.length > 100 || seeds.some((value) => !/^\d+$/.test(value) || Number(value) > 4294967295)) return "Enter 1–100 comma-separated non-negative seeds."
+    const evaluationSeeds = values.evaluation_seeds.split(",").map((value) => value.trim())
+    if (evaluationSeeds.length > 100 || evaluationSeeds.some((value) => !/^\d+$/.test(value) || Number(value) > 4294967295)) return "Enter 1–100 held-out evaluation seeds."
+    if (evaluationSeeds.some((value) => seeds.includes(value))) return "Training and held-out evaluation seeds must not overlap."
+    if (values.resume_model_id && algorithms.length !== 1) return "Resume one matching algorithm at a time."
+    return null
+  }
+
   async function startTraining() {
+    if (!canRunTraining || pendingAction || serverActiveJobId) return
+    const validationError = validateSettings()
+    if (validationError) { setAlert(validationError); return }
+    setPendingAction(true)
     try {
       const response = await startRLTrainingJob({
         algorithms,
         settings,
         advanced,
       })
-      setActiveJobId(response.job_id)
+      viewJob(response.job_id)
       setAlert(response.message)
-      await refreshStatus(response.job_id)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to start RL training."))
+    } finally {
+      setPendingAction(false)
     }
   }
 
   async function stopTraining() {
-    if (!activeJobId) {
-      setAlert("No active RL job selected.")
-      return
-    }
+    if (!canRunTraining || !serverActiveJobId || pendingAction) return
+    setPendingAction(true)
     try {
-      const response = await stopRLTrainingJob(activeJobId)
+      const response = await stopRLTrainingJob(serverActiveJobId)
       setAlert(response.message)
-      await refreshStatus(activeJobId)
+      viewJob(serverActiveJobId)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to stop RL training."))
+    } finally {
+      setPendingAction(false)
     }
   }
 
   function resumeSelectedModel() {
-    if (!selectedModel?.checkpoint_path) {
-      setAlert("Select a trained model with a checkpoint path first.")
+    const checkpoint = selectedModel?.checkpoints.find((item) => item.id === selectedCheckpointId)
+    if (!selectedModelMatchesScenario) { setAlert("This model controls a different junction. Choose its matching scenario or train a new model."); return }
+    if (!selectedModel || (checkpoint ? !checkpoint.compatible : !selectedModel.compatible)) {
+      setAlert(checkpoint?.compatibility_message ?? selectedModel?.compatibility_message ?? "Select a compatible registered model.")
       return
     }
     const algorithm = selectedModel.algorithm.toLowerCase() as AlgorithmId
-    setSettings((current) => ({ ...current, resume_model: selectedModel.checkpoint_path }))
+    if (!algorithmOptions.some((option) => option.value === algorithm)) { setAlert("Unknown model algorithm."); return }
+    setSettings((current) => ({
+      ...current,
+      resume_model_id: selectedModel.id,
+      resume_checkpoint_id: checkpoint?.id ?? null,
+      decision_interval_seconds: selectedModel.decision_interval_seconds,
+      minimum_green_hold_seconds: selectedModel.minimum_green_hold_seconds,
+    }))
     setAlgorithms([algorithm])
-    setAlert(`Resume model selected: ${selectedModel.checkpoint_path}`)
+    setAlert(`Resume ${algorithm.toUpperCase()} from registered ${checkpoint ? `checkpoint #${checkpoint.id}` : `model #${selectedModel.id}`}. Saved learning parameters may be retained by the artifact.`)
   }
 
   async function evaluateSelectedModel() {
-    if (!selectedModel) {
-      setAlert("Select a trained model first.")
-      return
-    }
+    if (!canRunTraining) return
+    if (!selectedModelMatchesScenario) { setAlert("This model controls a different junction. Choose its matching scenario or train a new model."); return }
+    if (!selectedModel?.compatible || pendingAction || serverActiveJobId) { setAlert(selectedModel?.compatibility_message ?? "Select a compatible trained model."); return }
+    const evaluationSettings = { ...settings, resume_model_id: null, resume_checkpoint_id: null, decision_interval_seconds: selectedModel.decision_interval_seconds, minimum_green_hold_seconds: selectedModel.minimum_green_hold_seconds }
+    const validationError = validateSettings(evaluationSettings)
+    if (validationError) { setAlert(validationError); return }
+    setSettings(evaluationSettings)
+    setPendingAction(true)
     try {
-      const response = await evaluateRLModel({ model_id: selectedModel.id, settings })
-      setActiveJobId(response.job_id)
+      const response = await evaluateRLModel({ model_id: selectedModel.id, settings: evaluationSettings })
+      viewJob(response.job_id)
       setAlert(response.message)
-      await refreshStatus(response.job_id)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to evaluate selected model."))
+    } finally {
+      setPendingAction(false)
     }
   }
 
   const metrics = [
-    { label: "Queue", value: statusLabel(activeJob?.status), hint: activeJob?.message ?? "Idle", icon: ListChecksIcon, tone: "info" },
-    { label: "Algorithm", value: (activeJob?.current_algorithm ?? activeItem?.algorithm ?? selectedAlgorithmLabel(algorithms)).toUpperCase(), hint: "Current selection", icon: BrainIcon, tone: "success" },
-    { label: "Progress", value: `${compactNumber(activeJob?.progress_percent ?? 0)}%`, hint: "Active job", icon: GaugeIcon, tone: "warning" },
+    { label: "Job", value: statusLabel(viewedJob?.status), hint: viewedJob?.message ?? "Idle", icon: ListChecksIcon, tone: "info" },
+    { label: "Algorithm", value: (viewedJob?.current_algorithm ?? activeItem?.algorithm ?? selectedAlgorithmLabel(algorithms)).toUpperCase(), hint: "Viewed job", icon: BrainIcon, tone: "success" },
+    { label: "Progress", value: `${compactNumber(viewedJob?.progress_percent ?? 0)}%`, hint: "Viewed job", icon: GaugeIcon, tone: "warning" },
     { label: "Reward", value: compactNumber(activeItem?.latest_reward, 3), hint: "Latest episode", icon: ChartLineIcon, tone: "purple" },
   ]
 
@@ -459,19 +509,20 @@ export function RLTrainingPage() {
         <div>
           <h1>RL Training</h1>
           <p>Queue QL, DQL, and PPO training jobs, evaluate saved models, and monitor live output.</p>
+          {!canRunTraining && <p>Training is read-only for your role. An administrator can grant the RL training run permission.</p>}
         </div>
         <div className="rl-hero-actions">
-          <Button variant="outline" onClick={() => void refreshStatus(activeJobId)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => void refreshStatus(viewedJobId)} disabled={isLoading}>
             <RefreshCcwIcon data-icon="inline-start" />
             Refresh
           </Button>
-          <Button onClick={startTraining} disabled={isActiveJob(activeJob)}>
+          <Button onClick={startTraining} disabled={!canRunTraining || Boolean(serverActiveJobId) || pendingAction || scenarioLoading}>
             <PlayIcon data-icon="inline-start" />
             Start Queue
           </Button>
-          <Button variant="destructive" onClick={stopTraining} disabled={!isActiveJob(activeJob)}>
+          <Button variant="destructive" onClick={stopTraining} disabled={!canStopActiveJob || pendingAction}>
             <SquareIcon data-icon="inline-start" />
-            Stop
+            Stop active job
           </Button>
         </div>
       </section>
@@ -494,10 +545,14 @@ export function RLTrainingPage() {
         })}
       </section>
 
-      <div className={cn("rl-notice", isActiveJob(activeJob) && "running")}>
+      <Alert>
         <BrainIcon />
-        <span>{alert}</span>
-      </div>
+        <AlertDescription>{alert}</AlertDescription>
+      </Alert>
+      <p role="status" className="text-sm text-muted-foreground">Viewing {viewedJob ? `job #${viewedJob.id}` : "latest job"}.
+        {serverActiveJobId ? ` Active worker: job #${serverActiveJobId}, owner user #${activeJob?.user_id ?? "unknown"}.` : " No active worker."}
+        {viewedJob?.id && serverActiveJobId !== viewedJob.id ? " The viewed job is historical." : ""}
+      </p>
 
       <section className="rl-training-grid">
         <Card className="rl-queue-card">
@@ -506,7 +561,7 @@ export function RLTrainingPage() {
               <PlayIcon />
               Training Queue
             </CardTitle>
-            <CardDescription>Configure algorithms, scenario defaults, and run length.</CardDescription>
+            <CardDescription>Train one selected junction from a complete saved scenario. Other junctions follow their saved plans. Synthetic inputs are workflow evidence, not field validation.</CardDescription>
             <CardAction>
               <Badge variant="secondary">{selectedAlgorithmLabel(algorithms)}</Badge>
             </CardAction>
@@ -524,40 +579,45 @@ export function RLTrainingPage() {
               ))}
             </div>
 
-            <div className="rl-form-grid">
-              <label className="rl-field rl-field-wide">
-                <span>Scenario</span>
-                <ScenarioSelect scenarios={scenarios} selectedScenarioId={selectedScenarioId} onChange={setSelectedScenarioId} />
-              </label>
-              <label className="rl-field">
-                <span>Seeds</span>
-                <Input value={settings.seeds} onChange={(event) => setSettings({ ...settings, seeds: event.target.value })} />
-              </label>
-              <NumberField label="Episodes" value={settings.episodes} onChange={(episodes) => setSettings({ ...settings, episodes })} />
-              <NumberField label="Warmup Seconds" value={settings.warmup_seconds} onChange={(warmup_seconds) => setSettings({ ...settings, warmup_seconds })} />
-              <NumberField label="Evaluation Seconds" value={settings.evaluation_seconds} onChange={(evaluation_seconds) => setSettings({ ...settings, evaluation_seconds })} />
-              <NumberField label="Checkpoint Every" value={settings.checkpoint_every} onChange={(checkpoint_every) => setSettings({ ...settings, checkpoint_every })} />
-              <label className="rl-field">
-                <span>Intersection</span>
-                <Input value={settings.intersection_id} onChange={(event) => setSettings({ ...settings, intersection_id: event.target.value })} />
-              </label>
-              <label className="rl-field">
-                <span>Traffic Density</span>
-                <OptionSelect value={settings.traffic_density} options={trafficDensityOptions} onChange={(traffic_density) => setSettings({ ...settings, traffic_density })} />
-              </label>
-              <label className="rl-field">
-                <span>Pedestrian Density</span>
-                <OptionSelect value={settings.pedestrian_density} options={pedestrianDensityOptions} onChange={(pedestrian_density) => setSettings({ ...settings, pedestrian_density })} />
-              </label>
-              <label className="rl-field">
-                <span>Emergency Mode</span>
-                <OptionSelect value={settings.emergency_mode} options={emergencyOptions} onChange={(emergency_mode) => setSettings({ ...settings, emergency_mode })} />
-              </label>
-              <label className="rl-field">
-                <span>Road Constraint</span>
-                <OptionSelect value={settings.road_constraint} options={roadOptions} onChange={(road_constraint) => setSettings({ ...settings, road_constraint })} />
-              </label>
-            </div>
+            <FieldGroup className="rl-form-grid">
+              <Field className="rl-field-wide">
+                <FieldLabel>Saved scenario</FieldLabel>
+                <ScenarioSelect scenarios={scenarios} selectedScenarioId={selectedScenarioId} onChange={(id) => {
+                  setSelectedScenarioId(id)
+                  setSettings((current) => ({ ...current, scenario_id: Number(id) || null,
+                    evaluation_scenario_id: current.evaluation_scenario_id === Number(id)
+                      ? scenarios.find((scenario) => scenario.id !== Number(id))?.id ?? null
+                      : current.evaluation_scenario_id }))
+                }} />
+                <FieldDescription>{scenarioLoading ? "Loading saved configuration…" : selectedScenario && scenarioConfig ? `${selectedScenario.name} · junction ${String(scenarioConfig.controlled_junction ?? selectedScenario.intersection_id)} · ${String(scenarioConfig.demand_source?.kind ?? "synthetic")} demand · ${scenarioConfig.events?.length ?? 0} timed road events` : "Choose an available scenario."}</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="rl-seeds">Training seeds</FieldLabel>
+                <Input id="rl-seeds" value={settings.seeds} onChange={(event) => setSettings({ ...settings, seeds: event.target.value })} />
+                <FieldDescription>Comma-separated non-negative integers.</FieldDescription>
+              </Field>
+              <Field className="rl-field-wide">
+                <FieldLabel>Held-out evaluation scenario</FieldLabel>
+                <ScenarioSelect scenarios={scenarios.filter((scenario) => scenario.id !== settings.scenario_id)} selectedScenarioId={String(settings.evaluation_scenario_id ?? "")} onChange={(id) => setSettings((current) => ({ ...current, evaluation_scenario_id: Number(id) || null }))} />
+                <FieldDescription>Choose a different saved scenario for automatic and manual evaluation. Its controlled junction must match training.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="rl-evaluation-seeds">Held-out evaluation seeds</FieldLabel>
+                <Input id="rl-evaluation-seeds" value={settings.evaluation_seeds} onChange={(event) => setSettings({ ...settings, evaluation_seeds: event.target.value })} />
+                <FieldDescription>These seeds must differ from the training seeds.</FieldDescription>
+              </Field>
+              <NumberField label="Episodes" min={1} max={100000} value={settings.episodes} onChange={(episodes) => setSettings({ ...settings, episodes })} />
+              <NumberField label="Warmup seconds" min={0} max={86400} step={0.1} value={settings.warmup_seconds} onChange={(warmup_seconds) => setSettings({ ...settings, warmup_seconds })} />
+              <NumberField label="Evaluation seconds" min={0.1} max={86400} step={0.1} value={settings.evaluation_seconds} onChange={(evaluation_seconds) => setSettings({ ...settings, evaluation_seconds })} />
+              <NumberField label="Decision interval seconds" min={0.1} max={60} step={0.1} value={settings.decision_interval_seconds} onChange={(decision_interval_seconds) => setSettings({ ...settings, decision_interval_seconds })} />
+              <NumberField label="Minimum green hold seconds" min={5} max={60} step={0.1} value={settings.minimum_green_hold_seconds} onChange={(minimum_green_hold_seconds) => setSettings({ ...settings, minimum_green_hold_seconds })} />
+              <NumberField label="Checkpoint every" min={0} max={100000} value={settings.checkpoint_every} onChange={(checkpoint_every) => setSettings({ ...settings, checkpoint_every })} />
+            </FieldGroup>
+            <Button variant="outline" onClick={() => {
+              setSettings((current) => ({ ...current, episodes: 2, seeds: "11", evaluation_seeds: "101", warmup_seconds: 0, evaluation_seconds: 20, decision_interval_seconds: 1, minimum_green_hold_seconds: 5, checkpoint_every: 1, resume_model_id: null, resume_checkpoint_id: null }))
+              setAdvanced({ ql: { ...defaultAdvanced.ql }, dql: { learning_starts: 4, buffer_size: 100, batch_size: 4 }, ppo: { n_steps: 8, batch_size: 4, n_epochs: 1 } })
+              setAlert("Short workflow check selected. This trains and evaluates on separate saved scenarios and seeds.")
+            }}>Use short workflow check</Button>
 
             <div className="rl-advanced-grid">
               <Card size="sm">
@@ -593,15 +653,16 @@ export function RLTrainingPage() {
             </div>
 
             <div className="rl-secondary-actions">
+              <Button variant="outline" onClick={() => { setSettings((current) => ({ ...current, resume_model_id: null, resume_checkpoint_id: null })); setSelectedCheckpointId(null); setAlert("New training selected.") }}>Start new training</Button>
               <Button variant="outline" onClick={resumeSelectedModel}>
                 <RotateCcwIcon data-icon="inline-start" />
                 Resume Selected
               </Button>
-              <Button variant="outline" onClick={evaluateSelectedModel} disabled={!selectedModel}>
+              <Button variant="outline" onClick={evaluateSelectedModel} disabled={!canRunTraining || !selectedModel?.compatible || !selectedModelMatchesScenario || Boolean(serverActiveJobId) || pendingAction}>
                 <ChartLineIcon data-icon="inline-start" />
                 Evaluate Selected
               </Button>
-              {settings.resume_model ? <Badge variant="outline" className="rl-resume-badge">{settings.resume_model}</Badge> : null}
+              {settings.resume_model_id ? <Badge variant="outline">Resume model #{settings.resume_model_id}{settings.resume_checkpoint_id ? ` checkpoint #${settings.resume_checkpoint_id}` : ""}</Badge> : null}
             </div>
           </CardContent>
         </Card>
@@ -666,13 +727,10 @@ export function RLTrainingPage() {
                 {jobs.map((job) => (
                   <TableRow
                     key={job.id}
-                    className={cn(activeJob?.id === job.id && "selected")}
-                    onClick={() => {
-                      setActiveJobId(job.id)
-                      void refreshStatus(job.id)
-                    }}
+                    className={cn(viewedJob?.id === job.id && "selected")}
+                    onClick={() => viewJob(job.id)}
                   >
-                    <TableCell>#{job.id}</TableCell>
+                    <TableCell>#{job.id}{serverActiveJobId === job.id ? " · active" : ""}</TableCell>
                     <TableCell><StatusBadge status={job.status} /></TableCell>
                     <TableCell>{selectedAlgorithmLabel(job.selected_algorithms)}</TableCell>
                     <TableCell>
@@ -692,7 +750,7 @@ export function RLTrainingPage() {
               <DatabaseIcon />
               Trained Models
             </CardTitle>
-            <CardDescription>Saved RL models available for resume or evaluation.</CardDescription>
+            <CardDescription>Select a registered model explicitly. A checkpoint can resume even when the final artifact is missing, if that checkpoint is compatible.</CardDescription>
             <CardAction>
               <Badge variant="secondary">{status.models.length} models</Badge>
             </CardAction>
@@ -713,17 +771,29 @@ export function RLTrainingPage() {
                   <TableRow
                     key={model.id}
                     className={cn(selectedModel?.id === model.id && "selected")}
-                    onClick={() => setSelectedModelId(model.id)}
+                    onClick={() => { setSelectedModelId(model.id); setSelectedCheckpointId(null) }}
                   >
                     <TableCell>#{model.id}</TableCell>
                     <TableCell><Badge variant="outline">{model.algorithm}</Badge></TableCell>
-                    <TableCell>{model.name ?? "RL Model"}</TableCell>
+                    <TableCell>{model.name ?? "RL Model"} · {model.compatible ? "compatible" : model.compatibility_message}</TableCell>
                     <TableCell>{compactNumber(model.best_evaluation_score, 3)}</TableCell>
                     <TableCell>{formatDate(model.training_date)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            {selectedModel ? (
+              <div className="flex flex-col gap-2 p-3">
+                <p>Model #{selectedModel.id}: {selectedModel.compatible ? "compatible artifact" : selectedModel.compatibility_message}. Junction {selectedModel.controlled_junction ?? "unknown"}; decision every {selectedModel.decision_interval_seconds}s; minimum green hold {selectedModel.minimum_green_hold_seconds}s. Status: {selectedModel.training_status ?? "unknown"}. {selectedModelMatchesScenario ? "Matches the selected scenario junction." : "Choose a scenario with this controlled junction to use this model."}</p>
+                <Field>
+                  <FieldLabel htmlFor="rl-checkpoint">Resume checkpoint</FieldLabel>
+                  <select id="rl-checkpoint" value={selectedCheckpointId ?? ""} onChange={(event) => setSelectedCheckpointId(event.target.value ? Number(event.target.value) : null)}>
+                    <option value="">Final model artifact</option>
+                    {selectedModel.checkpoints.map((checkpoint) => <option key={checkpoint.id} value={checkpoint.id}>#{checkpoint.id} · episode {checkpoint.episode} · {checkpoint.compatible ? "compatible" : checkpoint.compatibility_message}</option>)}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

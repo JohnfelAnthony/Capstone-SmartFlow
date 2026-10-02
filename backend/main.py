@@ -5,7 +5,9 @@ import csv
 import gzip
 import json
 import secrets
+import shutil
 import string
+import threading
 from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -41,6 +43,8 @@ from backend.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    ObservationImportRequest,
+    ObservationImportResponse,
     Permission,
     RegisterRequest,
     RegisterResponse,
@@ -63,6 +67,7 @@ from backend.schemas import (
     SimulationRunListResponse,
     SimulationRunRecord,
     SimulationStartRequest,
+    SimulationSpeedRequest,
     SimulationStateResponse,
     SimulationStepRequest,
     TimelineGenerateRequest,
@@ -86,13 +91,10 @@ from backend.security import (
     user_model,
 )
 from backend.simulation_runtime import SimulationRuntimeError, simulation_runtime
-from services import render_frame_service, rl_training_service, timeline_generator, visual_network_service
+from services.workload_admission import WorkloadConflict, workload_admission
+from services import backup_bundle, render_frame_service, rl_training_service, timeline_generator, visual_network_service
 
-
-ALLOWED_DEV_ORIGINS = [
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-]
+_recording_admission_lock = threading.Lock()
 
 
 app = FastAPI(
@@ -103,7 +105,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_DEV_ORIGINS,
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token"],
@@ -259,6 +261,13 @@ def rl_model_record(row: dict) -> RLModelRecord:
         checkpoint_path=row.get("checkpoint_path"),
         training_date=row.get("training_date") or row.get("created_at"),
         best_evaluation_score=row.get("best_evaluation_score"),
+        compatible=row.get("compatible", False),
+        compatibility_message=row.get("compatibility_message", ""),
+        controlled_junction=row.get("controlled_junction"),
+        decision_interval_seconds=row.get("decision_interval_seconds", 5),
+        minimum_green_hold_seconds=row.get("minimum_green_hold_seconds", 10),
+        training_status=row.get("training_status"),
+        checkpoints=row.get("checkpoints", []),
     )
 
 
@@ -315,6 +324,7 @@ def rl_log_line_model(row: dict) -> RLLogLine:
 def rl_training_status_response(raw_status: dict) -> RLTrainingStatusResponse:
     job = raw_status.get("job")
     return RLTrainingStatusResponse(
+        active_job_id=raw_status.get("active_job_id"),
         job=rl_job_model(job) if job else None,
         items=[rl_job_item_model(item) for item in raw_status.get("items") or []],
         log_lines=[rl_log_line_model(line) for line in raw_status.get("log_lines") or []],
@@ -655,6 +665,9 @@ def admin_update_role_permissions(
     if str(role["name"]).lower() == "admin":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Administrator permissions are locked.")
 
+    if any(update.page.startswith("admin-") for update in payload.updates):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Administrator pages cannot be granted to a non-administrator role.")
     for permission_update in payload.updates:
         database.update_role_permission(
             role_id,
@@ -692,16 +705,25 @@ def admin_list_backups(user: dict = Depends(require_current_user)) -> BackupList
 @app.post("/api/admin/backups", response_model=BackupActionResponse)
 def admin_create_backup(user: dict = Depends(require_current_user)) -> BackupActionResponse:
     require_admin(user)
-    filename = database.create_backup(user["id"])
+    if simulation_runtime.get_state().status in {"running", "paused"} or rl_training_service.active_job_id() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Stop live simulation and training before creating a coherent backup.")
+    with database.get_db() as conn:
+        recording_active = conn.execute("SELECT 1 FROM simulation_runs WHERE run_mode = 'pre-record' AND status = 'running' LIMIT 1").fetchone()
+    if recording_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Wait for recording generation before creating a coherent backup.")
+    try:
+        filename = backup_bundle.create_bundle(user["id"])
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     backup = next((row for row in database.list_backups() if row["filename"] == filename), None)
     database.log_audit_event(
         user_id=user["id"],
         action="api_admin_create_backup",
         target="backups",
-        details=f"Created database backup '{filename}'.",
+        details=f"Created database and artifact bundle '{filename}'.",
     )
     return BackupActionResponse(
-        message="Backup created successfully.",
+        message="Database and artifact backup created successfully.",
         backup=backup_model(backup) if backup else None,
     )
 
@@ -715,21 +737,31 @@ def admin_restore_backup(
     backup = backup_by_id(backup_id)
     if not backup:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup not found.")
-    database.log_audit_event(
-        user_id=user["id"],
-        action="api_admin_restore_backup",
-        target="backups",
-        details=f"Restored database backup '{backup['filename']}'. Sessions will be invalidated.",
-    )
+    if backup["filename"].endswith(".db"):
+        try:
+            restored = backup_bundle.restore_legacy_database_to_stage(backup_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        database.log_audit_event(user_id=user["id"], action="api_admin_restore_legacy_database",
+                                 target="backups", details=f"Staged legacy SQLite-only backup '{backup['filename']}' at '{restored}'.")
+        return BackupActionResponse(message="Legacy SQLite backup copied to a separate directory. Referenced artifacts were not included.",
+                                    backup=backup_model(backup), restore_path=str(restored))
     try:
-        database.restore_backup(backup_id)
+        restored = backup_bundle.restore_bundle_to_stage(backup_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    database.log_audit_event(
+        user_id=user["id"], action="api_admin_restore_backup", target="backups",
+        details=f"Verified isolated restore of '{backup['filename']}' at '{restored}'.",
+    )
     return BackupActionResponse(
-        message="Backup restored successfully. Active sessions were invalidated.",
+        message="Backup restored and verified in a separate directory. The live application was not replaced.",
         backup=backup_model(backup),
+        restore_path=str(restored),
     )
 
 
@@ -797,8 +829,8 @@ def list_rl_models(
     limit: int = Query(default=200, ge=1, le=1000),
     user: dict = Depends(require_current_user),
 ) -> RLModelListResponse:
-    require_permission(user, "rl-training", "view")
-    rows = database.list_rl_models(limit=limit, algorithm=algorithm)
+    require_any_permission(user, [("rl-training", "view"), ("simulation", "view"), ("dashboard", "view")])
+    rows = rl_training_service.model_rows(limit=limit, algorithm=algorithm)
     return RLModelListResponse(models=[rl_model_record(row) for row in rows])
 
 
@@ -825,7 +857,7 @@ def start_rl_training_job(
     payload: RLTrainingStartRequest,
     user: dict = Depends(require_current_user),
 ) -> RLJobActionResponse:
-    require_permission(user, "rl-training", "view")
+    require_permission(user, "rl-training", "run")
     try:
         job_id = rl_training_service.enqueue_training_job(
             algorithms=payload.algorithms,
@@ -851,9 +883,14 @@ def stop_rl_training_job(
     job_id: int,
     user: dict = Depends(require_current_user),
 ) -> RLJobActionResponse:
-    require_permission(user, "rl-training", "view")
-    if not database.get_rl_training_job(job_id):
+    require_permission(user, "rl-training", "run")
+    job = database.get_rl_training_job(job_id)
+    if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="RL training job not found.")
+    if job.get("user_id") not in {None, user["id"]} and str(user.get("role_name") or "").lower() != "admin":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Another operator owns this training job.")
+    if rl_training_service.active_job_id() != job_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This is a historical job; it is not the active worker.")
     rl_training_service.stop_training_job(job_id)
     database.log_audit_event(
         user_id=user["id"],
@@ -872,7 +909,7 @@ def evaluate_rl_model(
     payload: RLEvaluateModelRequest,
     user: dict = Depends(require_current_user),
 ) -> RLJobActionResponse:
-    require_permission(user, "rl-training", "view")
+    require_permission(user, "rl-training", "run")
     try:
         job_id = rl_training_service.enqueue_model_evaluation(
             model_id=payload.model_id,
@@ -931,6 +968,21 @@ def scenario_write_values(payload: ScenarioWriteRequest) -> dict:
     }
 
 
+@app.get("/api/scenarios/{scenario_id}/native-config")
+def resolved_native_scenario(scenario_id: int, user: dict = Depends(require_current_user)) -> dict:
+    require_permission(user, "scenarios", "view")
+    scenario = database.get_scenario_by_id(scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found.")
+    from simulation.traffic_engine import TrafficEngine
+    engine = TrafficEngine()
+    try:
+        engine.configure_from_scenario(scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"engine_config": engine.config}
+
+
 def run_record_model(row: dict) -> SimulationRunRecord:
     metrics = database.get_run_metrics(row["id"])
     metric_payload = None
@@ -955,6 +1007,7 @@ def run_record_model(row: dict) -> SimulationRunRecord:
         end_time=row.get("end_time"),
         duration_seconds=float(row.get("duration_seconds") or 0),
         seed=row.get("seed"),
+        rl_model_id=row.get("rl_model_id"),
         notes=row.get("notes"),
         timeline_path=row.get("timeline_path"),
         is_favorite=bool(row.get("is_favorite")),
@@ -975,6 +1028,10 @@ def run_metric_value(run: SimulationRunRecord, key: str, default: object = "") -
 
 
 def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
+    raw = (run.metrics or {}).get("raw_metrics") or {}
+    experiment = raw.get("experiment") or {}
+    policy = experiment.get("policy") or {}
+    source = (experiment.get("config") or {}).get("demand_source") or {}
     return {
         "Run ID": run.id,
         "Scenario": run.scenario_name or "Unknown",
@@ -984,14 +1041,29 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Started": run.start_time or "",
         "Ended": run.end_time or "",
         "Duration Seconds": run.duration_seconds,
-        "Seed": run.seed or "",
+        "Measurement Start Seconds": experiment.get("measurement_start", ""),
+        "Measurement Duration Seconds": raw.get("measurement_seconds", ""),
+        "Seed": run.seed if run.seed is not None else "",
+        "Engine Version": experiment.get("engine_version", ""),
+        "Network SHA256": experiment.get("network_sha256", ""),
+        "Demand SHA256": experiment.get("demand_sha256", ""),
+        "Demand Source": source.get("kind", ""),
+        "Demand Description": source.get("description", ""),
+        "Dataset Provenance JSON": json.dumps(source.get("datasets", []), sort_keys=True),
+        "Model ID": run.rl_model_id if run.rl_model_id is not None else policy.get("model_id", ""),
+        "Model SHA256": policy.get("sha256", ""),
         "Average Wait Seconds": run_metric_value(run, "avg_waiting_time"),
         "Average Queue Length": run_metric_value(run, "avg_queue_length"),
         "Maximum Queue Length": run_metric_value(run, "max_queue_length"),
         "Throughput": run_metric_value(run, "throughput"),
+        "Scheduled Vehicles": raw.get("scheduled_vehicles", ""),
+        "Unfinished Vehicles": raw.get("unfinished_vehicles", ""),
+        "Dropped Vehicles": raw.get("dropped_vehicles", ""),
+        "Unfinished Pedestrians": raw.get("active_pedestrian_count", ""),
         "Average Pedestrian Delay": run_metric_value(run, "avg_pedestrian_delay"),
         "Timeline Path": run.timeline_path or "",
         "Notes": run.notes or "",
+        "Experiment JSON": json.dumps(experiment, sort_keys=True),
     }
 
 
@@ -999,8 +1071,9 @@ def run_records_for_export(run_ids: list[int]) -> list[SimulationRunRecord]:
     records = []
     for run_id in run_ids:
         row = database.get_run_by_id(run_id)
-        if row:
-            records.append(run_record_model(row))
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run #{run_id} was not found; nothing was exported.")
+        records.append(run_record_model(row))
     return records
 
 
@@ -1052,12 +1125,7 @@ def resolve_artifact_path(path_value: str | None) -> Path | None:
     if not path_value:
         return None
     raw_path = Path(path_value)
-    candidates = [raw_path] if raw_path.is_absolute() else [Path(config.BASE_DIR) / raw_path]
-    candidates.append(Path(config.BASE_DIR) / "assets" / "generated" / "timelines" / raw_path.name)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return candidates[0].resolve()
+    return (raw_path if raw_path.is_absolute() else Path(config.BASE_DIR) / raw_path).resolve()
 
 
 def compare_manifest_path(timeline_path: str | None) -> Path | None:
@@ -1110,10 +1178,39 @@ def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta, manifes
     experiment = manifest.get("experiment", {})
     if not experiment:
         return f"legacy-unverified-{run.id}"
-    # Identical full inputs are required for a controller comparison. Historical
-    # scenario IDs alone are insufficient because users can edit saved scenarios.
-    signature = {key: experiment.get(key) for key in ("engine_version", "network_sha256", "seed", "duration_seconds", "measurement_start", "demand_sha256", "config")}
+    # Group runs with identical exogenous inputs. Routing mode is the single
+    # permitted configuration difference for a routing comparison; the pair
+    # validator below checks controller identity before accepting that case.
+    settings = dict(experiment.get("config") or {})
+    settings.pop("routing_mode", None)
+    signature = {key: experiment.get(key) for key in ("engine_version", "network_sha256", "seed", "duration_seconds", "measurement_start", "demand_sha256")}
+    signature["config_except_routing_mode"] = settings
     return hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
+
+
+def compare_kind(left: CompareRunOption, right: CompareRunOption) -> str | None:
+    if left.compatibility_key != right.compatibility_key:
+        return None
+    left_experiment = compare_manifest(left.run.timeline_path).get("experiment") or {}
+    right_experiment = compare_manifest(right.run.timeline_path).get("experiment") or {}
+    if not left_experiment or not right_experiment:
+        return None
+    left_config = left_experiment.get("config") or {}
+    right_config = right_experiment.get("config") or {}
+    left_controller = (left.run.control_mode, left.run.rl_model_id,
+                       left_experiment.get("policy"), left_experiment.get("control"))
+    right_controller = (right.run.control_mode, right.run.rl_model_id,
+                        right_experiment.get("policy"), right_experiment.get("control"))
+    same_controller = left_controller == right_controller
+    if left_config == right_config:
+        return "repeat" if same_controller else "signal"
+    left_routing = left_config.get("routing_mode", "adaptive")
+    right_routing = right_config.get("routing_mode", "adaptive")
+    if left_routing == right_routing or not same_controller:
+        return None
+    left_other = {key: value for key, value in left_config.items() if key != "routing_mode"}
+    right_other = {key: value for key, value in right_config.items() if key != "routing_mode"}
+    return "routing" if left_other == right_other else None
 
 
 def compare_run_label(run: SimulationRunRecord, manifest: dict) -> str:
@@ -1121,18 +1218,30 @@ def compare_run_label(run: SimulationRunRecord, manifest: dict) -> str:
     controller_label = controller.get("provenance_label") or run.control_mode.replace("-", " ").title()
     scenario_label = run.scenario_name or "Unknown Scenario"
     seed_label = run.seed if run.seed is not None else "none"
-    return f"#{run.id} | {controller_label} | {scenario_label} | seed {seed_label}"
+    model_label = f" model #{run.rl_model_id}" if run.rl_model_id is not None else ""
+    routing_mode = (manifest.get("experiment") or {}).get("config", {}).get("routing_mode", "adaptive")
+    return f"#{run.id} | {controller_label}{model_label} | {routing_mode} routing | {scenario_label} | seed {seed_label}"
 
 
 def compare_run_option(row: dict) -> CompareRunOption:
     run = run_record_model(row)
     manifest = compare_manifest(run.timeline_path)
     timeline = compare_timeline_meta(run, manifest)
+    experiment = manifest.get("experiment") or {}
+    policy = experiment.get("policy") or {}
+    source = (experiment.get("config") or {}).get("demand_source") or {}
     return CompareRunOption(
         run=run,
         label=compare_run_label(run, manifest),
         timeline=timeline,
         compatibility_key=compare_key(run, timeline, manifest),
+        provenance={"engine_version": experiment.get("engine_version"),
+                    "network_sha256": experiment.get("network_sha256"),
+                    "demand_sha256": experiment.get("demand_sha256"),
+                    "demand_source": source.get("kind"),
+                    "demand_description": source.get("description"),
+                    "model_id": run.rl_model_id or policy.get("model_id"),
+                    "model_sha256": policy.get("sha256")},
     )
 
 
@@ -1239,22 +1348,40 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Select two different runs to compare.")
     left_option = compare_option_by_run_id(left_run_id)
     right_option = compare_option_by_run_id(right_run_id)
-    if left_option.compatibility_key != right_option.compatibility_key:
+    comparison_type = compare_kind(left_option, right_option)
+    if comparison_type is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Selected runs are not compatible. Scenario, intersection, seed, duration, and timeline availability must match.",
+            detail="Selected runs must match network, demand, seed and duration; change either the signal controller or routing mode, not both.",
         )
 
     left_frames = read_compare_frames(left_option.run.timeline_path)
     right_frames = read_compare_frames(right_option.run.timeline_path)
-    frame_count = min(len(left_frames), len(right_frames))
+    left_times = {round(frame.time, 6): frame for frame in left_frames}
+    right_times = {round(frame.time, 6): frame for frame in right_frames}
+    shared_times = sorted(left_times.keys() & right_times.keys())
+    if not shared_times:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
+    aligned_left = [left_times[time] for time in shared_times]
+    aligned_right = [right_times[time] for time in shared_times]
+    frame_count = len(shared_times)
     warnings = []
-    if len(left_frames) != len(right_frames):
-        warnings.append("Timeline frame counts differ; playback is limited to the shorter recording.")
+    if frame_count < min(len(left_frames), len(right_frames)):
+        warnings.append("Some sampled frame times differ; playback shows matching times only.")
+    left_metrics = compare_run_metrics(left_option.run.id)
+    right_metrics = compare_run_metrics(right_option.run.id)
+    for label, metrics in (("Left", left_metrics), ("Right", right_metrics)):
+        raw = metrics.get("raw_metrics") or {}
+        unfinished = int(raw.get("unfinished_vehicles") or 0)
+        if unfinished:
+            warnings.append(f"{label} run has {unfinished} unfinished vehicles at the horizon.")
+    if left_option.provenance.get("demand_source") != "observed" or right_option.provenance.get("demand_source") != "observed":
+        warnings.append("At least one run uses synthetic demand; do not interpret this pair as observed field performance.")
     return ComparePairResponse(
-        left=CompareRunBundle(option=left_option, frames=left_frames[:frame_count], metrics=compare_run_metrics(left_option.run.id)),
-        right=CompareRunBundle(option=right_option, frames=right_frames[:frame_count], metrics=compare_run_metrics(right_option.run.id)),
+        left=CompareRunBundle(option=left_option, frames=aligned_left, metrics=left_metrics),
+        right=CompareRunBundle(option=right_option, frames=aligned_right, metrics=right_metrics),
         frame_count=frame_count,
+        comparison_type=comparison_type,
         warnings=warnings,
     )
 
@@ -1278,6 +1405,33 @@ def create_scenario(payload: ScenarioWriteRequest, user: dict = Depends(require_
         details=f"Created scenario '{payload.name.strip()}' through the FastAPI bridge.",
     )
     return scenario_model(database.get_scenario_by_id(scenario_id))
+
+
+@app.get("/api/scenarios/observations/template")
+def get_observation_template(kind: str, example: bool = False, format: str = "json", user: dict = Depends(require_current_user)):
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from services.observation_templates import observation_template
+    try:
+        if format not in {"json", "csv"}:
+            raise ValueError("Template format must be json or csv.")
+        template = observation_template(kind, example=example)
+        if format == "csv":
+            return Response(template["csv_text"], media_type="text/csv",
+                            headers={"Content-Disposition": f'attachment; filename="{template["filename"]}"'})
+        return template
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/scenarios/observations/import", response_model=ObservationImportResponse)
+def import_scenario_observations(payload: ObservationImportRequest, user: dict = Depends(require_current_user)) -> ObservationImportResponse:
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from services.observed_data_import import import_observations
+    try:
+        result = import_observations(**payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return ObservationImportResponse(**result)
 
 
 @app.put("/api/scenarios/{scenario_id}", response_model=Scenario)
@@ -1522,7 +1676,7 @@ def list_compatible_compare_runs(
     compatible_options = [
         option
         for option in compare_run_options(limit=1000)
-        if option.run.id != left_option.run.id and option.compatibility_key == left_option.compatibility_key
+        if option.run.id != left_option.run.id and compare_kind(left_option, option) is not None
     ]
     return CompareRunListResponse(runs=compatible_options)
 
@@ -1549,29 +1703,49 @@ def generate_simulation_timeline(
     if bool(scenario.get("is_archived")):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archived scenarios cannot be recorded.")
 
-    run_id = database.create_run(
-        scenario_id=payload.scenario_id,
-        user_id=user["id"],
-        run_mode="pre-record",
-        control_mode=str(payload.control_mode or "fixed-time").strip().lower().replace("_", "-"),
-        status="running",
-        seed=payload.seed,
-        duration_seconds=0,
-        notes=f"Timeline generation requested for {payload.duration_seconds}s.",
-    )
-    database.log_audit_event(
-        user_id=user["id"],
-        action="api_generate_timeline",
-        target="simulation_runs",
-        details=f"Started pre-record timeline generation run ID={run_id} for scenario '{scenario['name']}'.",
-    )
-    timeline_generator.generate_timeline(
-        scenario_id=payload.scenario_id,
-        duration_limit=payload.duration_seconds,
-        run_id=run_id,
-        seed=payload.seed,
-        control_mode=payload.control_mode,
-    )
+    if payload.duration_seconds > config.MAX_RECORDING_SECONDS:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Recording duration is limited to {config.MAX_RECORDING_SECONDS} seconds per job.")
+    recording_directory = timeline_generator._timeline_directory()
+    recording_directory.mkdir(parents=True, exist_ok=True)
+    required_space = config.RECORDING_FREE_SPACE_RESERVE + payload.duration_seconds * config.RECORDING_BYTES_PER_SECOND_RESERVE
+    if shutil.disk_usage(recording_directory).free < required_space:
+        raise HTTPException(status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+                            detail="Insufficient free space for the requested recording and storage reserve.")
+    with _recording_admission_lock:
+        with database.get_db() as conn:
+            recording_active = conn.execute("SELECT 1 FROM simulation_runs WHERE run_mode = 'pre-record' AND status = 'running' LIMIT 1").fetchone()
+        if recording_active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Another recording is running. Wait for it to finish.")
+        try:
+            lease = workload_admission.acquire("recording")
+        except WorkloadConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        run_id = None
+        try:
+            run_id = database.create_run(
+                scenario_id=payload.scenario_id, user_id=user["id"], run_mode="pre-record",
+                control_mode=str(payload.control_mode or "fixed-time").strip().lower().replace("_", "-"),
+                status="running", seed=payload.seed, duration_seconds=0,
+                notes=f"Timeline generation requested for {payload.duration_seconds}s.",
+            )
+            database.log_audit_event(user_id=user["id"], action="api_generate_timeline", target="simulation_runs",
+                details=f"Started pre-record timeline generation run ID={run_id} for scenario '{scenario['name']}'.")
+            timeline_generator.generate_timeline(
+                scenario_id=payload.scenario_id,
+                duration_limit=payload.duration_seconds,
+                run_id=run_id,
+                seed=payload.seed,
+                control_mode=payload.control_mode,
+                workload_lease=lease,
+            )
+        except BaseException as exc:
+            workload_admission.release(lease)
+            if run_id is not None:
+                database.update_run(run_id, status="error", notes=f"Recording worker did not start: {exc}")
+            if isinstance(exc, Exception):
+                raise HTTPException(status_code=503, detail=f"Recording worker did not start: {exc}") from exc
+            raise
     return TimelineGenerateResponse(
         message="Timeline generation started.",
         run=completed_run_record(run_id),
@@ -1583,9 +1757,9 @@ def load_playback(
     payload: PlaybackLoadRequest,
     user: dict = Depends(require_current_user),
 ) -> SimulationActionResponse:
-    require_any_permission(user, [("simulation", "view"), ("dashboard", "view")])
+    require_permission(user, "simulation", "run")
     try:
-        simulation = simulation_runtime.load_playback(payload.run_id)
+        simulation = simulation_runtime.load_playback(payload.run_id, user_id=user["id"], owner_name=user["username"])
     except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     database.log_audit_event(
@@ -1599,9 +1773,9 @@ def load_playback(
 
 @app.post("/api/simulation/playback/start", response_model=SimulationActionResponse)
 def start_playback(user: dict = Depends(require_current_user)) -> SimulationActionResponse:
-    require_any_permission(user, [("simulation", "run"), ("dashboard", "view")])
+    require_permission(user, "simulation", "run")
     try:
-        simulation = simulation_runtime.start_playback()
+        simulation = simulation_runtime.start_playback(user_id=user["id"])
     except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     return simulation_action_response("Playback started.", simulation)
@@ -1612,9 +1786,9 @@ def seek_playback(
     payload: PlaybackSeekRequest,
     user: dict = Depends(require_current_user),
 ) -> SimulationActionResponse:
-    require_any_permission(user, [("simulation", "run"), ("dashboard", "view")])
+    require_permission(user, "simulation", "run")
     try:
-        simulation = simulation_runtime.seek_playback(payload.frame_index)
+        simulation = simulation_runtime.seek_playback(payload.frame_index, user_id=user["id"])
     except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     return simulation_action_response("Playback seeked.", simulation)
@@ -1627,7 +1801,7 @@ def configure_simulation(
 ) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
     try:
-        simulation = simulation_runtime.configure(payload)
+        simulation = simulation_runtime.configure(payload, user_id=user["id"], owner_name=user["username"])
     except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     database.log_audit_event(
@@ -1646,7 +1820,7 @@ def start_simulation(
 ) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
     try:
-        simulation = simulation_runtime.start(payload, user_id=user["id"])
+        simulation = simulation_runtime.start(payload, user_id=user["id"], owner_name=user["username"])
     except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     database.log_audit_event(
@@ -1661,29 +1835,56 @@ def start_simulation(
 @app.post("/api/simulation/pause", response_model=SimulationActionResponse)
 def pause_simulation(user: dict = Depends(require_current_user)) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
-    simulation = simulation_runtime.pause()
+    try:
+        simulation = simulation_runtime.pause(user_id=user["id"])
+    except (SimulationRuntimeError, ValueError) as exc:
+        raise simulation_conflict(exc) from exc
     return simulation_action_response("Simulation paused.", simulation)
 
 
 @app.post("/api/simulation/resume", response_model=SimulationActionResponse)
 def resume_simulation(user: dict = Depends(require_current_user)) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
-    simulation = simulation_runtime.resume()
+    try:
+        simulation = simulation_runtime.resume(user_id=user["id"])
+    except (SimulationRuntimeError, ValueError) as exc:
+        raise simulation_conflict(exc) from exc
     return simulation_action_response("Simulation resumed.", simulation)
 
 
 @app.post("/api/simulation/stop", response_model=SimulationActionResponse)
 def stop_simulation(user: dict = Depends(require_current_user)) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
-    simulation = simulation_runtime.stop()
+    try:
+        simulation = simulation_runtime.stop(user_id=user["id"])
+    except (SimulationRuntimeError, ValueError) as exc:
+        raise simulation_conflict(exc) from exc
     return simulation_action_response("Simulation stopped.", simulation)
 
 
 @app.post("/api/simulation/reset", response_model=SimulationActionResponse)
-def reset_simulation(user: dict = Depends(require_current_user)) -> SimulationActionResponse:
+def reset_simulation(force: bool = False, user: dict = Depends(require_current_user)) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
-    simulation = simulation_runtime.reset()
+    if force and str(user.get("role_name") or "").lower() != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only an administrator may take over a shared session.")
+    try:
+        simulation = simulation_runtime.reset(user_id=user["id"], force=force)
+    except (SimulationRuntimeError, ValueError) as exc:
+        raise simulation_conflict(exc) from exc
+    if force:
+        database.log_audit_event(user_id=user["id"], action="api_take_over_simulation", target="simulation",
+                                 details="Administrator explicitly stopped and reset the shared session.")
     return simulation_action_response("Simulation reset.", simulation)
+
+
+@app.post("/api/simulation/speed", response_model=SimulationActionResponse)
+def set_simulation_speed(payload: SimulationSpeedRequest, user: dict = Depends(require_current_user)) -> SimulationActionResponse:
+    require_permission(user, "simulation", "run")
+    try:
+        simulation = simulation_runtime.set_speed(payload.speed_multiplier, user_id=user["id"], owner_name=user["username"])
+    except (SimulationRuntimeError, ValueError) as exc:
+        raise simulation_conflict(exc) from exc
+    return simulation_action_response("Simulation speed updated.", simulation)
 
 
 @app.post("/api/simulation/step", response_model=SimulationActionResponse)
@@ -1693,7 +1894,7 @@ def step_simulation(
 ) -> SimulationActionResponse:
     require_permission(user, "simulation", "run")
     try:
-        simulation = simulation_runtime.step(payload.num_ticks)
+        simulation = simulation_runtime.step(payload.num_ticks, user_id=user["id"])
     except (SimulationRuntimeError, ValueError) as exc:
         raise simulation_conflict(exc) from exc
     return simulation_action_response("Simulation advanced.", simulation)
@@ -1704,6 +1905,10 @@ async def simulation_websocket(
     websocket: WebSocket,
     smartflow_api_session: str | None = Cookie(default=None, alias=API_SESSION_COOKIE),
 ) -> None:
+    origin = websocket.headers.get("origin")
+    if origin and origin not in config.ALLOWED_ORIGINS:
+        await websocket.close(code=1008)
+        return
     user = api_user_from_session_token(smartflow_api_session)
     if not user:
         await websocket.close(code=1008)
@@ -1719,6 +1924,16 @@ async def simulation_websocket(
     had_active_run = False
     try:
         while True:
+            if sequence % 10 == 0:
+                current_user = api_user_from_session_token(smartflow_api_session)
+                if not current_user:
+                    await websocket.close(code=1008)
+                    return
+                try:
+                    require_any_permission(current_user, [("simulation", "view"), ("dashboard", "view")])
+                except HTTPException:
+                    await websocket.close(code=1008)
+                    return
             simulation = simulation_runtime.get_state()
             frame = render_frame_service.build_render_frame(
                 simulation.state,
@@ -1738,6 +1953,14 @@ async def simulation_websocket(
         return
     except RuntimeError:
         return
+
+
+@app.get("/api/simulation/options")
+def native_configuration_options(user: dict = Depends(require_current_user)) -> dict:
+    require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
+                                  ("dashboard", "view"), ("rl-training", "view")])
+    from services.native_scenario_service import configuration_options
+    return configuration_options()
 
 
 @app.get("/api/visual-network")

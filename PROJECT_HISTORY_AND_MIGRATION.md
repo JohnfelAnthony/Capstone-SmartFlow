@@ -293,6 +293,8 @@ The appendices are **source-text transcriptions, not newly rewritten chapters**.
 
 The narrative above is the current interpretation and progress assessment. The material below is the historical manuscript and may contain obsolete SUMO plans, proposal language or unresolved wording. Its inclusion does not turn those statements into implemented facts or independently verified literature claims.
 
+**Archive verification, September 23:** all 73 original and 74 revised page transcriptions were compared with a fresh layout-text extraction from the copied PDFs and matched exactly after trimming outer page whitespace. Both copied PDFs matched the parent originals by SHA-256. All 38 local file links across this record and the four working documents resolved within SmartFlow; code fences were balanced. This verifies text/source integrity and local link portability, not a fresh-location application launch. Figures were reviewed in representative rendered pages; the copied PDFs preserve every original diagram and image.
+
 ## Appendix A. Original Chapters 1 and 2
 
 Complete text extracted from the 73-page original manuscript. PDF page positions include the title page; figures remain in the linked source PDF.
