@@ -39,7 +39,7 @@ class SharedSessionAndImportTests(unittest.TestCase):
         for client, username in ((self.a, "operator_a"), (self.b, "operator_b")):
             response = client.post("/api/auth/login", json={"username": username, "password": "SharedSessionUser42!"})
             self.assertEqual(response.status_code, 200, response.text)
-        self.scenario = next(row for row in database.get_scenarios() if row["traffic_density"] == "Single")
+        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
 
     def tearDown(self):
         simulation_runtime.reset()
@@ -130,8 +130,8 @@ class SharedSessionAndImportTests(unittest.TestCase):
         full_config = pedestrians.json()["engine_config"]
         self.assertEqual(len(full_config["pedestrian_trips"]), 2)
         self.assertEqual(len(full_config["trips"]), 3)
-        created = self.a.post("/api/scenarios", json={"name": "Imported synthetic counts", "traffic_density": "none",
-            "pedestrian_density": "none", "engine_config": full_config})
+        created = self.a.post("/api/scenarios", json={"name": "Imported synthetic counts", "engine_config": {**full_config,
+            "traffic_density": "none", "pedestrian_density": "none"}})
         self.assertEqual(created.status_code, 200, created.text)
         engine = TrafficEngine(seed=11)
         engine.configure_from_scenario(created.json())
@@ -234,8 +234,9 @@ class SharedSessionAndImportTests(unittest.TestCase):
                  "pedestrians": [{"id": f"p{i}", "x": i, "y": 0} for i in range(40)],
                  "vehicle_count": 90, "pedestrian_count": 40}
         frame = render_frame_service.build_render_frame(state)
-        self.assertEqual((frame["vehicle_count"], len(frame["vehicles"])), (90, 80))
-        self.assertEqual((frame["pedestrian_count"], len(frame["pedestrians"])), (40, 32))
+        self.assertEqual((frame["vehicle_count"], len(frame["vehicles"])), (90, 90))
+        self.assertEqual((frame["pedestrian_count"], len(frame["pedestrians"])), (40, 40))
+        self.assertFalse(frame["render_coverage"]["limited"])
         self.assertEqual(frame["vehicles"][0]["length"], 8)
         network = load_network()
         visual = network.visual()

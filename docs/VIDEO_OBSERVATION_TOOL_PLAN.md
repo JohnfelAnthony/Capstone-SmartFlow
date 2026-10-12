@@ -1,6 +1,10 @@
 # 2. Phone-video observation tool: implementation plan
 
-Prepared **2026-10-02, Asia/Singapore**. This is the agreed direction for a future implementation; no video-analysis software, model installation, field dataset or accuracy result is delivered by this document.
+Prepared **2026-10-02, Asia/Singapore**. This is the agreed direction for the complete future observation workflow; no field dataset or accuracy result is established by this plan.
+
+Updated **2026-10-03**: a local GUI for the first delivery, a manually reconciled pilot, and separate automatic-acceptance versus corrected-data checks.
+
+**Implementation checkpoint, October 3 — v0.3:** the [field observer](../tools/field_observer/README.md) now has a double-click launcher and local browser GUI for choosing a video, drawing counting lines, watching detection boxes and proposed counts, playing an annotated video, correcting events and exporting provisional reviewed tables. It retains real source timestamps and RF-DETR/ByteTrack proposals in a separate environment. The detector proposes six COCO traffic/person categories; tricycles and jeepneys require manual correction and a full pass for misses. Signal/queue records still use manual tables. Automatic acceptance, independent audit gates and SmartFlow conversion remain future work. One source file per take is supported; continuous split-file reconciliation remains future work. The GUI uses local HTML and Python's loopback HTTP server; Streamlit is not required.
 
 Read with [Field recording protocol](FIELD_RECORDING_PROTOCOL.md) for collection and [Field data and SmartFlow integration](FIELD_DATA_SMARTFLOW_INTEGRATION.md) for conversion, calibration, training and evaluation.
 
@@ -8,7 +12,7 @@ Read with [Field recording protocol](FIELD_RECORDING_PROTOCOL.md) for collection
 
 Build a small, local **offline Python observation utility**, temporarily inside `SmartFlow/tools/field_observer/`. Researchers record stable roadside phone videos, process them on a computer, correct the proposed observations, then export documented measurements. The utility can later move into a sibling repository because its exchange with SmartFlow is versioned files.
 
-**Collection constraint: one phone camera only.** Process one stationary take at a time. The same phone may record different sites/angles sequentially, each with its own period and configuration; the tool must not combine those into simultaneous observations. Keep camera identity for provenance, with `PHONE_01` as the initial device. No multiple-camera synchronization or cross-camera tracking is part of the first release. This task updates the plan only and adds no vehicle models or application code.
+**Collection constraint: one phone camera only.** Process one stationary take at a time. The same phone may record different sites/angles sequentially, each with its own period and configuration; the tool must not combine those into simultaneous observations. Keep camera identity for provenance, with `PHONE_01` as the initial device. No multiple-camera synchronization, cross-camera tracking or new vehicle graphics are part of this workflow.
 
 The first release measures visible vehicle movements and classes, pedestrian crossing events, manually recorded signal changes and manual queue samples. Keep original videos as the evidence. Automated detections are proposals until reviewed; the exported tables retain what was corrected and what remains uncertain.
 
@@ -18,7 +22,7 @@ The utility does not promise to recognize every road user in the footage. Hidden
 
 Start with the protocol's **10-minute pilot, manually reconciled reference and site-coverage decision** using ordinary video playback and structured tables. Collection-method testing must not wait for a custom review application. Preserve source timestamps, hashes, coverage, class definitions and corrections from this manual stage.
 
-The first useful software slice is local batch video processing, a simple counting-zone configuration, timestamped vehicle/pedestrian proposals, editable observation tables, manual signal/queue records and repeatable exports. Review may initially use the original video plus CSV tables with retained before/after versions and a correction log. A polished Streamlit interface and integrated SmartFlow bundle-import UI are later conveniences. Keep custom detector training, automatic signal recognition and additional interfaces deferred until pilot evidence justifies their effort.
+The first useful software slice is local batch video processing, a simple counting-zone configuration, timestamped vehicle/pedestrian proposals, editable observation tables, manual signal/queue records and repeatable exports. Review may initially use the original video plus CSV tables with retained before/after versions and a correction log. The v0.3 GUI now covers event-linked playback and corrections; integrated SmartFlow bundle import remains future work. Keep custom detector training, automatic signal recognition and additional interfaces deferred until pilot evidence justifies their effort.
 
 Measure machine processing time and human correction/checking time on the team's actual computer. One hour at 30 frames per second contains approximately 108,000 frames; CPU feasibility is an empirical pilot result, not implied by the detector's name or benchmark. Keep the manual workflow available when automation costs more effort or misses important road users.
 
@@ -27,54 +31,43 @@ Measure machine processing time and human correction/checking time on the team's
 | Component | Chosen responsibility | Source and reuse decision |
 | --- | --- | --- |
 | **RF-DETR Small**, general COCO detection checkpoint | Local vehicle/person detections | [RF-DETR official repository](https://github.com/roboflow/rf-detr). The Small detection model and open-source package are designated Apache 2.0. Use this specific family; Plus XL/2XL have a different license. |
-| **Supervision**, including its ByteTrack implementation | Track association, line/zone logic and overlays | [Supervision](https://github.com/roboflow/supervision), [MIT license](https://github.com/roboflow/supervision/blob/develop/LICENSE.md). Adapt the minimal needed logic from its [traffic-analysis example](https://github.com/roboflow/supervision/tree/develop/examples/traffic_analysis). |
-| **OpenCV**, ordinary desktop Python package | Reference-frame polygon/line editing and image operations | Use its [mouse callback API](https://docs.opencv.org/4.x/db/d5b/tutorial_py_mouse_handling.html). The zone editor needs desktop windows, so use one compatible `opencv-python` installation, not concurrent full/headless/contrib packages. |
+| **Supervision + trackers/ByteTrack** | Detection containers and timestamp-aware track association | Published packages `supervision==0.30.6` and `trackers==2.6.1`; [Supervision](https://github.com/roboflow/supervision), [Trackers](https://github.com/roboflow/trackers). Original line-event logic preserves class IDs. |
+| **Local HTML + Python HTTP server + Pillow** | Loopback GUI, line setup, rotation, live boxes and event review | v0.3 uses the standard-library server and browser controls. OpenCV remains a tracker dependency. No additional web framework is installed. |
 | **PyAV** | Decode video with presentation timestamps | [Timestamp API](https://pyav.org/docs/stable/api/time.html), [official package](https://pypi.org/project/av/). Keep the source timeline authoritative even for variable frame rate. |
-| **Streamlit**, subsequent review stage | Small local review interface once the batch/table workflow is useful | [Official project](https://github.com/streamlit/streamlit), Apache 2.0. Use [video playback](https://docs.streamlit.io/develop/api-reference/media/st.video) and [editable tables](https://docs.streamlit.io/develop/api-reference/data/st.data_editor). The manual pilot and first table exports do not depend on this UI. |
 
 This combines libraries with distinct jobs, rather than combining multiple independent counting applications. The upstream traffic example already supports RF-DETR and ByteTrack, but it is a demonstration, not the required research collection system. Its sample viewpoint, zones, aggregate totals and class handling must be adapted.
 
 Preserve **detector class**, **tracker identity** and **movement/zone identity** in separate fields. The example repurposes `class_id` for zone annotation; copying that behavior would lose vehicle-class evidence. Add timestamped events, review state and exports instead of retaining only cumulative screen totals.
 
-Do not clone entire upstream repositories into SmartFlow or add nested Git repositories. Install published packages; adapt only the small example portions actually needed. At implementation, record the exact upstream commit, adapted files, retained notices and changes in `THIRD_PARTY_NOTICES.md`. Record the selected checkpoint download source, model name, license and SHA-256 independently of the Python package version.
+Do not clone entire upstream repositories into SmartFlow or add nested Git repositories. The v0.3 tool uses public package APIs without copying example source. Its [third-party record](../tools/field_observer/THIRD_PARTY.md) links upstream packages and records the selected checkpoint SHA-256. If later adapting source, record the exact upstream commit, adapted files, retained notices and changes.
 
 YOLO is an available alternative supported by the example, but is not a second default detector. Evaluate another detector only if the pilot establishes a concrete performance or accuracy problem; replacing the detector must preserve the same event contract and repeat the pilot checks.
 
 ## 3. Environment and repository boundary
 
-- Use a separate **Python 3.12, Windows x86-64** tool environment at `tools/field_observer/.venv/`. Preserve SmartFlow's existing API environment and requirements. CPU inference is the baseline; GPU acceleration is optional after a verified CPU run. Offline processing need not be real time.
-- RF-DETR declares Python >=3.10, Streamlit includes Python 3.12, and PyAV publishes a Python 3.12-compatible Windows wheel. PyTorch provides Windows installation instructions. These are feasibility indicators, not a completed installation test. Verify the complete chosen combination on the team's actual machine before extending the tool. [RF-DETR package](https://pypi.org/project/rfdetr/), [Streamlit package](https://pypi.org/project/streamlit/), [PyAV Windows package](https://pypi.org/project/av/), [PyTorch installation](https://docs.pytorch.org/get-started/locally/).
-- Create a tool-specific dependency input manifest and a lock of the **tested** exact versions and hashes, including transitive packages. Use published stable releases, not a moving `develop` dependency. Record Python, operating system, device and decoder versions in each processing run. No lock or Windows compatibility certification exists yet.
-- Keep UI and CLI as consumers of the same Python ingestion, event, review and export services. SmartFlow's FastAPI process does not import detector dependencies or run a Streamlit session.
+- Use the **separate Python environment** under `tools/field_observer/.venv`. The v0.3 target is Windows x64/Python 3.13.3 with RF-DETR 1.11.1, Supervision 0.30.6, trackers 2.6.1 and PyAV 19.0.1. ByteTrack now comes from the upstream `trackers` package and receives actual frame timestamps. The GUI adds no new package dependencies. See the tool guide and progress record for verified scope.
+- The complete locked combination has been installed and tested on this Windows/Python 3.13.3 computer. Repeat installation and smoke verification on other team machines; this does not establish long-video throughput or field accuracy. Upstream setup references: [RF-DETR package](https://pypi.org/project/rfdetr/), [PyAV Windows package](https://pypi.org/project/av/), [PyTorch installation](https://docs.pytorch.org/get-started/locally/).
+- `requirements-cv-lock.txt` pins the installed complete environment to exact versions and compatible Windows/Python wheel hashes; `requirements.txt` retains the minimal PyAV-only foundation. Use the lock for reproduction. Processing runs record model SHA-256, library versions, detector/tracker settings, device, source identity and line configuration. Never use a moving upstream `develop` branch as a dependency.
+- Keep UI and CLI as consumers of the same Python ingestion, event, review and export services. SmartFlow's FastAPI process does not import detector dependencies or host the observation GUI.
 - Read recordings from a researcher-selected local directory. Initial installation/checkpoint downloads may require internet; analysis and review must work offline once prepared. Do not add cloud upload or API-key requirements.
-- Store generated output under `data/generated/field_observer/<survey_id>/PHONE_01/<take_id>/`; processing revisions have distinct child directories. Separate takes never overwrite or merge each other's results. Store detector weights in a tool cache, separate from SmartFlow RL artifacts.
+- The GUI stores copies and evidence under `data/generated/field_observer_gui/<project_id>/`; CLI examples use `data/generated/field_observer/<survey_id>/PHONE_01/<take_id>/`; processing revisions have distinct child directories. Separate takes never overwrite or merge each other's results. Store detector weights in a tool cache, separate from SmartFlow RL artifacts.
 - Ignore the tool environment, cached weights, videos and generated artifacts in Git when implemented. Commit source, schemas, locks, notices, tests and small synthetic fixtures. Back up raw recordings and reviewed exports separately; existing SmartFlow backups must not silently omit them.
 
-The target implementation contains a batch entry point, OpenCV zone editor, schemas, detector adapter, timestamp decoder, event logic and export services. Add the Streamlit review entry point after the minimal batch/table workflow proves useful. These modules remain inside the one tool folder; no new React video application is required.
+The current first slice contains a batch entry point, a self-contained local HTML counting-line editor, detector adapter, timestamp decoder, event logic and export services. The HTML editor replaces the initially proposed OpenCV window for simpler local setup and explicit phone rotation; polygon zones remain future work. The v0.3 browser GUI adds live previews, annotated MP4 playback, corrections, coverage and provisional ZIP exports using these same services. These modules remain inside the one tool folder; no new React video application is required.
 
 ## 4. User workflow
 
 1. **Register the survey and local recordings.** Enter intersection, observation period, timezone, collector, camera/view ID and movement coverage. Hash every original file. Preview decoding, orientation, timebase and readable coverage before inference.
 2. **Establish the take timeline.** Record actual wall-clock start/end and video-to-clock offset for the single phone, uncertainty and recording gaps. Align any manual signal/queue sheet to the same clock. File creation time is insufficient evidence of the recording start. Only verified file splits from the same take share its timeline; repositioning or another site creates a new take.
-3. **Mark a reference frame.** In a small OpenCV window, click polygons/lines for approaches, exits, stop lines, pedestrian waiting/crossing areas and optional signal regions. Provide save, undo and clear controls; name each region. Save the frame hash, dimensions, coordinates and zone version.
+3. **Mark a reference frame.** In the local GUI, set rotation, click two endpoints and add a named counting line for an approach, stop line or pedestrian crossing stage. Check its direction arrow. Polygon areas and signal regions remain future work. Preserve source identity, dimensions, coordinates and configuration version.
 4. **Run batch analysis.** Decode in source order, detect and track visible objects, generate proposed events and save an annotated review proxy. Show progress and write a completed/incomplete run status. A failure must leave the original untouched and incomplete outputs ineligible for publication.
-5. **Review by video time.** Initially use source-video playback and editable tables with before/after snapshots and a correction log. Later, a local Streamlit interface can link an event to surrounding video and exact source frames. Approve, edit, reject or add events; changes require a reviewer, reason and durable revision. Include a full footage pass for measurements requiring manual review so objects with no detector proposal can be added.
+5. **Review by video time.** The GUI links each proposed event to annotated playback. Approve, correct, reject or add missed events, then export a durable revision. Source-frame timestamps remain authoritative; browser seeking is a visual aid. Preserve the raw proposals and include a full footage pass so objects with no detector proposal can be added. Classify Tagum passenger tricycles separately from motorcycles.
 6. **Enter signals and queues.** Use the video timeline and editable forms to record signal transitions, movement service groups and queue samples. Keep those observations separate from object detection confidence.
 7. **Validate and publish.** Produce quality summaries, reviewed event tables and derived interval counts. Publication requires the coverage and review checks below; provisional output remains available for inspection but clearly labeled.
 
-Future entry points, run from the tool folder using its environment:
+Current graphical entry point: double-click `Start Field Observer.cmd` in the SmartFlow root. Use **Choose File → Load video → Add line → Start analysis → Review → Coverage and provisional export**. See the [tool guide](../tools/field_observer/README.md#start-the-gui-recommended) for the complete procedure. **Try demo** supplies explicitly scripted, synthetic examples when no recording is available.
 
-```powershell
-.venv/Scripts/python.exe -m field_observer ingest --survey survey.json
-.venv/Scripts/python.exe -m field_observer zones --survey survey.json --take TAKE_ID
-.venv/Scripts/python.exe -m field_observer analyze --survey survey.json --take TAKE_ID
-.venv/Scripts/python.exe -m streamlit run review_app.py --server.address 127.0.0.1
-.venv/Scripts/python.exe -m field_observer export --survey survey.json --revision REVIEW_REVISION
-```
-
-These commands describe interfaces to implement, not commands available in today's checkout. `survey.json` identifies the local package and input files; paths resolve relative to it. Export reads a selected durable review revision, so CLI and UI cannot produce different totals from the same revision.
-
-The Streamlit command belongs to the subsequent review stage. The manual pilot can use ordinary playback and structured tables without any of these custom commands.
+The optional developer entry point, from the tool folder, is `.venv/Scripts/python.exe -m field_observer gui`. The existing CLI commands remain available for table-based work, including manual signal/queue records. Export preserves durable revisions and never treats a GUI screen total as accepted research evidence.
 
 ### Source time, clip splitting and coverage
 
@@ -143,7 +136,7 @@ The utility publishes a **neutral observation package**. SmartFlow's import/conv
 2. **Minimal batch/table workflow:** timestamp decoding, take manifest, simple zone editor and RF-DETR Small + ByteTrack proposals with original class preservation. Support editable vehicle/pedestrian records, manual signal/queue tables, source references, durable corrections and repeatable exports. Measure runtime and correction effort; retain a manual fallback.
 3. **Verify the measurement procedure:** check pedestrian arrival/start/end linkage, censoring, file splits and missing coverage. Apply Gates A and B separately to fresh reserved audit windows. Verify later takes/conditions and preserve their separate periods/configurations.
 4. **Smallest adequate SmartFlow conversion:** retain the neutral evidence package and use a deterministic conversion plus existing supported CSV inputs where their semantics fit. Record mapping/provenance and reject unsupported observations; add only the engine/import changes required by the site decision. Follow the integration plan before claiming field validity.
-5. **Later conveniences and optional automation:** Streamlit event-linked review and bundle-import UI when they save demonstrated effort; signal ROI assistance, a detector replacement or custom tricycle/jeepney training only when supported by pilot errors. These are not prerequisites for collecting reviewed observations.
+5. **Later conveniences and optional automation:** extend the existing GUI or add bundle-import UI when they save demonstrated effort; signal ROI assistance, a detector replacement or custom tricycle/jeepney training only when supported by pilot errors. These are not prerequisites for collecting reviewed observations.
 
 ### Provisional automation quality defaults
 
@@ -165,7 +158,7 @@ Use a **10-minute pilot** for feasibility and reserve three disjoint two-minute 
 - Signal/queue fixture: simultaneous movement group retained; unreadable intervals stay unknown; final signal duration is censored; hidden queue tail yields a lower bound.
 - Review/export checks: add/correct/reject survives reopening; stable event IDs and audit log; CLI/UI share the same totals; original hash mismatch and unreviewed/incomplete output prevent publishable export.
 - Audit-gate check: a poor raw result repaired only in audit windows can pass Gate B but cannot unlock `sample_audited_auto`; changed processing requires fresh reserved windows. Verify that full manual review can add an object absent from all detector rows and retains its manual provenance.
-- Offline Windows smoke: prepared checkpoint analyzes a short local clip without network access or API keys; local review opens, edits, saves, reopens and exports; cancellation/failure cannot mark partial output complete.
+- Offline Windows smoke: prepared checkpoint analyzes a short local clip without network access or API keys; the first batch/table workflow preserves edits, correction history and repeatable exports; cancellation/failure cannot mark partial output complete. The GUI also requires upload, annotated playback, correction, cancellation, export and saved-recording checks; synthetic verification does not establish field accuracy.
 - Real roadside pilot: perform the recount/time checks above before expanding collection. Synthetic fixtures prove logic, not Tagum accuracy. Preserve failing clips and corrections for explaining limitations.
 
 Completion means a repeatable local recording-to-reviewed-observation workflow with measured pilot performance and documented missing coverage. Research validity additionally requires the site survey, calibration, held-out validation and matched controller comparisons in the other two documents.

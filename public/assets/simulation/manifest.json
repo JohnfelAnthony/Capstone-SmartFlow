@@ -1,0 +1,117 @@
+{
+  "date": "2026-10-10",
+  "runtime_downloads": "Local bundled assets only; no CDN or external HTTP.",
+  "inspection": "Actual ZIP listings and GLB JSON inspected; Car Kit includes sedan, truck and ambulance but no bus, motorcycle or passenger tricycle.",
+  "assets": [
+    {
+      "file": "kenney-car-kit/sedan.glb",
+      "category": "car",
+      "source_url": "https://kenney.nl/assets/car-kit",
+      "source_archive": "kenney_car-kit.zip",
+      "source_version": "3.1",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_notice": "kenney-car-kit/License.txt",
+      "source_sha256": "b532ea7d2c59f7f6b22b138cf1955218a2c1898f1cea932af4d3fd563c3959b7",
+      "sha256": "dc1d10dd704779f6a6d9d8672e6ae8a12200c46a41fc2975a0c33f9c632ebc34",
+      "bytes": 184600,
+      "triangles": 2032,
+      "modifications": "Embedded original palette atlas in GLB; geometry and colors unchanged on disk.",
+      "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
+      "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
+    },
+    {
+      "file": "kenney-car-kit/truck.glb",
+      "category": "truck",
+      "source_url": "https://kenney.nl/assets/car-kit",
+      "source_archive": "kenney_car-kit.zip",
+      "source_version": "3.1",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_notice": "kenney-car-kit/License.txt",
+      "source_sha256": "5e1bc66c343501dd7d5734b57e672dd949bf95d7abdce680c6508cef99d374f8",
+      "sha256": "0c26113ea54d3f30a77d9883f6c181129d12f8b2b1aa5209008291bdda337a33",
+      "bytes": 183780,
+      "triangles": 2082,
+      "modifications": "Embedded palette atlas; green truck paint remapped to muted slate blue to preserve the distinctive tricycle green. Geometry unchanged.",
+      "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
+      "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
+    },
+    {
+      "file": "kenney-car-kit/ambulance.glb",
+      "category": "emergency",
+      "source_url": "https://kenney.nl/assets/car-kit",
+      "source_archive": "kenney_car-kit.zip",
+      "source_version": "3.1",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_notice": "kenney-car-kit/License.txt",
+      "source_sha256": "9e429e2b6202c0d78d0c38b2adbaae6b77716bb2a0f6fbb2811556e1fb31edba",
+      "sha256": "c11347dfaf7aada6627b5a4290d92ebe0ac8bbd79f43c6fe28bf8ebac89bc3c9",
+      "bytes": 246020,
+      "triangles": 2804,
+      "modifications": "Embedded original palette atlas in GLB; geometry and colors unchanged on disk.",
+      "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
+      "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
+    },
+    {
+      "file": "kenney-city-kit-roads/construction-barrier.glb",
+      "category": "closure-barrier",
+      "source_url": "https://kenney.nl/assets/city-kit-roads",
+      "source_archive": "kenney_city-kit-roads.zip",
+      "source_version": "2.1",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_notice": "kenney-city-kit-roads/License.txt",
+      "source_sha256": "906f73a6d62d8de58a4c5a19e76ff95b460c42b37e5fa37478b8612f06793f26",
+      "sha256": "67d40cf1d24420f7c0aa29cee34988affc98119d06ce57ca904e11d9d0cb712b",
+      "bytes": 18532,
+      "triangles": 60,
+      "modifications": "Embedded original palette atlas in GLB; geometry and colors unchanged on disk.",
+      "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
+      "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
+    },
+    {
+      "file": "kenney-city-kit-roads/construction-cone.glb",
+      "category": "slowdown-cone",
+      "source_url": "https://kenney.nl/assets/city-kit-roads",
+      "source_archive": "kenney_city-kit-roads.zip",
+      "source_version": "2.1",
+      "author": "Kenney",
+      "license": "CC0-1.0",
+      "license_notice": "kenney-city-kit-roads/License.txt",
+      "source_sha256": "50ceae45cd1d71f738a8f7c40f8b6b46f360063c2754bf717aae54013d6f2ee4",
+      "sha256": "c5af65555d55d50a66e4d06fb16e8e1e06cde9b56637e20f29c79600124d9ea5",
+      "bytes": 18532,
+      "triangles": 66,
+      "modifications": "Embedded original palette atlas in GLB; geometry and colors unchanged on disk.",
+      "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
+      "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
+    }
+  ],
+  "authored_classes": [
+    {
+      "class": "bus",
+      "author": "SmartFlow",
+      "source": "src/simulation/vehicle-assets.ts",
+      "license": "Project-authored",
+      "description": "Long passenger body with window row and four wheels."
+    },
+    {
+      "class": "motorcycle",
+      "author": "SmartFlow",
+      "source": "src/simulation/vehicle-assets.ts",
+      "license": "Project-authored",
+      "description": "Two wheels, narrow tank/seat, fork, handlebars and seated rider."
+    },
+    {
+      "class": "tricycle",
+      "author": "SmartFlow",
+      "source": "src/simulation/vehicle-assets.ts",
+      "license": "Project-authored",
+      "description": "Bright green Tagum passenger tricycle with one front/two rear wheels, covered passenger cabin, windshield and contrasting trim. Illustrative local silhouette, not surveyed bodywork."
+    }
+  ],
+  "fallbacks": "Every imported class and road prop has a distinct procedural fallback; errors are reported non-blockingly.",
+  "contracts": "All classes use centered ground origin and forward +X; footprint follows engine dimensions. Opaque glass; cached shared geometries/materials; class/material instancing; resources disposed once per library."
+}

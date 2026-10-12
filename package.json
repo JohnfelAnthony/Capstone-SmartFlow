@@ -6,14 +6,15 @@
   "scripts": {
     "api": "node scripts/python-runner.mjs run_api.py",
     "api:direct": "node scripts/python-runner.mjs -m uvicorn backend.main:app --host 127.0.0.1 --port 8000",
-    "check:api": "node scripts/python-runner.mjs -m compileall backend simulation services tools auth.py config.py database.py run_api.py",
+    "check:api": "node scripts/python-runner.mjs -m compileall -q -x \"[\\\\/]\\.(venv|cache)[\\\\/]\" backend simulation services tools auth.py config.py database.py run_api.py",
     "clean:dist": "node scripts/clean-dist.mjs",
     "dev": "vite",
     "build": "npm run clean:dist && tsc -b && vite build",
     "venv:create": "python -m venv .venv",
     "venv:install": "node scripts/python-runner.mjs -m pip install -r requirements.txt",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:visualization": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -54,6 +55,7 @@
     "shadcn": "^4.10.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^5.0.3"
   }
 }

@@ -42,8 +42,8 @@ class WorkflowIntegrityTests(unittest.TestCase):
         response = self.client.post("/api/auth/login", json={"username": "admin", "password": "WorkflowAdmin42!"})
         self.assertEqual(response.status_code, 200, response.text)
         simulation_runtime.reset(force=True)
-        self.train_id = database.create_scenario("Synthetic training", traffic_density="single", pedestrian_density="none")
-        self.eval_id = database.create_scenario("Synthetic evaluation", traffic_density="low", pedestrian_density="none")
+        self.train_id = database.create_scenario("Synthetic training", engine_config={"traffic_density":"single", "pedestrian_density":"none"})
+        self.eval_id = database.create_scenario("Synthetic evaluation", engine_config={"traffic_density":"low", "pedestrian_density":"none"})
         self.settings = {"scenario_id": self.train_id, "evaluation_scenario_id": self.eval_id,
                          "episodes": 1, "seeds": "11", "evaluation_seeds": "101", "warmup_seconds": 0,
                          "evaluation_seconds": 1, "decision_interval_seconds": 1, "minimum_green_hold_seconds": 5}

@@ -30,9 +30,10 @@ def copy_source(target: Path) -> None:
     if target == ROOT or ROOT.is_relative_to(target):
         raise ValueError("Target must be a separate empty directory.")
     target.mkdir(parents=True)
-    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "generated", "node_modules", ".venv", "dist")
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "generated", "node_modules", ".venv", ".cache", "dist")
     for directory in SOURCE_DIRS:
         shutil.copytree(ROOT / directory, target / directory, ignore=ignore)
+    shutil.copy2(ROOT / "Start Field Observer.cmd", target / "Start Field Observer.cmd")
     for filename in ROOT_FILES:
         shutil.copy2(ROOT / filename, target / filename)
     shutil.copytree(ROOT / "data" / "networks", target / "data" / "networks")
@@ -82,7 +83,7 @@ def main() -> None:
         "client=TestClient(app); client.__enter__(); "
         "assert client.get('/api/health').status_code == 200; "
         "assert client.post('/api/auth/login', json={'username':'admin','password':'StandaloneSmoke42!'}).status_code == 200; "
-        "scenario=next(row for row in client.get('/api/scenarios').json()['scenarios'] if row['traffic_density']=='Single'); "
+        "scenario=next(row for row in client.get('/api/scenarios').json()['scenarios'] if row['engine_config']['traffic_density']=='single'); "
         "assert client.post('/api/simulation/configure', json={'scenario_id':scenario['id']}).status_code == 200; "
         "assert client.post('/api/simulation/start', json={}).status_code == 200; "
         "assert client.post('/api/simulation/stop', json={}).status_code == 200; "

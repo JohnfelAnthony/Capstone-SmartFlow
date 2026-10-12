@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from services.scenario_identity import validate_resume_snapshot
+from services.scenario_migration import import_snapshot, native_snapshot
 
 
 def cumulative_training_seeds(seeds: tuple[int, ...], resume_model: Path | None, algorithm: str, scenario: dict) -> tuple[int, ...]:
@@ -22,12 +23,12 @@ def load_training_scenario(args, fallback: dict) -> dict:
         scenario = json.loads(args.scenario_file.read_text(encoding="utf-8"))
         if not isinstance(scenario, dict):
             raise ValueError("Scenario snapshot must be an object")
-        return scenario
+        return import_snapshot(scenario)
     if args.scenario_id is not None:
         import database
         database.init_db()
         scenario = database.get_scenario_by_id(args.scenario_id)
         if not scenario or scenario.get("is_archived"):
             raise ValueError("Saved scenario missing or archived")
-        return scenario
-    return fallback
+        return native_snapshot(scenario)
+    return import_snapshot(fallback)

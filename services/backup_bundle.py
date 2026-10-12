@@ -183,6 +183,43 @@ def _rewrite_database(snapshot: Path, paths: dict[str, str]) -> None:
             raise ValueError("Restored SQLite database has invalid references")
 
 
+def _restore_layout(staged: Path, manifest: dict) -> dict[str, Path]:
+    """Compact source directories while keeping job trees and sidecars together.
+
+    Repeating a source checkout's full relative path beneath its restore directory
+    can exceed Windows path limits. Bundle names remain immutable; only the new
+    isolated filesystem locations use short directory aliases.
+    """
+    members = set(manifest['files']) | set(manifest['references'].values())
+    for member in members:
+        if not isinstance(member, str) or not member.startswith('files/') or '..' in Path(member).parts:
+            raise ValueError('Unsafe backup member path')
+        if Path(member).as_posix() != member:
+            raise ValueError('Backup member path must be canonical')
+        if not _within((staged / member).resolve(), staged):
+            raise ValueError('Backup member escapes the restore directory')
+    referenced_directories = sorted(members - set(manifest['files']), key=lambda name: (len(name), name))
+    anchors = []
+    for member in referenced_directories:
+        if not any(member == parent or member.startswith(parent + '/') for parent in anchors):
+            anchors.append(member)
+    for member in sorted(manifest['files']):
+        if not any(member.startswith(parent + '/') for parent in anchors):
+            parent = Path(member).parent.as_posix()
+            if parent not in anchors:
+                anchors.append(parent)
+    layout = {}
+    for member in members:
+        parent = next(parent for parent in sorted(anchors, key=len, reverse=True)
+                      if member == parent or member.startswith(parent + '/'))
+        relative = Path(member).relative_to(parent)
+        destination = (staged / 'files' / str(anchors.index(parent)) / relative).resolve()
+        if not _within(destination, staged):
+            raise ValueError('Backup member escapes the restore directory')
+        layout[member] = destination
+    return layout
+
+
 def restore_bundle_to_stage(backup_id: int) -> Path:
     with database.get_db() as conn:
         row = conn.execute("SELECT filename FROM backups WHERE id = ?", (backup_id,)).fetchone()
@@ -209,12 +246,9 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
             snapshot.write_bytes(bundle.read("smartflow.db"))
             if _digest(snapshot) != manifest.get("database_sha256"):
                 raise ValueError("Backup database checksum mismatch")
+            restored_members = _restore_layout(staged, manifest)
             for member, info in manifest["files"].items():
-                if not member.startswith("files/") or ".." in Path(member).parts:
-                    raise ValueError("Unsafe backup member path")
-                destination = (staged / member).resolve()
-                if not _within(destination, staged):
-                    raise ValueError("Backup member escapes the restore directory")
+                destination = restored_members[member]
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(bundle.read(member))
                 if destination.stat().st_size != info["size"] or _digest(destination) != info["sha256"]:
@@ -223,7 +257,7 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
             for original, member in manifest["references"].items():
                 if not isinstance(original, str) or not isinstance(member, str) or not member.startswith("files/"):
                     raise ValueError("Invalid backup artifact reference")
-                restored = (staged / member).resolve()
+                restored = restored_members[member]
                 if not _within(restored, staged) or not restored.exists():
                     raise ValueError(f"Referenced artifact is missing from bundle: {member}")
                 paths[original] = str(restored)
@@ -231,9 +265,18 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
             network_member = manifest.get("active_network", "files/project/data/networks/tagum_network.json")
             if network_member not in manifest["files"]:
                 raise ValueError("Configured network is missing from the backup bundle")
+            from services.scenario_migration import migrate_connection
+            with closing(sqlite3.connect(snapshot)) as conn, conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute('BEGIN IMMEDIATE')
+                report = migrate_connection(conn, apply=True, network=road_network.load_network(restored_members[network_member]))
+            (staged / 'scenario_migration_report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+            (staged / 'restore_layout.json').write_text(json.dumps({
+                member: path.relative_to(staged).as_posix() for member, path in restored_members.items()
+            }, indent=2), encoding='utf-8')
             (staged / "restore_environment.json").write_text(json.dumps({
                 "SMARTFLOW_DB_PATH": str(snapshot),
-                "SMARTFLOW_NETWORK_PATH": str(staged / network_member),
+                "SMARTFLOW_NETWORK_PATH": str(restored_members[network_member]),
                 "note": "Start a separate SmartFlow API process with these environment variables and its own secret key."
             }, indent=2), encoding="utf-8")
         return staged
@@ -273,6 +316,11 @@ def restore_legacy_database_to_stage(backup_id: int) -> Path:
             if "system_settings" in tables:
                 conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)",
                              (database.AUTH_SESSION_VERSION_SETTING, secrets.token_hex(32)))
+                if 'scenarios' in tables:
+                    from services.scenario_migration import migrate_connection
+                    conn.row_factory = sqlite3.Row
+                    report = migrate_connection(conn, apply=True)
+                    (staged / 'scenario_migration_report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
         (staged / "restore_environment.json").write_text(json.dumps({
             "SMARTFLOW_DB_PATH": str(snapshot),
             "warning": "Legacy SQLite backups exclude models, networks, recordings and other referenced files."

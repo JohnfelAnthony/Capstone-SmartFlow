@@ -105,11 +105,6 @@ def build_training_command(algorithm: str, settings: dict, advanced: dict | None
         "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", 20.0))),
         "--evaluation-seconds", str(float(_setting(settings, "evaluation_seconds", 300.0))),
         "--seeds", str(_setting(settings, "seeds", DEFAULT_SEEDS)),
-        "--intersection-id", str(_setting(settings, "intersection_id", settings["scenario_snapshot"]["intersection_id"])),
-        "--traffic-density", str(_setting(settings, "traffic_density", "medium")),
-        "--pedestrian-density", str(_setting(settings, "pedestrian_density", "medium")),
-        "--emergency-mode", str(_setting(settings, "emergency_mode", "disabled")),
-        "--road-constraint", str(_setting(settings, "road_constraint", "None")),
         "--checkpoint-every", str(int(_setting(settings, "checkpoint_every", 25))),
     ]
     if settings.get("resume_model"):
@@ -166,11 +161,6 @@ def build_evaluation_command(algorithms: list[str], settings: dict, model_paths:
         "--seeds", str(_setting(settings, "evaluation_seeds", "101,102,103,104,105")),
         "--duration-seconds", str(float(_setting(settings, "evaluation_seconds", 300.0))),
         "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", 20.0))),
-        "--intersection-id", str(_setting(settings, "intersection_id", settings["evaluation_scenario_snapshot"]["intersection_id"])),
-        "--traffic-density", str(_setting(settings, "traffic_density", "medium")),
-        "--pedestrian-density", str(_setting(settings, "pedestrian_density", "medium")),
-        "--emergency-mode", str(_setting(settings, "emergency_mode", "disabled")),
-        "--road-constraint", str(_setting(settings, "road_constraint", "None")),
     ]
     for algorithm, model_path in model_paths.items():
         if algorithm in MODEL_FLAG and model_path:

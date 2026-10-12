@@ -2,6 +2,8 @@
 
 Prepared: **2026-10-02**. Status: **agreed project direction and proposed survey procedure; no field observations or accuracy results have been produced**.
 
+Updated: **2026-10-03** following the capstone review: manual pilot first, per-measurement coverage decisions and separate automatic-acceptance versus corrected-data checks.
+
 Read next: [Video observation tool plan](VIDEO_OBSERVATION_TOOL_PLAN.md) and [Field data integration with SmartFlow](FIELD_DATA_SMARTFLOW_INTEGRATION.md). The existing [research preparation protocol](RESEARCH_METHOD.md) provides the research and import context.
 
 ## Purpose and decisions

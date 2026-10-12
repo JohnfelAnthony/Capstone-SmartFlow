@@ -82,14 +82,6 @@ type ScenarioSort = "name_asc" | "name_desc" | "date_desc" | "date_asc" | "densi
 type ScenarioFormMode = "create" | "edit"
 type ScenarioPermissions = { create: boolean; edit: boolean; run: boolean }
 
-type DisruptionConfig = {
-  enabled: boolean
-  approach: string
-  severity?: string
-  lanesClosed?: string
-  speedReduction?: string
-}
-
 type ScenarioRecord = {
   id: number
   name: string
@@ -98,16 +90,11 @@ type ScenarioRecord = {
   trafficDensity: ScenarioDensity
   pedestrianDensity: string
   emergencyMode: string
-  roadConstraint: string
   isOfficial: boolean
   isArchived: boolean
   createdAt: string
   updatedAt: string
-  laneClosure: DisruptionConfig
-  construction: DisruptionConfig
-  accident: DisruptionConfig
-  flooding: DisruptionConfig
-  constraintsJson: string
+  migrationError: string | null
   engineConfig: NativeScenarioConfig
 }
 
@@ -118,7 +105,6 @@ type ScenarioDraft = {
   trafficDensity: ScenarioDensity
   pedestrianDensity: string
   emergencyMode: string
-  roadConstraint: string
   engineConfig: NativeScenarioConfig
 }
 
@@ -138,7 +124,6 @@ const emptyScenarioDraft: ScenarioDraft = {
   trafficDensity: "Medium",
   pedestrianDensity: "Medium",
   emergencyMode: "Disabled",
-  roadConstraint: "None",
   engineConfig: {},
 }
 
@@ -146,54 +131,20 @@ function normalizeDensity(value: string): ScenarioDensity {
   return (Object.keys(densityOrder) as ScenarioDensity[]).find((density) => density.toLowerCase() === value.toLowerCase()) ?? "Medium"
 }
 
-function disruptionFromApi(value: Record<string, unknown>): DisruptionConfig {
-  return {
-    enabled: Boolean(value.enabled),
-    approach: String(value.approach ?? "north"),
-    severity: typeof value.severity === "string" ? value.severity : undefined,
-    lanesClosed:
-      typeof value.lanes_closed === "number"
-        ? `${value.lanes_closed} lane${value.lanes_closed === 1 ? "" : "s"}`
-        : typeof value.lanesClosed === "string"
-          ? value.lanesClosed
-          : undefined,
-    speedReduction:
-      typeof value.speed_reduction === "number"
-        ? `${Math.round(value.speed_reduction * 100)}%`
-        : typeof value.speedReduction === "string"
-          ? value.speedReduction
-          : undefined,
-  }
-}
-
 function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
   return {
     id: scenario.id,
     name: scenario.name,
     description: scenario.description ?? "",
-    intersectionId: scenario.intersection_id,
-    trafficDensity: normalizeDensity(scenario.traffic_density),
-    pedestrianDensity: scenario.pedestrian_density || "Medium",
-    emergencyMode: scenario.emergency_mode || "Disabled",
-    roadConstraint: scenario.road_constraint || "None",
+    intersectionId: scenario.network_id ?? "Unresolved network",
+    trafficDensity: normalizeDensity(String(scenario.engine_config.traffic_density ?? "Medium")),
+    pedestrianDensity: String(scenario.engine_config.pedestrian_density ?? "none"),
+    emergencyMode: String(scenario.engine_config.emergency_mode ?? "disabled"),
     isOfficial: scenario.is_official,
     isArchived: scenario.is_archived,
     createdAt: scenario.created_at ?? "",
     updatedAt: scenario.updated_at ?? "",
-    laneClosure: disruptionFromApi(scenario.lane_closure_config),
-    construction: disruptionFromApi(scenario.construction_config),
-    accident: disruptionFromApi(scenario.accident_config),
-    flooding: disruptionFromApi(scenario.flooding_config),
-    constraintsJson: JSON.stringify(
-      {
-        lane_closure_config: scenario.lane_closure_config,
-        construction_config: scenario.construction_config,
-        accident_config: scenario.accident_config,
-        flooding_config: scenario.flooding_config,
-      },
-      null,
-      2
-    ),
+    migrationError: scenario.migration_error,
     engineConfig: scenario.engine_config ?? {},
   }
 }
@@ -209,12 +160,8 @@ function formatDate(value: string) {
   }).format(parsed)
 }
 
-function formatIntersection(intersectionId: string) {
-  return {
-    tagum_network: "Tagum — 5 connected junctions",
-    tagum_1: "Legacy scenario (uses connected network)",
-    tagum_2: "Legacy scenario (uses connected network)",
-  }[intersectionId] ?? intersectionId.replace("_", " ").toUpperCase()
+function formatIntersection(networkId: string) {
+  return networkId === "tagum_network" ? "Tagum — 5 connected junctions" : networkId.replaceAll("_", " ")
 }
 
 function categoryMatches(scenario: ScenarioRecord, category: ScenarioCategory) {
@@ -249,19 +196,15 @@ function draftFromScenario(scenario: ScenarioRecord): ScenarioDraft {
     trafficDensity: scenario.trafficDensity,
     pedestrianDensity: scenario.pedestrianDensity,
     emergencyMode: scenario.emergencyMode,
-    roadConstraint: scenario.roadConstraint,
     engineConfig: structuredClone(scenario.engineConfig),
   }
 }
 
 function payloadFromDraft(draft: ScenarioDraft): ScenarioWritePayload {
   return {
-    name: draft.name, description: draft.description, intersection_id: draft.intersectionId,
-    traffic_density: draft.trafficDensity, pedestrian_density: draft.pedestrianDensity,
-    emergency_mode: draft.emergencyMode, road_constraint: "None",
-    lane_closure_config: {}, construction_config: {}, accident_config: {}, flooding_config: {},
+    name: draft.name, description: draft.description, network_id: draft.intersectionId,
     engine_config: { ...draft.engineConfig, traffic_density: draft.trafficDensity.toLowerCase(),
-      pedestrian_density: draft.pedestrianDensity.toLowerCase(), emergency_mode: draft.emergencyMode.toLowerCase(), road_constraint: "None" },
+      pedestrian_density: draft.pedestrianDensity.toLowerCase(), emergency_mode: draft.emergencyMode.toLowerCase() },
   }
 }
 
@@ -293,6 +236,10 @@ function ScenarioSelect({
     </Select>
   )
 }
+function isScenarioRunBlocked(scenario: ScenarioRecord, canRun: boolean) {
+  return !canRun || scenario.isArchived || Boolean(scenario.migrationError)
+}
+
 function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -301,13 +248,14 @@ function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
         {scenario.isOfficial ? "Official" : "User"}
       </Badge>
       <Badge variant={scenario.isArchived ? "outline" : "secondary"}>{scenario.isArchived ? "Archived" : "Active"}</Badge>
+      {scenario.migrationError && <Badge variant="destructive">Needs migration</Badge>}
       <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{scenario.trafficDensity}</Badge>
     </div>
   )
 }
 
-export function ScenariosPage({ onOpenDashboard, permissions }: {
-  onOpenDashboard?: () => void; permissions: ScenarioPermissions
+export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId }: {
+  onOpenDashboard?: () => void; permissions: ScenarioPermissions; initialScenarioId?: number | null
 }) {
   const [scenarios, setScenarios] = React.useState<ScenarioRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -319,7 +267,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
   const [stateFilter, setStateFilter] = React.useState<ScenarioStateFilter>("all")
   const [sort, setSort] = React.useState<ScenarioSort>("name_asc")
   const [viewMode, setViewMode] = React.useState<ScenarioViewMode>("cards")
-  const [selectedId, setSelectedId] = React.useState<number | null>(null)
+  const [selectedId, setSelectedId] = React.useState<number | null>(initialScenarioId ?? null)
   const [recordingScenarioId, setRecordingScenarioId] = React.useState<number | null>(null)
   const [recordingModels, setRecordingModels] = React.useState<RLModelRecord[]>([])
   const [recordControlMode, setRecordControlMode] = React.useState("fixed-time")
@@ -395,6 +343,8 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     )
   }, [category, density, scenarios, search, sort, stateFilter, typeFilter])
 
+  const requiresLegacyMapping = Boolean(scenarios.find((scenario) => scenario.id === editingScenarioId)?.migrationError)
+
   const stats = React.useMemo(() => {
     const total = scenarios.length
     const official = scenarios.filter((scenario) => scenario.isOfficial).length
@@ -432,6 +382,11 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     setDraft(draftFromScenario(scenario))
     setFormError("")
     setEditConfigReady(false)
+    if (scenario.migrationError) {
+      setFormError(scenario.migrationError)
+      setIsResolving(false)
+      return
+    }
     setIsResolving(true)
     try {
       const result = await resolveNativeScenario(scenario.id)
@@ -538,6 +493,10 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
 
   async function launchScenario(scenario: ScenarioRecord, action: "load" | "live" | "record") {
     if (!permissions.run) return
+    if (scenario.migrationError) {
+      setNotice(scenario.migrationError)
+      return
+    }
     if (scenario.isArchived) {
       setNotice(`"${scenario.name}" is archived. Restore it before loading or running.`)
       return
@@ -578,7 +537,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
 
   async function startRecording() {
     if (!permissions.run) return
-    if (!recordingScenario) return
+    if (!recordingScenario || recordingScenario.migrationError) return
     if (!Number.isInteger(recordDuration) || recordDuration < 1 || recordDuration > 86400 ||
         !Number.isInteger(recordSeed) || recordSeed < 0 || recordSeed > 4294967295) {
       setRecordError("Enter an integer duration from 1 to 86400 seconds and a seed from 0 to 4294967295.")
@@ -625,7 +584,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
         <ScenarioMetric icon={FolderTreeIcon} label="Total" value={stats.total} hint="SQLite scenarios" />
         <ScenarioMetric icon={BadgeCheckIcon} label="Official" value={stats.official} hint="Approved presets" />
         <ScenarioMetric icon={UserRoundIcon} label="User" value={stats.user} hint="Custom records" />
-        <ScenarioMetric icon={ArchiveIcon} label="Active" value={stats.active} hint="Ready to load" />
+        <ScenarioMetric icon={ArchiveIcon} label="Active" value={stats.active} hint="Not archived" />
       </section>
 
       <div className="scenario-notice">
@@ -794,7 +753,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
           <div className="scenario-sheet-scroll">
             <FieldGroup className="px-4 pb-4">
               {formError && <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>}
-              {!editConfigReady && !isResolving && nativeOptions && <Button variant="outline" onClick={() => {
+              {!editConfigReady && !isResolving && !requiresLegacyMapping && nativeOptions && <Button variant="outline" onClick={() => {
                 setDraft((current) => ({ ...current, intersectionId: nativeOptions.network_id,
                   engineConfig: structuredClone(nativeOptions.defaults) }))
                 setEditConfigReady(true)
@@ -960,15 +919,15 @@ function ScenarioCard({
           <ScenarioMeta icon={TriangleAlertIcon} label="Emergency" value={scenario.emergencyMode} />
         </div>
         <div className="scenario-card-actions">
-          <Button size="sm" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "load")}>
+          <Button size="sm" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "load")}>
             <PlayIcon data-icon="inline-start" />
             Load
           </Button>
-          <Button size="sm" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "live")}>
+          <Button size="sm" variant="outline" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "live")}>
             <BoltIcon data-icon="inline-start" />
             Live
           </Button>
-          <Button size="sm" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "record")}>
+          <Button size="sm" variant="outline" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "record")}>
             <FilmIcon data-icon="inline-start" />
             Record
           </Button>
@@ -1033,20 +992,21 @@ function ScenarioTable({
                 </TableCell>
                 <TableCell>{formatIntersection(scenario.intersectionId)}</TableCell>
                 <TableCell>
-                  <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{scenario.trafficDensity}</Badge>
+                  {scenario.migrationError && <Badge variant="destructive">Needs migration</Badge>}
+      <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{scenario.trafficDensity}</Badge>
                 </TableCell>
                 <TableCell>{scenario.isOfficial ? "Official" : "User"}</TableCell>
                 <TableCell>{scenario.isArchived ? "Archived" : "Active"}</TableCell>
                 <TableCell>{formatDate(scenario.updatedAt)}</TableCell>
                 <TableCell>
                   <div className="scenario-table-actions">
-                    <Button size="icon-xs" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "load")} aria-label="Load dashboard">
+                    <Button size="icon-xs" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "load")} aria-label="Load dashboard">
                       <PlayIcon />
                     </Button>
-                    <Button size="icon-xs" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "live")} aria-label="Run live">
+                    <Button size="icon-xs" variant="outline" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "live")} aria-label="Run live">
                       <BoltIcon />
                     </Button>
-                    <Button size="icon-xs" variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "record")} aria-label="Pre-record">
+                    <Button size="icon-xs" variant="outline" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "record")} aria-label="Pre-record">
                       <FilmIcon />
                     </Button>
                     <Button size="icon-xs" variant="outline" disabled={!permissions.edit} onClick={() => onEdit(scenario)} aria-label="Edit">
@@ -1116,7 +1076,7 @@ function ScenarioDetailSheet({
             <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
             <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={scenario.pedestrianDensity} />
             <ScenarioMeta icon={TriangleAlertIcon} label="Emergency Mode" value={scenario.emergencyMode} />
-            <ScenarioMeta icon={SlidersHorizontalIcon} label="Road Constraint" value={scenario.roadConstraint} />
+            <ScenarioMeta icon={SlidersHorizontalIcon} label="Native road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />
           </div>
@@ -1140,15 +1100,15 @@ function ScenarioDetailSheet({
       </div>
       <SheetFooter className="scenario-sheet-footer">
         <div className="grid grid-cols-2 gap-2">
-          <Button disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "load")}>
+          <Button disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "load")}>
             <PlayIcon data-icon="inline-start" />
             Load
           </Button>
-          <Button variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "live")}>
+          <Button variant="outline" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "live")}>
             <BoltIcon data-icon="inline-start" />
             Live
           </Button>
-          <Button variant="outline" disabled={!permissions.run || scenario.isArchived} onClick={() => onLaunch(scenario, "record")}>
+          <Button variant="outline" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "record")}>
             <FilmIcon data-icon="inline-start" />
             Record
           </Button>

@@ -91,6 +91,7 @@ from backend.security import (
     user_model,
 )
 from backend.simulation_runtime import SimulationRuntimeError, simulation_runtime
+from backend.research_routes import router as research_router
 from services.workload_admission import WorkloadConflict, workload_admission
 from services import backup_bundle, render_frame_service, rl_training_service, timeline_generator, visual_network_service
 
@@ -102,6 +103,7 @@ app = FastAPI(
     version=config.APP_VERSION,
     description="FastAPI bridge for the React/Vite SMARTFLOW migration.",
 )
+app.include_router(research_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -150,8 +152,17 @@ def require_admin(user: dict) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required.")
 
 
+def simulation_presentation_response(simulation: SimulationStateResponse) -> SimulationStateResponse:
+    """HTTP fallback uses the same snapshot and display allocation as streaming."""
+    try:
+        frame = render_frame_service.build_render_frame(simulation.state)
+    except render_frame_service.RenderFrameBudgetError as exc:
+        return simulation.model_copy(update={"render_frame": None, "render_frame_error": str(exc)})
+    return simulation.model_copy(update={"render_frame": frame, "render_frame_error": None})
+
+
 def simulation_action_response(message: str, simulation: SimulationStateResponse) -> SimulationActionResponse:
-    return SimulationActionResponse(message=message, simulation=simulation)
+    return SimulationActionResponse(message=message, simulation=simulation_presentation_response(simulation))
 
 
 def simulation_conflict(exc: SimulationRuntimeError) -> HTTPException:
@@ -950,21 +961,10 @@ def get_scenario(scenario_id: int, user: dict = Depends(require_current_user)) -
 
 
 def scenario_write_values(payload: ScenarioWriteRequest) -> dict:
-    from simulation.traffic_engine import TrafficEngine
-    TrafficEngine().configure_from_scenario(payload.model_dump())
     return {
         "name": payload.name.strip(),
         "description": payload.description or "",
-        "traffic_density": payload.traffic_density,
-        "pedestrian_density": payload.pedestrian_density,
-        "emergency_mode": payload.emergency_mode,
-        "road_constraint": payload.road_constraint,
-        "intersection_id": payload.intersection_id,
-        "lane_closure_config": json.dumps(payload.lane_closure_config),
-        "construction_config": json.dumps(payload.construction_config),
-        "accident_config": json.dumps(payload.accident_config),
-        "flooding_config": json.dumps(payload.flooding_config),
-        "engine_config": json.dumps(payload.engine_config),
+        **database.validated_native_scenario(payload.network_id, payload.engine_config),
     }
 
 
@@ -1160,7 +1160,7 @@ def compare_timeline_meta(run: SimulationRunRecord, manifest: dict) -> CompareTi
     timeline = manifest.get("timeline", {}) if isinstance(manifest, dict) else {}
     scenario = manifest.get("scenario", {}) if isinstance(manifest, dict) else {}
     return CompareTimelineMeta(
-        intersection_id=scenario.get("intersection_id"),
+        intersection_id=scenario.get("network_id"),
         requested_duration_seconds=compare_float(timeline.get("requested_duration_seconds") or run.duration_seconds),
         actual_duration_seconds=compare_float(timeline.get("actual_duration_seconds") or run.duration_seconds),
         step_length_seconds=compare_float(timeline.get("step_length_seconds")),
@@ -1497,7 +1497,7 @@ def restore_scenario(scenario_id: int, user: dict = Depends(require_current_user
 @app.get("/api/simulation/state", response_model=SimulationStateResponse)
 def simulation_state(user: dict = Depends(require_current_user)) -> SimulationStateResponse:
     require_any_permission(user, [("simulation", "view"), ("dashboard", "view")])
-    return simulation_runtime.get_state()
+    return simulation_presentation_response(simulation_runtime.get_state())
 
 
 @app.get("/api/simulation/runs", response_model=SimulationRunListResponse)
@@ -1935,11 +1935,16 @@ async def simulation_websocket(
                     await websocket.close(code=1008)
                     return
             simulation = simulation_runtime.get_state()
-            frame = render_frame_service.build_render_frame(
-                simulation.state,
-                sequence=sequence,
-            )
-            await websocket.send_json(frame)
+            try:
+                frame = render_frame_service.build_render_frame(
+                    simulation.state,
+                    sequence=sequence,
+                )
+            except render_frame_service.RenderFrameBudgetError as exc:
+                await websocket.send_json({"type": "stream_error", "code": "render_metadata_budget", "message": str(exc)})
+                await websocket.close(code=1009)
+                return
+            await websocket.send_text(render_frame_service.encode_render_frame(frame))
             sequence += 1
 
             if simulation.status in {"running", "paused"}:
@@ -1965,7 +1970,8 @@ def native_configuration_options(user: dict = Depends(require_current_user)) -> 
 
 @app.get("/api/visual-network")
 def visual_network(
-    intersection_id: str | None = None,
+    request: Request,
+    network_id: str | None = None,
     user: dict = Depends(require_current_user),
 ) -> dict:
     try:
@@ -1973,8 +1979,10 @@ def visual_network(
     except HTTPException:
         require_permission(user, "simulation", "view")
     try:
-        return visual_network_service.load_client_visual_network(intersection_id)
+        if set(request.query_params) - {'network_id'}:
+            raise HTTPException(status_code=422, detail='Use the canonical network_id query parameter.')
+        return visual_network_service.load_client_visual_network(network_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visual network unavailable.") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Visual network payload rejected.") from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

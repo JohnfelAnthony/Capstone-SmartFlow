@@ -1,0 +1,765 @@
+{
+  "migration_version": 1,
+  "network_id": "tagum_network",
+  "network_sha256": "4b3c52533709121af916c7a3efc04ed1d44703295d095fe9ee53f461e19700cb",
+  "scenarios": [
+    {
+      "id": 22,
+      "status": "ready",
+      "source": {
+        "id": 22,
+        "name": "Tagum 1 - Low Traffic",
+        "description": "Low Traffic and Pedestrian Density",
+        "traffic_density": "Low",
+        "pedestrian_density": "Low",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-01 08:33:08",
+        "updated_at": "2026-06-01T16:40:09.212923",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_1",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "low",
+          "pedestrian_density": "low",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_1 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 23,
+      "status": "ready",
+      "source": {
+        "id": 23,
+        "name": "Tagum 1 - Medium Traffic",
+        "description": "Medium Traffic Density and Medium Pedestrian Activity",
+        "traffic_density": "Medium",
+        "pedestrian_density": "Medium",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-01 08:34:02",
+        "updated_at": "2026-06-01T16:40:28.439572",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_1",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "medium",
+          "pedestrian_density": "medium",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_1 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 24,
+      "status": "ready",
+      "source": {
+        "id": 24,
+        "name": "Tagum 1 - High Traffic",
+        "description": "High Traffic Density and Medium Pedestrian Activity",
+        "traffic_density": "High",
+        "pedestrian_density": "Medium",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-01 08:34:53",
+        "updated_at": "2026-06-01T16:40:00.583031",
+        "is_official": 0,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_1",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "high",
+          "pedestrian_density": "medium",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_1 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 25,
+      "status": "ready",
+      "source": {
+        "id": 25,
+        "name": "Tagum 2 - Low Traffic",
+        "description": "Low Traffic and Pedestrian Activity",
+        "traffic_density": "Low",
+        "pedestrian_density": "Low",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-01 08:36:27",
+        "updated_at": "2026-06-01T16:40:42.625102",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_2",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "low",
+          "pedestrian_density": "low",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_2 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 26,
+      "status": "ready",
+      "source": {
+        "id": 26,
+        "name": "Tagum 2 - Medium Traffic",
+        "description": "Medium Traffic and Medium Pedestrian Activity",
+        "traffic_density": "Medium",
+        "pedestrian_density": "Medium",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-01 08:37:28",
+        "updated_at": "2026-06-01T16:40:44.063401",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_2",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "medium",
+          "pedestrian_density": "medium",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_2 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 27,
+      "status": "ready",
+      "source": {
+        "id": 27,
+        "name": "Tagum 2 - High Traffic",
+        "description": "High Traffic and Medium Pedestrian Activity",
+        "traffic_density": "High",
+        "pedestrian_density": "Medium",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-01 08:38:10",
+        "updated_at": "2026-06-01 08:38:10",
+        "is_official": 0,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_2",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "high",
+          "pedestrian_density": "medium",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_2 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 28,
+      "status": "ready",
+      "source": {
+        "id": 28,
+        "name": "Tagum City \u2014 J6 Secondary Intersection",
+        "description": "Baseline SMARTFLOW scenario for the Tagum 2 / J6 secondary intersection.",
+        "traffic_density": "Medium",
+        "pedestrian_density": "Low",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{}",
+        "construction_config": "{}",
+        "accident_config": "{}",
+        "flooding_config": "{}",
+        "created_by": null,
+        "created_at": "2026-06-01 09:44:12",
+        "updated_at": "2026-06-01 09:44:12",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_2",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "medium",
+          "pedestrian_density": "low",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_2 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 29,
+      "status": "ready",
+      "source": {
+        "id": 29,
+        "name": "Tagum City \u2014 J6 Peak Hour",
+        "description": "Peak-hour traffic profile for the Tagum 2 / J6 secondary intersection.",
+        "traffic_density": "High",
+        "pedestrian_density": "Medium",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{}",
+        "construction_config": "{}",
+        "accident_config": "{}",
+        "flooding_config": "{}",
+        "created_by": null,
+        "created_at": "2026-06-01 09:44:12",
+        "updated_at": "2026-06-01 09:44:12",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_2",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "high",
+          "pedestrian_density": "medium",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_2 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 30,
+      "status": "ready",
+      "source": {
+        "id": 30,
+        "name": "SMARTFLOW Evaluation Scenario",
+        "description": "Offline RL evaluation scenario.",
+        "traffic_density": "low",
+        "pedestrian_density": "medium",
+        "emergency_mode": "disabled",
+        "lane_closure_config": "{}",
+        "construction_config": "{}",
+        "accident_config": "{}",
+        "flooding_config": "{}",
+        "created_by": null,
+        "created_at": "2026-06-01 21:07:05",
+        "updated_at": "2026-06-01 21:07:05",
+        "is_official": 0,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_1",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "low",
+          "pedestrian_density": "medium",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_1 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 31,
+      "status": "ready",
+      "source": {
+        "id": 31,
+        "name": "Tagum 2 - Low Traffic",
+        "description": "",
+        "traffic_density": "Low",
+        "pedestrian_density": "High",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{\"enabled\": false}",
+        "construction_config": "{\"enabled\": false}",
+        "accident_config": "{\"enabled\": false}",
+        "flooding_config": "{\"enabled\": false}",
+        "created_by": 2,
+        "created_at": "2026-06-02 02:19:23",
+        "updated_at": "2026-06-02 02:19:23",
+        "is_official": 0,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_2",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "low",
+          "pedestrian_density": "high",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "tagum_2 mapped to the connected tagum_network; historical geography/demand is not field calibration.",
+        "lane_closure_config: explicitly disabled; original value retained in legacy storage.",
+        "construction_config: explicitly disabled; original value retained in legacy storage.",
+        "accident_config: explicitly disabled; original value retained in legacy storage.",
+        "flooding_config: explicitly disabled; original value retained in legacy storage.",
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 32,
+      "status": "ready",
+      "source": {
+        "id": 32,
+        "name": "Tagum \u2014 Single Car Demo",
+        "description": "Five connected OSM junctions; one car; synthetic study signals.",
+        "traffic_density": "Single",
+        "pedestrian_density": "None",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{}",
+        "construction_config": "{}",
+        "accident_config": "{}",
+        "flooding_config": "{}",
+        "created_by": null,
+        "created_at": "2026-10-08 13:47:24",
+        "updated_at": "2026-10-08 13:47:24",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_network",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "single",
+          "pedestrian_density": "none",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    },
+    {
+      "id": 33,
+      "status": "ready",
+      "source": {
+        "id": 33,
+        "name": "Tagum \u2014 Network Traffic",
+        "description": "Synthetic traffic for engine experiments; not measured counts.",
+        "traffic_density": "Medium",
+        "pedestrian_density": "Low",
+        "emergency_mode": "Disabled",
+        "lane_closure_config": "{}",
+        "construction_config": "{}",
+        "accident_config": "{}",
+        "flooding_config": "{}",
+        "created_by": null,
+        "created_at": "2026-10-08 13:47:24",
+        "updated_at": "2026-10-08 13:47:24",
+        "is_official": 1,
+        "is_archived": 0,
+        "road_constraint": "None",
+        "intersection_id": "tagum_network",
+        "engine_config": "{}"
+      },
+      "resolved": {
+        "network_id": "tagum_network",
+        "engine_config": {
+          "traffic_density": "medium",
+          "pedestrian_density": "low",
+          "emergency_mode": "disabled",
+          "green_seconds": 14.0,
+          "closed_lanes": [],
+          "slow_lanes": {},
+          "events": [],
+          "signal_plans": {},
+          "demand_windows": [],
+          "trips": [],
+          "pedestrian_trips": [],
+          "demand_source": {
+            "kind": "synthetic",
+            "description": "Seeded study assumptions"
+          },
+          "vehicle_mix": {
+            "car": 1.0
+          },
+          "routing_mode": "adaptive",
+          "reroute_interval": 15.0,
+          "reroute_improvement": 0.15,
+          "pedestrian_speed": 1.4,
+          "crossing_length": 18.0,
+          "pedestrian_max_wait": 90.0,
+          "max_active_vehicles": 300,
+          "max_pending_vehicles": 2000,
+          "controlled_junction": "1226402048"
+        }
+      },
+      "warnings": [
+        "Existing default controlled junction retained: 1226402048."
+      ],
+      "error": null
+    }
+  ]
+}

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   CircleHelpIcon,
+  FlaskConicalIcon,
   ClipboardListIcon,
   DatabaseIcon,
   FileTextIcon,
@@ -41,6 +42,12 @@ const data = {
       title: "Scenarios",
       url: "#",
       icon: <MapPinnedIcon />,
+      page: "scenarios",
+    },
+    {
+      title: "Calibration & Validation",
+      url: "#",
+      icon: <FlaskConicalIcon />,
       page: "scenarios",
     },
     {
@@ -79,7 +86,7 @@ const data = {
       title: "Search",
       url: "#",
       icon: <SearchIcon />,
-      page: "dashboard",
+      page: "search",
     },
   ],
   admin: [
@@ -113,6 +120,7 @@ const data = {
 function canViewPage(currentUser: CurrentUser | null, page: string) {
   if (!currentUser) return false
   if (currentUser.role.toLowerCase() === "admin") return true
+  if (page === "search") return true
   if (page.startsWith("admin-")) return false
   return currentUser.permissions.some((permission) => permission.page === page && permission.action === "view")
 }
@@ -136,7 +144,8 @@ export function AppSidebar({
     email: currentUser?.email || currentUser?.role || "smartflow.local",
     avatar: "",
   }
-  const visibleMainItems = data.navMain.filter((item) => canViewPage(currentUser, item.page))
+  const visibleMainItems = data.navMain.filter((item) => canViewPage(currentUser, item.page) &&
+    (item.title !== "Calibration & Validation" || canViewPage(currentUser, "runs-reports")))
   const visibleSecondaryItems = data.navSecondary.filter((item) => canViewPage(currentUser, item.page))
   const visibleAdminItems = data.admin.filter((item) => canViewPage(currentUser, item.page))
 

@@ -1,0 +1,2668 @@
+{
+  "date": "2026-10-09",
+  "recovery_directory": "tmp/cleanup-20261009",
+  "archives": {
+    "recovery.zip": {
+      "sha256": "3c33093a8b7af675c75bd87565667a4c5ed97eede4f338f3abf8a9bab848f9eb",
+      "bytes": 30770312
+    },
+    "obsolete-cache-recovery.zip": {
+      "sha256": "505c3550f11c80ea096d6adc5ae3927ddb92afcf3e09faf8814a36d44a4cd290",
+      "bytes": 88175
+    },
+    "database-pre-apply.db": {
+      "sha256": "d9324661b2e995549962a6e324ed19d7b545a457884a0e5d6ec47bd7a13e593a",
+      "bytes": 421888
+    }
+  },
+  "removed_authored_and_asset_files": {
+    "assets/admin-redesign.css": {
+      "size": 7968,
+      "sha256": "a1ed0ab5ab22f2b4531682dc4dc580b1555bc6ed5644754ee922c8f4559f4495"
+    },
+    "assets/compare-canvas.mjs": {
+      "size": 23533,
+      "sha256": "741f6396baa3c668d34f1b97cb3eda705ae592011b441ca8495541fc5b2c6b53"
+    },
+    "assets/compare.css": {
+      "size": 12064,
+      "sha256": "257053035ec563629e0497140a21f754f6a145e71e367bdb43c166e5920efc54"
+    },
+    "assets/csrf.js": {
+      "size": 1368,
+      "sha256": "eb1f931ad4145b11ef6ae7725125372a9a33a3b45442858748aa76282ca0ffa7"
+    },
+    "assets/help.css": {
+      "size": 5887,
+      "sha256": "662ebb61dcc1e1b6b6592c0ff3e3f591afdde6ac8980d356691cb92832eb25fa"
+    },
+    "assets/infinitown/environments/DayEnv.exr": {
+      "size": 1903841,
+      "sha256": "772e63178c54ed206d47e17481dc6945afc512100c1002bd165ee021e2e76dec"
+    },
+    "assets/infinitown/environments/DaySky.exr": {
+      "size": 1857902,
+      "sha256": "214a51568b3d9f00c2582b3156f3b00aa43409bc1eaf4bba06019d4e3964e712"
+    },
+    "assets/infinitown/environments/DayStreet.exr": {
+      "size": 1928377,
+      "sha256": "0fea5153d067cc2ad402e38ee5697582fe3987912305bfc58b15447494eaddd4"
+    },
+    "assets/infinitown/environments/DayTree.exr": {
+      "size": 2358277,
+      "sha256": "e87e1db7198b3948cdc7529e0da924073f7ec287d6aac5a8075cb2346aff0051"
+    },
+    "assets/infinitown/environments/envProbe/irradiance.json": {
+      "size": 735,
+      "sha256": "e67dc015e8ce4803bddc24a2b0e472370f58c18b66ceaf908dfca05421952c76"
+    },
+    "assets/infinitown/gltf/apartments.gltf": {
+      "size": 711278,
+      "sha256": "0fb13f7607d60bccce1aa631f71d3a7d1036f4fadbe8d808103290c3760f0a01"
+    },
+    "assets/infinitown/gltf/bus.gltf": {
+      "size": 490474,
+      "sha256": "2aa5cd8621813e4b5f535e10736eebf34f72c36de248c8299a07b75ff454c8b9"
+    },
+    "assets/infinitown/gltf/cars.gltf": {
+      "size": 4767886,
+      "sha256": "b16b08d77b4f6e305b49bcec9fcbefed2e2d144827bcbacc86dd151738fd0752"
+    },
+    "assets/infinitown/gltf/coffeeshop.gltf": {
+      "size": 472485,
+      "sha256": "53415668209c9dbb409c265a836fd28d8d68c7db4aea6f692ea653599df713bd"
+    },
+    "assets/infinitown/gltf/factory.gltf": {
+      "size": 549312,
+      "sha256": "896e0132d8e4f03233e2e729085c7696fa8a5d148faf1528ea929d4aa18db09c"
+    },
+    "assets/infinitown/gltf/fastfood.gltf": {
+      "size": 947955,
+      "sha256": "5d54706e7cf892245c435bc7d3cc19d29dce8a5bef910eaf3a526e303d2a6b97"
+    },
+    "assets/infinitown/gltf/gas.gltf": {
+      "size": 987712,
+      "sha256": "f03144bcfe433ad735aa66c358b408bbd319e9312ba474f7bbc43b8d5d035dca"
+    },
+    "assets/infinitown/gltf/house.gltf": {
+      "size": 884747,
+      "sha256": "ccc18dca1da32ea3fa68508380903bcb3f10f6da1ae2d61d0c849668cf565538"
+    },
+    "assets/infinitown/gltf/house2.gltf": {
+      "size": 662809,
+      "sha256": "9bc654e88325bd00bf64ab25b5e4945a0552b2eb90d5612a60b4fbf516f3519e"
+    },
+    "assets/infinitown/gltf/house3.gltf": {
+      "size": 554972,
+      "sha256": "3dd0c051531648b03b0c8fad084c008db92e67ec99e539fe0e0414c6a574fd57"
+    },
+    "assets/infinitown/gltf/park.gltf": {
+      "size": 459226,
+      "sha256": "3ff38118cf5911633ada0dd9ad5db9821be124dc072316afe9cb32f63ed428e4"
+    },
+    "assets/infinitown/gltf/residence.gltf": {
+      "size": 588890,
+      "sha256": "3df037c897967eca8114ab4ad616bda55853d833d55284ffc854233838ff87a1"
+    },
+    "assets/infinitown/gltf/road.gltf": {
+      "size": 5230739,
+      "sha256": "7b89c11a587e8a82e5049df6f5fa5fcdeb838a800fb1437af425825c727c22f2"
+    },
+    "assets/infinitown/gltf/shoparea.gltf": {
+      "size": 588506,
+      "sha256": "3fc265f00625f62652538d2cafd0c78d66777b07f91600c5b2f11dc0307c74fc"
+    },
+    "assets/infinitown/gltf/shops.gltf": {
+      "size": 1088069,
+      "sha256": "5dded4178963ea637441017f696041c4f647fe685eafddfb357e0e465a666582"
+    },
+    "assets/infinitown/gltf/stadium.gltf": {
+      "size": 909057,
+      "sha256": "9eec4826e37991178108fc580f01d5a2891fa8821034a653ed09ae58238f1366"
+    },
+    "assets/infinitown/gltf/supermarket.gltf": {
+      "size": 719373,
+      "sha256": "2c4529fe67acc7596ac34abbfd0dcb9ae979a8fc2e0236f92e028b30dcb5d4ca"
+    },
+    "assets/infinitown/scenes/data/main.bin": {
+      "size": 9617536,
+      "sha256": "0af85d2b7b17e552deb6bd7ac7e6ace3a3b0ea759f336eaf6841b4354f87e10e"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block10_merged_mat_ao.jpg": {
+      "size": 61114,
+      "sha256": "e779af288582efdbd18d5e15623f5b49d4a3dd05d8feff743ea7516a06a990c3"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block11_merged_mat_ao.jpg": {
+      "size": 62912,
+      "sha256": "4f58e06f6937cb083005e4b06bc24f0b5d93939ebaf48a138aea1c0dd99bd7cf"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block1_ao.jpg": {
+      "size": 55509,
+      "sha256": "75ff3252c2170bcebf8a32c4831cf6cf1cc73977182cd47bfaadf3b8207a2d7b"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block2_ao.jpg": {
+      "size": 61984,
+      "sha256": "44e81fd8dd358f860a99969da8c9e0916025999bda7f5c43f148ac2b1b5b90aa"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block3_merged_mat_ao.jpg": {
+      "size": 54048,
+      "sha256": "a3b5a06f995f2cb47201e8317fc6412b570b588e6ebd993468302e6b981f1a25"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block4_merged_mat_ao.jpg": {
+      "size": 67136,
+      "sha256": "f01f6dc6c462d3d7ea6821db1e3b56bcdf5630501995bd4e077f77bb8e2a8097"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block5_merged_mat_ao.jpg": {
+      "size": 66108,
+      "sha256": "81dc248fe7a86b877f557d84b8331a9ee6a3574a45de375001a23f0ca1ca200c"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block6_merged_mat_ao.jpg": {
+      "size": 64473,
+      "sha256": "4f292c9700b6e531976ea76f395968418998a326105eb51c7ae0c9bcdd982cd2"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block7_merged_mat_ao.jpg": {
+      "size": 57785,
+      "sha256": "a016a3cc9a1457e6e75610e58a05a27b4be9865b14a38c4d8f2228871c0498e7"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block8_merged_mat_ao.jpg": {
+      "size": 55880,
+      "sha256": "a8018055bf53f4f6fd082c07364d82fa645f442e247e99865800209b053062e8"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/block9_merged_mat_ao.jpg": {
+      "size": 59238,
+      "sha256": "7f139f302375a0d7324c6ccba341d8aec04cdae6a01bf424d417e6e9ab4a6145"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/park2_merged_mat_ao.jpg": {
+      "size": 75486,
+      "sha256": "e8a297e38151912cc5908eeb522d4e6b653971708ce8b30b220beaebd1d88ae4"
+    },
+    "assets/infinitown/scenes/main/Maps/AO/park_3_ao.jpg": {
+      "size": 72220,
+      "sha256": "ddff16fc10c45ea93abf37d1f3ae0e15e6caa66f0b9aa964610aa1a81249330d"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Props_Props_01.jpg": {
+      "size": 14554,
+      "sha256": "8eff8eb6ba46c6767a83cccd1c232b073b63fa4c170723079c20466724b8adfb"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Road.jpg": {
+      "size": 4788,
+      "sha256": "084385bd8f72a963ac74c04a914a968dcfc3425d08a693e91e0496fdb8038da1"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Ambulance.jpg": {
+      "size": 13354,
+      "sha256": "30ef7c69da21e40e1f44e1a7bf6ab8dbec119a7ed6ee5aa11d6211497f474c97"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Bus_1.jpg": {
+      "size": 6791,
+      "sha256": "b92c0d3103e79d012ece494e7489f24fb7936cf78e2ae121bdf0f9e4fa3027a2"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Bus_2.jpg": {
+      "size": 5989,
+      "sha256": "a845baa38f00cce35f9b743b6b025ce531e0e2a6168594325f4ecf813d4be11d"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Bus_3.jpg": {
+      "size": 6937,
+      "sha256": "71d68c30a4b645594b20ebc8ad5cfc3e5b83648deaca2eb8fc9097f203b1136f"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Car_1.jpg": {
+      "size": 5497,
+      "sha256": "2f43ef21659baca4e7bb561b760a1bf0801ec833b92fcea0dd5df4891109e35f"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Car_2.jpg": {
+      "size": 6956,
+      "sha256": "b7810f6278274e5e1c16eee9477a59ebea4a08ae399b24109f62eda56cac8e4c"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Car_3.jpg": {
+      "size": 5299,
+      "sha256": "0c468f1300835e5494f15aa2eb0866e0cbcb447b65dd8c3e531140d48414759a"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Container_1.jpg": {
+      "size": 9971,
+      "sha256": "90ce909b4d46a60a806994e137e69f4f2764aec661c1fcc1908254a06d09e82d"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Container_2.jpg": {
+      "size": 12360,
+      "sha256": "9751de4f6abae3038a0fafad222156cbc2c62c12a13dd1dfd11a26d89e247d10"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Container_3.jpg": {
+      "size": 11507,
+      "sha256": "0f7856420425dd210b89687cdb06081b5aa575baaedd395dcc6fc3756d1c8993"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Pick up Truck_1.jpg": {
+      "size": 6068,
+      "sha256": "735a2aea88b98cf8d32e56411d8d76fdaef42dfe2347b8141e05b0e531928bfa"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Pick up Truck_2.jpg": {
+      "size": 4580,
+      "sha256": "e5e2817c0878193d0b3b3a8d1ca7f011c2d3ecd092730186cd699808b7051573"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Pick up Truck_3.jpg": {
+      "size": 5856,
+      "sha256": "016448887ef08219a048790fae55243bb06483c4d72ba3ac6288294945c8ca1c"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Police Car.jpg": {
+      "size": 8217,
+      "sha256": "bca7059accf3d023ee28bee43d7868738eec4ccfc269576c02f626fd70ff5ee4"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_SUV_1.jpg": {
+      "size": 5607,
+      "sha256": "e05c5dacd59115f2be779f4b224251e45da3d23c177a3f3491134e5ea0744c12"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_SUV_2.jpg": {
+      "size": 5815,
+      "sha256": "7c3cd44000a0fee2d6a8a6ffadbb4e4601d1b92aa9cb8646b0d6a5ed14604b77"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_SUV_3.jpg": {
+      "size": 5899,
+      "sha256": "9cbcccb9eefa883b4bb6cd145bef8fdf93d1b0e7b682e53458dfbfcbef4551d2"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Taxi.jpg": {
+      "size": 11611,
+      "sha256": "0000aa4b72e1efeded27a26fd0942c149744e432969a69673ee399c304b70b66"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Truck_1.jpg": {
+      "size": 10371,
+      "sha256": "b1abe3f11a3c9c045fc1b41789bad2ccf8f98ffbd955615dc4043e08078c24e5"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Truck_2.jpg": {
+      "size": 9116,
+      "sha256": "ca5c55ac3eb5a3f945724016e44faeaebae5c13263f160af65364554394147c0"
+    },
+    "assets/infinitown/scenes/main/Maps/Textures/Vehicle_Truck_3.jpg": {
+      "size": 12218,
+      "sha256": "1c061cc83cccb708ad76c22a48602ba0ce85468b1159a54ca33cec803423fe4d"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block10_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 24001,
+      "sha256": "135f57d90e17ec093fc4690a9f5137cc74e5d4b570df26128f69b98a32d6fa8e"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block11_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 20155,
+      "sha256": "14f5a83da998cc0361b8495597cea165649e9ae56755501d4e0ac00237377c07"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block1_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 109393,
+      "sha256": "ef2899ea25672c6a1f552d8986d4f832230cd8b5d2454c22f15d8fd7aeee1afd"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block2_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 103608,
+      "sha256": "6ecade0787519d3c7e642a886b5f39fb340e6b71fd8cd56c5a8cab1405400d0d"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block3_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 37535,
+      "sha256": "662853544e08e4806221232469b6dfb2f5d1fa33dd4ad3e2515c487aaf0a8273"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block4_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 33777,
+      "sha256": "bf381462cc08b4fbed4e920b8eee847e46eeed49178898b2e4171d7d19d39932"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block5_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 36244,
+      "sha256": "2165ff118911ee5f6f4279d43668d45dcd8d782571cc2cf68e681fd2607c82cb"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block6_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 99873,
+      "sha256": "63f79bf1f712599e5c99af8af0f61926d0538a5b3ca9f45796feb609698f4077"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block7_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 131593,
+      "sha256": "222435ed4f559087ce3ffca045bddac524b4444d694ba6dc17477006bb3ec04c"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block8_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 63020,
+      "sha256": "9fd5eec8823c716d125e65769507a8372be70277e3be3d48f4bcc72129dd9152"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/block9_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 109720,
+      "sha256": "50d2e7377b521edbd52dfe0beb87a6ca73a2caf47831e39270c670f86557a145"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/intersection_03_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 3394,
+      "sha256": "3023eab3fcd6aa295015ccf7c10d2e6749d318e156b7ffbc527fc868c8e8d69f"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/park2_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 13348,
+      "sha256": "69d45926f56840faea6af2ca6ca59a66e5f677a8ad626465eb5135b18a6c28ca"
+    },
+    "assets/infinitown/scenes/main/Materials/merged/park_merged-mat-_MainTex-atlas0.jpg": {
+      "size": 13675,
+      "sha256": "4c55eb5eaeb930e6b90a8494c42377e47b72ebbfc16d060e12f69e7399d8d1a4"
+    },
+    "assets/infinitown/scenes/main.json": {
+      "size": 95915,
+      "sha256": "8bf0477d5cb0d74b5cd5ca37a4b7035385ef222cffe5fd73d2eae2c769074282"
+    },
+    "assets/logo.svg": {
+      "size": 555,
+      "sha256": "46b150f82c1a8e8bfd638aba6564e3f76caa089adaa7a2e878c003bbfa903d3a"
+    },
+    "assets/models/environment/apartments.gltf": {
+      "size": 711278,
+      "sha256": "0fb13f7607d60bccce1aa631f71d3a7d1036f4fadbe8d808103290c3760f0a01"
+    },
+    "assets/models/environment/coffeeshop.gltf": {
+      "size": 472485,
+      "sha256": "53415668209c9dbb409c265a836fd28d8d68c7db4aea6f692ea653599df713bd"
+    },
+    "assets/models/environment/factory.gltf": {
+      "size": 549312,
+      "sha256": "896e0132d8e4f03233e2e729085c7696fa8a5d148faf1528ea929d4aa18db09c"
+    },
+    "assets/models/environment/fastfood.gltf": {
+      "size": 947955,
+      "sha256": "5d54706e7cf892245c435bc7d3cc19d29dce8a5bef910eaf3a526e303d2a6b97"
+    },
+    "assets/models/environment/gas.gltf": {
+      "size": 987712,
+      "sha256": "f03144bcfe433ad735aa66c358b408bbd319e9312ba474f7bbc43b8d5d035dca"
+    },
+    "assets/models/environment/house.gltf": {
+      "size": 884747,
+      "sha256": "ccc18dca1da32ea3fa68508380903bcb3f10f6da1ae2d61d0c849668cf565538"
+    },
+    "assets/models/environment/house2.gltf": {
+      "size": 662809,
+      "sha256": "9bc654e88325bd00bf64ab25b5e4945a0552b2eb90d5612a60b4fbf516f3519e"
+    },
+    "assets/models/environment/house3.gltf": {
+      "size": 554972,
+      "sha256": "3dd0c051531648b03b0c8fad084c008db92e67ec99e539fe0e0414c6a574fd57"
+    },
+    "assets/models/environment/park.gltf": {
+      "size": 459226,
+      "sha256": "3ff38118cf5911633ada0dd9ad5db9821be124dc072316afe9cb32f63ed428e4"
+    },
+    "assets/models/environment/residence.gltf": {
+      "size": 588890,
+      "sha256": "3df037c897967eca8114ab4ad616bda55853d833d55284ffc854233838ff87a1"
+    },
+    "assets/models/environment/shoparea.gltf": {
+      "size": 588506,
+      "sha256": "3fc265f00625f62652538d2cafd0c78d66777b07f91600c5b2f11dc0307c74fc"
+    },
+    "assets/models/environment/shops.gltf": {
+      "size": 1088069,
+      "sha256": "5dded4178963ea637441017f696041c4f647fe685eafddfb357e0e465a666582"
+    },
+    "assets/models/environment/stadium.gltf": {
+      "size": 909057,
+      "sha256": "9eec4826e37991178108fc580f01d5a2891fa8821034a653ed09ae58238f1366"
+    },
+    "assets/models/environment/supermarket.gltf": {
+      "size": 719373,
+      "sha256": "2c4529fe67acc7596ac34abbfd0dcb9ae979a8fc2e0236f92e028b30dcb5d4ca"
+    },
+    "assets/models/pedestrians/pedestrian.gltf": {
+      "size": 18466,
+      "sha256": "147db467ae958233166a7a0aa3ac084a0c23cf4fd27749c3976deabd7798635a"
+    },
+    "assets/models/traffic/bus.gltf": {
+      "size": 490474,
+      "sha256": "2aa5cd8621813e4b5f535e10736eebf34f72c36de248c8299a07b75ff454c8b9"
+    },
+    "assets/models/traffic/crosswalk.gltf": {
+      "size": 4047,
+      "sha256": "fcd63ab2fb9aac7309129b98a9ce4bde2355e9a58043e09a6365e8c9e0a54b18"
+    },
+    "assets/models/traffic/pedestrian_crossing_sign.gltf": {
+      "size": 6361,
+      "sha256": "21a1a8a8353a4f6db9bd79f57828a0edf818c0902a854beb0bfbb48a82d82737"
+    },
+    "assets/models/traffic/road.gltf": {
+      "size": 5230739,
+      "sha256": "7b89c11a587e8a82e5049df6f5fa5fcdeb838a800fb1437af425825c727c22f2"
+    },
+    "assets/models/traffic/traffic_light.gltf": {
+      "size": 30586,
+      "sha256": "988042003f0b834fbbfe80a25e59551e4a443e86fb5e6fd224e9270ae011fbe0"
+    },
+    "assets/models/vehicles/ambulance.gltf": {
+      "size": 140973,
+      "sha256": "244ea15158eaf18622e09efb37c9d3d15732ef3dc888c87e18f9c8016e5f1116"
+    },
+    "assets/models/vehicles/bus.gltf": {
+      "size": 139767,
+      "sha256": "731b3ad981b77dfdf5a2c480d064ea0bba070d953c054b2f1067764349b92052"
+    },
+    "assets/models/vehicles/bus_terminal.gltf": {
+      "size": 139780,
+      "sha256": "e675ddcd6309e335de0f4754a9c1b19feb7a2c4477f2b746a5aba8ce65c61206"
+    },
+    "assets/models/vehicles/bus_v2.gltf": {
+      "size": 140479,
+      "sha256": "6ef34a7721eb9cd65ba1eeaaacd04d97275cc89b720b425aa6319523f96eade5"
+    },
+    "assets/models/vehicles/car.gltf": {
+      "size": 139798,
+      "sha256": "16efa61d365d4a0a6be8f7155e398675b4016f052eec29ebc88d506a499ac4b6"
+    },
+    "assets/models/vehicles/car_v2.gltf": {
+      "size": 139751,
+      "sha256": "b5cdf3dbf56a52b459305d2c308a32ed359c252a7e82ef79b0c6c79fc27f33af"
+    },
+    "assets/models/vehicles/container.gltf": {
+      "size": 134436,
+      "sha256": "f25ab19864362c8b8a1cc7deba933300b24640bdc2273b8d3f861ea11a1a4244"
+    },
+    "assets/models/vehicles/pickup.gltf": {
+      "size": 129622,
+      "sha256": "288840599c1010f7a41d9c352435e9715763c0a1f05e197f9e374b064690bc78"
+    },
+    "assets/models/vehicles/police_car.gltf": {
+      "size": 155416,
+      "sha256": "512f147034657c179df9c19d305372bee8b31240b821425a801e9e8fc4f6f9ba"
+    },
+    "assets/models/vehicles/suv.gltf": {
+      "size": 121704,
+      "sha256": "31fca3a7af783a5a1a8cf33c4c4b950680a6ed53c3299a29e1109c76d410c7d9"
+    },
+    "assets/models/vehicles/suv_v2.gltf": {
+      "size": 121840,
+      "sha256": "cec20bfacafc00eb2b03268c8362dd2d712b5738ec486b487267c25ed32d27fe"
+    },
+    "assets/models/vehicles/taxi.gltf": {
+      "size": 152379,
+      "sha256": "b8d796c31ab387a733c8ed1ef623c4c137174e5d4e1c0df0018da8c9df93cd7a"
+    },
+    "assets/models/vehicles/truck.gltf": {
+      "size": 130302,
+      "sha256": "08b32e64e6ab7526fd58deaa122d79c9351c61ebdaf0d2e0a1e5624416c04dd4"
+    },
+    "assets/profile.css": {
+      "size": 4551,
+      "sha256": "65cf637ef1059ba41fe1121b4167b2d5a770e9c310a3695aa6782d470deb4419"
+    },
+    "assets/render-safety.mjs": {
+      "size": 14144,
+      "sha256": "3ec354225a1a19734fdd73e83edeeadcd6ca95cb1e6b7113264fa79e682e49a4"
+    },
+    "assets/rl_training.css": {
+      "size": 4110,
+      "sha256": "4bc789368069da962b16ad24899b05a8e4d7276807ae6b09986df1e7b643a9d0"
+    },
+    "assets/runs.css": {
+      "size": 7606,
+      "sha256": "73e90f6c6b8941120a7c404fcde441728a07951f82766ef14fab387a39168575"
+    },
+    "assets/sprites/ampel_gelb.png": {
+      "size": 260,
+      "sha256": "cdb50a5c44013d876993d3eb3487c500b51fd6f8ed18c9bf36a8a8c5dfc881b2"
+    },
+    "assets/sprites/ampel_gruen.png": {
+      "size": 251,
+      "sha256": "783f2f0d5781973935e52d569cbb870d1ff88a034e304131cfee25061cf89c07"
+    },
+    "assets/sprites/ampel_rot.png": {
+      "size": 244,
+      "sha256": "4f988d03e51da444bfc4d7daa40895cc1bb0a2a3876e9f2c3ca5f057762a5b63"
+    },
+    "assets/sprites/ampel_rotgelb.png": {
+      "size": 283,
+      "sha256": "36486aa41c2a5e0fa70cda3eb3811aaff7ebb1e81cc7c59a360c69eb0a97e954"
+    },
+    "assets/sprites/bus1.png": {
+      "size": 1166,
+      "sha256": "a41f50ce3a53ffe8e7c348bd14f50e439e061109aa88b06890287c40ffb9d9d5"
+    },
+    "assets/sprites/bus1_bremsen.png": {
+      "size": 1407,
+      "sha256": "5043203a89bee19cc491cf36838db6e7a2045281f23078e51faff3355251dd9c"
+    },
+    "assets/sprites/bus1_bremsen_links.png": {
+      "size": 1628,
+      "sha256": "53b211ffd5d521c43f98f7bf764f79efe4a930fe4806c60c3ebccfa052e722a5"
+    },
+    "assets/sprites/bus1_bremsen_rechts.png": {
+      "size": 1656,
+      "sha256": "8cbe16ae010359b832f88b1b7f6f2ebfebba9fa3b147548ab8c532be3ca472ef"
+    },
+    "assets/sprites/bus1_links.png": {
+      "size": 1409,
+      "sha256": "7761dc889a24d5f2ae984b65b7e38a9a7584bb74379a03ebd2f3652a38bcf09f"
+    },
+    "assets/sprites/bus1_rechts.png": {
+      "size": 1442,
+      "sha256": "af85118de64c41e3256f53c7639dbf1a117f0c858d917e0e87f9ddaad5138fa9"
+    },
+    "assets/sprites/cross.png": {
+      "size": 236896,
+      "sha256": "5ed62b3b6fd42776b78804bd80b227ba20bdfe9c0c6f6649902bcb523e2d6bc6"
+    },
+    "assets/sprites/gui_buttons_1.png": {
+      "size": 11781,
+      "sha256": "7eff228d23ae2939006453236651e8556169f10f354ee5a73ec732e716c05725"
+    },
+    "assets/sprites/gui_buttons_2.png": {
+      "size": 11780,
+      "sha256": "c7465d81d9a0d9bf8881c609a62de719b9d475a16e8c89e4489c3fc1283cc3c7"
+    },
+    "assets/sprites/gui_buttons_3.png": {
+      "size": 11817,
+      "sha256": "9d8253b2c86d675991e1a9357673616b5a72a5b169c1ff3a5be3e574946aea4c"
+    },
+    "assets/sprites/gui_buttons_minus.png": {
+      "size": 11951,
+      "sha256": "534b90f0461aa42890df2cf91e5b6cf3d1c45b9642f9da5c2c44a236d08de3ab"
+    },
+    "assets/sprites/gui_buttons_none.png": {
+      "size": 11735,
+      "sha256": "f9fbe3552bae85f91674e9fd4c3ffda78558e4deefb0cb5eebdbed26b97e6dae"
+    },
+    "assets/sprites/gui_buttons_plus.png": {
+      "size": 11922,
+      "sha256": "13d493da41b7b84fe444fdfd4d438c6665d075271949adcb9cd9a0d49de7f7ad"
+    },
+    "assets/sprites/gui_slider.png": {
+      "size": 49962,
+      "sha256": "55c43824f2bd80cb9b0b561f798b9b7d79c8a3ef2f8e82f635d2a5819f977cd2"
+    },
+    "assets/sprites/gui_tabs_bus.png": {
+      "size": 4346,
+      "sha256": "1e6a295b4c1f507b58c9cf4c6d5e16c2b1fd5beb52bae09cc599d45221b2cfa1"
+    },
+    "assets/sprites/gui_tabs_lkw.png": {
+      "size": 5738,
+      "sha256": "d9382822d2ecf8949518d8dcf16e96f3b4b18f2959fe1ea07ba2c012796ef94e"
+    },
+    "assets/sprites/gui_tabs_pkw.png": {
+      "size": 5700,
+      "sha256": "8572dbbb21c2d593031e10db66a13e63dd45ddb63479ea8b3c4db9bc63589b83"
+    },
+    "assets/sprites/lkw1.png": {
+      "size": 819,
+      "sha256": "03686394719d846e1d913190efd04ca8c10a6f4cdadad5969141ec63cad62939"
+    },
+    "assets/sprites/lkw1_bremsen.png": {
+      "size": 1031,
+      "sha256": "6807bf3a905d02823e4bb7b0dc0d48abee809f2df5ba84e129773f69ec9f9769"
+    },
+    "assets/sprites/lkw1_bremsen_links.png": {
+      "size": 1523,
+      "sha256": "de62886b30970721a7aec1c9152a50fcfc52bc3b74c713bbd175908a1a0c53e6"
+    },
+    "assets/sprites/lkw1_bremsen_rechts.png": {
+      "size": 1504,
+      "sha256": "8abd817e424064f51ebc0521c0705991a8d0e4da2d4d8eebe353e992597d8eb8"
+    },
+    "assets/sprites/lkw1_links.png": {
+      "size": 1337,
+      "sha256": "29f7ca090008ed2346b2d1e5312b22a0890992709e8b75c0fd4018ffb5f55cde"
+    },
+    "assets/sprites/lkw1_rechts.png": {
+      "size": 1310,
+      "sha256": "aadf269a7b1bcca6717eee91afe4dbc00fa163f197e42fb093bf843e673b8264"
+    },
+    "assets/sprites/pkw1.png": {
+      "size": 866,
+      "sha256": "83d24f6aadab55c0e7a40b5bd48069d7404dffaea3b085c6cc41d6f2b5207a93"
+    },
+    "assets/sprites/pkw1_bremsen.png": {
+      "size": 1317,
+      "sha256": "6d02bda46b6c1e442ab5a03a054068c012e68bd247506f8f009a83e89edffce3"
+    },
+    "assets/sprites/pkw1_bremsen_links.png": {
+      "size": 1692,
+      "sha256": "201976c7d3ba09f1055c686ae40861263d3d096bffa3185e71d1b0d65ea345eb"
+    },
+    "assets/sprites/pkw1_bremsen_rechts.png": {
+      "size": 1698,
+      "sha256": "50194b74837f4484a4ca7b837a7b54b746597a997432c777c349f5f163ae8680"
+    },
+    "assets/sprites/pkw1_links.png": {
+      "size": 1295,
+      "sha256": "559a3068f8ab067bebcd029b2cfff84443a0b0ada0e44db287628fdf7ab42287"
+    },
+    "assets/sprites/pkw1_rechts.png": {
+      "size": 1354,
+      "sha256": "c19dbfbc685bad91fab30dafee72fc832066d3bea1fd74b40a9041e5623079c1"
+    },
+    "assets/sprites/pkw2.png": {
+      "size": 884,
+      "sha256": "e4c015d9d2c2cc56445227003a7894b2f530f13d53d5c8166fb7b5831638b5a8"
+    },
+    "assets/sprites/pkw2_bremsen.png": {
+      "size": 1286,
+      "sha256": "b8400a8ad2e3605b0bcfe0081c31feede5e08669d8196fe66cf0b1f61ba2d7cc"
+    },
+    "assets/sprites/pkw2_bremsen_links.png": {
+      "size": 1653,
+      "sha256": "306badae3694ad5997ef9d60a4f723a115e406ef038ba0a91d9f5ca3b647d1f3"
+    },
+    "assets/sprites/pkw2_bremsen_rechts.png": {
+      "size": 1661,
+      "sha256": "667f2b735dacdce0d4a43963d974a55588f5cf48fdcd80a9d8144edb3f130556"
+    },
+    "assets/sprites/pkw2_links.png": {
+      "size": 1263,
+      "sha256": "cb70fd8f0ba8ddddeceb681e98167e232f14967c7e73afc3dae7a151aafe80c9"
+    },
+    "assets/sprites/pkw2_rechts.png": {
+      "size": 1344,
+      "sha256": "8bd8e6dbc57e6c270013b77a9a8c1a79c0b8ff19a81c048a9edfad082d072957"
+    },
+    "assets/sprites/pkw3.png": {
+      "size": 860,
+      "sha256": "4b461035d0946762818e0b65a64818652514ff7dc678bf7ad9a3fa73f6e9bd7e"
+    },
+    "assets/sprites/pkw3_bremsen.png": {
+      "size": 1208,
+      "sha256": "7036fab6a8f769edf1bad93f113aa1032b26ff59ee378fd33e19b43fcb812c0f"
+    },
+    "assets/sprites/pkw3_bremsen_links.png": {
+      "size": 1574,
+      "sha256": "6d821551233236b207551f2be0550c933c756e8276c0ed070274e263aaf01344"
+    },
+    "assets/sprites/pkw3_bremsen_rechts.png": {
+      "size": 1557,
+      "sha256": "7d3c554ab44ff2dc5297c640f0dad1e9a989e5f0ca5f8fa87f322955d2395e1a"
+    },
+    "assets/sprites/pkw3_links.png": {
+      "size": 1205,
+      "sha256": "fc3e104cd957e65ec60d8afc9617f13edafb84cf958211768f2300cf29772a28"
+    },
+    "assets/sprites/pkw3_rechts.png": {
+      "size": 1293,
+      "sha256": "3309aa824f13c6c08d3c0af251a559f4e47ecf4e554cdced88dbf864d596ddf6"
+    },
+    "assets/sprites/pkw4.png": {
+      "size": 861,
+      "sha256": "36a870490ef7aae5d68d7cb57b7756f91f5a5d507151a6654cc7e11ea806782d"
+    },
+    "assets/sprites/pkw4_bremsen.png": {
+      "size": 1252,
+      "sha256": "63ff3d173d1f4ff6802373a2e666439197a472fe23b669e49bdcbe3bd0c9a76c"
+    },
+    "assets/sprites/pkw4_bremsen_links.png": {
+      "size": 1628,
+      "sha256": "9c7c69a5cdbdbe0a6ebca4167514dc8b2a0db7f3efabec393292a65b22779c85"
+    },
+    "assets/sprites/pkw4_bremsen_rechts.png": {
+      "size": 1617,
+      "sha256": "19a78504c5d035471d60b2fa2bd92ce7089ed49b3b2aceca3bff7333b1e56d9a"
+    },
+    "assets/sprites/pkw4_links.png": {
+      "size": 1259,
+      "sha256": "8e60ce6eb0ecdddd753f149fa8fbbcda26969d23d7d538f7fe348fdc034c1ee1"
+    },
+    "assets/sprites/pkw4_rechts.png": {
+      "size": 1317,
+      "sha256": "0306c53c232d8dbaf33fe28492dcfe5c9a6d217c956c32dfd9fa99c7f9d49078"
+    },
+    "assets/sprites/slider_auto.png": {
+      "size": 482,
+      "sha256": "fadaa11fbb4efc8b9fddb8a3b45341be07dcc83c91c6252ee6f9c69cbf5b7560"
+    },
+    "assets/sprites/slider_normal.png": {
+      "size": 439,
+      "sha256": "7c982f026229128d507e1d07ff19a2abf9bb3e6c77678565746f006af40c852b"
+    },
+    "assets/sprites/slider_pressed.png": {
+      "size": 439,
+      "sha256": "37907aa226f7d0c88584b0bea8e05498e799bf20af5ac960a8369df61964b2e8"
+    },
+    "assets/sprites/strasse.png": {
+      "size": 149,
+      "sha256": "17be462758bbd06db7301ac3dd58897553ce395f486031ad86eb9456b6879e1e"
+    },
+    "assets/styles.css": {
+      "size": 158898,
+      "sha256": "d9abf263585481b7e232e69265f87200f0e814129d7f4505fc7a18833dcfcd5b"
+    },
+    "assets/textures/Props_Props_01.jpg": {
+      "size": 14554,
+      "sha256": "8eff8eb6ba46c6767a83cccd1c232b073b63fa4c170723079c20466724b8adfb"
+    },
+    "assets/textures/Road.jpg": {
+      "size": 4788,
+      "sha256": "084385bd8f72a963ac74c04a914a968dcfc3425d08a693e91e0496fdb8038da1"
+    },
+    "assets/textures/Vehicle_Ambulance.jpg": {
+      "size": 13354,
+      "sha256": "30ef7c69da21e40e1f44e1a7bf6ab8dbec119a7ed6ee5aa11d6211497f474c97"
+    },
+    "assets/textures/Vehicle_Bus_1.jpg": {
+      "size": 6791,
+      "sha256": "b92c0d3103e79d012ece494e7489f24fb7936cf78e2ae121bdf0f9e4fa3027a2"
+    },
+    "assets/textures/Vehicle_Bus_2.jpg": {
+      "size": 5989,
+      "sha256": "a845baa38f00cce35f9b743b6b025ce531e0e2a6168594325f4ecf813d4be11d"
+    },
+    "assets/textures/Vehicle_Bus_3.jpg": {
+      "size": 6937,
+      "sha256": "71d68c30a4b645594b20ebc8ad5cfc3e5b83648deaca2eb8fc9097f203b1136f"
+    },
+    "assets/textures/Vehicle_Car_1.jpg": {
+      "size": 5497,
+      "sha256": "2f43ef21659baca4e7bb561b760a1bf0801ec833b92fcea0dd5df4891109e35f"
+    },
+    "assets/textures/Vehicle_Car_2.jpg": {
+      "size": 6956,
+      "sha256": "b7810f6278274e5e1c16eee9477a59ebea4a08ae399b24109f62eda56cac8e4c"
+    },
+    "assets/textures/Vehicle_Car_3.jpg": {
+      "size": 5299,
+      "sha256": "0c468f1300835e5494f15aa2eb0866e0cbcb447b65dd8c3e531140d48414759a"
+    },
+    "assets/textures/Vehicle_Container_1.jpg": {
+      "size": 9971,
+      "sha256": "90ce909b4d46a60a806994e137e69f4f2764aec661c1fcc1908254a06d09e82d"
+    },
+    "assets/textures/Vehicle_Container_2.jpg": {
+      "size": 12360,
+      "sha256": "9751de4f6abae3038a0fafad222156cbc2c62c12a13dd1dfd11a26d89e247d10"
+    },
+    "assets/textures/Vehicle_Container_3.jpg": {
+      "size": 11507,
+      "sha256": "0f7856420425dd210b89687cdb06081b5aa575baaedd395dcc6fc3756d1c8993"
+    },
+    "assets/textures/Vehicle_Pickup_Truck_1.jpg": {
+      "size": 6068,
+      "sha256": "735a2aea88b98cf8d32e56411d8d76fdaef42dfe2347b8141e05b0e531928bfa"
+    },
+    "assets/textures/Vehicle_Pickup_Truck_2.jpg": {
+      "size": 4580,
+      "sha256": "e5e2817c0878193d0b3b3a8d1ca7f011c2d3ecd092730186cd699808b7051573"
+    },
+    "assets/textures/Vehicle_Pickup_Truck_3.jpg": {
+      "size": 5856,
+      "sha256": "016448887ef08219a048790fae55243bb06483c4d72ba3ac6288294945c8ca1c"
+    },
+    "assets/textures/Vehicle_Police_Car.jpg": {
+      "size": 8217,
+      "sha256": "bca7059accf3d023ee28bee43d7868738eec4ccfc269576c02f626fd70ff5ee4"
+    },
+    "assets/textures/Vehicle_SUV_1.jpg": {
+      "size": 5607,
+      "sha256": "e05c5dacd59115f2be779f4b224251e45da3d23c177a3f3491134e5ea0744c12"
+    },
+    "assets/textures/Vehicle_SUV_2.jpg": {
+      "size": 5815,
+      "sha256": "7c3cd44000a0fee2d6a8a6ffadbb4e4601d1b92aa9cb8646b0d6a5ed14604b77"
+    },
+    "assets/textures/Vehicle_SUV_3.jpg": {
+      "size": 5899,
+      "sha256": "9cbcccb9eefa883b4bb6cd145bef8fdf93d1b0e7b682e53458dfbfcbef4551d2"
+    },
+    "assets/textures/Vehicle_Taxi.jpg": {
+      "size": 11611,
+      "sha256": "0000aa4b72e1efeded27a26fd0942c149744e432969a69673ee399c304b70b66"
+    },
+    "assets/textures/Vehicle_Truck_1.jpg": {
+      "size": 10371,
+      "sha256": "b1abe3f11a3c9c045fc1b41789bad2ccf8f98ffbd955615dc4043e08078c24e5"
+    },
+    "assets/textures/Vehicle_Truck_2.jpg": {
+      "size": 9116,
+      "sha256": "ca5c55ac3eb5a3f945724016e44faeaebae5c13263f160af65364554394147c0"
+    },
+    "assets/textures/Vehicle_Truck_3.jpg": {
+      "size": 12218,
+      "sha256": "1c061cc83cccb708ad76c22a48602ba0ce85468b1159a54ca33cec803423fe4d"
+    },
+    "assets/three-bridge.mjs": {
+      "size": 32155,
+      "sha256": "0545a306f84bb68d3ec8aa0572f14323e6bdcfa0131e8bd79d1c75c3366305ab"
+    },
+    "assets/traffic-canvas.css": {
+      "size": 1538,
+      "sha256": "dcb079227339eab5a98e36694801b6e71919d3f937bd8fa51fa4e169def2a9d4"
+    },
+    "assets/traffic-canvas.mjs": {
+      "size": 46679,
+      "sha256": "36b8f19debbb898d79ec9cbc27d52ffc9ca4290c9acd5fda34eca4b7c58fd4c3"
+    },
+    "data/generated/visual_network.json": {
+      "size": 67058,
+      "sha256": "cadc4cc8b840646403a20ca2e085155635c01ff1ce49c994170853b05072ae28"
+    },
+    "data/generated/visual_networks/tagum_1.json": {
+      "size": 67058,
+      "sha256": "cadc4cc8b840646403a20ca2e085155635c01ff1ce49c994170853b05072ae28"
+    },
+    "data/generated/visual_networks/tagum_2.json": {
+      "size": 58846,
+      "sha256": "10651d66853882de3b940480c14c2ce6e059b781ca1e84fb335ffaf192f86472"
+    },
+    "services/metrics_service.py": {
+      "size": 1915,
+      "sha256": "36900c90cca814afb4bb5d1c62814bcc6307d35e8628ec92d56429b57cd11956"
+    },
+    "services/scenario_service.py": {
+      "size": 1387,
+      "sha256": "53f158be3dbdcd6b3b26ec42766588cf536ae187c848d807a793a4454484a714"
+    },
+    "services/simulation_service.py": {
+      "size": 33272,
+      "sha256": "6d170666d448a6601888e6d9e5f46ddfd24196ecbbf914ccd752ffbcfd57c350"
+    },
+    "simulation/agents.py": {
+      "size": 933,
+      "sha256": "b20a0760a95f06c0742a7be6e610c383dc54ef199cf839ecac97fa17d14661ab"
+    },
+    "simulation/constants.py": {
+      "size": 2427,
+      "sha256": "e0cb4631c03897be9f4b59c2a322a2340b0b20ee18e0fa056ed4676d781bb5ce"
+    },
+    "simulation/controllers.py": {
+      "size": 2628,
+      "sha256": "2cb99fb37a1a4079f7036d7b6b39dfdb625bd4260db1891924cef5385d88d412"
+    },
+    "simulation/engine.py": {
+      "size": 14979,
+      "sha256": "8ae683e2b0f79f61b49d58bdafd609f27288795f6c80424c918c8241c67ef201"
+    },
+    "simulation/metrics.py": {
+      "size": 2919,
+      "sha256": "ff39fe5c7db78157a25e2d71205f2dcc14fcb1497c19ea2564e57d416f92448d"
+    },
+    "simulation/network.py": {
+      "size": 8769,
+      "sha256": "c5dbc5ad264f3a406c51e805f5e714dcddf157aaf06055cea8ac63eab0d439eb"
+    },
+    "simulation/pedestrians.py": {
+      "size": 3350,
+      "sha256": "c18de0576f9e6e880a32a472014a60dbfff332bcbfaed6ddc9d38aa6d1bd6a4e"
+    },
+    "simulation/sumo_config.py": {
+      "size": 9464,
+      "sha256": "9cabff5bb0bb3257ee2e7eb4779341713ed22d86a90ca7ead61e8e6e5d5eeef8"
+    },
+    "simulation/sumo_engine.py": {
+      "size": 34676,
+      "sha256": "fc3d47bbaf10d8c3bf5d509eaa353e91dba8590f909006a3db805c9417489bd4"
+    },
+    "simulation/sumo_state.py": {
+      "size": 4058,
+      "sha256": "d8021c917b70bcace2ed124cb67eea2b7662ec07f0ee937562ba9f2f77390b43"
+    },
+    "simulation/traffic_light.py": {
+      "size": 2750,
+      "sha256": "2b86f75869223877e36c5fa27c6fd5f97b4b6f865bd6ce4a8beebdba174f61ca"
+    },
+    "simulation/vehicles.py": {
+      "size": 6337,
+      "sha256": "320e996d6371b0420d2ef56017c08e3dd5f8d7419af389a705b8577f23e6978a"
+    },
+    "sumo/intersection_1/designed_routes.rou.xml": {
+      "size": 2225,
+      "sha256": "02f8c4294a4f6bdd25a163e6e77e8d0cd7abd99828656b940de4d825c51b5832"
+    },
+    "sumo/intersection_1/inter.net.xml": {
+      "size": 50499,
+      "sha256": "5297f2bef0eeb9972edea6711566d3a3f1b3bb739188e4e530b7e3467dbd6f36"
+    },
+    "sumo/intersection_1/inter.rou.xml": {
+      "size": 155725,
+      "sha256": "6af3f247e4fcef6d707567fb571a6221336c0ae10c101b623fd85606e230f7f7"
+    },
+    "sumo/intersection_1/inter.sumocfg": {
+      "size": 567,
+      "sha256": "4ccd4b6749f6290ebcb70b1e0211eed148e2a8e610c36b5b2a62319c91db93ea"
+    },
+    "sumo/intersection_1/inter_ped.net.xml": {
+      "size": 73728,
+      "sha256": "9596fc6f61fc6fdf9b46678bc016def8881b243fc89cf14d372f06ab272c91a0"
+    },
+    "sumo/intersection_1/main_intersection_scope.json": {
+      "size": 1123,
+      "sha256": "a96ae6e810b29514531b18c39711ae2f1154b79fad63eed797d27bdda0c686c9"
+    },
+    "sumo/intersection_1/map.poly.xml": {
+      "size": 3880,
+      "sha256": "b34f0851b328e51f13923696c09ab2aec151fc678e7bc2f17cab135d1c7b118a"
+    },
+    "sumo/Tagum_1/main_intersection_scope.json": {
+      "size": 308,
+      "sha256": "9bdfe97f6bb1eeb87cf61bc1e4a6adcc992662777ca559abb40a4af4f30c213c"
+    },
+    "sumo/Tagum_1/tagum1.add.xml": {
+      "size": 2014,
+      "sha256": "5a55c20db3074651009f5846660c1345ede747eae761ad6e004269e69f90eea4"
+    },
+    "sumo/Tagum_1/tagum1.net.xml": {
+      "size": 25636,
+      "sha256": "9e6dd51b97e1051307af901c82044c4a5567412b4691c39a04f6af584bab310a"
+    },
+    "sumo/Tagum_1/tagum1.netecfg": {
+      "size": 1107,
+      "sha256": "988984ce5b83b59affc91a84708715a88068bfd489b39211a09d57418d0939ba"
+    },
+    "sumo/Tagum_1/tagum1.rou.xml": {
+      "size": 3156,
+      "sha256": "c0a142ac05b6a7d63ff05358fdb50684a19f57cc786e17bce999c64f4814f025"
+    },
+    "sumo/Tagum_1/tagum1.sumocfg": {
+      "size": 472,
+      "sha256": "f713a53aaae4edf901fe13c986ff67fe2bf7bc51e45a66ccdb2cf6db188e9678"
+    },
+    "sumo/Tagum_2/main_intersection_scope.json": {
+      "size": 308,
+      "sha256": "526469579f76697c130ddb48badd9a21b078d65ce3ed163822622965595a7c0c"
+    },
+    "sumo/Tagum_2/tagum2.add.xml": {
+      "size": 3071,
+      "sha256": "c1b355c32e58df2ea62700afe7601c6213b0de8c0b995dd8d8ba1f57619f673b"
+    },
+    "sumo/Tagum_2/tagum2.net.xml": {
+      "size": 22197,
+      "sha256": "af860099c2751be6530df89fc669b61a3dd8f54849022438485d9e7d82681df1"
+    },
+    "sumo/Tagum_2/tagum2.netecfg": {
+      "size": 775,
+      "sha256": "c4ccd3df62dc60f099aa311189636866e1b167b92315dcaf59735d5abaaf8d9e"
+    },
+    "sumo/Tagum_2/tagum2.rou.xml": {
+      "size": 2771,
+      "sha256": "db8ff1edf76525b0901d534bb0445db24fe4b96bee2f1849d597e857a1237fa4"
+    },
+    "sumo/Tagum_2/tagum2.sumocfg": {
+      "size": 477,
+      "sha256": "7337d4fd21aa972a8268ba85495a0ad8437bef31cbf10ea8694becd6a07ffefc"
+    },
+    "tools/export_sumo_visual_network.py": {
+      "size": 15440,
+      "sha256": "1a814b42d29b9c3c6301d0397ce5d1cce9eaa600b25b47cd21703e1af457c709"
+    }
+  },
+  "removed_obsolete_bytecode": {
+    "services/__pycache__/metrics_service.cpython-313.pyc": {
+      "sha256": "90c3009705f281fe4ad6d06f4a8210506ca2588f5e22eaa7acf57adad2b962ef",
+      "bytes": 2900
+    },
+    "services/__pycache__/scenario_service.cpython-313.pyc": {
+      "sha256": "717d43a098feeba60e5e763bd5df8caaeab0e05ec9a30f0a4d18b40fa6467e8b",
+      "bytes": 2283
+    },
+    "services/__pycache__/simulation_service.cpython-313.pyc": {
+      "sha256": "fc816d200993df23b7dbaefde2e1db8c28467e3542c6e8c1287a29b6fb889714",
+      "bytes": 37825
+    },
+    "simulation/__pycache__/agents.cpython-313.pyc": {
+      "sha256": "f5641d55e5a89787db36ad2a5cae31b074f763bca2481a61786ca8eaffb15d03",
+      "bytes": 2237
+    },
+    "simulation/__pycache__/constants.cpython-313.pyc": {
+      "sha256": "3373bb036cf277d96b7601d15c23ba67da7059def0328adbfe670386abbfe163",
+      "bytes": 1148
+    },
+    "simulation/__pycache__/controllers.cpython-313.pyc": {
+      "sha256": "35b7cd109d4fb1f8f704d1dd28ceee16e63ddefaff45df57a18c435db7afc221",
+      "bytes": 4986
+    },
+    "simulation/__pycache__/engine.cpython-313.pyc": {
+      "sha256": "ae261be60d2d1cf80d5e6c99472b93d9ec4489e21e3a98e7842007061396ffb1",
+      "bytes": 19219
+    },
+    "simulation/__pycache__/metrics.cpython-313.pyc": {
+      "sha256": "44c0ca35eee5ffa8c6de26d138d03b528aa8798ff865eb02e2c7eb0b025bbe2a",
+      "bytes": 5044
+    },
+    "simulation/__pycache__/network.cpython-313.pyc": {
+      "sha256": "8054657be93989acbeed8f203e415dfb6958cc8bb03c8ed9d958c0654da807d0",
+      "bytes": 10408
+    },
+    "simulation/__pycache__/pedestrians.cpython-313.pyc": {
+      "sha256": "b1202d14d2285120fdddf8f8dbf2c2d1ab04069b1d379c7396f4c46dec95c33a",
+      "bytes": 4483
+    },
+    "simulation/__pycache__/sumo_config.cpython-313.pyc": {
+      "sha256": "f1106ea63cfb2e6112b8ee646be1f256cb00afad8eb928fa2d86e1dc9f8692d4",
+      "bytes": 8174
+    },
+    "simulation/__pycache__/sumo_engine.cpython-313.pyc": {
+      "sha256": "8f224e719c81b819fed06e304e1538c2a3f70fc9737e4f933cea536b848d5ddb",
+      "bytes": 46236
+    },
+    "simulation/__pycache__/sumo_state.cpython-313.pyc": {
+      "sha256": "e2d6631d39affb60bd7ff79584f8b56453afbf7942f168a210b21c6e470a2e81",
+      "bytes": 5601
+    },
+    "simulation/__pycache__/traffic_light.cpython-313.pyc": {
+      "sha256": "8c192edce84a5b41e48139daddef49ca677a37a41a6614ad30de8985a78e0da1",
+      "bytes": 5418
+    },
+    "simulation/__pycache__/vehicles.cpython-313.pyc": {
+      "sha256": "ae9d8a0945d1f791178dbbd15fd4330b0c00ef5dadbf1a3e268d7d79bbfb4290",
+      "bytes": 9744
+    },
+    "tools/__pycache__/export_sumo_visual_network.cpython-313.pyc": {
+      "sha256": "36e4e02f0560c20d2fb34af08e1a6b1ab5714bb879d7ebb671e00348a08ed2d1",
+      "bytes": 20684
+    }
+  },
+  "changed_preexisting_source": {
+    "auth.py": {
+      "before": {
+        "size": 10265,
+        "sha256": "9c577237a098c093051a3a944082b19e4f3cbc6cae9b1ae2c09fbe621647a845"
+      },
+      "after": {
+        "size": 1463,
+        "sha256": "d25ad845bd1457d8bc9157e6d2f09f7d6418606645011051a29ae73765078b89"
+      }
+    },
+    "backend/main.py": {
+      "before": {
+        "size": 86165,
+        "sha256": "4cadbba19802e06f49f9e63d4f76b0928a607a84fa4a38d8793913261cb0765c"
+      },
+      "after": {
+        "size": 86048,
+        "sha256": "06293c14759f2b8b1cb285516f930eb9f727cca9e8119633b4d87b51dab7c6b2"
+      }
+    },
+    "backend/schemas.py": {
+      "before": {
+        "size": 13948,
+        "sha256": "a454f434e250af9417bb021c60d803c3bcf97ed6756b9c2bda5fdd96c56c1077"
+      },
+      "after": {
+        "size": 12746,
+        "sha256": "0d987b0c9e34d958e5388e0696686caa51cb4a9a1ae9c70c2b22e807f3a2e3ae"
+      }
+    },
+    "backend/security.py": {
+      "before": {
+        "size": 7322,
+        "sha256": "4e066904369430451f5cf5f14d1fe03bd5bc30a2d56ec92d7c60318be69b3b4b"
+      },
+      "after": {
+        "size": 7279,
+        "sha256": "2a932167fe1ccc4c35f9af1cebeaaab87f049835286886361da1d9db5dcbb620"
+      }
+    },
+    "config.py": {
+      "before": {
+        "size": 5286,
+        "sha256": "7f79dadfc793f5a3d0a8bfbc663657faaab48a490b36761d747b545e71ef54f0"
+      },
+      "after": {
+        "size": 4478,
+        "sha256": "918c7491e845972cc537799c1f25a40f09e8a9f05276ad2bc79228ad531987b6"
+      }
+    },
+    "database.py": {
+      "before": {
+        "size": 64955,
+        "sha256": "cee16c1ff74aedce6521ba70431f01a0b5e7abf7f4b94b49725c4d7549ed787a"
+      },
+      "after": {
+        "size": 63901,
+        "sha256": "cd02aaec1df4b62c28ac84ccfa5c1b0b044017a6d2a6039b04b9619c9ce804c1"
+      }
+    },
+    "docs/ARCHITECTURE_AND_PLAN.md": {
+      "before": {
+        "size": 57062,
+        "sha256": "01b49e53b9ccd19eb6a409323c8561660b68244dc16dbf777377701fe60d2934"
+      },
+      "after": {
+        "size": 58671,
+        "sha256": "969574fc7fea859572104decf555c9cad7119b8d1a0bf9133e0d328b778a058b"
+      }
+    },
+    "docs/PROGRESS_AND_HANDOFF.md": {
+      "before": {
+        "size": 62298,
+        "sha256": "adc6cbfdc4ef9f9098b2e93fd5ee1268f1f0726b82b90b1b1cf4ca4978997866"
+      },
+      "after": {
+        "size": 64935,
+        "sha256": "b3cb1668ed60c322fb62d10da96b7529414cb6392824bddb081f3ee5af8d3487"
+      }
+    },
+    "docs/reviews/SUMO_DASH_CLEANUP_PLAN_2026-10-09.md": {
+      "before": {
+        "size": 22793,
+        "sha256": "e68efa0ba8842025f670339fb5e0f30a0abe4b296e2fcfc28c9ecb5c1aca8c63"
+      },
+      "after": {
+        "size": 22938,
+        "sha256": "52fd54491a3ae632df638ceea4fd3864351bedd4450ddc049331b5936fd75e16"
+      }
+    },
+    "eslint.config.js": {
+      "before": {
+        "size": 790,
+        "sha256": "79836940eb4082143f1df17070ad9200890aa0bc566f730da1d9a34abf4c4a88"
+      },
+      "after": {
+        "size": 838,
+        "sha256": "f7ef2265473bc490504917f333b203258bc86e657dfd5b25f49bb5cc8cabd25c"
+      }
+    },
+    "package.json": {
+      "before": {
+        "size": 1989,
+        "sha256": "b6ddefef2cfb73a471659298490c6b4f1302f9ae6daa0410a762e0a85e57c05a"
+      },
+      "after": {
+        "size": 2029,
+        "sha256": "1ae6b06cbc38adcb2f7c46143f5bf124674594bef45b0905a36994b4c5ed7863"
+      }
+    },
+    "README.md": {
+      "before": {
+        "size": 19608,
+        "sha256": "19437a622654c78855b733a06cf24de37d693080167ab109c6a1d767b999687f"
+      },
+      "after": {
+        "size": 21504,
+        "sha256": "cfe1f6e37f80ae5805df129d9db5843a9a258955c2c097b2e59de580e6bd9712"
+      }
+    },
+    "services/__init__.py": {
+      "before": {
+        "size": 78,
+        "sha256": "758933d6fb8ad9d2bbee50773eb6d26a1b4ce729afd7768107447b52b5fef02d"
+      },
+      "after": {
+        "size": 87,
+        "sha256": "6c79748501482a2d3d350cb40e3cf4903d9c907a410d3da440da274421e18f73"
+      }
+    },
+    "services/backup_bundle.py": {
+      "before": {
+        "size": 14491,
+        "sha256": "f6fa19a5be0cfd755d7c575169a37d1c0e18fafd1faf525066b241f4c30ad241"
+      },
+      "after": {
+        "size": 17304,
+        "sha256": "190326123d48b6b403924e4653f053737d7b6cae9f096b381fdb4b84a06ae8f0"
+      }
+    },
+    "services/render_frame_service.py": {
+      "before": {
+        "size": 6995,
+        "sha256": "732efa543d631947bae8e6f9ee87b2a8b09560b5a49d25519785233d6738ec04"
+      },
+      "after": {
+        "size": 7042,
+        "sha256": "faaf37260f372c6fa05e85c383d8f50a2ec9bb6f24383f20a11941ca9ebe97bb"
+      }
+    },
+    "services/rl_training_service.py": {
+      "before": {
+        "size": 27911,
+        "sha256": "b4c21b06c3ea0aee7fc9ea7cb28f944411b3eab50fd670129da73a118dbd6ecc"
+      },
+      "after": {
+        "size": 27362,
+        "sha256": "7e797acce927c2a757cd55f814400f00bb700869a8fe62db192e6da3835c88a2"
+      }
+    },
+    "services/scenario_identity.py": {
+      "before": {
+        "size": 3322,
+        "sha256": "b15f4e0a26ec69243c42ce3766166d1515d997d5a01ccfce5bbfd795532ae752"
+      },
+      "after": {
+        "size": 3646,
+        "sha256": "8c54d7b30e6de2e8a6dc1cfeec842e8c567d985388345a92f540e5352ce2470c"
+      }
+    },
+    "services/visual_network_service.py": {
+      "before": {
+        "size": 468,
+        "sha256": "1ba600e9f3645f4b63697707dd3a09e8fb80db99d17ce9f34527fea6ed42e509"
+      },
+      "after": {
+        "size": 343,
+        "sha256": "0b9b873d1a9c3afda8b2d1c727ec18e603215bccd6ef432fb3827522d36191e7"
+      }
+    },
+    "simulation/rl_env.py": {
+      "before": {
+        "size": 8300,
+        "sha256": "81754e5c2d1a4485195c620b04e26de8acbb62d1964754a4deaf154e5ef77464"
+      },
+      "after": {
+        "size": 8264,
+        "sha256": "06b0efe475d5f82f4afc6b679b2bd7fee400e94212e5260d9e7d59ae4b182354"
+      }
+    },
+    "simulation/rl_state.py": {
+      "before": {
+        "size": 11805,
+        "sha256": "a95aec179bf9eb1b8b6559592a450449641222a2ffabc77528c714ea081d1c4f"
+      },
+      "after": {
+        "size": 9049,
+        "sha256": "84a24973151e66986582807845d7081eddcab891c921c9eecf49978f4167eec2"
+      }
+    },
+    "simulation/scenario_config.py": {
+      "before": {
+        "size": 12761,
+        "sha256": "88adbe19ccf0919cc026a7445521f5215bfcf70a3e03b859964b29e7e02641b1"
+      },
+      "after": {
+        "size": 11620,
+        "sha256": "849317233f7c00c0597e822258c68a66db67009f112063f2e9e2bd874835408c"
+      }
+    },
+    "simulation/timeline_engine.py": {
+      "before": {
+        "size": 12297,
+        "sha256": "2d048d7ccb1afdc693ae755d556d277eac574b9c18396c1be8a7a6568b367023"
+      },
+      "after": {
+        "size": 12058,
+        "sha256": "593a37b4b5ef92797ab29a98ad3c4c8fd0b75d32cf32f6401088e0bd38d394fb"
+      }
+    },
+    "simulation/traffic_engine.py": {
+      "before": {
+        "size": 48384,
+        "sha256": "f9233c1680c4cbc6d4c0cbaded4b6aabf24166bbb4a00ddc90ca95689768e237"
+      },
+      "after": {
+        "size": 49058,
+        "sha256": "97fdec8e8b3d2c89c753c549c90cc6d69fddbcb364a6fca725962b5aa1e215d7"
+      }
+    },
+    "src/api/native-scenario.ts": {
+      "before": {
+        "size": 2730,
+        "sha256": "194783fb7ee27e5cfcf7291f05dfcef2c95bbf07b3c62fcb826f06f20f8dbdb0"
+      },
+      "after": {
+        "size": 2813,
+        "sha256": "9a1c2e52811d64e49b211d9c36e3949ad1ea7eea8c1118c93d72014477bd8623"
+      }
+    },
+    "src/api/scenarios.ts": {
+      "before": {
+        "size": 2235,
+        "sha256": "51ff38722257c0a6777901636c0c122b92e92b7c8a2d9002cad33ad75b4f27cc"
+      },
+      "after": {
+        "size": 1747,
+        "sha256": "b8b409174f8b11b8570089b4827d0dcc2b1ce9f597957468907e6af8f39f5c9a"
+      }
+    },
+    "src/api/simulation.ts": {
+      "before": {
+        "size": 5733,
+        "sha256": "a3352654ad5fa622be79bac95fa82c338598865bb2f409e6d1a8c64d90d05e0f"
+      },
+      "after": {
+        "size": 5798,
+        "sha256": "afa4934b09f67b8bfc405d8835ca94eb56eb092646e6f8c57848a9e541dbe9a3"
+      }
+    },
+    "src/api/visual-network.ts": {
+      "before": {
+        "size": 1611,
+        "sha256": "b5fbf9e534fc646023e974798764dfb2504432a76df9be82134147a48c4b628d"
+      },
+      "after": {
+        "size": 1689,
+        "sha256": "17f8bd157ec5a70ea39fcd3040667dcc3feda283d0ca2267eb779562b4f24ccf"
+      }
+    },
+    "src/components/dashboard-page.tsx": {
+      "before": {
+        "size": 44974,
+        "sha256": "8a64861fb35bd8e6919a2af31c88cae882afabc623c6c9be9ee81757c4b04a86"
+      },
+      "after": {
+        "size": 45279,
+        "sha256": "e4589dccde92a54eab3971508816051cf915dc56fda97d722784eb3a9a488f2d"
+      }
+    },
+    "src/components/rl-training-page.tsx": {
+      "before": {
+        "size": 37747,
+        "sha256": "6b3c361946ad614641059a8fdcd6aa87bdb94b842fad0d434fc8ec8e25e7c5f6"
+      },
+      "after": {
+        "size": 38578,
+        "sha256": "ad4c5f8f58355dde6eee19b2904affafff4d80a04d2b557914285de57e4c63a5"
+      }
+    },
+    "src/components/runs-reports-page.tsx": {
+      "before": {
+        "size": 23151,
+        "sha256": "8f78dbb427ce425baac7e2b8eda5786bab25a0fe1c3df81bc5a2389e6f4b32ff"
+      },
+      "after": {
+        "size": 23749,
+        "sha256": "37a81d45779594866f9237460a7994538692505a3b2e330677c46b5b0ea662ed"
+      }
+    },
+    "src/components/scenarios-page.tsx": {
+      "before": {
+        "size": 55052,
+        "sha256": "940f7ba219bf74976f0d878e0c7e793286c570ad385a5beacb73b824826d8fa8"
+      },
+      "after": {
+        "size": 54255,
+        "sha256": "7ed73a3f960928ffb491432042da284a793a1f35d1b40968da73a1adbcbdac95"
+      }
+    },
+    "src/components/simulation-canvas-2d.tsx": {
+      "before": {
+        "size": 21122,
+        "sha256": "448a06f2ca481ea8197d3ccb513a5dcea4822d8133cb6c5a2ab0652212ab0387"
+      },
+      "after": {
+        "size": 21130,
+        "sha256": "b971b24fcec5d15f6647b6d6eac9a6b553ce69eb6c82d905496abf95cc789e62"
+      }
+    },
+    "src/components/user-management-page.tsx": {
+      "before": {
+        "size": 35123,
+        "sha256": "33b154e6774fab1a5d676ac0997aab80b86783e6833d287fbd50e128c3570ac4"
+      },
+      "after": {
+        "size": 36053,
+        "sha256": "19f335f97614ef04e065a51ea8d6fde26b99e8ed0d1e0f31476171954c8db62a"
+      }
+    },
+    "tests/test_native_integration.py": {
+      "before": {
+        "size": 14865,
+        "sha256": "679507363f3918c74af675f0cec13ada5e14685920b7548a40750e6e886ed0d4"
+      },
+      "after": {
+        "size": 15416,
+        "sha256": "cf3342b15b2e84a24a6758bfa5fcc33983830df4992038b71b719fc8bf0bc6ad"
+      }
+    },
+    "tests/test_operations.py": {
+      "before": {
+        "size": 23344,
+        "sha256": "cb838de3df0c5147d73151c3973e3e69c00a7d3b0c17626315c3dca1354c0e36"
+      },
+      "after": {
+        "size": 23726,
+        "sha256": "adc358f589ef813c4166c14960b86e8af734dcd2ba118252a0aa6e86ac09c0a0"
+      }
+    },
+    "tests/test_portable_inputs.py": {
+      "before": {
+        "size": 8398,
+        "sha256": "3ccde5d7bf0d105c61482f475265a29bb4e7900dfa6a5b6f754e18a502aced84"
+      },
+      "after": {
+        "size": 8563,
+        "sha256": "c62bd532be1203838778cb602479919696d393fc9effc8b24ee4cc2603f48e82"
+      }
+    },
+    "tests/test_shared_session_and_import.py": {
+      "before": {
+        "size": 21844,
+        "sha256": "5d7bf2ca6e6cdd9ce2dadc25fb599b0da4755bbc921eed877e8fcac6ced471e8"
+      },
+      "after": {
+        "size": 22206,
+        "sha256": "dda791f5f064f51e354b3f00a84305002a6b44606393cdb8da1bd01a8a15f396"
+      }
+    },
+    "tests/test_workflow_integrity.py": {
+      "before": {
+        "size": 19549,
+        "sha256": "7f834e2138fc98740f530a30f196f382b63021284f4293e600cc4d8f407f4dc9"
+      },
+      "after": {
+        "size": 19589,
+        "sha256": "9170b495b3b2743fb374da1b2711e8bf381b71a26a6dccb9bd5ebd5cb95df8e4"
+      }
+    },
+    "tools/evaluate_controllers.py": {
+      "before": {
+        "size": 22339,
+        "sha256": "a9222060b9ebee52c816ad1dcf93c28bd1399c2ef9c7b6eb2bf6aa4ed3885971"
+      },
+      "after": {
+        "size": 22059,
+        "sha256": "2c5f85139d8ae486a611f243d642dda2bdb95991e67f39f013dbbc2c59078fbf"
+      }
+    },
+    "tools/train_dql.py": {
+      "before": {
+        "size": 12937,
+        "sha256": "6f20581641380962fa19790da9c1506d574db05cb96f9b076c4bfc2be4e5d6e3"
+      },
+      "after": {
+        "size": 12835,
+        "sha256": "a062ab6890e5ad759c316cd66a71d9d0ed7b6909dfad748a4f9f1ab7b910d130"
+      }
+    },
+    "tools/train_ppo.py": {
+      "before": {
+        "size": 12743,
+        "sha256": "f0f7564448f2a946ffe9881335f092e443ada08b4ac30421d8021a406dfbae80"
+      },
+      "after": {
+        "size": 12644,
+        "sha256": "69851cfc2f63e276e5ba2351b84e0d1e8a04ed2c5421a678655e49a1358b8713"
+      }
+    },
+    "tools/train_ql.py": {
+      "before": {
+        "size": 13789,
+        "sha256": "28420aca3c0b6e5c4922e8988d3e604b1f4af24a34096019c24224de936e1c4a"
+      },
+      "after": {
+        "size": 13691,
+        "sha256": "af0bc5c3d07374f9476433fd0415d73d29e7b705535a9eb8dcb6e0397c3f819e"
+      }
+    },
+    "tools/training_inputs.py": {
+      "before": {
+        "size": 1571,
+        "sha256": "d267ac16cb72e3006102195fd71d9458fcd1a8d679da33340c642a4b195a859f"
+      },
+      "after": {
+        "size": 1727,
+        "sha256": "9aa2a51a57ac98a42a670b43b98c1cd894a80131281b54d6a38090369e46796d"
+      }
+    },
+    "tools/verify_standalone.py": {
+      "before": {
+        "size": 4690,
+        "sha256": "4d4cbc27a2a1bae9c3f59403bfd5c209b4f799ad8ee93e030ab321c4f410acea"
+      },
+      "after": {
+        "size": 4903,
+        "sha256": "35bf977e97332ad05ea78bddffe9005d84171fcd55c0fde7912d1d77dce6395b"
+      }
+    }
+  },
+  "protected_files": {
+    ".agents/skills/code-review/SKILL.md": {
+      "size": 2768,
+      "sha256": "ec5fc8855cb4648b4f2c79b608f8c8824a2da6a683330524c4d6283e4a3954c4"
+    },
+    ".agents/skills/fastapi/references/dependencies.md": {
+      "size": 3269,
+      "sha256": "9907b669ba930cb060608807fa0f23e03e8548adc68eab8c54d455587977f2fe"
+    },
+    ".agents/skills/fastapi/references/other-tools.md": {
+      "size": 1566,
+      "sha256": "2daf0c09ec6f77d90d9c0dcfec448b4133b05302dc3a574dafce0216bf4d6339"
+    },
+    ".agents/skills/fastapi/references/path-operations.md": {
+      "size": 1583,
+      "sha256": "ed8d2a21123bcf63dd1e9aa61cc8e4e33a878cbbf1d09498a556a420302995ca"
+    },
+    ".agents/skills/fastapi/references/pydantic.md": {
+      "size": 1844,
+      "sha256": "840ab962739861aed2ea77805dc46979c9a96abd8fc0043f197b3bd5d638e84b"
+    },
+    ".agents/skills/fastapi/references/responses.md": {
+      "size": 1856,
+      "sha256": "7c921508bbd093697301ca9612038976cfb5b65bdc2dc42a0c02e2809d3652a7"
+    },
+    ".agents/skills/fastapi/references/streaming.md": {
+      "size": 2582,
+      "sha256": "3ff148c6d153affa960f421d13d27eb8225b70e579ed833c61c6b1a9ff17fa87"
+    },
+    ".agents/skills/fastapi/SKILL.md": {
+      "size": 10803,
+      "sha256": "0fc817d25584b48981bfb3e9a4ad96dde0e4ce7396f15e91a0ba30cbece243f7"
+    },
+    ".agents/skills/find-skills/SKILL.md": {
+      "size": 5472,
+      "sha256": "c00eeea0e13e74fe4a9d84ba0a8542205a1b736d65f13134fe1a6647eb14976f"
+    },
+    ".agents/skills/python-performance-optimization/references/advanced-patterns.md": {
+      "size": 10527,
+      "sha256": "dc1bca8a377572ba1583316b8288af0e5ca2d2be864dc33889b2d3b1ee5c2abf"
+    },
+    ".agents/skills/python-performance-optimization/references/details.md": {
+      "size": 7421,
+      "sha256": "8643031fabcbaf555ae1b4e702f1b5159689a31a4b286280d4df2822c9731281"
+    },
+    ".agents/skills/python-performance-optimization/SKILL.md": {
+      "size": 3253,
+      "sha256": "807aa725cc2b46b4d68a11a52e5b345be0449e80b7f4b60c32bfd2c35345afb5"
+    },
+    ".agents/skills/shadcn/agents/openai.yml": {
+      "size": 243,
+      "sha256": "92be2f46bf42718ad62fd987d1c0dff5baacc37895bf8ab5e7ba858442b5f997"
+    },
+    ".agents/skills/shadcn/assets/shadcn-small.png": {
+      "size": 1049,
+      "sha256": "0ecc62d682727f68fc4937eed19960c706714fa084d44f63028d611ae02bf3d7"
+    },
+    ".agents/skills/shadcn/assets/shadcn.png": {
+      "size": 3852,
+      "sha256": "7d60ad6fec4d89a0d44ba5a3c9283d2fea0047af5467f9227040e20d927d39b7"
+    },
+    ".agents/skills/shadcn/cli.md": {
+      "size": 17135,
+      "sha256": "464eb59035caf174b00be665b0da0742ebfa225592c133e0db94dba8e468e404"
+    },
+    ".agents/skills/shadcn/customization.md": {
+      "size": 6283,
+      "sha256": "8b34cdc4c3ac3dd37031a5fa09092c3678c6eecc7283c2f5dad2eae29ef13d41"
+    },
+    ".agents/skills/shadcn/evals/evals.json": {
+      "size": 3165,
+      "sha256": "0d0f2727540fe1b8846c52ed47d8f51ff0b1066596d6a6d750214b812be5e22b"
+    },
+    ".agents/skills/shadcn/mcp.md": {
+      "size": 3059,
+      "sha256": "7ebf6e1220d9cbb5c4c76ee366e3e86097bc7d36bf968ea4bf4afce15dac353d"
+    },
+    ".agents/skills/shadcn/registry.md": {
+      "size": 9094,
+      "sha256": "581b5b6f25ff59a0f8f0746a6de9786023ea4f8224c9adaf19dd5963ccaa600b"
+    },
+    ".agents/skills/shadcn/rules/base-vs-radix.md": {
+      "size": 7260,
+      "sha256": "d0b66cd55a921602e7ca1f3b8c03a2f744b8d688f843155bbb2d9c7cef08eb0a"
+    },
+    ".agents/skills/shadcn/rules/composition.md": {
+      "size": 4463,
+      "sha256": "b8cd03b5343a7a42ff015252b689d573ecd492ff96738888f93c688f4f5bbc6c"
+    },
+    ".agents/skills/shadcn/rules/forms.md": {
+      "size": 5049,
+      "sha256": "a5422ccca0bcaa9ccb5e8a3745bacd08eadcf9a96f54e1b39f5ffe725f316feb"
+    },
+    ".agents/skills/shadcn/rules/icons.md": {
+      "size": 2059,
+      "sha256": "08a07baacbbef0926002b88ca1fc410bf70eb7938a3f3521e4d8f643f6621908"
+    },
+    ".agents/skills/shadcn/rules/styling.md": {
+      "size": 3957,
+      "sha256": "6e9c6ee8c29cb5930b16d295a45e2109ab8913f2300237448f04fd25deaf15b0"
+    },
+    ".agents/skills/shadcn/SKILL.md": {
+      "size": 18694,
+      "sha256": "652b6e7e7c533d740908f85e5d7624d4cf018fcdcbb7d01b0bea169149af4ee2"
+    },
+    ".agents/skills/smartflow-sources.json": {
+      "size": 3239,
+      "sha256": "2c5877b17870a3c6301100546c8a193579489d05dc79c46fed94227c35a7e734"
+    },
+    ".agents/skills/systematic-debugging/condition-based-waiting-example.ts": {
+      "size": 5054,
+      "sha256": "40ae5ebe497fdf310200e43fe986552546d0a22837c0d39e855db1cfd33eb88e"
+    },
+    ".agents/skills/systematic-debugging/condition-based-waiting.md": {
+      "size": 3516,
+      "sha256": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26"
+    },
+    ".agents/skills/systematic-debugging/CREATION-LOG.md": {
+      "size": 4257,
+      "sha256": "c24733a5b1821bd6bed1fc950261f0b9f4e90097e0bbb96459d8179713730789"
+    },
+    ".agents/skills/systematic-debugging/defense-in-depth.md": {
+      "size": 3650,
+      "sha256": "1e175fb86fc357e58c6aebf5441e481e1b7868b4380c0456b63a17eefbd18ba7"
+    },
+    ".agents/skills/systematic-debugging/find-polluter.sh": {
+      "size": 1986,
+      "sha256": "dd7b8f13c4cc2a24b33ff87b18da9248f3e1c80a085c3316224f69ff0fa5c43c"
+    },
+    ".agents/skills/systematic-debugging/root-cause-tracing.md": {
+      "size": 5321,
+      "sha256": "75b933b6a8c40bdb2031b10f21654395b56ec6ab6bc7b018c18d3fe57aeb7fb8"
+    },
+    ".agents/skills/systematic-debugging/SKILL.md": {
+      "size": 9465,
+      "sha256": "808fc5717aa88ad65efff312b11c186294d3e6ee301afb584e2f86599b137787"
+    },
+    ".agents/skills/systematic-debugging/test-academic.md": {
+      "size": 653,
+      "sha256": "fe2ba480d78ac0d686dc025f41c2a32a43d642bf533f91b0c6053a04d35d6486"
+    },
+    ".agents/skills/systematic-debugging/test-pressure-1.md": {
+      "size": 1900,
+      "sha256": "0b6a915db0054577819834c79be9eb614e97bddba10d73768e1fbe91cfed048a"
+    },
+    ".agents/skills/systematic-debugging/test-pressure-2.md": {
+      "size": 2283,
+      "sha256": "b2030aeffba07050e8ad573ddf87486457c4a016a786bb326235bebd856f2016"
+    },
+    ".agents/skills/systematic-debugging/test-pressure-3.md": {
+      "size": 2692,
+      "sha256": "96b50a52e2c7989c9cf20fb752c47c1e9a3a70dc362f8f7989f8f5b64dac7708"
+    },
+    ".agents/skills/three-best-practices/rules/_sections.md": {
+      "size": 4307,
+      "sha256": "a4a1389bc2708623c914c1a6c226270e5a3f6806216f4b8b0457fc61bb0fc8bd"
+    },
+    ".agents/skills/three-best-practices/rules/animation-system.md": {
+      "size": 4694,
+      "sha256": "5070d3fc0410a57d5eacb5c1a177249961910ba9c1b2680d9deba07dda8daed0"
+    },
+    ".agents/skills/three-best-practices/rules/asset-compression.md": {
+      "size": 2460,
+      "sha256": "440900b07872bd8616b8bcd222fc65a3144a694e35b41a43582103b52b98600e"
+    },
+    ".agents/skills/three-best-practices/rules/audio-spatial.md": {
+      "size": 4462,
+      "sha256": "2f6203d03371337fc0e8053f77f983351df7e2661f11b449728704a2e30a10d1"
+    },
+    ".agents/skills/three-best-practices/rules/core-web-vitals.md": {
+      "size": 3385,
+      "sha256": "4c63834df5456c592611715b4aecda2558cf592913935c81dbdc757a494cd31c"
+    },
+    ".agents/skills/three-best-practices/rules/debug-devtools.md": {
+      "size": 4638,
+      "sha256": "09551773f38c3b87d42b1756398aaf98da22ba0654805a82650f1f9ef7b7e2b2"
+    },
+    ".agents/skills/three-best-practices/rules/draw-call-optimization.md": {
+      "size": 2914,
+      "sha256": "47261ad011be6647be7be52db9bc7793bd808ca5607783f454366e45abc49a25"
+    },
+    ".agents/skills/three-best-practices/rules/error-handling-recovery.md": {
+      "size": 5689,
+      "sha256": "a3e710933c222a388ff7a6ad5b76542fc7f5342090eb11407b9d1717edbf9306"
+    },
+    ".agents/skills/three-best-practices/rules/geometry-instanced-mesh.md": {
+      "size": 3135,
+      "sha256": "1fa832bf875cffbdd2bd2f94ea8423200aa14f2db1116134c4705b302dddb2e9"
+    },
+    ".agents/skills/three-best-practices/rules/gltf-loading-optimization.md": {
+      "size": 4833,
+      "sha256": "db05970bfef0ee04fc0932ff427e3a7da9756702dd1076b2a2b4398674e8e63e"
+    },
+    ".agents/skills/three-best-practices/rules/lighting-shadows-advanced.md": {
+      "size": 4037,
+      "sha256": "ae9522f6266f825e4b3fd36a876d35596ae222d3148ba5faa06b1da755267255"
+    },
+    ".agents/skills/three-best-practices/rules/memory-dispose-geometry.md": {
+      "size": 1900,
+      "sha256": "15ec0f6a6233ac965b84b08d904b48f514d073e1fb3f5c09b35e35769996ec8e"
+    },
+    ".agents/skills/three-best-practices/rules/migration-checklist.md": {
+      "size": 4357,
+      "sha256": "7b14b77fcc45b0c0a4094fa9a038538684da514f8c774cabdf39cb0eccbd486a"
+    },
+    ".agents/skills/three-best-practices/rules/mobile-optimization.md": {
+      "size": 5266,
+      "sha256": "2e257cb7b8ed02ca2bebe89bc9e9b2b534eed4299c8db04c490172fe1788e50d"
+    },
+    ".agents/skills/three-best-practices/rules/object-pooling.md": {
+      "size": 2972,
+      "sha256": "42b23628866c77decc9d1ad72c7beaa57ae338220113473c7cf8894d51c795d6"
+    },
+    ".agents/skills/three-best-practices/rules/physics-integration.md": {
+      "size": 4852,
+      "sha256": "6d333e6c1b089738265569e0b83cb23d38cd5440a0b55231b9a1e13a4af8fd44"
+    },
+    ".agents/skills/three-best-practices/rules/postprocessing-optimization.md": {
+      "size": 3501,
+      "sha256": "f82386e6fb08c4a6e29cc10a97c3090ea506b01df08c34dcb4a5fa3ebc398e89"
+    },
+    ".agents/skills/three-best-practices/rules/raycasting-optimization.md": {
+      "size": 4919,
+      "sha256": "21df50ae607a8471fc8c9b38ad6e45353898e56c3a1eb46da3e6ad5958693ec3"
+    },
+    ".agents/skills/three-best-practices/rules/render-delta-time.md": {
+      "size": 1751,
+      "sha256": "8ae063b160eb39b9888819b14fec01e4821956f70141dbff344896fde0aad7d9"
+    },
+    ".agents/skills/three-best-practices/rules/setup-use-import-maps.md": {
+      "size": 1521,
+      "sha256": "ec7f9bb2cf313c5890073d1180913d46593eaf0b69237dfe2e19d529bb17d9ef"
+    },
+    ".agents/skills/three-best-practices/rules/shader-mobile.md": {
+      "size": 3033,
+      "sha256": "4d326ff47c87ef0d9599acafc7f19e7f4ba2501b88de6f87567cb3170eed3b67"
+    },
+    ".agents/skills/three-best-practices/rules/tsl-complete-reference.md": {
+      "size": 7264,
+      "sha256": "8620a91bf7a84d1c375f96848dd7f0d6299cb4008c076a45140ddfdff561a2a8"
+    },
+    ".agents/skills/three-best-practices/rules/tsl-compute-shaders.md": {
+      "size": 4653,
+      "sha256": "c75b596338a0d5f823f694c18a04a045edade480c8a740d2e9e7a3e9dea3bc00"
+    },
+    ".agents/skills/three-best-practices/rules/tsl-material-slots.md": {
+      "size": 3229,
+      "sha256": "97045e5d729c4e86e0c6b30fda401b21e15d1edccf3cf7e20fb6d208c3842296"
+    },
+    ".agents/skills/three-best-practices/rules/tsl-post-processing.md": {
+      "size": 4653,
+      "sha256": "c8d02b99389841d9ea1abd688a538cb87e547fecdd2417435de3ec1a7384e56e"
+    },
+    ".agents/skills/three-best-practices/rules/tsl-why-use.md": {
+      "size": 2419,
+      "sha256": "94cac7b97835e7a63459f6e6fc3043d3bedd45940893fd121dce9354f86ba126"
+    },
+    ".agents/skills/three-best-practices/rules/webgpu-renderer.md": {
+      "size": 3194,
+      "sha256": "0b1b0b4c5499c90d6f1e1b97530f062261097f1d3241490ee193f5ef6e7257fd"
+    },
+    ".agents/skills/three-best-practices/rules/webxr-setup.md": {
+      "size": 5578,
+      "sha256": "a8c08e074f0e0714e7b9a53ec91c5a6073096a47083b21c8de69b6e3fa349efd"
+    },
+    ".agents/skills/three-best-practices/SKILL.md": {
+      "size": 13205,
+      "sha256": "b19d75e0dc620ed6e44682876f943989e3184a1d3f92d9a1da95cc9d8c50879a"
+    },
+    ".agents/skills/vercel-react-best-practices/AGENTS.md": {
+      "size": 108261,
+      "sha256": "fc93e7421177bbf869cce892bc60a6c83a4517d974bc3bf65c4e2c1e58a6ccf6"
+    },
+    ".agents/skills/vercel-react-best-practices/metadata.json": {
+      "size": 921,
+      "sha256": "c4e18bac3290fbe1b471a605867d4df68b03144ea26b8befdbe8f9d8fd124354"
+    },
+    ".agents/skills/vercel-react-best-practices/README.md": {
+      "size": 3360,
+      "sha256": "9eafb2123d3b8b2aef41fba0db2648a3f4f49996f8c7c8bb2c86263befd8b48a"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/_sections.md": {
+      "size": 1554,
+      "sha256": "01c59969e4e867f0708c8f8ef9c6d87fab9a07d0586244f429ff84013db8a115"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/_template.md": {
+      "size": 631,
+      "sha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/advanced-effect-event-deps.md": {
+      "size": 1802,
+      "sha256": "55ed8f9f27a1bff803d6fa55828176207714b02123cbb97ddb8a90d88024a723"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/advanced-event-handler-refs.md": {
+      "size": 1483,
+      "sha256": "a3097edeecfb2ff6851cd66ed8cdf0617c3c88180504bee824aa6e75a215bbbc"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/advanced-init-once.md": {
+      "size": 958,
+      "sha256": "3e4dc22173eb0e2b6dcf583e3babd862b8696328f8f59aee7c4d746c5bc05f6c"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/advanced-use-latest.md": {
+      "size": 1072,
+      "sha256": "8a3f64dfe5a77d1564248faf17fe662ae75b55d497a243cb30b38eb07ccbbf9a"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/async-api-routes.md": {
+      "size": 1125,
+      "sha256": "523338540d73427dc14c0cbb19f2741ebccdf8b105a7b2c1b33d2905cf237a42"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/async-cheap-condition-before-await.md": {
+      "size": 1220,
+      "sha256": "03107c1f70a293cd58a8abc5474c5548e20ea4efdf01b6d45aae7ad0ac1cb32c"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/async-defer-await.md": {
+      "size": 2208,
+      "sha256": "f3c142d090615abdcc99d31c123be37b31f0f1ed8d9ec9f7789a3bc6883ae0fb"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/async-dependencies.md": {
+      "size": 1293,
+      "sha256": "16ef469f877e30c6b8e1e1b4bc3e527312fa3c6318cb785a4eca186ea236131a"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/async-parallel.md": {
+      "size": 654,
+      "sha256": "6d2f841896279e976dfcdc1ac89e70771ac188baadfd43c096b5706cb838b961"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/async-suspense-boundaries.md": {
+      "size": 2510,
+      "sha256": "de05fedac2eb7ae563b887b5a424464ec3dfaf84e5b7797467ebe2a796ac8afc"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/bundle-analyzable-paths.md": {
+      "size": 2382,
+      "sha256": "62090b5c815fd71bf1133dce754f51abc16a9456d0ccd025fd627de27726e92a"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/bundle-barrel-imports.md": {
+      "size": 2795,
+      "sha256": "e648f6d54525f07a691357040ca5bff6ea3424788a91ff63812adb29622a671b"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/bundle-conditional.md": {
+      "size": 949,
+      "sha256": "09c8259c3efb04fc0abb8e412ccbda217c222ae8118516283e571c995fe3a7d4"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/bundle-defer-third-party.md": {
+      "size": 920,
+      "sha256": "3719fb47b191e8db4fe22686ec88448ad5af9e6838585425abbe103d0b642e37"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/bundle-dynamic-imports.md": {
+      "size": 791,
+      "sha256": "401817a7369f315fc5a68a1095742ff7d53d0461906880dc9d64a41495ee1986"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/bundle-preload.md": {
+      "size": 1149,
+      "sha256": "d1f7cc28da7cd5ab249acd287edc5b761afcfb194e9cb62cd44c5f3543db2de2"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/client-event-listeners.md": {
+      "size": 1969,
+      "sha256": "242a873349febc1ce685e85617994784dbab92c2eaa68aed7fed5a83e7680e93"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/client-localstorage-schema.md": {
+      "size": 1950,
+      "sha256": "0fb7cdf9dc93fdf22f87e3669f953fb9d4ac9b0be42eec4a29fe9a2560610b88"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/client-passive-event-listeners.md": {
+      "size": 1644,
+      "sha256": "1f35016f9053de69e884ee9be00654e37979c2ca85f5e57764dc2626ff7acb4b"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/client-swr-dedup.md": {
+      "size": 1159,
+      "sha256": "644652c39c6cc00de8d1c77a7273612e868dc3f7edda30764164c12ec0f764a3"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-batch-dom-css.md": {
+      "size": 3266,
+      "sha256": "480b891b9eaf96e929dc1e964274a4828e3a78009b7d00ccd965a0d425215959"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-cache-function-results.md": {
+      "size": 1949,
+      "sha256": "3daaa11d24f4295cb6be8bc6f407f2ce83cc7b5bd1f0e68891ea8ab835721dc7"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-cache-property-access.md": {
+      "size": 532,
+      "sha256": "73e47431e74878a927061bf0ddc7cd91a7556cb35d2573f3421e82300d9ae311"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-cache-storage.md": {
+      "size": 1651,
+      "sha256": "11b826b0433898c1ece2d3547010d8e77db9fb240185748c45db91493de9b6cc"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-combine-iterations.md": {
+      "size": 753,
+      "sha256": "71add08aeeb43091d4ff4c0b2842cce8b4bdef8ad3e732cc034bb5a84827e746"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-early-exit.md": {
+      "size": 1133,
+      "sha256": "925ce5ce87f3347186ca62212f29cc6baa2b8c85a96d2720ad07c3d0abf781c0"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-flatmap-filter.md": {
+      "size": 1411,
+      "sha256": "9e5b166a41914d975bef7635467f8fb32cd98b5c3126c0bc6f163490812fb5f0"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-hoist-regexp.md": {
+      "size": 1028,
+      "sha256": "f9e9aef2f7c2307dd7310f283df85dcada45fc43e9bb941b0c3aa414dec21ec4"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-index-maps.md": {
+      "size": 837,
+      "sha256": "5df1bdc2cfabb2c98abd55d26762e5c18189535c2e686184f426082e62920391"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-length-check-first.md": {
+      "size": 1747,
+      "sha256": "8b54a311c826b299272f29187fc58bc55772a04c4a72eeb29456ee96dc9fc624"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-min-max-loop.md": {
+      "size": 2290,
+      "sha256": "87dfb67e2f39df6ad8bcfb5b78c5fb364d3c07554ad188a202408d99f3763421"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-request-idle-callback.md": {
+      "size": 2647,
+      "sha256": "ee08f83905b4011abbc33d594033157d77561b5bbd9b36b04f0f409581ffec32"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-set-map-lookups.md": {
+      "size": 532,
+      "sha256": "a7fd781a6ba9ad49065961b6f9a90ef486bf6b648390e1a08704025f98e1642b"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/js-tosorted-immutable.md": {
+      "size": 1782,
+      "sha256": "d0a5e1b0fec48a0a81397957e2f068e224329f7c42cb5feeed8aae6fa64025e8"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-activity.md": {
+      "size": 564,
+      "sha256": "1e5e7eaf3555e61d6a2e900089c676527d26259501db5594f59544b6c664f85a"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-animate-svg-wrapper.md": {
+      "size": 1185,
+      "sha256": "9c6ae0ca7a51434e803887c64cded760956579a1452ccb80a461a03f9c937c77"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-conditional-render.md": {
+      "size": 980,
+      "sha256": "2ec2fa23c4148285144687050c52369adba3da2fbe3d486f8d3e0aad8f06f2bc"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-content-visibility.md": {
+      "size": 815,
+      "sha256": "64eee6d5b916fe74df33363994b27fc7f71bea3bcedc7ee04bda23107ca3e6e4"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-hoist-jsx.md": {
+      "size": 1039,
+      "sha256": "93b229560fae92005ed9a2a829064607b39b2e984e92d221d05b2d41df2b7c0e"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-hydration-no-flicker.md": {
+      "size": 2308,
+      "sha256": "dc7ab358c67c177bca6e6f360fbc935ebe4efa928c0ba3ebd3f9f3d9e2000ca3"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-hydration-suppress-warning.md": {
+      "size": 872,
+      "sha256": "915bacb934e2927d84b37a3f3d225a47b309ac8f9e494ed2bcb66ce07c5676a2"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-resource-hints.md": {
+      "size": 2549,
+      "sha256": "351b1095d641717b930f1b2253282b7120af3023bc74e06c17675168d4286864"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-script-defer-async.md": {
+      "size": 1868,
+      "sha256": "4cea07b7875ba7fc2c7465ff23b63a2bb334f90aaf2d9293d38d67b05fdb32ab"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-svg-precision.md": {
+      "size": 588,
+      "sha256": "ed468533f6e95f622859c884b122cf21f9f593ed6bb3d500a54de4b9f9bcb9fb"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rendering-usetransition-loading.md": {
+      "size": 2074,
+      "sha256": "3a1249c3f13026b6f54ab5712c388df219d6af01b12aa542749acd99a46f4bc1"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-defer-reads.md": {
+      "size": 973,
+      "sha256": "234050a77faf50cb306be10a9e15bd4421134ab5907e75f13e6d78e2bd262dc9"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-dependencies.md": {
+      "size": 824,
+      "sha256": "17eb5830956fb56486fd3cfc7431f5849d39751730c05ad9e77dd4f0c27169c5"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-derived-state-no-effect.md": {
+      "size": 1201,
+      "sha256": "cb11ec76f50aa7b6847269f02d79b120c889a30d9ecd2c1d578f75144419c77a"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-derived-state.md": {
+      "size": 728,
+      "sha256": "1c326bb67b01fb084eb00c8911b0a7cff54681c2315b629f88e49b64eaa6481d"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-functional-setstate.md": {
+      "size": 2968,
+      "sha256": "5e68df6b2ae8058e67f476ff1ac67bde159f5a9d18df439e46eabcdeb7b52e58"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-lazy-state-init.md": {
+      "size": 2016,
+      "sha256": "4ae844740f266fc8cbf050701230286624a2440ec5be67b9a63d9edc3c580573"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-memo-with-default-value.md": {
+      "size": 1173,
+      "sha256": "81c47476564ad8a79fc68fc442734255ca7d6829424359464503fda0a9f9a0dd"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-memo.md": {
+      "size": 1148,
+      "sha256": "1f258990c2f27ff6256b3cc5c43300631bb3f0d81f749aed08d07fcdcc131dd1"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-move-effect-to-event.md": {
+      "size": 1268,
+      "sha256": "abc2cbf167bee056743023351e96806a411d3398da8802093620aecf0721f029"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-no-inline-components.md": {
+      "size": 2135,
+      "sha256": "1cc32907a770272524ba682eef9e7efdd8ad4533b6f89b718a1fcd7d1d0eb6a3"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-simple-expression-in-memo.md": {
+      "size": 1018,
+      "sha256": "5bdcf2d1558ba5204e643c887b7b4060f89630969425651eb68e96427d97f800"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-split-combined-hooks.md": {
+      "size": 1844,
+      "sha256": "6f45d703343484ef9acef9388397f3642966ae6a5a258899a0cf1f9977cfbf6c"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-transitions.md": {
+      "size": 1055,
+      "sha256": "60f4033909a62df5e5b8c601494f9e50a562e2f8c1c2d81eac24f38142265f1c"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-use-deferred-value.md": {
+      "size": 1846,
+      "sha256": "8c3579576a61a949884167745dcfaf1d5426ba305cc61fd0a79602d70fda4909"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/rerender-use-ref-transient-values.md": {
+      "size": 1742,
+      "sha256": "f1a649af9d1d0b5c762f6c9c4c1c70c90d7df82aa10296ee87aadb78c1b76c54"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-after-nonblocking.md": {
+      "size": 2012,
+      "sha256": "d0b8d24a3db9f0f65f9e2bddbf230b0e03a5f60e1229d93a4a18f5e7a991c7c2"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-auth-actions.md": {
+      "size": 2649,
+      "sha256": "a2ca8aa102839251c7971ec784560fab943c20b36fe6f80365d4110c13260c23"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-cache-lru.md": {
+      "size": 1353,
+      "sha256": "1924b64561841923b88a657085097a0aeba3e0ba2d5470b9f5c15cc10d6ae70f"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-cache-react.md": {
+      "size": 2228,
+      "sha256": "fddeea6c870bb3da4134b61d54b7d09b83d2603f929b7547cd3dc1dc269edd5c"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-dedup-props.md": {
+      "size": 2060,
+      "sha256": "c2747424cdac46be62f835f245a0aa887b0090b416d28e2ac8676702645eeb37"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-hoist-static-io.md": {
+      "size": 4423,
+      "sha256": "5abea4dd882b13661bd5f7dfb93f9e547d5f08176c61c448ade91b210ed5d49f"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-no-shared-module-state.md": {
+      "size": 1766,
+      "sha256": "4d869bf1cd2f1632e5ca4c0e64b1cf0e71c5f5a0f940bc8a22174d205e735ed7"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-parallel-fetching.md": {
+      "size": 1554,
+      "sha256": "569a2e9fc04f9606686cd75c5894ef8781b502786a7fffe241396846c7733472"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-parallel-nested-fetching.md": {
+      "size": 992,
+      "sha256": "ad5d9656984d4a959997a2367bf59cc6632297b4634a1dd13a087939d83f30b3"
+    },
+    ".agents/skills/vercel-react-best-practices/rules/server-serialization.md": {
+      "size": 996,
+      "sha256": "f4c7d68b29c82381baad059c4a7f09e868e71ec9c3115a26ad3ae7d24c0dfe1f"
+    },
+    ".agents/skills/vercel-react-best-practices/SKILL.md": {
+      "size": 7251,
+      "sha256": "71ed7794962fa6e803ee83030517b5b93a9f70fbfeb431ec4535c5480a8d8355"
+    },
+    ".agents/skills/verification-before-completion/SKILL.md": {
+      "size": 3646,
+      "sha256": "2befe7fc55bcadaa3d97dd9e8efeb633d2561c0ebe74c5a8b17c4d9e7e4520b3"
+    },
+    ".agents/skills/webapp-testing/examples/console_logging.py": {
+      "size": 1027,
+      "sha256": "ea46877289acb82da7e7ce59d0bc37c8977cd57e2a006d0c88d7a1c625bf95da"
+    },
+    ".agents/skills/webapp-testing/examples/element_discovery.py": {
+      "size": 1463,
+      "sha256": "d63c89604a22f8845d724e95dda45db49b1bf57c25ce0a83afbb7b8da3d402f0"
+    },
+    ".agents/skills/webapp-testing/examples/static_html_automation.py": {
+      "size": 953,
+      "sha256": "9d533aafb875ee3ab8b8ebf8f5b9003ac8d999da3d09b285cce252e623140064"
+    },
+    ".agents/skills/webapp-testing/LICENSE.txt": {
+      "size": 11345,
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362"
+    },
+    ".agents/skills/webapp-testing/scripts/with_server.py": {
+      "size": 3693,
+      "sha256": "b0dcf4918935b795f4eda9821579b9902119235ff4447f687a30286e7d0925fd"
+    },
+    ".agents/skills/webapp-testing/SKILL.md": {
+      "size": 3913,
+      "sha256": "51b7349e77ec63b7744a6f63647e7566a0b4d2e301121cc10e8c2113af6556a2"
+    },
+    "assets/auth.css": {
+      "size": 22654,
+      "sha256": "885bcaf158f029c54313f520364f315b196fd65d15392104167cadee9663b7ac"
+    },
+    "assets/generated/timelines/run_1.jsonl": {
+      "size": 120128343,
+      "sha256": "eb9dbfda9320649eb5d444370ad1a9634b0117de9894710541c3520731d083db"
+    },
+    "assets/generated/timelines/run_1.jsonl.gz": {
+      "size": 17355139,
+      "sha256": "d489d447a4c8c65eeb6c799809ffc9436ee10fb849a69cab6f8bbb5301cfe917"
+    },
+    "assets/generated/timelines/run_1.manifest.json": {
+      "size": 15502,
+      "sha256": "282f116f4e743d5f163de0ec25418cf89b3d9a0b16e22ba6dddfa6b89aa3f156"
+    },
+    "assets/generated/timelines/run_101.jsonl.gz": {
+      "size": 1087130,
+      "sha256": "1826c6d411e9bae519563c9a7a36ddf47edbfaeeaf3667aa4d03736f4322125f"
+    },
+    "assets/generated/timelines/run_101.manifest.json": {
+      "size": 1201,
+      "sha256": "b471bc7d9c0cf54e0261b6a96c125a18e927ced77b186b1a56e872e533f4c4e2"
+    },
+    "assets/generated/timelines/run_102.jsonl.gz": {
+      "size": 1186645,
+      "sha256": "c813e11f9feb13a8925e696271d89a7347b73df6797d3c6cdac89637ae833f79"
+    },
+    "assets/generated/timelines/run_102.manifest.json": {
+      "size": 1191,
+      "sha256": "53e0a4809554372338f7dd3b771b2ab75e9d5ca135d5c02a978fc471336c013d"
+    },
+    "assets/generated/timelines/run_107.jsonl.gz": {
+      "size": 1136178,
+      "sha256": "9455572e6ffe944179d8e731782a96a6dedd6e133262dae75235d8182ccaf079"
+    },
+    "assets/generated/timelines/run_107.manifest.json": {
+      "size": 1209,
+      "sha256": "bedecd5f8dc36499958a2bcced0ab4f8cc320ab6a4f7ba03c49a27732b18910e"
+    },
+    "assets/generated/timelines/run_108.jsonl.gz": {
+      "size": 1190351,
+      "sha256": "e267fe4cc771ed576e80e3119d802ccd87dfb99efd1a3d15b51ae77ba63ae096"
+    },
+    "assets/generated/timelines/run_108.manifest.json": {
+      "size": 1180,
+      "sha256": "affb3d0d9c9ebd1a016afc34b14a6d66ab2973a708ab65346cfaea75ab65ac7d"
+    },
+    "assets/generated/timelines/run_109.jsonl.gz": {
+      "size": 1209619,
+      "sha256": "e29278c8036361b4cc2a962a9a2cd834c4b959fc84be0212a05ed7ad7840c90d"
+    },
+    "assets/generated/timelines/run_109.manifest.json": {
+      "size": 1191,
+      "sha256": "014e9c266b4633f390aa9154fb5f68bc74ddf2cb40d2109f6cc044411f126a06"
+    },
+    "assets/generated/timelines/run_111.jsonl.gz": {
+      "size": 1859701,
+      "sha256": "607bb13edb6fb2dab248337e09389c3e60fb2babfe185e7603b4173d166070c4"
+    },
+    "assets/generated/timelines/run_111.manifest.json": {
+      "size": 1204,
+      "sha256": "a13f87fbfbe6461427a89325fe77058eb6066443cf7645099687685fb6693eaa"
+    },
+    "assets/generated/timelines/run_114.jsonl.gz": {
+      "size": 925784,
+      "sha256": "2555ccf9701b0373326f94279c6cb7197d0b4eee712367cf0d9a7848b89d5e12"
+    },
+    "assets/generated/timelines/run_114.manifest.json": {
+      "size": 1200,
+      "sha256": "3208d71985cd278f23b95edbc8048f7b15bed7b41c53feea18d539cfed27d67b"
+    },
+    "assets/generated/timelines/run_116.jsonl.gz": {
+      "size": 1087129,
+      "sha256": "8ea2d3aaef54a862355ab40b3d0bc227172492a68b36d934b24f99a8e96701f8"
+    },
+    "assets/generated/timelines/run_116.manifest.json": {
+      "size": 1201,
+      "sha256": "ee11ba6dbe846126eadadcaad66ddf17ea42b9836beaa9069bfbaa8ffb2f1a68"
+    },
+    "assets/generated/timelines/run_119.jsonl.gz": {
+      "size": 1963219,
+      "sha256": "c4d17fc07bdb9722259533b368d5795944ed0923d6ff8018b758116efe4abcb2"
+    },
+    "assets/generated/timelines/run_119.manifest.json": {
+      "size": 1202,
+      "sha256": "2ef9d8598def8f527f9574cefc09178f7342a2568fae50316fd043299a9a6337"
+    },
+    "assets/generated/timelines/run_122.jsonl.gz": {
+      "size": 2708226,
+      "sha256": "42911b15f3f0a5754a32d9d87e5e5bfd74acbd3ee35c6d46977afa4e62c362f1"
+    },
+    "assets/generated/timelines/run_122.manifest.json": {
+      "size": 1202,
+      "sha256": "7cfe65892804e103607664f6bbd9de0661e638fb3938e4d89a39044637f506bb"
+    },
+    "assets/generated/timelines/run_123.jsonl": {
+      "size": 35893004,
+      "sha256": "549d3a81c87c05e8490fd027f4d118bfaf09313df03d288f0991b4029b971e4a"
+    },
+    "assets/generated/timelines/run_131.jsonl.gz": {
+      "size": 1129036,
+      "sha256": "d0813232133d91d2f38d5e63820082bea25da277d5344a7a96f17661221122d0"
+    },
+    "assets/generated/timelines/run_131.manifest.json": {
+      "size": 1209,
+      "sha256": "be37f065e96540e9bedf618c3fb865f5cd643abd537c14584183ba8d517edfdc"
+    },
+    "assets/generated/timelines/run_136.jsonl.gz": {
+      "size": 1161228,
+      "sha256": "82de011150224bc6d3ef14dfa601cf87ccb512c4e449bdbd651fa74c401b2f9d"
+    },
+    "assets/generated/timelines/run_136.manifest.json": {
+      "size": 1191,
+      "sha256": "471c8c4f7cde361dd3d53746322301af5fa98d163095c2632e25a231aefa229e"
+    },
+    "assets/generated/timelines/run_145.jsonl.gz": {
+      "size": 1004871,
+      "sha256": "0a9f94781956d057abe87081192d72366f881c1d0bbe2a61e95b69c713b5a883"
+    },
+    "assets/generated/timelines/run_145.manifest.json": {
+      "size": 1209,
+      "sha256": "6241eb7c8d4b07d6b9e74337a335b6fdc9ff05b28c6cf4a8a796fba5b6fb2c52"
+    },
+    "assets/generated/timelines/run_146.jsonl": {
+      "size": 42117325,
+      "sha256": "b61fd8fd8911278067bbf38c1330ae84a71c566c7a5fb9fb0b13a86e68a1c7bd"
+    },
+    "assets/generated/timelines/run_146.jsonl.gz": {
+      "size": 959576,
+      "sha256": "0b3bdb22b0f6d20632092e979a1bde65a4354e8832d475a8a4852b99c177dcf3"
+    },
+    "assets/generated/timelines/run_146.manifest.json": {
+      "size": 1179,
+      "sha256": "a7c2aea1b7b68c33473ac03f57553c8929b4caeb95bf11d5d9fdfb6af418c0aa"
+    },
+    "assets/generated/timelines/run_147.jsonl": {
+      "size": 48749263,
+      "sha256": "81214e30cff7ea9faf63acccada830d8338d901d0b882b223d2cbb8a11c82e07"
+    },
+    "assets/generated/timelines/run_147.jsonl.gz": {
+      "size": 1065426,
+      "sha256": "df3078efc92965186fcef085f7b700fd7388be13d7bb628a23230cee9bdc820c"
+    },
+    "assets/generated/timelines/run_147.manifest.json": {
+      "size": 1191,
+      "sha256": "ed66a1100a3680eccf54c1cb9a6000888bdeda979a46cce8fbe43bc6b1be2a00"
+    },
+    "assets/generated/timelines/run_148.jsonl": {
+      "size": 44899068,
+      "sha256": "bdb237d848ba1bf83849944133212caa21942bef5df589f4b7d8298cb83a0d52"
+    },
+    "assets/generated/timelines/run_148.jsonl.gz": {
+      "size": 935277,
+      "sha256": "af6e492977b555aa9ce2d41b6f845345f73957311822a98f8407aba2d3c5ce9f"
+    },
+    "assets/generated/timelines/run_148.manifest.json": {
+      "size": 1166,
+      "sha256": "e32a333b84e5bb1ae331539c5aaa7c79b626e4a76b2b1ce76e8fa61aa9ac16c9"
+    },
+    "assets/generated/timelines/run_2.jsonl": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "assets/generated/timelines/run_7.jsonl": {
+      "size": 10745528,
+      "sha256": "a9ffca6c59bb5ab25c97bbbf7ac4dea390a48a22640e2181922bc5d9cb58de52"
+    },
+    "assets/generated/timelines/run_7.jsonl.gz": {
+      "size": 390337,
+      "sha256": "89a371d9a86ca05b36eb4cf224e6d71db3abb0cbf8c03723a037f56f492732b3"
+    },
+    "assets/generated/timelines/run_7.manifest.json": {
+      "size": 15366,
+      "sha256": "d2ef0663e2f3476ed226cfea66eff51b3607a8713523a27bf9233c9f261f142d"
+    },
+    "assets/generated/timelines/run_72.jsonl.gz": {
+      "size": 1432706,
+      "sha256": "8c154f60878511d9b0afd3140f1290fe1b27ff84df569375a5bba0711aeea6bc"
+    },
+    "assets/generated/timelines/run_72.manifest.json": {
+      "size": 1196,
+      "sha256": "1cd72625eedb7b37b3f42b6b2766b9660b89f349720620f75976b0b3c2e89e1d"
+    },
+    "assets/generated/timelines/run_73.jsonl.gz": {
+      "size": 1432706,
+      "sha256": "2ae62c17d8e10442f3dbfc5c028363f5a077015c9b2cf4b4406465362ded3390"
+    },
+    "assets/generated/timelines/run_73.manifest.json": {
+      "size": 1196,
+      "sha256": "de0565b9a50a68921bf362de68ec991b4e41bb2f8c2f1b1659a8e0acc044de9e"
+    },
+    "assets/generated/timelines/run_74.jsonl.gz": {
+      "size": 1432705,
+      "sha256": "352049d58b564a791cc02f1ae57485dbd47372338ba3c9e635e90a7950a430a0"
+    },
+    "assets/generated/timelines/run_74.manifest.json": {
+      "size": 1196,
+      "sha256": "7473961449b241b1701742fb38d4a46c4815ab33a3d25be68c15778ead644340"
+    },
+    "assets/generated/timelines/run_8.jsonl": {
+      "size": 10885151,
+      "sha256": "da6440249f9adb0a14a29c0aeeabf81f3ff1b4a979ccc961939d972a3f3579f9"
+    },
+    "assets/generated/timelines/run_8.jsonl.gz": {
+      "size": 337832,
+      "sha256": "01433e9b216e173c2964136426dec6972eafd3a0d0d844fcb402e5909a0ff18a"
+    },
+    "assets/generated/timelines/run_8.manifest.json": {
+      "size": 15751,
+      "sha256": "a50005eb181d9e9afdb17c60c4ecf6b4da1f3320ea83265bd53fc0fe66cccba8"
+    },
+    "assets/generated/timelines/run_91.jsonl.gz": {
+      "size": 1129034,
+      "sha256": "c8eb7ab7faf3d91c655ccc19feb441e7b633896a29d22e7db6c6c9107dcaa2ee"
+    },
+    "assets/generated/timelines/run_91.manifest.json": {
+      "size": 1204,
+      "sha256": "95700a589fc391088b10b58eb937bb7ef6decce0dd3e4a6ba2639b5f217acdb7"
+    },
+    "assets/generated/timelines/run_96.jsonl.gz": {
+      "size": 1163240,
+      "sha256": "ef33e033ad43512f6260e0eb9407fb33f66cf236a92d24a98d4e6c4a438a7e20"
+    },
+    "assets/generated/timelines/run_96.manifest.json": {
+      "size": 1175,
+      "sha256": "0243cb7ee6f4bb1622fde172f466a446a25c183194aaed3eed2a103c7d4466d7"
+    },
+    "data/generated/evaluations/controller_eval_20260601_214002.json": {
+      "size": 12121,
+      "sha256": "fd11d15b28ed10bc701360faf5ae4e52783beda665c8c345fa49cc5d3b55a414"
+    },
+    "data/generated/evaluations/controller_eval_20260601_214910.json": {
+      "size": 4913,
+      "sha256": "9f1052d8c65ecbbbc1e097d9c9effbbd48d0a8bdd130a72cf5563bf03548b0b2"
+    },
+    "data/generated/evaluations/controller_eval_20260602_235859.json": {
+      "size": 11970,
+      "sha256": "f4ff768ad8b9c3dcc37268a3d5a3e5a7fc4b217e01b18d57f63bfa8a0ded529d"
+    },
+    "data/generated/evaluations/controller_eval_smoke.json": {
+      "size": 3370,
+      "sha256": "4072adf0ee1b2ade4426c5d231849ae15268a19f3988e8ea25cb0da5d9ba32d8"
+    },
+    "data/generated/experiments/native3_checkpoint_20260923.json": {
+      "size": 86429,
+      "sha256": "d61683ae60cacf87d4e05ebff64cf483a294349ffb373bf72c2a278808050726"
+    },
+    "data/generated/reports/comparison_20260602_065504.pdf": {
+      "size": 3915,
+      "sha256": "74cb90c197b8709c9ff140313b755bf3eb40cd11b8a59124ac0bccc36eb62885"
+    },
+    "data/generated/reports/comparison_20260602_102036.pdf": {
+      "size": 3349,
+      "sha256": "7e7222f042aa0c24e1998d664f2daf35c9b3b618d6c40865a7ad47608384db09"
+    },
+    "data/generated/reports/report_20260602_065456.pdf": {
+      "size": 3608,
+      "sha256": "1a36bf494574bc33e0b4c8371676ea713877767697049dbc8c229ba020957eba"
+    },
+    "data/generated/reports/report_20260602_102034.pdf": {
+      "size": 3042,
+      "sha256": "e5671e7ffb5ff18201650c6956461fa2b23237b66d662055c8519c9baa7cd5b9"
+    },
+    "data/generated/reports/report_20260602_102144.pdf": {
+      "size": 3626,
+      "sha256": "9a76811e43d2971de79a9d6ef50859503bfa4a66c0d7f8c0a91686af18bf18e5"
+    },
+    "data/generated/reports/smartflow_runs_export_1a3d88297347.csv": {
+      "size": 5050,
+      "sha256": "8af46d8276f087f0d60ace7891fb15759db48877a9715ead3ec9d3aea556a3bf"
+    },
+    "data/generated/reports/smartflow_runs_export_b26449898011.json": {
+      "size": 43391,
+      "sha256": "75eddff43f354e6cf67f7c3e8261b0d1e88f24675f46c90b8e49b254f25b5138"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/checkpoints/ql_ep0001.json": {
+      "size": 6752,
+      "sha256": "d82e66a9f44b3c4b0d25f6cb6767857e7f29974897fa2de4175841655f302004"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/checkpoints/ql_ep0002.json": {
+      "size": 8699,
+      "sha256": "18fe139c854fe8ad994d4f62903556789af723dba21dc3c401fc7f2ade5ec761"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/evaluation.json": {
+      "size": 35411,
+      "sha256": "5114d5eab18add2edb52dadee02c4cc8b9d807a5d22c65b7465558c08c029b0f"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/evaluation_scenario.json": {
+      "size": 913,
+      "sha256": "25275569f3a76c41bf94da1472c7ae78a1d61e9503428d0873ba0b12b1dfa1dd"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/progress.jsonl": {
+      "size": 6727,
+      "sha256": "cd6f97c189ea2bfffab9a7fb6125d64b40d679eee0ad7922fbae940f65983d42"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/ql.json": {
+      "size": 8698,
+      "sha256": "0cd3389c74b0afcd150565bf88b27b1ec7e531280fb2745f09e15a86af09b118"
+    },
+    "data/generated/rl_training_logs/8003119ce3b144cfbd30f834b1976caf/scenario.json": {
+      "size": 912,
+      "sha256": "5f349436df435a6149f08ada0456429bf13569063cd2e8724f53d370c454fcbc"
+    },
+    "data/generated/rl_training_logs/rl_evaluation_20260602_210300.jsonl": {
+      "size": 5867,
+      "sha256": "4b8c4f2ff278082dc219722cbe0a606473b3f0d6f94018f8faf68bc5bb689bf3"
+    },
+    "data/generated/rl_training_logs/rl_training_20260602_160916.jsonl": {
+      "size": 3711,
+      "sha256": "964aeafeb80dd2d97cd290f539d2aa38168bf168de12df042002023d77f733d2"
+    },
+    "data/generated/rl_training_logs/rl_training_20260603_024518.jsonl": {
+      "size": 2109,
+      "sha256": "cdd36aea862f9ba785ddd7dc0ddfbbe8cfc603997ca2d700015fc4b0a0353e2b"
+    },
+    "data/generated/verification/ql-native-smoke.json": {
+      "size": 5661,
+      "sha256": "fdc66bb8b25ab61405ac047f5baf7a8cbf93873a1db6886f989a72611789f23c"
+    },
+    "data/models/dql/checkpoints/dql_20260602_232607_ep0005.metadata.json": {
+      "size": 2327,
+      "sha256": "f21baa94476e7d02b6e89bfe2f819f0c76f6d56be1e0e015b2c5cfa2ae5f9e79"
+    },
+    "data/models/dql/checkpoints/dql_20260602_232607_ep0005.zip": {
+      "size": 188628,
+      "sha256": "3f2e5a9b95014ec8aab0ee7c1ff7f38c359daf25c639256ceb2d645e65b4d05a"
+    },
+    "data/models/dql/checkpoints/dql_20260602_232607_ep0010.metadata.json": {
+      "size": 3258,
+      "sha256": "934ec3e9df505ede7bb74f43a7f04780974c7b14201884955cc422cb72c22a62"
+    },
+    "data/models/dql/checkpoints/dql_20260602_232607_ep0010.zip": {
+      "size": 361885,
+      "sha256": "0830a0b58228459a7b8dc945b37e63cda3f66ec216efdaf5258a7f456979d841"
+    },
+    "data/models/dql/dql_20260601_113449.metadata.json": {
+      "size": 1220,
+      "sha256": "c1603e6b7463ec183c2bc8f9ae60eeac1e1cc59bae499b7f14819b9834d52418"
+    },
+    "data/models/dql/dql_20260601_113449.zip": {
+      "size": 361629,
+      "sha256": "b60880f7f697d357cb464f2d7b5408c551c93d426de6b61edd49ba321fcdc503"
+    },
+    "data/models/dql/dql_20260601_162121.metadata.json": {
+      "size": 1225,
+      "sha256": "7c607235862d0870ac7c001ae726b8d68c17a9f8e5692f988ee64431f94ef876"
+    },
+    "data/models/dql/dql_20260601_162121.zip": {
+      "size": 365525,
+      "sha256": "c9508818ab73150a7acae4e0efd947243ff308a7494c34eb1fec50c3583ff76f"
+    },
+    "data/models/dql/dql_20260602_232607.metadata.json": {
+      "size": 3257,
+      "sha256": "dcf1aa8b9513363f01128987d1db5647753e1920634513b262a224d63f5e69e7"
+    },
+    "data/models/dql/dql_20260602_232607.zip": {
+      "size": 361912,
+      "sha256": "d03208b17cf70a601d8cb0a4bf3cc8bb2097bf67e4796851c9c7a763220d9eea"
+    },
+    "data/models/ppo/checkpoints/ppo_20260602_233534_ep0005.metadata.json": {
+      "size": 2241,
+      "sha256": "540a842a7b773945e5acc21f83d92630e9ab9226837411e25c86cdd9c9fe472d"
+    },
+    "data/models/ppo/checkpoints/ppo_20260602_233534_ep0005.zip": {
+      "size": 529894,
+      "sha256": "9cebc9c2b6aae61b80d682971ce10b151ba90dee483dce6f1cd8efbd7d631263"
+    },
+    "data/models/ppo/checkpoints/ppo_20260602_233534_ep0010.metadata.json": {
+      "size": 3172,
+      "sha256": "e9b3ff3552e28195731de83896222501bd5a928330d7107224917edc174bc83a"
+    },
+    "data/models/ppo/checkpoints/ppo_20260602_233534_ep0010.zip": {
+      "size": 530096,
+      "sha256": "e8b3f862017d327bae81cc7e9e4b93c32a606265cb9a58eccd35740f33829e9a"
+    },
+    "data/models/ppo/ppo_20260602_115851.metadata.json": {
+      "size": 2091,
+      "sha256": "72f849a24cf34b1c216d79d409eb5f597113ec2589ce5ba934a5876102a2e80a"
+    },
+    "data/models/ppo/ppo_20260602_115851.zip": {
+      "size": 529896,
+      "sha256": "0db4e2ff7a022c98c90ed23c334d2c3b30971d01620b943fe740acc6d099bbe2"
+    },
+    "data/models/ppo/ppo_20260602_233534.metadata.json": {
+      "size": 3171,
+      "sha256": "6d4562ab2661801a579665a73c8faf157368654ed2d08ce5123f4ecf107ad5eb"
+    },
+    "data/models/ppo/ppo_20260602_233534.zip": {
+      "size": 530138,
+      "sha256": "4500008f8dc97e2277e3a1dd6dfd0cc95d4f51b662dc4d276684581c21c7a9e3"
+    },
+    "data/models/ql/checkpoints/ql_20260602_231838_ep0005.json": {
+      "size": 80299,
+      "sha256": "02d9a63ae5912c5177fdd26aeda75e9c366a6f6cdffd8bfa72a622fdf1ef7896"
+    },
+    "data/models/ql/checkpoints/ql_20260602_231838_ep0010.json": {
+      "size": 146483,
+      "sha256": "69911c8468368425b850afd0951a14ee411ec3c10c00d492e4cccc7366f48174"
+    },
+    "data/models/ql/ql_20260601_053820.json": {
+      "size": 14402,
+      "sha256": "cc2e61cd9ff21a099f5bc3f4326b5b4076e14c5bc9c23af11f784569f2115fc8"
+    },
+    "data/models/ql/ql_20260601_160840.json": {
+      "size": 1892320,
+      "sha256": "3d8f6b02d9d382bde4fb43b0750cc46ee985e79f5463c2279afe963df6eb8951"
+    },
+    "data/models/ql/ql_20260602_161017.json": {
+      "size": 32119,
+      "sha256": "e94c30f0e2e7a6d5806f57c8aa1bcedb35468e996754dd0dfbad30554487f408"
+    },
+    "data/models/ql/ql_20260602_231838.json": {
+      "size": 146482,
+      "sha256": "8372f985a1616bf1d493a79435f297d027343caa070eddda9919b7dd5da510da"
+    },
+    "data/networks/tagum_network.json": {
+      "size": 11011,
+      "sha256": "1ac55116ba941040d34bd317398271a8499c20036292622d6545601503f4d0b3"
+    },
+    "data/networks/tagum_osm.json": {
+      "size": 90545,
+      "sha256": "a340157921f617acf74913bd8d973906c1947f5b0cba31d2a161b5dd2d2204e4"
+    },
+    "data/scenarios/tagum_peak_event.json": {
+      "size": 1578,
+      "sha256": "dca3b8ad74c18d42567c7ed36cdb21f697612c97721edc7a359d0ace1d366c57"
+    },
+    "docs/research_sources/FINAL_SIGURO_CHAPTER1_AND_2.docx.pdf": {
+      "size": 5103869,
+      "sha256": "662779c2c50c78b3aadf9cdb8664fe5636ed2c3270ef5206e36c906fab57a7c6"
+    },
+    "docs/research_sources/SMARTFLOW_CHAP1_AND 2.docx.pdf": {
+      "size": 5083799,
+      "sha256": "da1098b0b8b0adcc5e195c12bddef1e7c3c968f1506831ee6d02a45de76bca61"
+    },
+    "FINAL_SIGURO_CHAPTER1_AND_2.docx.pdf": {
+      "size": 5103869,
+      "sha256": "662779c2c50c78b3aadf9cdb8664fe5636ed2c3270ef5206e36c906fab57a7c6"
+    },
+    "output/pdf/MANUSCRIPT_REVISION_GUIDE_2026-10-08.pdf": {
+      "size": 2636659,
+      "sha256": "4345de0bc5422f673b8ae5d18b2221bebfb2cfcafdf2aa9be46867196928b329"
+    }
+  },
+  "completed_date": "2026-10-10",
+  "timezone": "Asia/Singapore",
+  "checkpoint_revision": "479358f61a82219f2229ba388a1eaa5aab4b454f",
+  "created_files_excluding_this_manifest": {
+    "services/scenario_migration.py": {
+      "size": 6627,
+      "sha256": "31ff85285a1c9fffa4759daad5ecbabe183bbaeea772845dcb9db75660b91e36"
+    },
+    "tools/migrate_native_scenarios.py": {
+      "size": 1554,
+      "sha256": "bc998f451ba16e40785fe6f005480fca508f4d7fb6a75f6cff9baaa147d8f69d"
+    },
+    "tests/test_native_cleanup.py": {
+      "size": 7734,
+      "sha256": "5411be4789430026555b40280155a3641a909c19bb651c3f04b662187e4e8a68"
+    },
+    "tests/test_scenario_migration.py": {
+      "size": 6715,
+      "sha256": "687bbb394e09b5502fdf33d2f39953a93407b3d2442250b93fe214a78ae40012"
+    },
+    "docs/reviews/SUMO_DASH_CLEANUP_RESULT_2026-10-09.md": {
+      "size": 14242,
+      "sha256": "446438d0d31f50e6f29ad40b1ec21ee6e491261ee8506d7df09d1e03715419ad"
+    },
+    "docs/reviews/NATIVE_SCENARIO_MIGRATION_2026-10-09.json": {
+      "size": 27500,
+      "sha256": "f4b7a6b89406d2987f7b48eb0e75aae0a4a6fbd122920ae4fd33498cd8735b0d"
+    }
+  },
+  "removed_empty_directories": [
+    "assets\\infinitown\\scenes\\main\\Materials\\merged",
+    "assets\\infinitown\\scenes\\main\\Maps\\Textures",
+    "assets\\infinitown\\scenes\\main\\Materials",
+    "assets\\infinitown\\environments\\envProbe",
+    "assets\\infinitown\\scenes\\main\\Maps\\AO",
+    "assets\\infinitown\\scenes\\main\\Maps",
+    "assets\\infinitown\\environments",
+    "data\\generated\\visual_networks",
+    "assets\\infinitown\\scenes\\data",
+    "assets\\infinitown\\scenes\\main",
+    "assets\\models\\environment",
+    "assets\\models\\pedestrians",
+    "assets\\infinitown\\scenes",
+    "assets\\infinitown\\gltf",
+    "assets\\models\\vehicles",
+    "assets\\models\\traffic",
+    "sumo\\intersection_1",
+    "assets\\infinitown",
+    "assets\\textures",
+    "assets\\sprites",
+    "assets\\models",
+    "sumo\\Tagum_1",
+    "sumo\\Tagum_2",
+    "sumo"
+  ],
+  "verification_evidence": {
+    "tests-acceptance-final.log": {
+      "size": 23236,
+      "sha256": "3ff32058c1e67399152966d42e736b275662465630070ea605fd5b8036b04e31"
+    },
+    "tests-restore-final.log": {
+      "size": 6744,
+      "sha256": "133c4720601a47b5b960d30e8f55a19a61c75d675533fef1b6fbcce8d31ed5dc"
+    },
+    "tests-migration-edge.log": {
+      "size": 2430,
+      "sha256": "1981e8efc3141b3b2b41deef080b3fd3b5cfc305b4bf741e1ad653fd5d1a0e83"
+    },
+    "standalone-final.log": {
+      "size": 25207,
+      "sha256": "5f0afb4a9c18e3ec5a9fd481af5646216cf9c37968e85a9005fb4f63987e7c49"
+    },
+    "standalone-finish.log": {
+      "size": 3533,
+      "sha256": "ff18126fc838d31413d0ffbc180a661bffbd370298aa443609aef0c7392dffa9"
+    },
+    "check-api-final.log": {
+      "size": 462,
+      "sha256": "855197cd38c72f2e46c8c9b90a7a948c82b75fb2c9880bb0f4b104b4ba58c13f"
+    },
+    "typescript-final.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "lint-final.log": {
+      "size": 40,
+      "sha256": "dc697e2de2369ac3b521da9ccba73e0e4dce7ef526b2bdf5e4ffef1a05f44628"
+    },
+    "build-final.log": {
+      "size": 1412,
+      "sha256": "22a8971f49450322c6a73d03a8eedd907c7d3d11c6d38844ce584d8613459926"
+    },
+    "browser-build-final.log": {
+      "size": 2188,
+      "sha256": "f562ded25c25404086807e28b1a59e91f90ab9a03ec3b8de09209dd266266e31"
+    },
+    "baseline-verification.json": {
+      "size": 238,
+      "sha256": "66eeeef5561540e78317c574ffc89d740f2f3b79db5d33c4b643b4bcc79da205"
+    },
+    "database-verification.json": {
+      "size": 569,
+      "sha256": "ddb7f7c6d98c3aa7666762e65dfd7bf077c09967a9afe91a4ad49053ad2f9c2c"
+    },
+    "browser-training.txt": {
+      "size": 21570,
+      "sha256": "f184acc49fe0f4eb30841adb452d9906f9b3dd1b85fe80d1cbfcd9c256129f36"
+    },
+    "browser-reports.txt": {
+      "size": 44651,
+      "sha256": "d05fd2d50ea9b9e9ab79679f20cadea34d39db8ce0b71ad320b47bc6c1be1f93"
+    },
+    "browser-calibration.txt": {
+      "size": 5921,
+      "sha256": "9302bed30d9e3858c924b5f013c42d50cb31dd05044098ca6b88a77cffa9c6f3"
+    },
+    "browser-blocked.txt": {
+      "size": 6021,
+      "sha256": "dadbfe9d493edbb38fe5606d64eeb0469a727bfe0b8b440d3183b93d06a3cbb6"
+    },
+    "browser-runs.csv": {
+      "size": 2530,
+      "sha256": "80f1e6b392e362863fd323b95e415b56dbfbb688d78c2026bbcc64c23dc15924"
+    },
+    "browser-2d.jpg": {
+      "size": 81092,
+      "sha256": "5f3272afb7b71f7b73bccf43671a6cf1083093b11f9d06719be7edfb338acae5"
+    },
+    "browser-3d.jpg": {
+      "size": 74150,
+      "sha256": "585ea1a5239c350755136ab99766f3ded24ccec08869d9ba151b3fadbfe859a9"
+    },
+    "browser-calibration.jpg": {
+      "size": 156763,
+      "sha256": "7608cbb625dd9a4280134009fe441969c9ea723c7f5293ade5f7947e5e73275e"
+    }
+  },
+  "standalone_source_comparison": {
+    "files_compared": 146,
+    "differences": []
+  },
+  "browser_fixture_preservation": {
+    "unmapped_closure_remains_enabled": true,
+    "unmapped_native_configuration_unchanged": true,
+    "calibration_record_id": 1
+  }
+}

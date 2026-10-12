@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartFlow · Recording line setup</title>
+<style>
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:#f3f6f5;color:#16352e;font:16px system-ui,sans-serif}
+main{max-width:1200px;margin:32px auto;padding:0 24px}h1{margin-bottom:8px}p{line-height:1.55}
+.panel{background:white;border:1px solid #cddbd7;border-radius:12px;padding:20px;margin:20px 0}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+label{display:block;font-weight:600}input,select,button{font:inherit;padding:10px;border:1px solid #a3bcb4;border-radius:6px;width:100%;margin-top:6px}
+button,.download{background:#12664e;color:white;cursor:pointer;width:auto;margin-right:10px}button:disabled{opacity:.45;cursor:default}
+.download{display:inline-block;padding:10px;border-radius:6px;text-decoration:none}textarea{width:100%;min-height:220px;margin-top:12px;font:13px monospace}details{margin:18px 0}
+canvas{display:block;width:100%;height:auto;background:#ddd;cursor:crosshair;border:1px solid #8eaaa0}
+#status{min-height:28px;font-weight:600}li{margin:12px 0}small{font-weight:400;display:block;color:#476b60}.note{border-left:4px solid #cb8b22;padding-left:12px}
+</style></head><body><main>
+<h1>Set up this recording</h1><p>Draw a line across a visible vehicle approach or pedestrian crossing. Click two endpoints on the image. The arrow shows the movement that will produce a proposal.</p>
+<p id="take"></p><p class="note">One stationary camera view. If this image is sideways, recreate setup with the appropriate rotation. A line does not prove visibility: people on sidewalks, riders and misclassified tricycles still need manual review.</p>
+<section class="panel"><div class="fields">
+<label>Line ID<input id="lineId" value="N_ARRIVAL" maxlength="80"></label>
+<label>Observation<select id="event"><option value="vehicle_arrival">Vehicle arrival</option><option value="vehicle_discharge">Vehicle discharge</option><option value="pedestrian_start">Pedestrian crossing start</option><option value="pedestrian_complete">Pedestrian crossing completion</option></select></label>
+<label>Location ID<input id="location" value="N_APPROACH" maxlength="80"></label>
+<label>Approach or crossing ID<input id="place" value="N" maxlength="80"><small>Approach for vehicles; crossing for pedestrians.</small></label>
+<label>Count direction<select id="direction"><option value="negative_to_positive">Along the arrow</option><option value="positive_to_negative">Reverse the arrow</option></select></label>
+</div><p>Coordinates refer to the bottom centre of each detected object. Put lines where that point is visible, away from persistent obstructions.</p>
+<canvas id="frame" aria-label="Recording frame: click two counting-line endpoints"></canvas>
+<p id="status" role="status">Click the first endpoint.</p><button id="add" disabled>Add line</button><button id="reset">Clear pending points</button></section>
+<section class="panel"><h2>Counting lines</h2><ul id="list"></ul><p id="empty">No lines added.</p>
+<a class="download" id="download" hidden download="lines.json">Download lines.json</a>
+<details><summary>Configuration text / alternate save</summary><p>If your browser blocks downloads, copy this complete text into a new file named <code>lines.json</code>.</p><textarea id="json" aria-label="Configuration JSON" readonly></textarea></details>
+<label>Reopen a saved configuration<input id="load" type="file" accept=".json"></label>
+<p>Keep the downloaded file with this take. Signals, queue length, turn movements and pedestrian waiting time are recorded manually in this version.</p></section>
+</main><script>
+'use strict';
+const config=__CONFIG__;
+const byId=id=>document.getElementById(id), canvas=byId('frame'), ctx=canvas.getContext('2d');
+const image=new Image(); let points=[];
+canvas.width=config.width;canvas.height=config.height;
+byId('take').textContent=`Take ${config.take_id} · frame ${config.reference_frame_pts} · ${config.reference_time_s.toFixed(3)} seconds · rotation ${config.rotation_clockwise}° clockwise`;
+function drawLine(a,b,direction,label,color){
+ ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=Math.max(2,canvas.width/500);
+ ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+ const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);if(!len)return;
+ const sign=direction==='positive_to_negative'?-1:1,nx=-dy/len*sign,ny=dx/len*sign;
+ const scale=Math.max(12,canvas.width/70),x=(a[0]+b[0])/2,y=(a[1]+b[1])/2;
+ const ex=x+nx*scale,ey=y+ny*scale;
+ ctx.beginPath();ctx.moveTo(x-nx*scale,y-ny*scale);ctx.lineTo(ex,ey);
+ ctx.moveTo(ex-nx*scale/2-ny*scale/3,ey-ny*scale/2+nx*scale/3);ctx.lineTo(ex,ey);
+ ctx.lineTo(ex-nx*scale/2+ny*scale/3,ey-ny*scale/2-nx*scale/3);ctx.stroke();
+ ctx.font=`bold ${Math.max(12,canvas.width/55)}px system-ui`;ctx.fillText(label,a[0]+6,a[1]-8);
+}
+function draw(){ctx.drawImage(image,0,0);for(const line of config.lines)drawLine(line.a,line.b,line.direction,line.id,'#2affad');
+ if(points.length===2)drawLine(...points,byId('direction').value,'Pending','#ffcc33');
+ else if(points.length===1){ctx.fillStyle='#ffcc33';ctx.beginPath();ctx.arc(...points[0],Math.max(4,canvas.width/200),0,Math.PI*2);ctx.fill();}}
+function refresh(){const list=byId('list');list.replaceChildren();for(const line of config.lines){const item=document.createElement('li'),text=document.createElement('span'),remove=document.createElement('button');
+ text.textContent=`${line.id} — ${line.event_type} · ${line.location_id} `;remove.textContent='Remove';remove.onclick=()=>{config.lines=config.lines.filter(row=>row.id!==line.id);refresh();};item.append(text,remove);list.append(item);}
+ byId('empty').hidden=config.lines.length>0;byId('download').hidden=!config.lines.length;
+ const serialized=JSON.stringify(config,null,2)+'\n';byId('json').value=serialized;
+ byId('download').href='data:application/json;charset=utf-8,'+encodeURIComponent(serialized);draw();}
+canvas.addEventListener('click',event=>{if(points.length===2)points=[];const rect=canvas.getBoundingClientRect();
+ points.push([Math.min(config.width-1,Math.max(0,Math.round((event.clientX-rect.left)*canvas.width/rect.width))),Math.min(config.height-1,Math.max(0,Math.round((event.clientY-rect.top)*canvas.height/rect.height)))]);
+ byId('add').disabled=points.length!==2;byId('status').textContent=points.length===2?'Check the arrow, then add this line.':'Click the second endpoint.';draw();});
+byId('direction').onchange=draw;
+byId('reset').onclick=()=>{points=[];byId('add').disabled=true;byId('status').textContent='Click the first endpoint.';draw();};
+byId('add').onclick=()=>{const id=byId('lineId').value.trim(),location=byId('location').value.trim(),place=byId('place').value.trim(),type=byId('event').value;
+ if(![id,location,place].every(value=>/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(value))){byId('status').textContent='IDs need 1–80 letters, digits, underscores or hyphens.';return;}
+ if(config.lines.some(row=>row.id===id)){byId('status').textContent='Choose a unique line ID.';return;}
+ if(Math.hypot(points[0][0]-points[1][0],points[0][1]-points[1][1])<=2*config.deadband_px){byId('status').textContent='The line is too short.';return;}
+ config.lines.push({id,event_type:type,location_id:location,approach_id:type.startsWith('vehicle_')?place:'',crossing_id:type.startsWith('pedestrian_')?place:'',a:points[0],b:points[1],direction:byId('direction').value});
+ points=[];byId('add').disabled=true;byId('status').textContent='Line added. Draw another or download the configuration.';refresh();};
+byId('load').onchange=async()=>{try{const file=byId('load').files[0];if(!file)return;const loaded=JSON.parse(await file.text());
+ for(const key of ['schema_version','take_id','source_sha256','width','height','rotation_clockwise','coordinate_space'])if(loaded[key]!==config[key])throw Error('This file belongs to a different take or rotation.');
+ if(!Array.isArray(loaded.lines)||!loaded.lines.every(row=>Array.isArray(row.a)&&Array.isArray(row.b)&&row.a.length===2&&row.b.length===2&&[...row.a,...row.b].every(Number.isFinite)))throw Error('Invalid line coordinates.');
+ config.lines=loaded.lines;config.deadband_px=loaded.deadband_px;config.max_gap_s=loaded.max_gap_s;points=[];byId('add').disabled=true;refresh();byId('status').textContent='Configuration loaded. The analyze command will validate all fields.';
+ }catch(error){byId('status').textContent=error.message;}};
+image.onload=refresh;image.src='data:image/png;base64,__IMAGE__';
+</script></body></html>

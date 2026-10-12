@@ -35,8 +35,8 @@ class PortableInputTests(unittest.TestCase):
                     with patch.object(config, "DB_PATH", str(db_path)):
                         database.init_db()
                         database.seed_data()
-                        scenario_id = database.create_scenario("CLI recording fixture", traffic_density="single",
-                                                               pedestrian_density="none")
+                        scenario_id = database.create_scenario("CLI recording fixture", engine_config={"traffic_density":"single",
+                                                               "pedestrian_density":"none"})
                         scenario = database.get_scenario_by_id(scenario_id)
                         result = evaluate_controllers._run_controller_once(
                             controller="fixed-time", seed=seed, scenario=scenario, scenario_id=scenario["id"],

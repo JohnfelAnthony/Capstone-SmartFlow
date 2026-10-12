@@ -832,7 +832,7 @@ export function UserManagementPage() {
                 <Card size="sm">
                   <CardHeader>
                     <CardTitle>Admin Actions</CardTitle>
-                    <CardDescription>These mirror the Dash account action callbacks against SQLite.</CardDescription>
+                    <CardDescription>Manage accounts and access stored in SQLite.</CardDescription>
                   </CardHeader>
                   <CardContent className="user-sheet-action-grid">
                     <Button variant="outline" onClick={() => openEdit(selectedUser)}>
@@ -925,7 +925,7 @@ export function UserManagementPage() {
                     <div className="user-password-toggle user-form-full">
                       <div>
                         <strong>Require password change</strong>
-                        <span>Matches the Dash `must_change_password` behavior after resets.</span>
+                        <span>Requires a password change after an account reset.</span>
                       </div>
                       <Button
                         type="button"

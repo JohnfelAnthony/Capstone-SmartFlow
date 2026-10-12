@@ -67,7 +67,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
     parser.add_argument("--emergency-mode", default="disabled")
-    parser.add_argument("--road-constraint", default="None")
     parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--gamma", type=float, default=0.9)
     parser.add_argument("--epsilon", type=float, default=0.2)
@@ -191,7 +190,6 @@ def main() -> int:
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
         "emergency_mode": args.emergency_mode,
-        "road_constraint": args.road_constraint,
     }
     scenario = load_training_scenario(args, scenario)
     seed_history = cumulative_training_seeds(args.seeds, args.resume_model, "ql", scenario)

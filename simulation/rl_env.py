@@ -126,7 +126,6 @@ class SmartFlowRLEnv(BaseEnv):
                 "traffic_density",
                 "pedestrian_density",
                 "emergency_mode",
-                "road_constraint",
                 "name",
             ):
                 if field_name in options and options[field_name] is not None:

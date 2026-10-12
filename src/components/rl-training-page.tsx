@@ -257,7 +257,7 @@ function ProgressBar({ value }: { value: number }) {
   )
 }
 
-export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean }) {
+export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, initialModelId }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean; initialModelId?: number | null }) {
   const [algorithms, setAlgorithms] = React.useState<AlgorithmId[]>(["ql"])
   const [settings, setSettings] = React.useState<RLTrainingSettings>(defaultSettings)
   const [advanced, setAdvanced] = React.useState<RLAdvancedSettings>(defaultAdvanced)
@@ -273,7 +273,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     models: [],
   })
   const [jobs, setJobs] = React.useState<RLTrainingJob[]>([])
-  const [selectedModelId, setSelectedModelId] = React.useState<number | null>(null)
+  const [selectedModelId, setSelectedModelId] = React.useState<number | null>(initialModelId ?? null)
   const [selectedCheckpointId, setSelectedCheckpointId] = React.useState<number | null>(null)
   const [alert, setAlert] = React.useState("RL training console loaded.")
   const [isLoading, setIsLoading] = React.useState(false)
@@ -589,7 +589,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                       ? scenarios.find((scenario) => scenario.id !== Number(id))?.id ?? null
                       : current.evaluation_scenario_id }))
                 }} />
-                <FieldDescription>{scenarioLoading ? "Loading saved configuration…" : selectedScenario && scenarioConfig ? `${selectedScenario.name} · junction ${String(scenarioConfig.controlled_junction ?? selectedScenario.intersection_id)} · ${String(scenarioConfig.demand_source?.kind ?? "synthetic")} demand · ${scenarioConfig.events?.length ?? 0} timed road events` : "Choose an available scenario."}</FieldDescription>
+                <FieldDescription>{scenarioLoading ? "Loading saved configuration…" : selectedScenario && scenarioConfig ? `${selectedScenario.name} · junction ${String(scenarioConfig.controlled_junction ?? selectedScenario.network_id)} · ${String(scenarioConfig.demand_source?.kind ?? "synthetic")} demand · ${scenarioConfig.events?.length ?? 0} timed road events` : "Choose an available scenario."}</FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="rl-seeds">Training seeds</FieldLabel>

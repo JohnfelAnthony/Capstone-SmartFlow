@@ -134,7 +134,9 @@ CREATE TABLE IF NOT EXISTS scenarios (
     pedestrian_density TEXT DEFAULT 'Medium',
     emergency_mode TEXT DEFAULT 'Disabled',
     road_constraint TEXT DEFAULT 'None',
-    intersection_id TEXT DEFAULT 'tagum_1',
+    intersection_id TEXT,
+    network_id TEXT,
+    engine_config TEXT DEFAULT '{}',
     lane_closure_config TEXT DEFAULT '{}',
     construction_config TEXT DEFAULT '{}',
     accident_config TEXT DEFAULT '{}',
@@ -287,6 +289,17 @@ CREATE TABLE IF NOT EXISTS backups (
     FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS calibration_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    purpose TEXT NOT NULL CHECK (purpose IN ('calibration', 'validation')),
+    created_by INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    payload_json TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS login_attempts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL,
@@ -373,7 +386,9 @@ def _migrate_scenarios():
         if columns and "engine_config" not in columns:
             conn.execute("ALTER TABLE scenarios ADD COLUMN engine_config TEXT DEFAULT '{}'")
         if columns and "intersection_id" not in columns:
-            conn.execute("ALTER TABLE scenarios ADD COLUMN intersection_id TEXT DEFAULT 'tagum_1'")
+            conn.execute("ALTER TABLE scenarios ADD COLUMN intersection_id TEXT")
+        from services.scenario_migration import migrate_connection
+        migrate_connection(conn, apply=True)
 
 
 def _migrate_rl_models():
@@ -559,43 +574,17 @@ def seed_data():
         )
         official_scenarios = [
             (f"{network_label} — Single Car Demo", network_description,
-             'Single', 'None', 'Disabled', 'None', active_network.id,
-             '{}', '{}', '{}', '{}', None, 1, 0),
+             {'traffic_density': 'single', 'pedestrian_density': 'none', 'emergency_mode': 'disabled'}),
             (f"{network_label} — Network Traffic", 'Synthetic traffic for engine experiments; not measured counts.',
-             'Medium', 'Low', 'Disabled', 'None', active_network.id,
-             '{}', '{}', '{}', '{}', None, 1, 0),
+             {'traffic_density': 'medium', 'pedestrian_density': 'low', 'emergency_mode': 'disabled'}),
         ]
-
-        # Seed scenarios if empty
-        cursor = conn.execute("SELECT COUNT(*) FROM scenarios")
-        if cursor.fetchone()[0] == 0:
-            conn.executemany(
-                """INSERT INTO scenarios (name, description, traffic_density,
-                   pedestrian_density, emergency_mode, road_constraint, intersection_id,
-                   lane_closure_config, construction_config, accident_config,
-                   flooding_config, created_by, is_official, is_archived)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                official_scenarios
-            )
-
+        for name, description, settings in official_scenarios:
+            native = validated_native_scenario(active_network.id, settings)
             conn.execute(
-                """INSERT INTO audit_logs (user_id, action, target, details)
-                   VALUES (?, ?, ?, ?)""",
-                (None, 'system', 'database', 'Database initialized with seed data')
-            )
-
-        for scenario_row in official_scenarios:
-            conn.execute(
-                """INSERT INTO scenarios (name, description, traffic_density,
-                   pedestrian_density, emergency_mode, road_constraint, intersection_id,
-                   lane_closure_config, construction_config, accident_config,
-                   flooding_config, created_by, is_official, is_archived)
-                   SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                   WHERE NOT EXISTS (
-                       SELECT 1 FROM scenarios WHERE name = ? AND intersection_id = ?
-                   )""",
-                (*scenario_row, scenario_row[0], scenario_row[6]),
-            )
+                """INSERT INTO scenarios (name, description, network_id, engine_config, is_official)
+                   SELECT ?, ?, ?, ?, 1 WHERE NOT EXISTS (
+                       SELECT 1 FROM scenarios WHERE name = ? AND network_id = ? AND is_official = 1
+                   )""", (name, description, native['network_id'], native['engine_config'], name, active_network.id))
 
         # Seed permissions if empty
         cursor = conn.execute("SELECT COUNT(*) FROM permissions")
@@ -846,34 +835,26 @@ def count_active_admins():
 
 # ─── Scenario CRUD ─────────────────────────────────────────────────
 
-def create_scenario(name, intersection_id='tagum_1', description='', traffic_density='Medium',
-                    pedestrian_density='Medium', emergency_mode='Disabled',
-                    road_constraint='None',
-                    lane_closure_config='{}',
-                    construction_config='{}', accident_config='{}',
-                    flooding_config='{}', created_by=None,
-                    is_official=0, is_archived=0, engine_config='{}'):
-    for field_name, cfg in (
-        ("engine_config", engine_config),
-        ("lane_closure_config", lane_closure_config),
-        ("construction_config", construction_config),
-        ("accident_config", accident_config),
-        ("flooding_config", flooding_config),
-    ):
-        _validate_json_object(field_name, cfg)
+def validated_native_scenario(network_id=None, engine_config=None):
+    from simulation.traffic_engine import TrafficEngine
+    from simulation.scenario_config import object_config
+    engine = TrafficEngine()
+    requested = engine.network.id if network_id is None else network_id
+    settings = object_config({} if engine_config is None else engine_config, 'engine_config')
+    engine.configure_from_scenario({'network_id': requested, 'engine_config': settings})
+    serialized = json.dumps(engine.config)
+    _validate_json_object('engine_config', serialized)
+    return {'network_id': requested, 'engine_config': serialized}
 
+
+def create_scenario(name, network_id=None, description='', engine_config=None,
+                    created_by=None, is_official=0, is_archived=0):
+    native = validated_native_scenario(network_id, engine_config)
     with get_db() as conn:
         cursor = conn.execute(
-            """INSERT INTO scenarios (name, description, traffic_density,
-               pedestrian_density, emergency_mode, road_constraint, intersection_id,
-               lane_closure_config, construction_config, accident_config,
-               flooding_config, created_by, is_official, is_archived, engine_config)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (name, description, traffic_density, pedestrian_density,
-             emergency_mode, road_constraint, intersection_id, lane_closure_config,
-             construction_config, accident_config, flooding_config,
-             created_by, is_official, is_archived, engine_config)
-        )
+            """INSERT INTO scenarios (name, description, network_id, engine_config,
+               created_by, is_official, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (name, description, native['network_id'], native['engine_config'], created_by, is_official, is_archived))
         return cursor.lastrowid
 
 
@@ -902,9 +883,15 @@ def get_scenario_by_id(scenario_id):
 def update_scenario(scenario_id, **kwargs):
     if not kwargs:
         return
-    for field in SCENARIO_JSON_FIELDS:
-        if field in kwargs:
-            _validate_json_object(field, kwargs[field])
+    allowed = {'name', 'description', 'network_id', 'engine_config', 'is_official', 'is_archived'}
+    if kwargs.keys() - allowed:
+        raise ValueError('Unknown or legacy scenario fields; use network_id and engine_config.')
+    if 'engine_config' in kwargs or 'network_id' in kwargs:
+        existing = get_scenario_by_id(scenario_id)
+        if not existing:
+            raise ValueError('Scenario not found.')
+        kwargs.update(validated_native_scenario(kwargs.get('network_id', existing.get('network_id')),
+                                               kwargs.get('engine_config', existing.get('engine_config'))))
 
     kwargs['updated_at'] = datetime.now().isoformat()
     set_clause = ', '.join(f"{k} = ?" for k in kwargs)
@@ -1320,20 +1307,8 @@ def get_run_metrics(run_id):
 
 # ─── Audit Logs ────────────────────────────────────────────────────
 
-def log_audit_event(user_id=None, action='', target='', details=''):
-    ip_address = None
-    user_agent = None
-    try:
-        from flask import has_request_context, request
-
-        if has_request_context():
-            forwarded_for = (request.headers.get('X-Forwarded-For') or '').strip()
-            ip_address = forwarded_for.split(',')[0].strip() if forwarded_for else (request.remote_addr or '').strip()
-            user_agent = (request.headers.get('User-Agent') or '').strip() or None
-    except Exception:
-        ip_address = None
-        user_agent = None
-
+def log_audit_event(user_id=None, action='', target='', details='', *, ip_address=None, user_agent=None):
+    """Audit explicit context; HTTP callers use the resolved client, workers omit it."""
     with get_db() as conn:
         conn.execute(
             """INSERT INTO audit_logs (user_id, action, target, details, ip_address, user_agent)

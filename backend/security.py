@@ -186,20 +186,21 @@ def _json_object(value: Any) -> dict[str, Any]:
 
 
 def scenario_model(row: dict) -> Scenario:
+    from services.scenario_migration import resolve_legacy_scenario
+    error = None
+    if not row.get('network_id'):
+        try:
+            resolve_legacy_scenario(row)
+            error = 'Native migration is required before execution.'
+        except ValueError as exc:
+            error = str(exc)
     return Scenario(
         id=int(row["id"]),
         name=str(row["name"]),
         description=row.get("description") or "",
-        traffic_density=str(row.get("traffic_density") or "Medium"),
-        pedestrian_density=str(row.get("pedestrian_density") or "Medium"),
-        emergency_mode=str(row.get("emergency_mode") or "Disabled"),
-        road_constraint=str(row.get("road_constraint") or "None"),
-        intersection_id=str(row.get("intersection_id") or "tagum_1"),
-        lane_closure_config=_json_object(row.get("lane_closure_config")),
-        engine_config=_json_object(row.get("engine_config")),
-        construction_config=_json_object(row.get("construction_config")),
-        accident_config=_json_object(row.get("accident_config")),
-        flooding_config=_json_object(row.get("flooding_config")),
+        network_id=row.get('network_id'),
+        migration_error=error,
+        engine_config=_json_object(row.get('engine_config')),
         created_by=row.get("created_by"),
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),

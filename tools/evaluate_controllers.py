@@ -112,18 +112,15 @@ def _find_or_create_scenario(scenario: dict) -> int:
     for row in database.get_scenarios(include_archived=True):
         if (
             str(row.get("name") or "") == scenario["name"]
-            and str(row.get("intersection_id") or "") == scenario["intersection_id"]
+            and str(row.get("network_id") or "") == scenario["intersection_id"]
         ):
             return int(row["id"])
     return int(
         database.create_scenario(
             name=scenario["name"],
-            intersection_id=scenario["intersection_id"],
+            network_id=scenario["intersection_id"],
             description="Offline RL evaluation scenario.",
-            traffic_density=scenario["traffic_density"],
-            pedestrian_density=scenario["pedestrian_density"],
-            emergency_mode=scenario["emergency_mode"],
-            road_constraint=scenario["road_constraint"],
+            engine_config=scenario["engine_config"],
             is_official=0,
         )
     )
@@ -454,7 +451,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
     parser.add_argument("--emergency-mode", default="disabled")
-    parser.add_argument("--road-constraint", default="None")
     parser.add_argument("--ql-model", type=Path, default=None)
     parser.add_argument("--dql-model", type=Path, default=None)
     parser.add_argument("--ppo-model", type=Path, default=None)
@@ -473,7 +469,6 @@ def main() -> int:
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
         "emergency_mode": args.emergency_mode,
-        "road_constraint": args.road_constraint,
     }
     scenario = load_training_scenario(args, scenario)
 

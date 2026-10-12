@@ -1,557 +1,342 @@
 import * as React from "react"
+import { LocateFixed, Minus, Plus } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import type { VisualPoint } from "@/api/visual-network"
+import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
+import { boundsForJunction, distanceToPolyline, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
+import type { PresentationState } from "@/simulation/presentation-state"
+import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
-import { getVisualNetwork, type VisualLane, type VisualNetwork, type VisualPoint, type VisualRoad, type VisualSignalGroup } from "@/api/visual-network"
-import type { RenderFrame, RenderPedestrian, RenderVehicle } from "@/simulation/frame-types"
-
-type CanvasTransform = {
-  scale: number
-  ox: number
-  oy: number
-  width: number
-  height: number
-}
-
-type SignalColor = "red" | "yellow" | "green" | "off"
-
-const colors = {
-  grass: "#2e8b00",
-  road: "#333333",
-  internalRoad: "#3e3e3e",
-  sidewalk: "#999999",
-  lane: "#ffffff",
-  curb: "#cccccc",
-  crosswalk: "#ffffff",
-  vehicle: "#ffd700",
-  pedestrian: "#ff8c00",
-  emergency: "#ffffff",
-  emergencyMark: "#00ff00",
-  emergencyRed: "#ff0000",
-  emergencyBlue: "#0000ff",
-  red: "#ff0000",
-  yellow: "#ffd84d",
-  green: "#00ff00",
-  off: "#333333",
-  constraint: "#ff0000",
-  closedLane: "#b91c1c",
-  slowLane: "#b87916",
-}
-
-const carPalette = [
-  "#ffd21f",
-  "#f97316",
-  "#ef4444",
-  "#22c55e",
-  "#38bdf8",
-  "#2563eb",
-  "#f8fafc",
-  "#a3a3a3",
-]
-
-function hashIndex(value: string, modulo: number) {
-  let hash = 0
-  for (let index = 0; index < value.length; index += 1) {
-    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0
+type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void }
+const geometryPaths = new WeakMap<VisualPoint[], { open: Path2D; closed: Path2D }>()
+const occupiedLabels = new WeakMap<CanvasRenderingContext2D, LabelRect[]>()
+/** Cache immutable native paths once; camera movement only changes the canvas matrix. */
+function path(ctx: CanvasRenderingContext2D, points: VisualPoint[], transform: Transform, fill?: string, stroke?: string, width = 1, dashed = false) {
+  if (points.length < 2) return
+  let paths = geometryPaths.get(points)
+  if (!paths) {
+    const open = new Path2D(); points.forEach((point, index) => { if (index === 0) open.moveTo(point.x, point.y); else open.lineTo(point.x, point.y) })
+    const closed = new Path2D(open); closed.closePath(); paths = { open, closed }; geometryPaths.set(points, paths)
   }
-  return Math.abs(hash) % modulo
-}
-
-function vehicleColor(vehicle: RenderVehicle) {
-  if (vehicle.emergency || vehicle.visual_type === "emergency") return colors.emergency
-  return carPalette[hashIndex(vehicle.id, carPalette.length)]
-}
-
-function toCanvas(point: VisualPoint, transform: CanvasTransform) {
-  return {
-    x: point.x * transform.scale + transform.ox,
-    y: -point.y * transform.scale + transform.oy,
-  }
-}
-
-function configureTransform(network: VisualNetwork, width: number, height: number): CanvasTransform {
-  let minX = network.bounds?.min_x ?? -50
-  let maxX = network.bounds?.max_x ?? 50
-  let minY = network.bounds?.min_y ?? -50
-  let maxY = network.bounds?.max_y ?? 50
-
-  const signalShape = network.signals[0]?.shape
-  if (network.scope.mode !== "connected-network" && signalShape?.length) {
-    minX = Math.min(...signalShape.map((point) => point.x)) - 15
-    maxX = Math.max(...signalShape.map((point) => point.x)) + 15
-    minY = Math.min(...signalShape.map((point) => point.y)) - 15
-    maxY = Math.max(...signalShape.map((point) => point.y)) + 15
-  }
-
-  const spanX = Math.max(maxX - minX, 1)
-  const spanY = Math.max(maxY - minY, 1)
-  const scale = Math.min((width * 0.9) / spanX, (height * 0.9) / spanY)
-  const centerX = (minX + maxX) / 2
-  const centerY = (minY + maxY) / 2
-
-  return {
-    scale,
-    ox: width / 2 - centerX * scale,
-    oy: height / 2 + centerY * scale,
-    width,
-    height,
-  }
-}
-
-function drawPolygon(ctx: CanvasRenderingContext2D, shape: VisualPoint[], transform: CanvasTransform, fillColor: string, strokeColor?: string, lineWidth = 1) {
-  if (shape.length < 3) return
-  const first = toCanvas(shape[0], transform)
-  ctx.beginPath()
-  ctx.moveTo(first.x, first.y)
-  shape.slice(1).forEach((point) => {
-    const next = toCanvas(point, transform)
-    ctx.lineTo(next.x, next.y)
-  })
-  ctx.closePath()
-  ctx.fillStyle = fillColor
-  ctx.fill()
-  if (strokeColor) {
-    ctx.strokeStyle = strokeColor
-    ctx.lineWidth = lineWidth
-    ctx.stroke()
-  }
-}
-
-function drawPolyline(ctx: CanvasRenderingContext2D, shape: VisualPoint[], transform: CanvasTransform, color: string, width: number, dashed = false) {
-  if (shape.length < 2) return
-  const first = toCanvas(shape[0], transform)
-  ctx.beginPath()
-  ctx.moveTo(first.x, first.y)
-  shape.slice(1).forEach((point) => {
-    const next = toCanvas(point, transform)
-    ctx.lineTo(next.x, next.y)
-  })
-  ctx.strokeStyle = color
-  ctx.lineWidth = width
-  ctx.lineCap = "butt"
-  ctx.lineJoin = "miter"
-  if (dashed) ctx.setLineDash([transform.scale * 2, transform.scale * 2])
-  ctx.stroke()
-  ctx.setLineDash([])
-}
-
-function expandLaneToPolygon(shape: VisualPoint[], width: number) {
-  if (shape.length < 2) return []
-  const halfWidth = width / 2
-  const leftEdge: VisualPoint[] = []
-  const rightEdge: VisualPoint[] = []
-
-  shape.forEach((point, index) => {
-    let dx: number
-    let dy: number
-    if (index === 0) {
-      dx = shape[1].x - point.x
-      dy = shape[1].y - point.y
-    } else if (index === shape.length - 1) {
-      dx = point.x - shape[index - 1].x
-      dy = point.y - shape[index - 1].y
-    } else {
-      const dx1 = point.x - shape[index - 1].x
-      const dy1 = point.y - shape[index - 1].y
-      const dx2 = shape[index + 1].x - point.x
-      const dy2 = shape[index + 1].y - point.y
-      const len1 = Math.hypot(dx1, dy1) || 1
-      const len2 = Math.hypot(dx2, dy2) || 1
-      dx = dx1 / len1 + dx2 / len2
-      dy = dy1 / len1 + dy2 / len2
-    }
-
-    const length = Math.hypot(dx, dy)
-    if (length <= 0) return
-    const nx = -dy / length
-    const ny = dx / length
-    leftEdge.push({ x: point.x + nx * halfWidth, y: point.y + ny * halfWidth })
-    rightEdge.unshift({ x: point.x - nx * halfWidth, y: point.y - ny * halfWidth })
-  })
-
-  return leftEdge.concat(rightEdge)
-}
-
-function isPedestrianLane(lane: VisualLane) {
-  return String(lane.allow || "").includes("pedestrian")
-}
-
-function extrapolateLaneShape(shape: VisualPoint[], road: VisualRoad, distance = 1000) {
-  if (shape.length < 2) return shape
-  const nextShape = [...shape]
-
-  if (road.toward_intersection) {
-    const first = shape[0]
-    const second = shape[1]
-    const dx = first.x - second.x
-    const dy = first.y - second.y
-    const length = Math.hypot(dx, dy)
-    if (length > 0) nextShape[0] = { x: first.x + (dx / length) * distance, y: first.y + (dy / length) * distance }
-  }
-
-  if (road.away_from_intersection) {
-    const last = shape[shape.length - 1]
-    const beforeLast = shape[shape.length - 2]
-    const dx = last.x - beforeLast.x
-    const dy = last.y - beforeLast.y
-    const length = Math.hypot(dx, dy)
-    if (length > 0) nextShape[nextShape.length - 1] = { x: last.x + (dx / length) * distance, y: last.y + (dy / length) * distance }
-  }
-
-  return nextShape
-}
-
-function drawCrosswalk(ctx: CanvasRenderingContext2D, lane: VisualLane, transform: CanvasTransform) {
-  const shape = lane.shape
-  if (shape.length < 2) return
-  const start = toCanvas(shape[0], transform)
-  const end = toCanvas(shape[shape.length - 1], transform)
-  const dx = end.x - start.x
-  const dy = end.y - start.y
-  const pixelLength = Math.hypot(dx, dy)
-  if (pixelLength < 1) return
-
-  const sumoDx = shape[shape.length - 1].x - shape[0].x
-  const sumoDy = shape[shape.length - 1].y - shape[0].y
-  const sumoLength = Math.hypot(sumoDx, sumoDy)
-  if (sumoLength < 1) return
-
-  const barWidth = 0.5
-  const gap = 0.5
-  const count = Math.floor(sumoLength / (barWidth + gap))
-  const pixelWidth = (lane.width || 4) * transform.scale
-  const pixelBarWidth = barWidth * transform.scale
-
-  ctx.fillStyle = colors.crosswalk
-  for (let index = 0; index < count; index += 1) {
-    const t = (index * (barWidth + gap) + barWidth / 2) / sumoLength
-    if (t > 1) break
-    const x = start.x + dx * t
-    const y = start.y + dy * t
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(Math.atan2(dy, dx))
-    ctx.fillRect(-pixelBarWidth / 2, -pixelWidth / 2, pixelBarWidth, pixelWidth)
-    ctx.restore()
-  }
-}
-
-function drawDashPolygons(ctx: CanvasRenderingContext2D, network: VisualNetwork, transform: CanvasTransform) {
-  network.polygons
-    .slice()
-    .sort((first, second) => first.layer - second.layer)
-    .forEach((polygon) => {
-      if (polygon.shape.length < 3) return
-      ctx.save()
-      ctx.translate(transform.scale * 0.45, transform.scale * 0.55)
-      drawPolygon(ctx, polygon.shape, transform, "rgba(9, 18, 24, 0.24)")
-      ctx.restore()
-
-      let color = polygon.color
-      if (!color || color === "#808080" || color === "red") {
-        const palette = ["#526b7a", "#7a8f55", "#9b7352", "#a26455", "#1f5f7a", "#8b6f9f", "#4b6b5a", "#8c7d55"]
-        color = palette[hashIndex(polygon.id, palette.length)]
-      }
-      drawPolygon(ctx, polygon.shape, transform, color, "rgba(8, 18, 24, 0.55)", Math.max(1, transform.scale * 0.08))
-
-      const centroid = polygon.shape.reduce(
-        (accumulator, point) => ({ x: accumulator.x + point.x, y: accumulator.y + point.y }),
-        { x: 0, y: 0 }
-      )
-      const center = { x: centroid.x / polygon.shape.length, y: centroid.y / polygon.shape.length }
-      const roofShape = polygon.shape.map((point) => ({
-        x: center.x + (point.x - center.x) * 0.82,
-        y: center.y + (point.y - center.y) * 0.82,
-      }))
-      drawPolygon(ctx, roofShape, transform, "rgba(0, 0, 0, 0.35)", "rgba(255, 255, 255, 0.16)", Math.max(1, transform.scale * 0.06))
-    })
-}
-
-function drawStaticNetwork(ctx: CanvasRenderingContext2D, network: VisualNetwork, transform: CanvasTransform, frame: RenderFrame | null) {
-  ctx.fillStyle = colors.grass
-  ctx.fillRect(0, 0, transform.width, transform.height)
-  drawDashPolygons(ctx, network, transform)
-
-  network.roads.forEach((road) => {
-    road.lanes.forEach((lane) => {
-      if (!isPedestrianLane(lane)) return
-      const polygon = expandLaneToPolygon(extrapolateLaneShape(lane.shape, road), lane.width || 2)
-      drawPolygon(ctx, polygon, transform, colors.sidewalk, colors.curb, 1.5)
-    })
-
-    let previousVehicleShape: VisualPoint[] | null = null
-    road.lanes.forEach((lane) => {
-      if (isPedestrianLane(lane)) return
-      const shape = extrapolateLaneShape(lane.shape, road)
-      const polygon = expandLaneToPolygon(shape, lane.width || 3.2)
-      const isClosed = frame?.visual.closed_lanes.includes(lane.id) ?? false
-      const isSlow = (frame?.visual.slow_lanes[lane.id] ?? 1) < 1
-      drawPolygon(ctx, polygon, transform, isClosed ? colors.closedLane : isSlow ? colors.slowLane : colors.road)
-      if (previousVehicleShape) {
-        const previousShape = previousVehicleShape
-        const separator = shape.slice(0, Math.min(shape.length, previousShape.length)).map((point, index) => ({
-          x: (point.x + previousShape[index].x) / 2,
-          y: (point.y + previousShape[index].y) / 2,
-        }))
-        drawPolyline(ctx, separator, transform, colors.lane, Math.max(1, transform.scale * 0.15), true)
-      }
-      previousVehicleShape = shape
-    })
-  })
-
-  network.signals.forEach((signal) => {
-    drawPolygon(ctx, signal.shape, transform, colors.road)
-  })
-
-  network.internal_lanes.forEach((road) => {
-    road.lanes.forEach((lane) => {
-      const polygon = expandLaneToPolygon(lane.shape, lane.width || (isPedestrianLane(lane) ? 2 : 3))
-      drawPolygon(ctx, polygon, transform, isPedestrianLane(lane) ? colors.sidewalk : colors.internalRoad)
-    })
-  })
-
-  network.walking_areas.forEach((area) => {
-    area.lanes.forEach((lane) => {
-      drawPolygon(ctx, lane.shape, transform, colors.sidewalk, colors.curb, 1.5)
-    })
-  })
-
-  network.crossings.forEach((crossing) => {
-    crossing.lanes.forEach((lane) => {
-      drawCrosswalk(ctx, lane, transform)
-    })
-  })
-}
-
-function canonicalSignalColor(state: string | undefined): SignalColor {
-  const normalized = String(state || "").toLowerCase()
-  if (normalized.includes("green") || normalized.includes("g")) return "green"
-  if (normalized.includes("yellow") || normalized.includes("y")) return "yellow"
-  if (normalized.includes("red") || normalized.includes("r")) return "red"
-  return "off"
-}
-
-function colorForSignalHeading(heading: number, frame: RenderFrame | null): SignalColor {
-  if (!frame) return "red"
-  const normalizedHeading = ((heading % 360) + 360) % 360
-  const isNorthSouth = normalizedHeading <= 45 || normalizedHeading >= 315 || (normalizedHeading >= 135 && normalizedHeading <= 225)
-  return canonicalSignalColor(isNorthSouth ? frame.ns_state : frame.ew_state)
-}
-
-function resolveSignalColor(group: VisualSignalGroup, frame: RenderFrame | null): SignalColor {
-  const trafficLightState = frame?.traffic_lights?.[group.signal_id]
-  if (trafficLightState?.state && group.link_indices.length > 0) {
-    let bestState = "r"
-    group.link_indices.forEach((index) => {
-      const character = trafficLightState.state[index]?.toLowerCase()
-      if (character === "g") bestState = "g"
-      else if (character === "y" && bestState !== "g") bestState = "y"
-    })
-    if (bestState === "g") return "green"
-    if (bestState === "y") return "yellow"
-    return "red"
-  }
-
-  return colorForSignalHeading(group.heading, frame)
-}
-
-function drawSignals(ctx: CanvasRenderingContext2D, network: VisualNetwork, transform: CanvasTransform, frame: RenderFrame | null) {
-  network.signal_groups.forEach((group) => {
-    if (group.kind === "pedestrian" || group.stop_line.length < 2) return
-    const signalColor = resolveSignalColor(group, frame)
-    drawPolyline(ctx, group.stop_line, transform, colors[signalColor], Math.max(3, 1.2 * transform.scale))
-  })
-}
-
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-  const safeRadius = Math.min(radius, Math.abs(width) / 2, Math.abs(height) / 2)
-  ctx.beginPath()
-  ctx.moveTo(x + safeRadius, y)
-  ctx.lineTo(x + width - safeRadius, y)
-  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
-  ctx.lineTo(x + width, y + height - safeRadius)
-  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
-  ctx.lineTo(x + safeRadius, y + height)
-  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
-  ctx.lineTo(x, y + safeRadius)
-  ctx.quadraticCurveTo(x, y, x + safeRadius, y)
-  ctx.closePath()
-}
-
-function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, transform: CanvasTransform) {
-  const position = toCanvas({ x: vehicle.x, y: vehicle.y }, transform)
-  const length = Math.max(0.5, Number(vehicle.length || 4.5)) * transform.scale
-  const width = Math.max(0.5, Number(vehicle.width || 1.8)) * transform.scale
-  const angle = ((Number(vehicle.angle || 0) - 90) * Math.PI) / 180
-  const isEmergency = vehicle.emergency || vehicle.visual_type === "ambulance" || vehicle.visual_type === "emergency"
-
-  ctx.save()
-  ctx.translate(position.x, position.y)
-  ctx.rotate(angle)
-  // Native vehicle coordinates mark the center; the shape below spans -length to zero.
-  ctx.translate(length / 2, 0)
-
-  if (isEmergency) {
-    ctx.fillStyle = colors.emergency
-    ctx.fillRect(-length, -width / 2, length, width)
-    ctx.fillStyle = colors.emergencyMark
-    const crossWidth = width * 0.4
-    const crossHeight = crossWidth * 0.3
-    const crossX = -length / 2
-    ctx.fillRect(crossX - crossHeight / 2, -crossWidth / 2, crossHeight, crossWidth)
-    ctx.fillRect(crossX - crossWidth / 2, -crossHeight / 2, crossWidth, crossHeight)
-    ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? colors.emergencyRed : colors.emergencyBlue
-    ctx.fillRect(-length * 0.25 - (length * 0.15) / 2, -(width * 0.8) / 2, length * 0.15, width * 0.8)
-  } else {
-    const bodyTop = -width * 0.5
-    const bodyBottom = width * 0.5
-    const rearX = -length
-    const noseX = 0
-    const shoulderX = -length * 0.18
-    const tailInset = Math.max(1.2, width * 0.12)
-    const noseInset = Math.max(1.4, width * 0.18)
-
-    ctx.beginPath()
-    ctx.moveTo(rearX + tailInset, bodyTop)
-    ctx.lineTo(shoulderX, bodyTop)
-    ctx.quadraticCurveTo(noseX - noseInset, bodyTop, noseX, -width * 0.2)
-    ctx.lineTo(noseX, width * 0.2)
-    ctx.quadraticCurveTo(noseX - noseInset, bodyBottom, shoulderX, bodyBottom)
-    ctx.lineTo(rearX + tailInset, bodyBottom)
-    ctx.quadraticCurveTo(rearX, bodyBottom, rearX, bodyBottom - tailInset)
-    ctx.lineTo(rearX, bodyTop + tailInset)
-    ctx.quadraticCurveTo(rearX, bodyTop, rearX + tailInset, bodyTop)
-    ctx.closePath()
-    ctx.fillStyle = vehicleColor(vehicle)
-    ctx.fill()
-    ctx.lineWidth = Math.max(1, transform.scale * 0.12)
-    ctx.strokeStyle = vehicle.stopped ? colors.red : "rgba(82, 61, 0, 0.75)"
-    ctx.stroke()
-
-    const wheelRadius = Math.max(1.1, width * 0.13)
-    ctx.fillStyle = "rgba(20,20,20,0.86)"
-    ;[-length * 0.78, -length * 0.26].forEach((wheelX) => {
-      ctx.beginPath()
-      ctx.arc(wheelX, bodyTop + wheelRadius * 0.35, wheelRadius, 0, Math.PI * 2)
-      ctx.arc(wheelX, bodyBottom - wheelRadius * 0.35, wheelRadius, 0, Math.PI * 2)
-      ctx.fill()
-    })
-
-    ctx.fillStyle = "rgba(26, 50, 70, 0.72)"
-    drawRoundedRect(ctx, -length * 0.36, -width * 0.36, length * 0.16, width * 0.72, Math.max(1, width * 0.1))
-    ctx.fill()
-    drawRoundedRect(ctx, -length * 0.64, -width * 0.32, length * 0.16, width * 0.64, Math.max(1, width * 0.1))
-    ctx.fill()
-
-    ctx.fillStyle = "rgba(255,255,190,0.85)"
-    ctx.fillRect(-length * 0.05, -width * 0.28, Math.max(1, length * 0.035), width * 0.18)
-    ctx.fillRect(-length * 0.05, width * 0.1, Math.max(1, length * 0.035), width * 0.18)
-  }
-
+  ctx.save(); ctx.translate(transform.ox, transform.oy); ctx.scale(transform.scale, -transform.scale)
+  if (fill) { ctx.fillStyle = fill; ctx.fill(paths.closed) }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width / transform.scale; ctx.lineCap = "butt"; ctx.lineJoin = "round"; ctx.setLineDash(dashed ? [5 / transform.scale, 5 / transform.scale] : []); ctx.stroke(fill ? paths.closed : paths.open) }
   ctx.restore()
 }
-
-function drawPedestrian(ctx: CanvasRenderingContext2D, pedestrian: RenderPedestrian, transform: CanvasTransform) {
-  const center = toCanvas({ x: pedestrian.x, y: pedestrian.y }, transform)
-  const radius = Math.max(2.5, 0.5 * transform.scale)
-  ctx.fillStyle = pedestrian.stopped ? colors.yellow : colors.pedestrian
-  ctx.beginPath()
-  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2)
-  ctx.fill()
+function label(ctx: CanvasRenderingContext2D, text: string, point: VisualPoint | undefined, transform: Transform, offset = 0) {
+  if (!point) return
+  const p = screen(point, transform)
+  ctx.font = "600 11px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+  const width = ctx.measureText(text).width + 18, height = 23, occupied = occupiedLabels.get(ctx) ?? []
+  const rect = claimMapLabel([offset, offset - 28, offset + 28].map((dy) => ({ x: p.x - width / 2, y: p.y + dy - height / 2, width, height })), occupied, transform.width, transform.height)
+  if (!rect) return
+  ctx.beginPath(); ctx.roundRect(rect.x, rect.y, width, height, 7); ctx.fillStyle = "rgba(250,252,248,.96)"; ctx.fill(); ctx.strokeStyle = "rgba(63,87,74,.14)"; ctx.lineWidth = 1; ctx.stroke()
+  ctx.fillStyle = "#2D493D"; ctx.fillText(text, rect.x + width / 2, rect.y + height / 2)
 }
-
-function drawConstraint(ctx: CanvasRenderingContext2D, frame: RenderFrame, transform: CanvasTransform) {
-  // Directed lane coloring already locates native restrictions on the map.
-  if (frame.visual.closed_lanes.length || Object.keys(frame.visual.slow_lanes).length) return
-  const marker = frame.visual.constraint_marker
-  if (!marker?.active) return
-  const center = toCanvas({ x: marker.x, y: marker.y }, transform)
-  ctx.strokeStyle = colors.constraint
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.moveTo(center.x - 12, center.y - 12)
-  ctx.lineTo(center.x + 12, center.y + 12)
-  ctx.moveTo(center.x + 12, center.y - 12)
-  ctx.lineTo(center.x - 12, center.y + 12)
-  ctx.stroke()
-}
-
-function drawDynamicEntities(ctx: CanvasRenderingContext2D, frame: RenderFrame | null, transform: CanvasTransform) {
-  if (!frame) return
-  frame.vehicles.forEach((vehicle) => drawVehicle(ctx, vehicle, transform))
-  frame.pedestrians.forEach((pedestrian) => drawPedestrian(ctx, pedestrian, transform))
-  drawConstraint(ctx, frame, transform)
-}
-
-export function SimulationCanvas2D({
-  frame,
-  intersectionId,
-}: {
-  frame: RenderFrame | null
-  intersectionId: string | null
-}) {
-  const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
-  const [network, setNetwork] = React.useState<VisualNetwork | null>(null)
-  const [message, setMessage] = React.useState("Loading 2D map...")
-  const [resizeTick, setResizeTick] = React.useState(0)
-
-  React.useEffect(() => {
-    let isMounted = true
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setMessage("Loading 2D map...")
-    getVisualNetwork(intersectionId)
-      .then((payload) => {
-        if (!isMounted) return
-        setNetwork(payload)
-        setMessage("")
-      })
-      .catch((error) => {
-        if (!isMounted) return
-        setNetwork(null)
-        setMessage(error instanceof Error ? error.message : "Unable to load 2D map.")
-      })
-    return () => {
-      isMounted = false
+function hashIndex(id: string) { let hash = 0; for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0; return (hash >>> 0) % palette.cars.length }
+function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, transform: Transform, selected: boolean) {
+  const p = screen(vehicle, transform), length = Math.max(3, vehicle.length * transform.scale), width = Math.max(1.6, vehicle.width * transform.scale)
+  const type = normalizeVehicleClass(vehicle.visual_type, vehicle.emergency), color = palette.cars[hashIndex(vehicle.id)]
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(headingToCanvasRotation(vehicle.angle))
+  ctx.fillStyle = "rgba(13,24,28,.26)"; ctx.fillRect(-length / 2 + 1, -width / 2 + 1, length, width)
+  ctx.fillStyle = type === "tricycle" ? palette.tricycle : type === "emergency" ? "#F4F4ED" : type === "bus" ? "#BE9B6C" : type === "truck" ? "#9B9FA2" : color
+  if (type === "motorcycle") {
+    ctx.fillStyle = palette.tyre; ctx.fillRect(-length / 2, -width * .23, length, width * .46)
+    ctx.fillStyle = color; ctx.fillRect(-length * .25, -width * .48, length * .55, width * .96)
+    ctx.fillStyle = palette.glass; ctx.fillRect(length * .24, -width / 2, length * .12, width)
+  } else if (type === "tricycle") {
+    ctx.fillRect(-length / 2, -width / 2, length * .75, width)
+    ctx.fillStyle = palette.glass; ctx.fillRect(-length * .3, -width * .37, length * .45, width * .74)
+    ctx.fillStyle = palette.tricycle; ctx.fillRect(length * .2, -width * .22, length * .22, width * .44)
+    ctx.fillStyle = palette.tyre
+    ctx.fillRect(length * .39, -width * .15, length * .11, width * .3)
+    ctx.fillRect(-length * .37, -width * .52, length * .14, width * .18); ctx.fillRect(-length * .37, width * .34, length * .14, width * .18)
+  } else {
+    ctx.beginPath(); ctx.roundRect(-length / 2, -width / 2, length, width, Math.min(2, width * .2)); ctx.fill(); ctx.fillStyle = palette.glass
+    if (type === "bus") for (let index = 0; index < 5; index++) ctx.fillRect(-length * .4 + index * length * .15, -width * .32, length * .1, width * .64)
+    else if (type === "truck") {
+      ctx.fillRect(length * .24, -width * .35, length * .16, width * .7); ctx.strokeStyle = "#CFD3D1"; ctx.lineWidth = 1; ctx.strokeRect(-length * .46, -width * .41, length * .65, width * .82)
+    } else ctx.fillRect(-length * .25, -width * .36, length * .52, width * .72)
+    if (type === "emergency") {
+      ctx.fillStyle = "#D75152"; ctx.fillRect(-length * .25, -width * .15, length * .3, width * .3); ctx.fillRect(-length * .14, -width * .35, length * .1, width * .7)
+      ctx.fillStyle = "#428BB8"; ctx.fillRect(length * .22, -width * .38, length * .09, width * .3); ctx.fillStyle = "#D75152"; ctx.fillRect(length * .22, width * .08, length * .09, width * .3)
     }
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [intersectionId])
+  }
+  if (width > 4 && type !== "motorcycle") {
+    ctx.fillStyle = "#F9EBC1"; ctx.fillRect(length * .43, -width * .4, Math.max(1, length * .05), width * .2); ctx.fillRect(length * .43, width * .2, Math.max(1, length * .05), width * .2)
+    ctx.fillStyle = vehicle.stopped ? "#F57872" : "#A85D59"; ctx.fillRect(-length * .5, -width * .4, Math.max(1, length * .05), width * .2); ctx.fillRect(-length * .5, width * .2, Math.max(1, length * .05), width * .2)
+  }
+  if (selected) { ctx.strokeStyle = palette.selected; ctx.lineWidth = 2; ctx.strokeRect(-length / 2 - 3, -width / 2 - 3, length + 6, width + 6) }
+  ctx.restore()
+}
+function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, transform: Transform, showContext: boolean, frame: RenderFrame | null) {
+  const ground = ctx.createLinearGradient(0, 0, transform.width, transform.height); ground.addColorStop(0, "#EAF0E8"); ground.addColorStop(1, "#E1E9E2")
+  ctx.fillStyle = ground; ctx.fillRect(0, 0, transform.width, transform.height)
+  const gridSpacing = 25 * transform.scale
+  if (gridSpacing > 14) {
+    ctx.fillStyle = "rgba(80,109,90,.12)"
+    for (let x = ((transform.ox % gridSpacing) + gridSpacing) % gridSpacing; x < transform.width; x += gridSpacing) for (let y = ((transform.oy % gridSpacing) + gridSpacing) % gridSpacing; y < transform.height; y += gridSpacing) ctx.fillRect(x, y, 1.5, 1.5)
+  }
+  if (showContext) for (const junction of geometry.junctions) for (const [dx, dy] of [[-28, -26], [28, -26], [-28, 26], [28, 26]]) {
+    const point = { x: junction.center.x + dx, y: junction.center.y + dy }
+    const overlapsRoad = geometry.lanes.some((lane) => distanceToPolyline(point, lane.centerline) < lane.width / 2 + 11)
+    const overlapsPeople = frame?.visual.pedestrian_paths?.some((corridor) => distanceToPolyline(point, corridor.shape) < 11)
+    if (overlapsRoad || overlapsPeople) continue
+    const p = screen(point, transform), size = 9 * transform.scale
+    ctx.fillStyle = "rgba(88,113,94,.09)"; ctx.beginPath(); ctx.roundRect(p.x - size / 2, p.y - size / 2, size, size * .78, Math.min(5, size / 6)); ctx.fill()
+    ctx.strokeStyle = "rgba(85,112,94,.16)"; ctx.lineWidth = 1; ctx.stroke()
+    ctx.fillStyle = "rgba(105,143,111,.24)"; ctx.beginPath(); ctx.arc(p.x + size * .72, p.y + size * .28, size * .18, 0, Math.PI * 2); ctx.fill()
+  }
+  // Curb borders are illustrative edging only: native pavement vertices stay untouched.
+  for (const lane of geometry.lanes) if (lane.kind !== "connector") path(ctx, lane.polygon, transform, "#C2CDC5", "#C2CDC5", Math.max(2, transform.scale * 1.05))
+  for (const lane of geometry.lanes) if (lane.kind !== "connector") path(ctx, lane.polygon, transform, lane.kind === "road" ? "#48575D" : "#C8D0C5", "rgba(232,238,228,.52)", Math.max(.6, transform.scale * .12))
+  for (const junction of geometry.junctions) path(ctx, junction.polygon, transform, "#48575D")
+  for (const group of geometry.signalGroups) path(ctx, group.stop_line, transform, undefined, palette.markings, Math.max(1, transform.scale * .25))
+}
+function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, frame: RenderFrame | null, presentation: PresentationState, transform: Transform, hover: Selection | null) {
+  occupiedLabels.set(ctx, [])
+  if (presentation.overlays.signals) for (const group of geometry.signalGroups) {
+    const appearance = signalAppearance(group, frame), anchor = screen(group.anchor, transform), heading = group.heading * Math.PI / 180
+    const x = anchor.x - Math.sin(heading) * (group.width / 2 * transform.scale + 7), y = anchor.y - Math.cos(heading) * (group.width / 2 * transform.scale + 7)
+    ctx.fillStyle = "#293238"; ctx.fillRect(x - 4, y - 10, 8, 20)
+    for (const [index, state] of (["red", "yellow", "green"] as const).entries()) {
+      ctx.beginPath(); ctx.arc(x, y - 6 + index * 6, 2.3, 0, Math.PI * 2); ctx.fillStyle = appearance.color === state ? palette[state] : "#576067"; ctx.fill()
+    }
+    if (appearance.color === "off") { ctx.strokeStyle = "#9AABA6"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 3, y + 9); ctx.lineTo(x + 3, y - 9); ctx.stroke() }
+  }
+  const focusedJunction = geometry.junctions.find((junction) => junction.id === presentation.junctionId)
+  const orderedJunctions = focusedJunction ? [focusedJunction, ...geometry.junctions.filter((junction) => junction !== focusedJunction)] : geometry.junctions
+  for (const junction of orderedJunctions) {
+    const focused = junction.id === presentation.junctionId, selected = presentation.selection?.kind === "junction" && presentation.selection.id === junction.id
+    if (selected || focused) path(ctx, junction.polygon, transform, "rgba(84,195,156,.1)", selected ? palette.selected : "#8BCDB2", selected ? 2.5 : 1.5)
+    if (presentation.overlays.labels && (focused || presentation.focus === "network")) label(ctx, junction.label, junction.center, transform, -35)
+    if (presentation.overlays.queues && focused) {
+      const metrics = frame?.junction_metrics?.[junction.id]
+      label(ctx, metrics ? `Queue ${metrics.queue} · Waiting ${metrics.waiting_pedestrians}` : "Queue / waiting unavailable", junction.center, transform, 37)
+    }
+  }
+  if (!frame) return
+  const closed = new Set(frame.visual.closed_lanes)
+  for (const lane of geometry.lanes) {
+    if (lane.kind === "connector") { if (presentation.overlays.connectors) path(ctx, lane.centerline, transform, undefined, "#94AAB7", 1, true); continue }
+    const metrics = frame.lane_metrics?.[lane.id]
+    if (presentation.overlays.heatmap && metrics) {
+      const color = metrics.queue >= 10 ? "#CE6269" : metrics.queue >= 5 ? "#D4AC63" : metrics.queue > 0 ? "#86A79C" : "#A6B9B3"
+      path(ctx, lane.centerline, transform, undefined, color, Math.max(2, lane.width * transform.scale * .58))
+      if (metrics.queue > 0) label(ctx, `${metrics.queue}`, lane.centerline[Math.floor(lane.centerline.length / 2)], transform)
+    }
+    if (presentation.overlays.arrows && lane.centerline.length > 1) {
+      const middle = Math.max(1, Math.floor(lane.centerline.length / 2)), a = screen(lane.centerline[middle - 1], transform), b = screen(lane.centerline[middle], transform)
+      ctx.save(); ctx.translate((a.x + b.x) / 2, (a.y + b.y) / 2); ctx.rotate(Math.atan2(b.y - a.y, b.x - a.x)); ctx.strokeStyle = palette.markings; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.moveTo(-5, -4); ctx.lineTo(3, 0); ctx.lineTo(-5, 4); ctx.stroke(); ctx.restore()
+    }
+    const isClosed = closed.has(lane.id) || metrics?.closed, factor = frame.visual.slow_lanes[lane.id] ?? metrics?.speed_factor
+    if (isClosed || (factor !== undefined && factor < 1)) {
+      path(ctx, lane.centerline, transform, undefined, isClosed ? palette.closed : palette.slow, Math.max(2, lane.width * transform.scale * .55), !isClosed)
+      const middle = Math.max(1, Math.floor(lane.centerline.length / 2)), a = lane.centerline[middle - 1], b = lane.centerline[middle]
+      if (a && b) {
+        const marker = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, p = screen(marker, transform)
+        if (isClosed) {
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(-(b.y - a.y), b.x - a.x)); ctx.fillStyle = palette.markings; ctx.fillRect(-2, -Math.max(6, lane.width * transform.scale / 2), 4, Math.max(12, lane.width * transform.scale))
+          ctx.strokeStyle = palette.closed; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(5, 5); ctx.moveTo(5, -5); ctx.lineTo(-5, 5); ctx.stroke(); ctx.restore()
+        } else label(ctx, `Slow ×${factor!.toFixed(2)}`, marker, transform)
+      }
+    }
+    if (presentation.selection?.kind === "lane" && presentation.selection.id === lane.id) path(ctx, lane.centerline, transform, undefined, palette.selected, Math.max(2, lane.width * transform.scale * .35), true)
+    else if (hover?.kind === "lane" && hover.id === lane.id) path(ctx, lane.centerline, transform, undefined, "rgba(178,229,207,.8)", Math.max(2, lane.width * transform.scale * .25))
+  }
+  for (const corridor of frame.visual.pedestrian_paths ?? []) {
+    path(ctx, corridor.shape, transform, undefined, "#BE835E", Math.max(1, transform.scale * .4), true)
+    if (presentation.junctionId === corridor.junction_id && transform.scale > 1) label(ctx, "Illustrative crossing path", corridor.shape[Math.floor(corridor.shape.length / 2)], transform, 12)
+  }
+  for (const vehicle of frame.vehicles) {
+    const p = screen(vehicle, transform), margin = Math.max(vehicle.length, vehicle.width) * transform.scale
+    if (p.x + margin < 0 || p.y + margin < 0 || p.x - margin > transform.width || p.y - margin > transform.height) continue
+    drawVehicle(ctx, vehicle, transform, (presentation.selection?.kind === "vehicle" && presentation.selection.id === vehicle.id) || (hover?.kind === "vehicle" && hover.id === vehicle.id))
+  }
+  for (const pedestrian of frame.pedestrians) {
+    const p = screen(pedestrian, transform), radius = Math.max(2.5, transform.scale * .35)
+    ctx.fillStyle = pedestrian.stopped ? palette.yellow : palette.pedestrian; ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = (presentation.selection?.kind === "pedestrian" && presentation.selection.id === pedestrian.id) || (hover?.kind === "pedestrian" && hover.id === pedestrian.id) ? palette.selected : "#FFF8EF"; ctx.lineWidth = 1.5; ctx.stroke()
+    if (pedestrian.stopped) { ctx.fillStyle = "#80553E"; ctx.fillRect(p.x - .8, p.y - 1.8, 1.6, 3.6) }
+  }
+}
 
+export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, runKey = "", onPerformanceSample }: Props) {
+  const navigationHintId = React.useId()
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null), drawRef = React.useRef<() => void>(() => undefined)
+  const controlsRef = React.useRef<(action: "in" | "out" | "reset") => void>(() => undefined)
+  const tooltipRef = React.useRef<HTMLDivElement | null>(null), scaleRef = React.useRef<HTMLDivElement | null>(null), hintRef = React.useRef<HTMLSpanElement | null>(null)
+  const latestRef = React.useRef({ frame, presentation, onSelect, runKey, onPerformanceSample })
+  React.useEffect(() => { latestRef.current = { frame, presentation, onSelect, runKey, onPerformanceSample }; drawRef.current() }, [frame, presentation, onSelect, runKey, onPerformanceSample])
   React.useEffect(() => {
-    const canvas = canvasRef.current
-    const parent = canvas?.parentElement
-    if (!parent) return undefined
-
-    const observer = new ResizeObserver(() => {
-      setResizeTick((current) => current + 1)
-    })
-    observer.observe(parent)
-    return () => observer.disconnect()
-  }, [])
-
-  React.useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !network) return
-    const parent = canvas.parentElement
-    const width = Math.max(parent?.clientWidth ?? 640, 320)
-    const height = Math.max(parent?.clientHeight ?? 410, 280)
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
-
-    canvas.width = Math.floor(width * dpr)
-    canvas.height = Math.floor(height * dpr)
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
-
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    const transform = configureTransform(network, width, height)
-    drawStaticNetwork(ctx, network, transform, frame)
-    drawSignals(ctx, network, transform, frame)
-    drawDynamicEntities(ctx, frame, transform)
-  }, [frame, network, resizeTick])
-
-  return (
-    <div className="sf-canvas2d-shell">
-      <canvas ref={canvasRef} className="sf-canvas2d" aria-label="2D simulation renderer" />
-      {message ? <div className="sf-canvas2d-message">{message}</div> : null}
+    const canvas = canvasRef.current, parent = canvas?.parentElement, context = canvas?.getContext("2d", { alpha: false })
+    if (!canvas || !parent || !context) return
+    const ctx = context
+    const cache = document.createElement("canvas"), cached = cache.getContext("2d", { alpha: false })
+    const stream = createMapInterpolator()
+    let width = 1, height = 1, dpr = 1, transform = fit(geometry.bounds, width, height), previousFocus = "", cacheKey = ""
+    let animationId = 0, displayedFrame: RenderFrame | null = null, pointerPosition: VisualPoint | null = null, hover: Selection | null = null, followSuspended = false
+    let lastDrawAt = 0, sampleStarted = performance.now(), drawnFrames = 0, totalPaints = 0, frameIntervals: number[] = []
+    let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "", previousScaleLabel = ""
+    const pointers = new Map<number, { x: number; y: number; startX: number; startY: number; moved: boolean }>()
+    const boundPan = () => { transform = boundMapPan(transform, geometry.bounds) }
+    const schedule = () => { if (!animationId && !document.hidden) animationId = requestAnimationFrame(draw) }
+    const updateHint = () => { if (hintRef.current) hintRef.current.textContent = followSuspended && latestRef.current.presentation.focus === "follow" ? "Follow paused · Reset to resume" : "Drag to explore · Scroll to zoom" }
+    const manualNavigation = () => { followSuspended = true; hover = null; pointerPosition = null; updateHint() }
+    const pick = (point: VisualPoint) => pickSceneEntity(geometry, displayedFrame, screenToMap(point, transform), 4 / transform.scale)
+    const updateTooltip = () => {
+      const tooltip = tooltipRef.current
+      if (!tooltip) return
+      if (!hover || !pointerPosition || pointers.size) { tooltip.hidden = true; return }
+      let text = ""
+      if (hover.kind === "junction") text = geometry.junctionById.get(hover.id)?.label ?? "Junction"
+      else if (hover.kind === "lane") {
+        const metrics = displayedFrame?.lane_metrics?.[hover.id]
+        text = metrics ? `Lane · ${metrics.vehicles} vehicles · Queue ${metrics.queue}` : "Lane · Click to inspect"
+      } else if (hover.kind === "vehicle") {
+        const vehicle = displayedFrame?.vehicles.find((candidate) => candidate.id === hover?.id)
+        if (vehicle) { const name = normalizeVehicleClass(vehicle.visual_type, vehicle.emergency); text = `${name === "tricycle" ? "Tagum tricycle" : name[0].toUpperCase() + name.slice(1)} · ${vehicle.stopped ? "Stopped" : `${(vehicle.speed * 3.6).toFixed(0)} km/h`}` }
+      } else {
+        const person = displayedFrame?.pedestrians.find((candidate) => candidate.id === hover?.id)
+        text = person ? `Pedestrian · ${person.stopped ? "Waiting" : "Moving"}` : ""
+      }
+      tooltip.textContent = text; tooltip.hidden = !text
+      if (text) { tooltip.style.left = `${Math.max(8, Math.min(width - tooltip.offsetWidth - 8, pointerPosition.x + 15))}px`; tooltip.style.top = `${Math.max(8, Math.min(height - tooltip.offsetHeight - 8, pointerPosition.y + 18))}px` }
+    }
+    function draw(now: number) {
+      animationId = 0
+      const paintStarted = performance.now()
+      const current = latestRef.current, focus = `${current.presentation.focus}:${current.presentation.junctionId}:${current.presentation.revision}`
+      stream.set(current.frame, `${current.runKey}:${current.presentation.revision}`, now)
+      displayedFrame = stream.sample(now)
+      if (focus !== previousFocus) {
+        transform = fit(current.presentation.focus === "network" ? geometry.bounds : boundsForJunction(geometry, current.presentation.junctionId), width, height)
+        previousFocus = focus; followSuspended = false; updateHint()
+      }
+      if (current.presentation.focus === "follow" && !followSuspended && current.presentation.selection?.kind === "vehicle") {
+        const vehicle = displayedFrame?.vehicles.find((entity) => entity.id === current.presentation.selection?.id)
+        if (vehicle) { transform.ox = width / 2 - vehicle.x * transform.scale; transform.oy = height / 2 + vehicle.y * transform.scale }
+      }
+      if (current.frame?.visual.pedestrian_paths !== previousPathSource) { previousPathSource = current.frame?.visual.pedestrian_paths; pathsKey = JSON.stringify(previousPathSource ?? []) }
+      const key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${current.presentation.overlays.context}:${pathsKey}`
+      if (cached && cacheKey !== key) {
+        cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform, current.presentation.overlays.context, current.frame); cacheKey = key
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      if (cached) ctx.drawImage(cache, 0, 0)
+      else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(ctx, geometry, transform, current.presentation.overlays.context, current.frame) }
+      if (pointerPosition && !pointers.size) hover = pick(pointerPosition)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); dynamicMap(ctx, geometry, displayedFrame, current.presentation, transform, hover)
+      // Read-only diagnostics support browser checks without a renderer control backdoor.
+      canvas!.dataset.mapCamera = JSON.stringify({ scale: transform.scale, ox: transform.ox, oy: transform.oy, width, height })
+      canvas!.dataset.paintCount = String(++totalPaints)
+      canvas!.dataset.interpolating = String(stream.moving(now))
+      const firstVehicle = displayedFrame?.vehicles[0], firstPerson = displayedFrame?.pedestrians[0]
+      canvas!.dataset.displayVehicle = firstVehicle ? JSON.stringify({ id: firstVehicle.id, x: firstVehicle.x, y: firstVehicle.y }) : ""
+      canvas!.dataset.displayPedestrian = firstPerson ? JSON.stringify({ id: firstPerson.id, x: firstPerson.x, y: firstPerson.y }) : ""
+      canvas!.dataset.paintMs = (performance.now() - paintStarted).toFixed(2)
+      updateTooltip()
+      if (!pointers.size) canvas!.style.cursor = hover ? "pointer" : "grab"
+      const scale = mapScale(transform.scale), scaleLabel = `${scale.label}:${scale.pixels}`
+      if (scaleRef.current && scaleLabel !== previousScaleLabel) { scaleRef.current.style.setProperty("--map-scale-width", `${scale.pixels}px`); scaleRef.current.setAttribute("aria-label", `Map scale ${scale.label}`); const label = scaleRef.current.querySelector("span"); if (label) label.textContent = scale.label; previousScaleLabel = scaleLabel }
+      // Report active animation/navigation cadence only. Idle/paused maps do not burn frames.
+      if (lastDrawAt > 0 && now - lastDrawAt < 150) frameIntervals.push(now - lastDrawAt)
+      else { frameIntervals = []; sampleStarted = now; drawnFrames = 0 }
+      lastDrawAt = now; drawnFrames++
+      if (now - sampleStarted >= 1000 && frameIntervals.length >= 5) {
+        const sorted = [...frameIntervals].sort((a, b) => a - b)
+        current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))], drawCalls: 0 })
+        sampleStarted = now; drawnFrames = 0; frameIntervals = []
+      }
+      if (stream.moving(now)) schedule()
+    }
+    const resize = () => {
+      const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, latestRef.current.presentation.quality === "laptop" ? 1.5 : 2)
+      if (width === nextWidth && height === nextHeight && dpr === nextDpr) return
+      const current = latestRef.current.presentation
+      transform = followSuspended
+        ? resizeMap(transform, nextWidth, nextHeight)
+        : fit(current.focus === "network" ? geometry.bounds : boundsForJunction(geometry, current.junctionId), nextWidth, nextHeight)
+      width = nextWidth; height = nextHeight; dpr = nextDpr
+      canvas.width = cache.width = Math.max(1, Math.round(width * dpr)); canvas.height = cache.height = Math.max(1, Math.round(height * dpr)); cacheKey = ""; schedule()
+    }
+    drawRef.current = () => { resize(); schedule() }
+    const position = (event: PointerEvent | WheelEvent) => { const rect = canvas.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top } }
+    const zoomAt = (point: VisualPoint, factor: number) => { transform = zoomMapAt(transform, point, factor, fit(geometry.bounds, width, height).scale * .65); boundPan(); schedule() }
+    const reset = () => { previousFocus = ""; followSuspended = false; schedule() }
+    controlsRef.current = (action) => { if (action === "reset") reset(); else { manualNavigation(); zoomAt({ x: width / 2, y: height / 2 }, action === "in" ? 1.3 : 1 / 1.3) } }
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault(); manualNavigation()
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height : 1)
+      zoomAt(position(event), Math.exp(-Math.max(-250, Math.min(250, delta)) * .002))
+    }
+    const pointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      const p = position(event); pointers.set(event.pointerId, { ...p, startX: p.x, startY: p.y, moved: false }); canvas.setPointerCapture(event.pointerId); canvas.focus({ preventScroll: true }); canvas.style.cursor = "grabbing"; parent.dataset.navigating = "true"
+      if (pointers.size > 1) for (const pointer of pointers.values()) pointer.moved = true
+      hover = null; updateTooltip()
+    }
+    const pointerMove = (event: PointerEvent) => {
+      const p = position(event), pointer = pointers.get(event.pointerId)
+      if (!pointer) { pointerPosition = p; schedule(); return }
+      const before = [...pointers.values()].slice(0, 2).map((value) => ({ x: value.x, y: value.y }))
+      pointer.moved ||= Math.hypot(p.x - pointer.startX, p.y - pointer.startY) > 4
+      const dx = p.x - pointer.x, dy = p.y - pointer.y; pointer.x = p.x; pointer.y = p.y
+      if (pointers.size > 1) {
+        manualNavigation()
+        const after = [...pointers.values()].slice(0, 2), beforeCenter = { x: (before[0].x + before[1].x) / 2, y: (before[0].y + before[1].y) / 2 }, afterCenter = { x: (after[0].x + after[1].x) / 2, y: (after[0].y + after[1].y) / 2 }
+        const previousDistance = Math.hypot(before[0].x - before[1].x, before[0].y - before[1].y), distance = Math.hypot(after[0].x - after[1].x, after[0].y - after[1].y)
+        transform = zoomMapAt(transform, beforeCenter, previousDistance > 1 ? distance / previousDistance : 1, fit(geometry.bounds, width, height).scale * .65)
+        transform.ox += afterCenter.x - beforeCenter.x; transform.oy += afterCenter.y - beforeCenter.y; boundPan(); schedule()
+      } else if (pointer.moved) { manualNavigation(); transform.ox += dx; transform.oy += dy; boundPan(); schedule() }
+    }
+    const release = (event: PointerEvent, allowPick: boolean) => {
+      const pointer = pointers.get(event.pointerId)
+      if (!pointer) return
+      if (allowPick && !pointer.moved && pointers.size === 1) latestRef.current.onSelect(pick(position(event)))
+      pointers.delete(event.pointerId)
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
+      if (!pointers.size) { delete parent.dataset.navigating; canvas.style.cursor = "grab" }
+      schedule()
+    }
+    const pointerUp = (event: PointerEvent) => release(event, true)
+    const pointerCancel = (event: PointerEvent) => release(event, false)
+    const pointerLeave = () => { pointerPosition = null; hover = null; updateTooltip(); schedule() }
+    const doubleClick = (event: MouseEvent) => { manualNavigation(); const rect = canvas.getBoundingClientRect(); zoomAt({ x: event.clientX - rect.left, y: event.clientY - rect.top }, 1.5) }
+    const keyDown = (event: KeyboardEvent) => {
+      if (["+", "=", "-", "_"].includes(event.key)) { event.preventDefault(); manualNavigation(); zoomAt({ x: width / 2, y: height / 2 }, event.key === "-" || event.key === "_" ? 1 / 1.3 : 1.3) }
+      else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault(); manualNavigation(); const step = event.shiftKey ? 100 : 40; transform.ox += event.key === "ArrowLeft" ? step : event.key === "ArrowRight" ? -step : 0; transform.oy += event.key === "ArrowUp" ? step : event.key === "ArrowDown" ? -step : 0; boundPan(); schedule()
+      } else if (event.key === "Home" || event.key === "0") { event.preventDefault(); reset() }
+      else if (event.key === "Escape") latestRef.current.onSelect(null)
+    }
+    const visibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animationId); animationId = 0
+        // Resume from the newest authoritative frame, not a long hidden-tab journey.
+        stream.set(null, "", performance.now())
+      } else { lastDrawAt = 0; schedule() }
+    }
+    canvas.addEventListener("wheel", wheel, { passive: false }); canvas.addEventListener("pointerdown", pointerDown); canvas.addEventListener("pointermove", pointerMove); canvas.addEventListener("pointerup", pointerUp); canvas.addEventListener("pointercancel", pointerCancel); canvas.addEventListener("lostpointercapture", pointerCancel); canvas.addEventListener("pointerleave", pointerLeave); canvas.addEventListener("keydown", keyDown); canvas.addEventListener("dblclick", doubleClick); document.addEventListener("visibilitychange", visibility)
+    const observer = new ResizeObserver(resize); observer.observe(parent); resize()
+    return () => {
+      observer.disconnect(); if (animationId) cancelAnimationFrame(animationId)
+      canvas.removeEventListener("wheel", wheel); canvas.removeEventListener("pointerdown", pointerDown); canvas.removeEventListener("pointermove", pointerMove); canvas.removeEventListener("pointerup", pointerUp); canvas.removeEventListener("pointercancel", pointerCancel); canvas.removeEventListener("lostpointercapture", pointerCancel); canvas.removeEventListener("pointerleave", pointerLeave); canvas.removeEventListener("keydown", keyDown); canvas.removeEventListener("dblclick", doubleClick); document.removeEventListener("visibilitychange", visibility)
+      for (const id of pointers.keys()) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id)
+      drawRef.current = () => undefined; controlsRef.current = () => undefined; pointers.clear(); delete parent.dataset.navigating
+    }
+  }, [geometry])
+  return <div className="sf-canvas2d-shell" style={{ background: palette.ground }}>
+    <canvas ref={canvasRef} className="sf-canvas2d" tabIndex={0} aria-label="Analytical simulation map" aria-describedby={navigationHintId} style={{ cursor: "grab", touchAction: "none" }} />
+    <div className="sf-canvas2d-navigation" role="group" aria-label="Map navigation">
+      <Button variant="outline" size="icon" aria-label="Zoom in map" title="Zoom in (+)" onClick={() => controlsRef.current("in")}><Plus /></Button>
+      <Button variant="outline" size="icon" aria-label="Zoom out map" title="Zoom out (−)" onClick={() => controlsRef.current("out")}><Minus /></Button>
+      <Button variant="outline" size="icon" aria-label="Reset map view" title="Reset view (Home)" onClick={() => controlsRef.current("reset")}><LocateFixed /></Button>
     </div>
-  )
+    <div ref={scaleRef} className="sf-canvas2d-scale" aria-label="Map scale"><b aria-hidden="true">↑ N</b><i aria-hidden="true" /><span /></div>
+    <span ref={hintRef} className="sf-canvas2d-gesture-hint" aria-hidden="true">Drag to explore · Scroll to zoom</span>
+    <div ref={tooltipRef} className="sf-canvas2d-tooltip" hidden aria-hidden="true" />
+    <span id={navigationHintId} className="sr-only">Drag to pan. Scroll, pinch, or use plus and minus keys to zoom. Double-click to zoom toward a location. Arrow keys pan, Home restores camera focus, and Escape clears selection. Use the labeled object picker beside the map to inspect objects with a keyboard.</span>
+  </div>
 }

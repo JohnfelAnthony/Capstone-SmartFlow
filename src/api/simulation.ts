@@ -1,7 +1,9 @@
-import type { RenderPedestrian, RenderVehicle } from "@/simulation/frame-types"
+import type { RenderPedestrian, RenderVehicle, LaneMetrics, JunctionMetrics, JunctionControl, ControllerEvents, PedestrianPath, RenderCoverage } from "@/simulation/frame-types"
 import { apiRequest } from "@/api/client"
 
 export type SimulationStatePayload = {
+  render_frame?: import("@/simulation/frame-types").RenderFrame | null
+  render_frame_error?: string | null
   status: string
   owner_user_id: number | null
   owner_name: string | null
@@ -23,7 +25,9 @@ export type SimulationStatePayload = {
     vehicle_count?: number
     pedestrian_count?: number
     queues?: Record<string, number>
-    metrics?: Record<string, number>
+    metrics?: { lanes?: Record<string, LaneMetrics>; junctions?: Record<string, JunctionMetrics>; [key: string]: number | Record<string, LaneMetrics> | Record<string, JunctionMetrics> | undefined }
+    experiment?: { last_policy_decision?: ControllerEvents["last_policy_decision"]; last_safety_override?: ControllerEvents["last_safety_override"]; [key: string]: unknown }
+    render_coverage?: RenderCoverage
     events?: Array<Record<string, unknown>>
     scenario?: Record<string, unknown>
     dashboard?: Record<string, unknown>
@@ -39,13 +43,14 @@ export type SimulationStatePayload = {
     visual?: {
       closed_lanes?: string[]
       slow_lanes?: Record<string, number>
+      pedestrian_paths?: PedestrianPath[]
       constraint_marker?: {
         active?: boolean
         x?: number
         y?: number
       }
     }
-    junction_controls?: Record<string, { mode: string; controller: string; selected_for_rl: boolean; phase: string }>
+    junction_controls?: Record<string, JunctionControl>
     traffic_lights?: Record<string, { state: string; phase: string }>
     charts?: Record<string, unknown>
     flow?: {
@@ -66,11 +71,6 @@ export type SimulationActionResponse = {
 
 export type SimulationConfigurePayload = {
   scenario_id?: number
-  intersection_id?: string
-  traffic_density?: string
-  pedestrian_density?: string
-  emergency_mode?: string
-  road_constraint?: string
   duration_seconds?: number
   seed?: number
   control_mode?: string

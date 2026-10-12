@@ -4,9 +4,8 @@ import copy
 from simulation.traffic_engine import TrafficEngine
 
 
-def configuration_options():
-    engine = TrafficEngine()
-    network = engine.network
+def network_display_labels(network):
+    """Share existing road/junction names without constructing an engine."""
     road_names = {road["id"]: road.get("name") or road["id"] for road in network.payload["roads"]}
     node_labels = {}
     for index, node in enumerate(network.intersections, 1):
@@ -14,6 +13,13 @@ def configuration_options():
         node_labels[node] = f"J{index}: {' / '.join(streets)}"
     for index, node in enumerate(network.boundaries, 1):
         node_labels[node] = f"Boundary {index}"
+    return road_names, node_labels
+
+
+def configuration_options():
+    engine = TrafficEngine()
+    network = engine.network
+    road_names, node_labels = network_display_labels(network)
     junctions = []
     for node, signal in engine.signals.items():
         junctions.append({

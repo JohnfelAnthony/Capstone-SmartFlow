@@ -1,10 +1,14 @@
 """One metric network shared by the native engine and both renderers."""
-from simulation.road_network import NETWORK_ID, load_network
+from simulation.road_network import load_network
+from services.native_scenario_service import network_display_labels
 
 
-def load_client_visual_network(intersection_id: str | None = None) -> dict:
+def load_client_visual_network(network_id: str | None = None) -> dict:
     network = load_network()
-    legacy_ids = {"tagum_1", "tagum_2", "tagum_3"} if network.id == NETWORK_ID else set()
-    if intersection_id not in {None, network.id, *legacy_ids}:
+    if network_id not in {None, network.id}:
         raise ValueError("Unknown network")
-    return network.visual()
+    visual = network.visual()
+    _, node_labels = network_display_labels(network)
+    visual["junctions"] = [{**junction, "label": node_labels[junction["id"]]}
+                           for junction in visual["junctions"]]
+    return visual

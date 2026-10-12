@@ -42,7 +42,7 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/auth/login", json={
             "username": "admin", "password": "OperationsAdmin42!"}).status_code, 200)
         simulation_runtime.reset()
-        self.scenario = next(row for row in database.get_scenarios() if row["traffic_density"] == "Single")
+        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
 
     def tearDown(self):
         simulation_runtime.reset()
@@ -117,10 +117,10 @@ class OperationsTests(unittest.TestCase):
             "    assert client.post('/api/auth/login', json={'username':'admin','password':'OperationsAdmin42!'}).status_code == 200",
             "    options = client.get('/api/simulation/options')",
             "    assert options.status_code == 200 and options.json()['network_id'] == 'replacement_network', options.text",
-            "    visual = client.get('/api/visual-network', params={'intersection_id':'replacement_network'})",
+            "    visual = client.get('/api/visual-network', params={'network_id':'replacement_network'})",
             "    assert visual.status_code == 200 and visual.json()['network_id'] == 'replacement_network', visual.text",
-            "    scenario = client.post('/api/scenarios', json={'name':'Replacement scenario','intersection_id':'replacement_network','traffic_density':'Single','pedestrian_density':'None'})",
-            "    assert scenario.status_code == 200 and scenario.json()['intersection_id'] == 'replacement_network', scenario.text",
+            "    scenario = client.post('/api/scenarios', json={'name':'Replacement scenario','network_id':'replacement_network','engine_config':{'traffic_density':'single','pedestrian_density':'none'}})",
+            "    assert scenario.status_code == 200 and scenario.json()['network_id'] == 'replacement_network', scenario.text",
             "    scenario_id = scenario.json()['id']",
             "    assert client.get(f'/api/scenarios/{scenario_id}/native-config').status_code == 200",
             "    assert client.post('/api/simulation/configure', json={'scenario_id':scenario_id}).status_code == 200",

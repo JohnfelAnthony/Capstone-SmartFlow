@@ -95,14 +95,7 @@ class TimelinePlaybackEngine:
     def _resolve_timeline_path(run_id: int, explicit_timeline_path: str | None) -> Path:
         if explicit_timeline_path:
             return Path(explicit_timeline_path)
-        candidates = [
-            Path(f"assets/generated/timelines/run_{run_id}.jsonl"),
-            Path(f"assets/generated/timelines/run_{run_id}.jsonl.gz"),
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
-        return candidates[0]
+        raise ValueError('Recording has no registered timeline path.')
 
     def _load_manifest(self) -> dict:
         try:

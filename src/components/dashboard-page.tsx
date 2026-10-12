@@ -4,7 +4,6 @@ import {
   BarChart3Icon,
   BrainIcon,
   CheckIcon,
-  CircleDotIcon,
   GaugeIcon,
   HourglassIcon,
   ListIcon,
@@ -46,11 +45,12 @@ import {
   type SimulationRunRecord,
   type SimulationStatePayload,
 } from "@/api/simulation"
-import { SimulationCanvas2D } from "@/components/simulation-canvas-2d"
+import { SimulationVisualization } from "@/simulation/simulation-visualization"
+import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
-import { SimulationScene3D } from "@/simulation/SimulationScene3D"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
+import { cn } from "@/lib/utils"
 
 type SelectOption = {
   label: string
@@ -80,7 +80,7 @@ const durationOptions: SelectOption[] = [
 ]
 
 
-function metricNumber(metrics: Record<string, number> | undefined, key: string) {
+function metricNumber(metrics: SimulationStatePayload["state"]["metrics"], key: string) {
   const value = metrics?.[key]
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
@@ -125,97 +125,6 @@ function playbackInfo(simulation: SimulationStatePayload | null) {
 function apiMessage(error: unknown) {
   if (error instanceof ApiError || error instanceof Error) return error.message
   return "Unable to reach the SMARTFLOW API."
-}
-
-function liveIndicatorForFrame(frame: RenderFrame) {
-  if (frame.flow_state === "LIVE_RUNNING") return "LIVE"
-  if (frame.flow_state === "PAUSED") return "PAUSED"
-  if (frame.flow_state === "COMPLETED") return "DONE"
-  if (frame.flow_state === "ERROR") return "ERROR"
-  return frame.flow_state || "IDLE"
-}
-
-function signalStatesForPhase(phase: string | undefined) {
-  const normalized = String(phase || "ALL_RED").toUpperCase()
-  if (normalized.includes("NS") && normalized.includes("GREEN")) return { ns: "green", ew: "red" }
-  if (normalized.includes("EW") && normalized.includes("GREEN")) return { ns: "red", ew: "green" }
-  if (normalized.includes("NS") && normalized.includes("YELLOW")) return { ns: "yellow", ew: "red" }
-  if (normalized.includes("EW") && normalized.includes("YELLOW")) return { ns: "red", ew: "yellow" }
-  return { ns: "red", ew: "red" }
-}
-
-function renderFrameFromSimulation(simulation: SimulationStatePayload | null): RenderFrame | null {
-  if (!simulation) return null
-  const state = simulation.state
-  const phase = String(state.phase ?? "ALL_RED")
-  const signalStates = signalStatesForPhase(phase)
-  const intersectionId =
-    typeof state.scenario?.intersection_id === "string"
-      ? state.scenario.intersection_id
-      : "tagum_1"
-
-  return {
-    time: Number(state.time ?? 0),
-    render_ts: Date.now() / 1000,
-    step_length: Number(state.step_length ?? 0.1),
-    status: state.status ?? simulation.status,
-    flow_state: String(state.flow?.state ?? "IDLE"),
-    intersection_id: intersectionId,
-    phase,
-    ns_state: signalStates.ns,
-    ew_state: signalStates.ew,
-    render_mode: simulation.control_mode === "playback" ? "playback" : simulation.status === "running" ? "live" : "idle",
-    vehicle_count: Number(state.vehicle_count ?? state.vehicles?.length ?? 0),
-    pedestrian_count: Number(state.pedestrian_count ?? state.pedestrians?.length ?? 0),
-    playback: {
-      active: Boolean(state.playback),
-      frame_index: Number(state.playback?.frame_index ?? 0),
-      frame_count: Number(state.playback?.frame_count ?? 0),
-    },
-    render_limits: { vehicles: 80, pedestrians: 32 },
-    vehicles: (state.vehicles ?? []).slice(0, 80),
-    pedestrians: (state.pedestrians ?? []).slice(0, 32),
-    visual: {
-      closed_lanes: state.visual?.closed_lanes ?? [],
-      slow_lanes: state.visual?.slow_lanes ?? {},
-      constraint_marker: {
-        active: Boolean(state.visual?.constraint_marker?.active),
-        x: Number(state.visual?.constraint_marker?.x ?? 0),
-        y: Number(state.visual?.constraint_marker?.y ?? 0),
-      },
-    },
-    junction_controls: state.junction_controls ?? {},
-    traffic_lights: state.traffic_lights ?? {},
-  }
-}
-
-function mergeRenderFrame(simulation: SimulationStatePayload | null, frame: RenderFrame) {
-  if (!simulation) return simulation
-  return {
-    ...simulation,
-    status: frame.status,
-    state: {
-      ...simulation.state,
-      time: frame.time,
-      step_length: frame.step_length,
-      status: frame.status,
-      phase: frame.phase,
-      traffic_lights: frame.traffic_lights,
-      vehicles: frame.vehicles,
-      pedestrians: frame.pedestrians,
-      visual: frame.visual,
-      junction_controls: frame.junction_controls,
-      scenario: {
-        ...(simulation.state.scenario ?? {}),
-        intersection_id: frame.intersection_id,
-      },
-      flow: {
-        ...(simulation.state.flow ?? {}),
-        state: frame.flow_state,
-        live_indicator_label: liveIndicatorForFrame(frame),
-      },
-    },
-  }
 }
 
 function CardTitle({
@@ -275,6 +184,7 @@ function SimulationView({
   onConfigure,
   onThreeUnavailable,
   onPerformanceSample,
+  seekRevision,
 }: {
   scenarios: ApiScenario[]
   selectedScenarioId: string
@@ -290,6 +200,7 @@ function SimulationView({
   onConfigure: () => void
   onThreeUnavailable: (message: string) => void
   onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void
+  seekRevision: number
 }) {
   const state = simulation?.state
   const dashboard = state?.dashboard
@@ -297,8 +208,6 @@ function SimulationView({
     typeof dashboard?.current_scenario_name === "string"
       ? dashboard.current_scenario_name
       : scenarios.find((scenario) => String(scenario.id) === selectedScenarioId)?.name ?? "Select a scenario"
-  const phase = String(state?.phase ?? "ALL_RED").replaceAll("_", " ")
-  const phaseRemaining = Number(state?.phase_remaining ?? 0)
   const statusLabel = simulation?.status === "running" && connectionStatus !== "open"
     ? `STREAM ${connectionStatus.toUpperCase()}`
     : simulation?.state.flow?.live_indicator_label ?? "IDLE"
@@ -307,18 +216,20 @@ function SimulationView({
     (typeof state?.scenario?.intersection_id === "string" ? state.scenario.intersection_id : null)
   const showSetupCard = !["running", "paused"].includes(simulation?.status ?? "") && simulation?.control_mode !== "playback"
   const showLiveCanvas = !showSetupCard
+  const frozenConfig = state?.experiment?.config
+  const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null
+
+  if (showLiveCanvas) return <section className="sf-card sf-simulation-card">
+    <SimulationVisualization frame={renderFrame} networkId={intersectionId}
+      controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction}
+      mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision}
+      title={selectedScenarioName} onUnavailable={onThreeUnavailable} onPerformanceSample={onPerformanceSample} />
+  </section>
 
   return (
     <section className="sf-card sf-simulation-card">
       <div className="sf-sim-viewport">
-        {showLiveCanvas && visualizationMode === "2d" ? (
-          <SimulationCanvas2D frame={renderFrame} intersectionId={intersectionId} />
-        ) : showLiveCanvas ? (
-          <SimulationScene3D frame={renderFrame} intersectionId={intersectionId} onUnavailable={onThreeUnavailable}
-            onPerformanceSample={onPerformanceSample} />
-        ) : (
-          <div className="sf-sim-grid" aria-hidden="true" />
-        )}
+        <div className="sf-sim-grid" aria-hidden="true" />
         {showSetupCard ? (
           <div className="sf-setup-card">
             <h3>Simulation Setup</h3>
@@ -352,17 +263,6 @@ function SimulationView({
         <div className="sf-sim-overlay top-left">
           <span>{statusLabel}</span>
           <strong>{selectedScenarioName}</strong>
-        </div>
-        <div className="sf-sim-overlay bottom-left">
-          <span>Signal Phase</span>
-          <strong className="phase-red">
-            <CircleDotIcon />
-            {phase}
-          </strong>
-        </div>
-        <div className="sf-sim-overlay bottom-right">
-          <span>Phase Timer</span>
-          <strong className="timer">{compactNumber(Math.max(phaseRemaining, 0), 1)}s</strong>
         </div>
       </div>
     </section>
@@ -463,7 +363,7 @@ function ControlPanel({
       <section className="sf-card sf-settings-card">
         <CardTitle icon={SlidersHorizontalIcon}>Saved Scenario and Controller</CardTitle>
         {isPlayback ? <p>Recording: {simulation?.selected_scenario_name ?? "Saved scenario"}.</p>
-          : <p>{selectedScenario?.name ?? "Select a scenario"}: {selectedScenario?.traffic_density ?? "—"} traffic, {selectedScenario?.pedestrian_density ?? "—"} pedestrians. Controlled junction: {scenarioConfig?.controlled_junction ?? "loading"}. {scenarioConfig?.events?.length ?? 0} timed road events. Edit these settings on the Scenarios page.</p>}
+          : <p>{selectedScenario?.name ?? "Select a scenario"}: {selectedScenario?.engine_config.traffic_density ?? "—"} traffic, {selectedScenario?.engine_config.pedestrian_density ?? "—"} pedestrians. Controlled junction: {scenarioConfig?.controlled_junction ?? "loading"}. {scenarioConfig?.events?.length ?? 0} timed road events. Edit these settings on the Scenarios page.</p>}
         <SelectField
           label="Signal controller"
           options={[
@@ -739,24 +639,13 @@ function AnalyticsSection({
 
       <article className="sf-card sf-analytics-card">
         <div className="sf-analytics-header">
-          <CardTitle icon={BrainIcon}>RL Agent Status</CardTitle>
+          <CardTitle icon={BrainIcon}>Controller Runtime</CardTitle>
           <span className="sf-agent-badge">{status}</span>
         </div>
         <div className="sf-rl-stats">
-          <div className="sf-rl-progress">
-            <span>Learning Progress</span>
-            <div><span style={{ width: "0%" }} /></div>
-            <strong>0%</strong>
-          </div>
-          <div className="sf-rl-progress">
-            <span>Epsilon (Exploration)</span>
-            <div><span style={{ width: "0%" }} /></div>
-            <strong>0.00</strong>
-          </div>
+          <p>Live simulation runs the selected controller. Saved RL policies perform inference; training progress, exploration, episodes and rewards belong to the RL Training workspace.</p>
           <div className="sf-rl-metric-grid">
-            <div><span>Total Episodes</span><strong>0</strong></div>
-            <div><span>Total Reward</span><strong>0.0</strong></div>
-            <div><span>Algorithm</span><strong>{simulation?.control_mode ?? "Standby"}</strong></div>
+            <div><span>Controller</span><strong>{simulation?.control_mode ?? "Standby"}</strong></div>
             <div><span>Runtime</span><strong>{simulation?.status ?? "idle"}</strong></div>
           </div>
         </div>
@@ -812,7 +701,11 @@ export function DashboardPage({
   const [seed, setSeed] = React.useState("42")
   const [simulation, setSimulation] = React.useState<SimulationStatePayload | null>(null)
   const [renderFrame, setRenderFrame] = React.useState<RenderFrame | null>(null)
-  const [renderPerformance, setRenderPerformance] = React.useState<{ fps: number; p95FrameMs: number; drawCalls: number } | null>(null)
+  const [seekRevision, setSeekRevision] = React.useState(0)
+  const [renderPerformance, setRenderPerformance] = React.useState<{ mode: VisualizationMode; fps: number; p95FrameMs: number; drawCalls: number } | null>(null)
+  const handleRenderPerformance = React.useCallback((sample: { fps: number; p95FrameMs: number; drawCalls: number }) => {
+    setRenderPerformance({ ...sample, mode: visualizationMode })
+  }, [visualizationMode])
   const showPerformance = new URLSearchParams(window.location.search).has("perf")
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
@@ -842,21 +735,39 @@ export function DashboardPage({
     return `Simulation stream is reconnecting. Attempt ${reconnectAttempt}, retrying in ${retrySeconds}s.`
   }, [nextRetryMs, reconnectAttempt, streamErrorMessage, streamStatus])
 
+  const applySimulationSnapshot = React.useCallback((nextSimulation: SimulationStatePayload, replaceRenderFrame = true) => {
+    setSimulation(nextSimulation)
+    if (nextSimulation.render_frame_error) {
+      setRenderFrame(null)
+      setNotice(nextSimulation.render_frame_error)
+      return false
+    }
+    if (replaceRenderFrame) setRenderFrame(renderFrameFromSimulation(nextSimulation))
+    return true
+  }, [])
+
+  React.useEffect(() => {
+    const metadataBudgetRejected = streamErrorMessage?.startsWith("Render metadata exceeds ") ||
+      streamErrorMessage?.startsWith("Simulation render frame exceeded the stream budget.")
+    if (!metadataBudgetRejected) return
+    let active = true
+    queueMicrotask(() => { if (active) setRenderFrame(null) })
+    return () => { active = false }
+  }, [streamErrorMessage])
+
   const applySimulationAction = React.useCallback(
     async (action: () => Promise<{ message: string; simulation: SimulationStatePayload }>, successMessage?: string) => {
       setIsBusy(true)
       try {
         const response = await action()
-        setSimulation(response.simulation)
-        setRenderFrame(renderFrameFromSimulation(response.simulation))
-        setNotice(successMessage ?? response.message)
+        if (applySimulationSnapshot(response.simulation)) setNotice(successMessage ?? response.message)
       } catch (error) {
         setNotice(apiMessage(error))
       } finally {
         setIsBusy(false)
       }
     },
-    []
+    [applySimulationSnapshot]
   )
 
   const loadRecordedRuns = React.useCallback(async () => {
@@ -904,10 +815,9 @@ export function DashboardPage({
         ])
         if (!isMounted) return
 
-        const nextScenarios = [...scenarioResponse.scenarios].sort((a, b) => Number(b.traffic_density === "Single") - Number(a.traffic_density === "Single"))
+        const nextScenarios = [...scenarioResponse.scenarios].sort((a, b) => Number(b.engine_config.traffic_density === "single") - Number(a.engine_config.traffic_density === "single"))
         setScenarios(nextScenarios)
-        setSimulation(simulationResponse)
-        setRenderFrame(renderFrameFromSimulation(simulationResponse))
+        const presentationAvailable = applySimulationSnapshot(simulationResponse)
         setRecordedRuns(runsResponse.runs)
         setModels(modelResponse.models)
         setNativeOptions(optionsResponse)
@@ -922,7 +832,7 @@ export function DashboardPage({
         setSelectedScenarioId(activeScenarioId)
         setSeed(String(simulationResponse.seed))
         setControlMode(simulationResponse.control_mode === "playback" ? "fixed-time" : simulationResponse.control_mode)
-        setNotice("Simulation controls are connected to FastAPI.")
+        if (presentationAvailable) setNotice("Simulation controls are connected to FastAPI.")
       } catch (error) {
         if (isMounted) setNotice(apiMessage(error))
       } finally {
@@ -934,7 +844,7 @@ export function DashboardPage({
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [applySimulationSnapshot])
 
   React.useEffect(() => {
     const scenarioId = Number(selectedScenarioId)
@@ -965,13 +875,12 @@ export function DashboardPage({
       if (stateRefreshInFlight.current) return
       stateRefreshInFlight.current = true
       getSimulationState().then((nextSimulation) => {
-        setSimulation(nextSimulation)
-        if (streamStatus !== "open") setRenderFrame(renderFrameFromSimulation(nextSimulation))
+        applySimulationSnapshot(nextSimulation, streamStatus !== "open")
       }).catch((error) => setNotice(apiMessage(error)))
         .finally(() => { stateRefreshInFlight.current = false })
     }, 2000)
     return () => window.clearInterval(intervalId)
-  }, [streamStatus])
+  }, [applySimulationSnapshot, streamStatus])
 
   React.useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -988,15 +897,14 @@ export function DashboardPage({
     stateRefreshInFlight.current = true
     getSimulationState()
       .then((nextSimulation) => {
-        setSimulation(nextSimulation)
-        if (streamStatus !== "open") setRenderFrame(renderFrameFromSimulation(nextSimulation))
+        applySimulationSnapshot(nextSimulation, streamStatus !== "open")
       })
       .catch((error) => setNotice(apiMessage(error)))
       .finally(() => {
         stateRefreshInFlight.current = false
       })
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [latestFrame, streamStatus])
+  }, [applySimulationSnapshot, latestFrame, streamStatus])
 
   React.useEffect(() => {
     if (!simulation) return
@@ -1062,9 +970,10 @@ export function DashboardPage({
   async function handleSeekPlayback(frameIndex: number) {
     try {
       const response = await seekPlayback(frameIndex)
-      setSimulation(response.simulation)
-      setRenderFrame(renderFrameFromSimulation(response.simulation))
-      setNotice(response.message)
+      if (applySimulationSnapshot(response.simulation)) {
+        setSeekRevision(revision => revision + 1)
+        setNotice(response.message)
+      }
     } catch (error) {
       setNotice(apiMessage(error))
     }
@@ -1072,7 +981,8 @@ export function DashboardPage({
 
   return (
     <div className="sf-dashboard-page">
-      <div className="sf-top-row">
+      <div className={cn("sf-top-row", visualizationMode === "2d" &&
+        (["running", "paused"].includes(simulation?.status ?? "") || simulation?.control_mode === "playback") && "sf-top-row--map")}>
         <SimulationView
           scenarios={scenarios}
           selectedScenarioId={selectedScenarioId}
@@ -1087,7 +997,8 @@ export function DashboardPage({
           onDurationChange={setDurationSeconds}
           onConfigure={configureSelectedScenario}
           onThreeUnavailable={handleThreeUnavailable}
-          onPerformanceSample={showPerformance ? setRenderPerformance : undefined}
+          onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
+          seekRevision={seekRevision}
         />
         <ControlPanel
           selectedScenario={selectedScenario}
@@ -1123,8 +1034,8 @@ export function DashboardPage({
           onClick={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")}>Take over shared session (stop and reset)</button>}
         {streamEnabled && streamStatus !== "open" && <p role="status">Live stream {streamStatus}; displayed positions may be delayed. {streamNotice}</p>}
         <p>Showing {renderFrame?.vehicles.length ?? 0} of {renderFrame?.vehicle_count ?? simulation?.state.vehicle_count ?? 0} vehicles and {renderFrame?.pedestrians.length ?? 0} of {renderFrame?.pedestrian_count ?? simulation?.state.pedestrian_count ?? 0} pedestrians in the renderer.</p>
-        {showPerformance && visualizationMode === "3d" && renderPerformance &&
-          <p role="status">3D renderer: {renderPerformance.fps} fps; p95 frame interval {renderPerformance.p95FrameMs} ms; {renderPerformance.drawCalls} draw calls.</p>}
+        {showPerformance && renderPerformance?.mode === visualizationMode &&
+          <p role="status">{visualizationMode.toUpperCase()} renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms{visualizationMode === "3d" ? `; ${renderPerformance.drawCalls} draw calls` : " (active rendering)"}.</p>}
         <p>Legend: red lane = closed to new entry; amber lane = reduced speed. The lists identify direction and controller in text.</p>
         <div className="flex flex-wrap gap-6">
           <div>

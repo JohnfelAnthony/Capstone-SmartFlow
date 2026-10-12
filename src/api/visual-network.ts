@@ -57,6 +57,9 @@ export type VisualPolygon = {
 }
 
 export type VisualNetwork = {
+  network_id?: string
+  junctions?: Array<{ id: string; x: number; y: number; name?: string; label?: string }>
+  source?: { [key: string]: unknown }
   version: number
   source_net: string
   scope: {
@@ -78,6 +81,6 @@ export type VisualNetwork = {
 }
 
 export function getVisualNetwork(intersectionId?: string | null) {
-  const query = intersectionId ? `?intersection_id=${encodeURIComponent(intersectionId)}` : ""
+  const query = intersectionId ? `?network_id=${encodeURIComponent(intersectionId)}` : ""
   return apiRequest<VisualNetwork>(`/api/visual-network${query}`)
 }

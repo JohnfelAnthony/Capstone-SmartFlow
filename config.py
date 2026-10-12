@@ -25,11 +25,6 @@ DB_PATH = os.environ.get(
     "SMARTFLOW_DB_PATH",
     os.path.join(BASE_DIR, "data", "smartflow.db"),
 )
-VISUAL_NETWORK_PATH = os.environ.get(
-    "SMARTFLOW_VISUAL_NETWORK_PATH",
-    os.path.join(BASE_DIR, "data", "generated", "visual_network.json"),
-)
-VISUAL_NETWORK_MAX_BYTES = int(os.environ.get("SMARTFLOW_VISUAL_NETWORK_MAX_BYTES", "524288"))
 SCENARIO_CONFIG_MAX_BYTES = int(os.environ.get("SMARTFLOW_SCENARIO_CONFIG_MAX_BYTES", "2097152"))
 if SCENARIO_CONFIG_MAX_BYTES < 1:
     raise RuntimeError("SMARTFLOW_SCENARIO_CONFIG_MAX_BYTES must be positive.")
@@ -39,18 +34,6 @@ if not 1 <= MAX_RECORDING_SECONDS <= 24 * 60 * 60:
 RECORDING_BYTES_PER_SECOND_RESERVE = 512 * 1024
 RECORDING_FREE_SPACE_RESERVE = 256 * 1024 * 1024
 LOGIN_ATTEMPT_RETENTION_DAYS = int(os.environ.get("SMARTFLOW_LOGIN_ATTEMPT_RETENTION_DAYS", "30"))
-SIMULATION_SUPERVISOR_BASE_DELAY_SECONDS = int(
-    os.environ.get("SMARTFLOW_SIMULATION_SUPERVISOR_BASE_DELAY_SECONDS", "2")
-)
-SIMULATION_SUPERVISOR_MAX_DELAY_SECONDS = int(
-    os.environ.get("SMARTFLOW_SIMULATION_SUPERVISOR_MAX_DELAY_SECONDS", "30")
-)
-SIMULATION_SUPERVISOR_MAX_RETRIES = int(
-    os.environ.get("SMARTFLOW_SIMULATION_SUPERVISOR_MAX_RETRIES", "5")
-)
-
-DEBUG = _env_bool("SMARTFLOW_DEBUG", False)
-PORT = int(os.environ.get("SMARTFLOW_PORT", "8050"))
 PUBLIC_BASE_URL = os.environ.get("SMARTFLOW_PUBLIC_BASE_URL", "").strip()
 PRODUCTION = os.environ.get("SMARTFLOW_ENV", "").strip().lower() == "production"
 
@@ -79,8 +62,6 @@ if PRODUCTION:
         raise RuntimeError("Production requires a unique SMARTFLOW_SECRET_KEY of at least 32 characters.")
 
 SESSION_TIMEOUT = int(os.environ.get("SMARTFLOW_SESSION_TIMEOUT", "3600"))
-SESSION_COOKIE_NAME = os.environ.get("SMARTFLOW_SESSION_COOKIE_NAME", "smartflow_session")
-SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = os.environ.get("SMARTFLOW_SESSION_COOKIE_SAMESITE", "Lax")
 SESSION_COOKIE_SECURE = _env_bool(
     "SMARTFLOW_SESSION_COOKIE_SECURE",
@@ -88,8 +69,6 @@ SESSION_COOKIE_SECURE = _env_bool(
 )
 if PRODUCTION and not SESSION_COOKIE_SECURE:
     raise RuntimeError("Production requires secure session cookies.")
-CSRF_COOKIE_NAME = "smartflow_csrf_token"
-CSRF_HEADER_NAME = "X-CSRF-Token"
 
 DEFAULT_ADMIN_USERNAME = "admin"
 BOOTSTRAP_ADMIN_PASSWORD = os.environ.get("SMARTFLOW_BOOTSTRAP_ADMIN_PASSWORD")

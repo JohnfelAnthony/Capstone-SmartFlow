@@ -98,70 +98,12 @@ def _phase_elapsed_seconds(engine: TrafficEngine) -> float:
     return engine.signals[engine.controlled_junction].elapsed
 
 
-def _runtime_vehicle_records(
-    engine: TrafficEngine,
-    fallback_vehicles: list[dict],
-    emergency_vehicle_ids: set[str],
-) -> list[dict]:
-    connection = engine.connection
-    if connection is None:
-        return list(fallback_vehicles)
-
-    records: list[dict] = []
-    try:
-        vehicle_ids = list(connection.vehicle.getIDList())
-    except Exception:
-        return list(fallback_vehicles)
-
-    for vehicle_id in vehicle_ids:
-        try:
-            lane_id = connection.vehicle.getLaneID(vehicle_id)
-            speed = float(connection.vehicle.getSpeed(vehicle_id))
-            record = {
-                "id": vehicle_id,
-                "lane_id": lane_id,
-                "lane_position": float(connection.vehicle.getLanePosition(vehicle_id)),
-                "wait_time": float(connection.vehicle.getAccumulatedWaitingTime(vehicle_id)),
-                "stopped": speed <= 0.1,
-                "emergency": vehicle_id in emergency_vehicle_ids or engine._is_declared_emergency_vehicle(vehicle_id),
-            }
-        except Exception:
-            continue
-        records.append(record)
-    return records
-
-
-def _runtime_pedestrian_waiting_count(engine: TrafficEngine, fallback_pedestrians: list[dict]) -> int:
-    connection = engine.connection
-    if connection is None:
-        return sum(1 for pedestrian in fallback_pedestrians if bool(pedestrian.get("stopped")))
-
-    try:
-        person_ids = list(connection.person.getIDList())
-    except Exception:
-        return sum(1 for pedestrian in fallback_pedestrians if bool(pedestrian.get("stopped")))
-
-    waiting_count = 0
-    for person_id in person_ids:
-        try:
-            if float(connection.person.getSpeed(person_id)) <= 0.05:
-                waiting_count += 1
-        except Exception:
-            continue
-    return waiting_count
-
-
 def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
     runtime_state = engine.build_rl_runtime_state()
     metrics = runtime_state.get("metrics", {})
-    vehicles = _runtime_vehicle_records(
-        engine,
-        list(runtime_state.get("vehicles", [])),
-        set(runtime_state.get("emergency_vehicle_ids", [])),
-    )
+    vehicles = list(runtime_state.get("vehicles", []))
     pedestrians = [ped for ped in runtime_state.get("pedestrians", []) if ped.get("lane_id") == engine.controlled_junction]
     approach_lanes = runtime_state.get("approach_lanes", {})
-    connection = engine.connection
 
     queue_by_approach = {
         approach: int(metrics.get("queue_by_approach", {}).get(approach, 0) or 0)
@@ -172,7 +114,6 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
     emergency_presence_by_approach = {approach: 0 for approach in APPROACH_ORDER}
     emergency_proximity_by_approach = {approach: 0.0 for approach in APPROACH_ORDER}
 
-    lane_length_cache: dict[str, float] = {}
     lane_to_approach: dict[str, str] = {}
     for approach, lane_ids in approach_lanes.items():
         for lane_id in lane_ids:
@@ -191,28 +132,15 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
             continue
 
         emergency_presence_by_approach[approach] = 1
-        if connection is None and lane_id in engine.network.lanes:
+        if lane_id in engine.network.lanes:
             emergency_proximity_by_approach[approach] = max(emergency_proximity_by_approach[approach], _normalize(float(vehicle.get("lane_position", 0)), engine.network.lanes[lane_id].length))
-        if connection is not None and lane_id:
-            if lane_id not in lane_length_cache:
-                try:
-                    lane_length_cache[lane_id] = float(connection.lane.getLength(lane_id))
-                except Exception:
-                    lane_length_cache[lane_id] = 0.0
-            lane_length = lane_length_cache[lane_id]
-            lane_position = float(vehicle.get("lane_position", 0.0) or 0.0)
-            if lane_length > 0:
-                emergency_proximity_by_approach[approach] = max(
-                    emergency_proximity_by_approach[approach],
-                    _normalize(lane_position, lane_length),
-                )
 
     for approach in APPROACH_ORDER:
         vehicle_count = active_vehicles_by_approach[approach]
         if vehicle_count > 0:
             wait_by_approach[approach] = round(wait_by_approach[approach] / vehicle_count, 4)
 
-    pedestrian_waiting_count = _runtime_pedestrian_waiting_count(engine, pedestrians)
+    pedestrian_waiting_count = sum(1 for pedestrian in pedestrians if bool(pedestrian.get("stopped")))
 
     phase_family = runtime_state.get("phase_family") or phase_family_from_name(engine.phase)
     remaining_switch_seconds = max(float(runtime_state.get("phase_remaining", 0.0) or 0.0), 0.0)
@@ -262,5 +190,5 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         avg_ped_delay=float(metrics.get("avg_ped_delay", 0.0) or 0.0),
         total_phase_switches=int(runtime_state.get("rl_total_phase_switches", 0) or 0),
         simulation_time=float(runtime_state.get("simulation_time", 0.0) or 0.0),
-        intersection_id=str(runtime_state.get("intersection_id") or "tagum_1"),
+        intersection_id=str(runtime_state.get("intersection_id") or engine.network.id),
     )

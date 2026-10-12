@@ -27,6 +27,7 @@ import {
   deleteRun,
   exportRuns,
   favoriteRun,
+  getRun,
   getRunTimeline,
   listRuns,
   type RunTimelineResponse,
@@ -229,12 +230,12 @@ function RunsSelect({
   )
 }
 
-export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => void }) {
+export function RunsReportsPage({ onOpenDashboard, initialRunId }: { onOpenDashboard?: () => void; initialRunId?: number | null }) {
   const [runs, setRuns] = React.useState<SimulationRunRecord[]>([])
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [filters, setFilters] = React.useState<FilterState>(defaultFilters)
   const [selectedRunIds, setSelectedRunIds] = React.useState<number[]>([])
-  const [selectedRunId, setSelectedRunId] = React.useState<number | null>(null)
+  const [selectedRunId, setSelectedRunId] = React.useState<number | null>(initialRunId ?? null)
   const [timelinePreview, setTimelinePreview] = React.useState<RunTimelineResponse | null>(null)
   const [isTimelineLoading, setIsTimelineLoading] = React.useState(false)
   const [alert, setAlert] = React.useState("Loading simulation run history.")
@@ -263,6 +264,10 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
         }),
       ])
       setScenarios(scenarioResponse.scenarios)
+      if (initialRunId && !runResponse.runs.some((run) => run.id === initialRunId) && filters === defaultFilters) {
+        const searchedRun = await getRun(initialRunId)
+        runResponse.runs.unshift(searchedRun)
+      }
       setRuns(runResponse.runs)
       setSelectedRunId((current) => current ?? runResponse.runs[0]?.id ?? null)
       setSelectedRunIds((current) => current.filter((id) => runResponse.runs.some((run) => run.id === id)))
@@ -272,7 +277,7 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
     } finally {
       setIsLoading(false)
     }
-  }, [filters])
+  }, [filters, initialRunId])
 
   React.useEffect(() => {
     let active = true
@@ -439,7 +444,7 @@ export function RunsReportsPage({ onOpenDashboard }: { onOpenDashboard?: () => v
               <ListFilterIcon />
               Filters
             </CardTitle>
-            <CardDescription>Match Dash run history filters.</CardDescription>
+            <CardDescription>Filter saved simulation runs.</CardDescription>
           </CardHeader>
           <CardContent className="runs-filter-stack">
             <RunsSelect value={filters.scenarioId} onChange={(scenarioId) => setFilters({ ...filters, scenarioId })} options={scenarioOptions} />

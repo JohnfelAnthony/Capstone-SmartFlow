@@ -52,6 +52,7 @@ export function useSimulationSocket({ enabled }: { enabled: boolean }) {
     let closedByEffect = false
     let reconnectTimer: number | null = null
     let socket: WebSocket | null = null
+    let terminalStreamError: string | null = null
 
     function clearReconnectTimer() {
       if (reconnectTimer !== null) {
@@ -68,7 +69,7 @@ export function useSimulationSocket({ enabled }: { enabled: boolean }) {
     }
 
     function scheduleReconnect() {
-      if (closedByEffect) return
+      if (closedByEffect || terminalStreamError) return
       clearReconnectTimer()
       const attempt = reconnectAttemptRef.current + 1
       const delayMs = reconnectDelay(attempt)
@@ -98,8 +99,22 @@ export function useSimulationSocket({ enabled }: { enabled: boolean }) {
       })
 
       socket.addEventListener("message", (event) => {
+        if (closedByEffect || terminalStreamError) return
         try {
           const frame: unknown = JSON.parse(event.data)
+          if (frame && typeof frame === "object" && "type" in frame && frame.type === "stream_error") {
+            terminalStreamError = "message" in frame && typeof frame.message === "string"
+              ? frame.message
+              : "Simulation stream could not display its research telemetry. Using the HTTP fallback."
+            clearReconnectTimer()
+            reconnectAttemptRef.current = 0
+            setReconnectAttempt(0)
+            setNextRetryMs(null)
+            setLatestFrame(null)
+            setStatus("error")
+            setErrorMessage(terminalStreamError)
+            return
+          }
           if (!validFrame(frame)) throw new Error("Invalid simulation frame")
           setLatestFrame(frame)
           setErrorMessage(null)
@@ -112,6 +127,16 @@ export function useSimulationSocket({ enabled }: { enabled: boolean }) {
       socket.addEventListener("close", (event) => {
         if (closedByEffect) return
         socket = null
+
+        if (terminalStreamError || event.code === 1009) {
+          terminalStreamError ??= "Simulation render frame exceeded the stream budget. Using the HTTP fallback."
+          clearReconnectTimer()
+          setLatestFrame(null)
+          setStatus("error")
+          setNextRetryMs(null)
+          setErrorMessage(terminalStreamError)
+          return
+        }
 
         if (event.code === 1000) {
           setStatus("closed")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class HealthResponse(BaseModel):
@@ -266,16 +266,9 @@ class Scenario(BaseModel):
     id: int
     name: str
     description: str | None = ""
-    traffic_density: str
-    pedestrian_density: str
-    emergency_mode: str
-    road_constraint: str
-    intersection_id: str
+    network_id: str | None
+    migration_error: str | None = None
     engine_config: dict[str, Any] = Field(default_factory=dict)
-    lane_closure_config: dict[str, Any] = Field(default_factory=dict)
-    construction_config: dict[str, Any] = Field(default_factory=dict)
-    accident_config: dict[str, Any] = Field(default_factory=dict)
-    flooding_config: dict[str, Any] = Field(default_factory=dict)
     created_by: int | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -288,18 +281,11 @@ class ScenarioListResponse(BaseModel):
 
 
 class ScenarioWriteRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     name: str = Field(min_length=1, max_length=160)
     description: str | None = Field(default="", max_length=2000)
-    traffic_density: str = Field(default="Medium", min_length=1, max_length=40)
-    pedestrian_density: str = Field(default="Medium", min_length=1, max_length=40)
-    emergency_mode: str = Field(default="Disabled", min_length=1, max_length=80)
-    road_constraint: str = Field(default="None", min_length=1, max_length=120)
-    intersection_id: str = Field(default="tagum_1", min_length=1, max_length=80)
+    network_id: str | None = Field(default=None, min_length=1, max_length=80)
     engine_config: dict[str, Any] = Field(default_factory=dict)
-    lane_closure_config: dict[str, Any] = Field(default_factory=dict)
-    construction_config: dict[str, Any] = Field(default_factory=dict)
-    accident_config: dict[str, Any] = Field(default_factory=dict)
-    flooding_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class ObservationImportRequest(BaseModel):
@@ -319,13 +305,9 @@ class ObservationImportResponse(BaseModel):
 
 
 class SimulationConfigureRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     engine_config: dict[str, Any] | None = None
     scenario_id: int | None = Field(default=None, ge=1)
-    intersection_id: str | None = Field(default=None, min_length=1, max_length=80)
-    traffic_density: str | None = Field(default=None, min_length=1, max_length=40)
-    pedestrian_density: str | None = Field(default=None, min_length=1, max_length=40)
-    emergency_mode: str | None = Field(default=None, min_length=1, max_length=80)
-    road_constraint: str | None = Field(default=None, min_length=1, max_length=120)
     duration_seconds: int | None = Field(default=None, ge=1, le=24 * 60 * 60)
     seed: int | None = Field(default=None, ge=0, le=2**32-1)
     control_mode: str | None = Field(default=None, min_length=1, max_length=80)
@@ -468,6 +450,8 @@ class SimulationStateResponse(BaseModel):
     seed: int
     control_mode: str
     state: dict[str, Any]
+    render_frame: dict[str, Any] | None = None
+    render_frame_error: str | None = None
 
 
 class SimulationActionResponse(BaseModel):

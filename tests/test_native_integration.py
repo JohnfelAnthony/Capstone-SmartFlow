@@ -35,7 +35,7 @@ class NativeIntegrationTests(unittest.TestCase):
         database.create_user("Verification", "native_test", None, auth.hash_password("NativeTestUser42!"), role_id=1)
         response = self.client.post("/api/auth/login", json={"username": "native_test", "password": "NativeTestUser42!"})
         self.assertEqual(response.status_code, 200, response.text)
-        self.scenario = next(row for row in database.get_scenarios() if row["traffic_density"] == "Single")
+        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
 
     def tearDown(self):
         simulation_runtime.reset()
@@ -45,7 +45,7 @@ class NativeIntegrationTests(unittest.TestCase):
         self.directory.cleanup()
 
     def test_configured_values_survive_start_stream_pause_resume_and_save(self):
-        response = self.client.post("/api/simulation/configure", json={"scenario_id": self.scenario["id"], "traffic_density": "low", "pedestrian_density": "none", "duration_seconds": 60})
+        response = self.client.post("/api/simulation/configure", json={"scenario_id": self.scenario["id"], "engine_config": {"traffic_density": "low", "pedestrian_density": "none"}, "duration_seconds": 60})
         self.assertEqual(response.status_code, 200, response.text)
         response = self.client.post("/api/simulation/start", json={})
         self.assertEqual(response.status_code, 200, response.text)
@@ -107,14 +107,15 @@ class NativeIntegrationTests(unittest.TestCase):
 
     def test_native_scenario_persistence_and_atomic_config_validation(self):
         native = {"vehicle_mix": {"bus": 1, "car": 2}, "green_seconds": 20}
-        response = self.client.post("/api/scenarios", json={"name": "Native configuration", "traffic_density": "high", "engine_config": native})
+        response = self.client.post("/api/scenarios", json={"name": "Native configuration", "engine_config": {**native, "traffic_density": "high"}})
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json()["engine_config"], native)
+        for key, value in native.items():
+            self.assertEqual(response.json()["engine_config"][key], value)
         scenario_id = response.json()["id"]
         response = self.client.post("/api/simulation/configure", json={"scenario_id": scenario_id})
         self.assertEqual(response.status_code, 200, response.text)
         original = response.json()["simulation"]["state"]["experiment"]["config"]
-        response = self.client.post("/api/simulation/configure", json={"engine_config": {"events": None}, "traffic_density": "none"})
+        response = self.client.post("/api/simulation/configure", json={"engine_config": {"events": None, "traffic_density": "none"}})
         self.assertEqual(response.status_code, 409, response.text)
         self.assertEqual(simulation_runtime.get_state().state["experiment"]["config"], original)
 
@@ -146,19 +147,21 @@ class NativeIntegrationTests(unittest.TestCase):
         self.assertEqual(database.get_run_by_id(run_id)["status"], "error")
 
     def test_scenario_edit_preserves_omitted_native_settings_and_can_clear_explicitly(self):
-        native = {"vehicle_mix": {"bus": 1}, "green_seconds": 20}
-        created = self.client.post("/api/scenarios", json={"name": "Preserve settings", "engine_config": native, "traffic_density": "high"})
+        native = {"vehicle_mix": {"bus": 1}, "green_seconds": 20, "traffic_density": "high"}
+        created = self.client.post("/api/scenarios", json={"name": "Preserve settings", "engine_config": native})
         self.assertEqual(created.status_code, 200, created.text)
         scenario_id = created.json()["id"]
         changed = self.client.put(f"/api/scenarios/{scenario_id}", json={"name": "Renamed"})
         self.assertEqual(changed.status_code, 200, changed.text)
-        self.assertEqual(changed.json()["engine_config"], native)
-        self.assertEqual(changed.json()["traffic_density"], "high")
+        self.assertEqual(changed.json()["engine_config"], created.json()["engine_config"])
+        self.assertEqual(changed.json()["engine_config"]["traffic_density"], "high")
         invalid = self.client.put(f"/api/scenarios/{scenario_id}", json={"name": "Invalid", "engine_config": {"routing_mode": []}})
         self.assertEqual(invalid.status_code, 422, invalid.text)
         self.assertEqual(self.client.get(f"/api/scenarios/{scenario_id}").json()["name"], "Renamed")
         cleared = self.client.put(f"/api/scenarios/{scenario_id}", json={"name": "Cleared", "engine_config": {}})
-        self.assertEqual(cleared.json()["engine_config"], {})
+        self.assertEqual(cleared.status_code, 200, cleared.text)
+        self.assertEqual(cleared.json()["engine_config"]["vehicle_mix"], {"car": 1.0})
+        self.assertEqual(cleared.json()["engine_config"]["green_seconds"], 14.0)
 
     def test_bad_playback_does_not_interrupt_an_active_run(self):
         self.client.post("/api/simulation/configure", json={"scenario_id": self.scenario["id"]})

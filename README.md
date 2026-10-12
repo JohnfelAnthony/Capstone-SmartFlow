@@ -1,12 +1,20 @@
 # SmartFlow
 
-Documentation reviewed: **2026-10-02** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend.
+Documentation reviewed: **2026-10-04** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend.
 
 SmartFlow is a capstone traffic simulation and decision-support project for a bounded study area in Tagum City. It is intended to compare traffic signal strategies and adaptive routes under ordinary traffic, peak demand and road disruptions. The current direction is a **React web application, a custom Python traffic engine, and a dynamic Three.js visualization**. SUMO is being replaced in the active application.
 
 **Latest captured status, October 2:** approved audit priorities 1–6 remain repaired. The delivery pass adds four CSV blank templates and current-network synthetic examples, import guidance, explicit measurement/provenance report columns, and manuscript draft wording. A clean separate-location installation passed 99 Python tests, API compilation, lint, build and startup smoke. After the final CSV attachment change, its four focused tests, compilation, lint and builds passed again. An isolated browser verified all eight template downloads, import/save/reopen, restored replay/model loading and CSV/JSON report contents. Lint has zero errors and the existing TanStack warning. Evidence and remaining deployment/research decisions are in [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md). The September 23 [implementation handoff](IMPLEMENTATION_HANDOFF.md), sections 1–4 and 11, remains the historical repair map and task index. Synthetic software checks do not establish Tagum controller effectiveness; field observations, calibration and final study decisions remain open.
 
 ## Start a new implementation chat here
+
+**October 12 — interactive 2D map:** a larger map with controls below, collapsible inspection, hover details, drag/scroll/pinch navigation, keyboard controls and smoother vehicle/pedestrian motion is implemented. Cached drawing avoids continuous animation for stationary traffic. Verification passed 101 frontend tests and browser interaction/replay checks; a moving 300-vehicle/128-pedestrian rendering fixture averaged 59.49 paints/s on the documented laptop. See [controls, exact conditions and evidence](docs/PROGRESS_AND_HANDOFF.md). This rendering measurement does not establish field validity.
+
+**October 10 — native visualization redesign:** shared 2D/3D geometry, a junction-focused architectural scene, minimap, six vehicle classes including the green covered tricycle, selection/follow, analytical overlays and truthful controller telemetry are implemented. Native live/replay/policy and browser failure checks use isolated synthetic inputs. See the [redesign result](docs/reviews/SIMULATION_VISUAL_REDESIGN_RESULT_2026-10-10.md) for exact checks, hardware measurements and limitations; these do not establish field validity.
+
+**October 4 — sidebar workspaces:** Settings now saves theme/default visualization preferences and opens account security. Search finds authorized pages and saved scenarios, runs, models and research records, opening the selected record. Calibration & Validation adds durable fixed-time baseline comparisons, manual field-reference values, tuning/review notes, independent-period checks and CSV/JSON exports. The sidebar clock is removed. The full application suite passed 106 tests; after final validation refinements, all eight research-workspace tests passed. Build, compilation, lint and isolated browser workflows passed; see [usage and limits](docs/RESEARCH_WORKSPACE.md) and [dated evidence](docs/PROGRESS_AND_HANDOFF.md). No field accuracy or automatic parameter calibration is claimed.
+
+**October 3 — recording-tool GUI v0.3:** double-click `Start Field Observer.cmd` to open the local [field observer](tools/field_observer/README.md). Select one phone recording, draw counting lines, see detection boxes and proposed counts, play the annotated video, correct events and export provisional revisions. A clearly labeled scripted demo works before field collection. It has its own Python environment and data folder. Tricycles require manual classification; independent audit gates and SmartFlow conversion remain subsequent stages. Field accuracy is unverified. See [progress](docs/PROGRESS_AND_HANDOFF.md) for targeted verification.
 
 Open **this SmartFlow folder** as the workspace. Read [AGENTS.md](AGENTS.md), this README, handoff sections 1–4 and 11, and the project overview. Then read only the source and tests for the selected delivery slice. No parent Trapik2 files are needed to understand the current scope and recorded history. Documentation provides orientation; the relevant source still needs inspection before it is changed.
 
@@ -18,8 +26,11 @@ Open **this SmartFlow folder** as the workspace. Read [AGENTS.md](AGENTS.md), th
 | [Implementation handoff](IMPLEMENTATION_HANDOFF.md) | Latest interrupted state, six approved areas, all 31 backlog tasks, acceptance criteria and a targeted code-reading map. Read sections 1–4 and 11 first; other sections as needed. |
 | [Project purpose and scope](docs/PROJECT_OVERVIEW.md) | Why the project exists, chapter requirements, users, agreed direction and research boundaries. |
 | [Architecture and delivery plan](docs/ARCHITECTURE_AND_PLAN.md) | Technical-lead review, alternatives, decisions, architecture, 35-day delivery plan, risks and release/recovery gates. |
+| [Simulation visual redesign plan](docs/SIMULATION_VISUAL_REDESIGN_PLAN.md) | Selected architectural style, ordered slices, native geometry/telemetry contracts and acceptance procedure. |
+| [Simulation visual redesign result](docs/reviews/SIMULATION_VISUAL_REDESIGN_RESULT_2026-10-10.md) | Implemented behavior, actual test/browser evidence, hardware/performance and remaining acceptance limits. |
 | [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md) | Latest status pointer and dated verification evidence; clearly separates the earlier passing checkpoint from later unfinished work. |
 | [Research preparation](docs/RESEARCH_METHOD.md) | Observation form, calibration/evaluation protocol, metric definitions and open study decisions. |
+| [Settings, search and research workspace](docs/RESEARCH_WORKSPACE.md) | Using preferences, record search, baseline-fit comparisons, independent validation, permissions and exports. |
 | [Field recording procedure](docs/FIELD_RECORDING_PROTOCOL.md) | Roadside phone placement, coverage, signal and pedestrian observations, collection forms and pilot quality checks. |
 | [Video observation tool plan](docs/VIDEO_OBSERVATION_TOOL_PLAN.md) | Temporary offline Python tool inside SmartFlow, selected open-source stack, review workflow and evidence exports. |
 | [Field data integration plan](docs/FIELD_DATA_SMARTFLOW_INTEGRATION.md) | Required demand/signal fidelity changes, dataset conversion, calibration, validation and field-informed RL experiments. |
@@ -27,6 +38,30 @@ Open **this SmartFlow folder** as the workspace. Read [AGENTS.md](AGENTS.md), th
 | [Project history and chapter archive](PROJECT_HISTORY_AND_MIGRATION.md) | Both codebases, old/revised chapter comparison, source PDFs and relocation checklist. Read sections 1–9 for history; appendices only for specific research questions. |
 
 The four foundation documents remain README, overview, architecture and progress. The owner subsequently requested the implementation handoff and historical archive. Keep these existing documents focused instead of creating overlapping status files. `AGENTS.md` is the short agent entry point; skill/tool Markdown is task-specific guidance. The archive's full manuscripts are reference material, not required startup reading. Do not use the parent folder's Dash application as the specification for this React application.
+
+## Codex skills
+
+The repository includes nine development skills under `.agents/skills`, alongside the existing shadcn skill. Codex can select them when their descriptions match a task; name a skill explicitly when you want a particular workflow. They are available on the next turn after installation. If the skill selector has not refreshed, restart Codex.
+
+| Skill | Use |
+| --- | --- |
+| [systematic-debugging](.agents/skills/systematic-debugging/SKILL.md) | Reproduce a failure, trace its cause and verify the fix. |
+| [code-review](.agents/skills/code-review/SKILL.md) | Review correctness, API contracts, security, performance and test coverage. |
+| [webapp-testing](.agents/skills/webapp-testing/SKILL.md) | Inspect browser workflows, screenshots and console logs; author Playwright checks. |
+| [three-best-practices](.agents/skills/three-best-practices/SKILL.md) | Review rendering performance, resource disposal and scene organization. |
+| [verification-before-completion](.agents/skills/verification-before-completion/SKILL.md) | Require fresh verification evidence before reporting completion. |
+| [find-skills](.agents/skills/find-skills/SKILL.md) | Discover relevant skills through the skills.sh CLI and check their sources. |
+| [vercel-react-best-practices](.agents/skills/vercel-react-best-practices/SKILL.md) | Review React rendering, data fetching and bundle performance. |
+| [fastapi](.agents/skills/fastapi/SKILL.md) | Apply official API, dependency, validation and response conventions. |
+| [python-performance-optimization](.agents/skills/python-performance-optimization/SKILL.md) | Profile Python CPU/memory use and improve measured bottlenecks. |
+
+For example: `Use $three-best-practices to review the traffic visualization for memory leaks.` Exact upstream repository revisions are recorded in [.agents/skills/smartflow-sources.json](.agents/skills/smartflow-sources.json); supporting files are retained with each skill.
+
+Apply these workflows within [AGENTS.md](AGENTS.md) and the current project contracts. Use `.venv/Scripts/python.exe`, existing test commands and isolated test data. The debugging skill refers to another upstream `test-driven-development` skill, which is not part of the installed set; follow the existing regression-test conventions when it is unavailable. Three.js guidance applies to rendering, while Python remains authoritative for traffic behavior. Keep Vite imports and judge suggested performance budgets through measurements on the target machine.
+
+Apply the React rules that fit this Vite application; Next.js-specific APIs require a different stack. Check new FastAPI features against the project's pinned version and keep the existing startup commands and single-worker runtime. Profile Python before changing it, preserving simulation determinism and saved `engine_config` settings. Skill discovery can suggest additional packages; installing or updating them remains a separate requested action with an explicit scope.
+
+The browser-testing skill's Python examples require Playwright and its browser binaries, which are not installed in the application environment by this skill installation. Use the available Codex browser tools for interactive inspection, or set up an isolated Playwright environment when authoring automated browser tests. For this polling application, wait for the specific ready state instead of relying on network-idle timing.
 
 ## Start locally
 
@@ -138,7 +173,22 @@ The Q-learning, DQL and PPO entry points are `tools/train_ql.py`, `tools/train_d
 | `data/scenarios/` | Native example scenario inputs. |
 | `tools/`, `tests/` | Import, experiment and training commands; automated behavior checks. |
 
-Older simulation modules and `sumo/` assets still exist inside this folder. They are historical material, not the active engine contract. Follow the explicit entry points above rather than inferring architecture from similar filenames.
+The October 9 cleanup removed the inactive SUMO/Dash engine cluster and assets after creating a verified recovery archive. Historical manuscripts, models and recordings remain preserved. See the [cleanup result and rollback procedure](docs/reviews/SUMO_DASH_CLEANUP_RESULT_2026-10-09.md) and [exact removal manifest](docs/reviews/SUMO_DASH_CLEANUP_MANIFEST_2026-10-09.json).
+
+## Native scenario storage and upgrades
+
+Scenario APIs use metadata, canonical `network_id` and complete `engine_config`. Density, emergency behavior, junction plans, routing and native restrictions belong inside `engine_config`; duplicate legacy fields are rejected. Frozen recording/model snapshots retain their existing `intersection_id` envelope and compatibility contracts.
+
+Startup transactionally upgrades supported older scenarios while retaining their legacy SQLite columns, IDs and references. Enabled or ambiguous historical disruptions require explicit native lane/event mapping. Such rows show **Needs migration**, cannot run or save a default replacement, and retain their original settings. The primary database's 12 scenarios migrated successfully on October 9; [per-row source values, results and warnings](docs/reviews/NATIVE_SCENARIO_MIGRATION_2026-10-09.json) record the conversion.
+
+Inspect an older database before starting it, using a report path separate from the input database:
+
+```powershell
+.venv/Scripts/python.exe -m tools.migrate_native_scenarios --database data/smartflow.db --dry-run --report tmp/scenario-migration-preview.json
+.venv/Scripts/python.exe -m tools.migrate_native_scenarios --database data/smartflow.db --apply --report tmp/scenario-migration-applied.json
+```
+
+Preserve a coherent SQLite backup before applying an upgrade. Dry runs write only their report; repeated upgrades preserve later native edits. ZIP and database-only restore rehearsals also run migration against the isolated restored copy. ZIP restoration uses compact directory aliases, retains filenames/sidecars and verifies artifact hashes; `restore_layout.json` records the new locations. Original bundles and live artifact paths are unchanged.
 
 ## Road data
 

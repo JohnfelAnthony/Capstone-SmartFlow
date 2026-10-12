@@ -1,0 +1,4 @@
+# PyAV 19.0.1, official cp312-abi3 Windows x86-64 wheel.
+# Supports Python 3.12+; verified locally with Python 3.13.3.
+# No detector, tracker, UI, or SmartFlow backend dependencies in this stage.
+av==19.0.1 --hash=sha256:906fc3db09288319a75ea23ffefb59961c7dbe0d1c074601507a89de7d8593d8

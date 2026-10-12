@@ -17,7 +17,7 @@ VEHICLE_TYPES = {
 }
 DEFAULTS = {
     "traffic_density": "single", "pedestrian_density": "none", "emergency_mode": "disabled",
-    "road_constraint": "None", "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
+    "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
     "vehicle_mix": {"car": 1.0}, "routing_mode": "adaptive", "reroute_interval": 15.0,
@@ -73,8 +73,7 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     if any(not isinstance(lane, str) for lane in result["closed_lanes"]):
         raise ValueError("Closed lanes must contain lane IDs")
     requested = result.pop("intersection_id", network.id)
-    legacy_ids = {"tagum_1", "tagum_2", "tagum_3"} if network.id == "tagum_network" else set()
-    if not isinstance(requested, str) or requested not in {network.id, *legacy_ids}:
+    if not isinstance(requested, str) or requested != network.id:
         raise ValueError("Unknown road network")
     result.setdefault("controlled_junction", network.intersections[0])
     if result["controlled_junction"] not in network.intersections:
@@ -99,22 +98,6 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         if result[key] != int(result[key]):
             raise ValueError(f"{key} must be an integer")
         result[key] = int(result[key])
-    if "road_constraint" in settings:
-        result["closed_lanes"], result["slow_lanes"] = [], {}
-        constraint = str(result["road_constraint"]).lower()
-        if constraint not in {"none", "", "no constraints"}:
-            candidate = next((lane.id for lane in network.lanes.values() if lane.source in network.intersections and lane.target in network.intersections), None)
-            if candidate is None:
-                raise ValueError("This network has no internal lane for a disruption preset")
-            if "flood" in constraint or "construct" in constraint:
-                result["slow_lanes"][candidate] = .35
-            elif "clos" in constraint or "accident" in constraint:
-                result["closed_lanes"] = [candidate]
-            else:
-                raise ValueError("Unknown disruption preset; use explicit lane events")
-        for key in ("closed_lanes", "slow_lanes"):
-            if key in settings:
-                result[key] = copy.deepcopy(settings[key])
     if set(result["closed_lanes"]) - network.lanes.keys() or result["slow_lanes"].keys() - network.lanes.keys():
         raise ValueError("Unknown constrained lane")
     result["closed_lanes"] = sorted(set(result["closed_lanes"]))

@@ -1,1 +1,1 @@
-"""SMARTFLOW service layer — bridges simulation engine to Dash frontend."""
+"""SMARTFLOW service layer — supports the native engine and FastAPI application."""

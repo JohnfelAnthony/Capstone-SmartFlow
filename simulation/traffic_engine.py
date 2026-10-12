@@ -144,7 +144,6 @@ class TrafficEngine:
         self.controller_type = "fixed_time"
         self.controller_provenance = "fixed-time"
         self.controller_provenance_label = self.control_mode_label = "Fixed-Time (Python)"
-        self.connection = None  # Legacy observation reader uses native snapshots when None.
         self.duration_limit = 300
         self.config = validate_config(DEFAULTS, {}, self.network)
         self.runtime_policy = None
@@ -237,7 +236,7 @@ class TrafficEngine:
         candidate = validate_config(self.config, settings, self.network)
         arrivals = build_schedule(candidate, self.network, self.seed, self.duration_limit)
         self.config = candidate
-        for key in ("traffic_density", "pedestrian_density", "emergency_mode", "road_constraint", "green_seconds", "controlled_junction"):
+        for key in ("traffic_density", "pedestrian_density", "emergency_mode", "green_seconds", "controlled_junction"):
             setattr(self, key, candidate[key])
         self._reset_state(arrivals=arrivals)
         self._add_event("configuration", "Scenario configured for the Python engine")
@@ -245,6 +244,17 @@ class TrafficEngine:
     def configure_from_scenario(self, scenario: dict):
         if not isinstance(scenario, dict):
             raise ValueError("Scenario must be an object")
+        if 'network_id' in scenario:
+            if scenario['network_id'] != self.network.id:
+                raise ValueError('Scenario network is unresolved or differs from the configured network; migrate it before execution.')
+            native = object_config(scenario.get('engine_config'), 'engine_config')
+            if 'intersection_id' in native:
+                raise ValueError('Network identity belongs in network_id, not engine_config.')
+            self.configure(intersection_id=scenario['network_id'], **native)
+            self.current_scenario_name = str(scenario.get('name', self.current_scenario_name))
+            return
+        if 'road_constraint' in scenario:
+            raise ValueError('Legacy road_constraint needs migration to explicit native lane settings.')
         for field in ("lane_closure_config", "construction_config", "accident_config", "flooding_config"):
             if object_config(scenario.get(field, {}), field):
                 raise ValueError(f"{field} uses legacy disruption settings; migrate them to engine_config.closed_lanes, slow_lanes or events")
@@ -656,8 +666,29 @@ class TrafficEngine:
             records.append({"id": vehicle.id, "x": x, "y": y, "angle": (90-math.degrees(heading)) % 360, "speed": vehicle.speed, "lane_id": vehicle.lane_id, "lane_position": vehicle.position, "length": vehicle.length, "width": vehicle.width, "stopped": vehicle.speed <= 0.1, "visual_type": vehicle.vehicle_type, "emergency": vehicle.emergency, "wait_time": vehicle.wait})
         return records
 
+    def _pedestrian_path_origin(self, junction):
+        """Presentation coordinates shared with the existing simplified crossing."""
+        node = self.network.nodes[junction]
+        return node["x"]-9, node["y"]+6
+
+    def pedestrian_paths(self):
+        paths = []
+        for junction in self.signals:
+            x, y = self._pedestrian_path_origin(junction)
+            paths.append({"id": f"pedestrian-path:{junction}", "junction_id": junction,
+                          "shape": [{"x": x, "y": y}, {"x": x+self.config["crossing_length"], "y": y}],
+                          "provenance": "illustrative"})
+        return paths
+
     def pedestrian_records(self):
-        return [{"id": pedestrian.id, "x": self.network.nodes[pedestrian.junction]["x"]-9+pedestrian.progress, "y": self.network.nodes[pedestrian.junction]["y"]+6, "speed": self.config["pedestrian_speed"] if pedestrian.crossing else 0, "lane_id": pedestrian.junction, "stopped": not pedestrian.crossing, "wait_time": pedestrian.wait} for pedestrian in self.pedestrians.values()]
+        records = []
+        for pedestrian in self.pedestrians.values():
+            x, y = self._pedestrian_path_origin(pedestrian.junction)
+            records.append({"id": pedestrian.id, "x": x+pedestrian.progress, "y": y,
+                            "speed": self.config["pedestrian_speed"] if pedestrian.crossing else 0,
+                            "lane_id": pedestrian.junction, "stopped": not pedestrian.crossing,
+                            "wait_time": pedestrian.wait})
+        return records
 
     def to_dict(self):
         lights = {}
@@ -665,7 +696,7 @@ class TrafficEngine:
             if lane.target in self.signals:
                 signal = self.signals[lane.target]
                 lights[lane.id] = {"state": "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.family == lane.approach else "y" if signal.stage == "yellow" and signal.family == lane.approach else "r", "phase": signal.phase}
-        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "emergency_mode": self.emergency_mode, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
+        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "emergency_mode": self.emergency_mode, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
 
     get_state = to_dict
 
@@ -755,6 +786,12 @@ class TrafficEngine:
                        "all-way-stop" if signal.mode == "all_way_stop" else "fixed-time",
                        "selected_for_rl": node == self.controlled_junction,
                        "phase": signal.phase, "remaining": signal.remaining,
+                       "stage": signal.stage, "elapsed_seconds": signal.elapsed,
+                       "remaining_seconds": None if signal.mode == "all_way_stop" else signal.remaining,
+                       "timing_kind": "none" if signal.mode == "all_way_stop" else
+                       "minimum_hold" if signal.stage == "green" and signal.external else
+                       "fixed_stage" if signal.stage == "green" else "clearance",
+                       "pending_service": signal.pending, "external_control": signal.external,
                        "phase_order": list(signal.approaches),
                        "green_seconds": signal.green_seconds,
                        "minimum_green": signal.minimum_green,

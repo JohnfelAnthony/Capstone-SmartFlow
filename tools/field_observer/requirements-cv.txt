@@ -1,0 +1,7 @@
+# Optional detector/line-editor stack. Install ONLY in this tool's environment.
+# requirements.txt supplies the base PyAV pin separately.
+rfdetr==1.11.1
+supervision==0.30.6
+trackers==2.6.1
+opencv-python==5.0.0.93
+Pillow==12.3.0

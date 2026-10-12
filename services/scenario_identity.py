@@ -15,6 +15,10 @@ def _snapshot_identity(snapshot: dict) -> tuple[dict, list[dict]]:
         identity["engine_config"] = settings
     if not isinstance(settings, dict):
         raise ValueError("Resume requires the original training scenario snapshot.")
+    # The removed no-op preset does not change native inputs. Preserve the
+    # original snapshot; normalize only this comparison copy at the boundary.
+    if isinstance(settings.get('road_constraint'), str) and settings['road_constraint'].lower() in {'none', '', 'no constraints'}:
+        del settings['road_constraint']
     source = settings.get("demand_source", {})
     datasets = source.get("datasets", []) if isinstance(source, dict) else []
     if not isinstance(datasets, list):

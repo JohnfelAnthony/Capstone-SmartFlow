@@ -5,16 +5,9 @@ export type ApiScenario = {
   id: number
   name: string
   description: string | null
-  traffic_density: string
-  pedestrian_density: string
-  emergency_mode: string
-  road_constraint: string
-  intersection_id: string
+  network_id: string | null
+  migration_error: string | null
   engine_config: NativeScenarioConfig
-  lane_closure_config: Record<string, unknown>
-  construction_config: Record<string, unknown>
-  accident_config: Record<string, unknown>
-  flooding_config: Record<string, unknown>
   created_by: number | null
   created_at: string | null
   updated_at: string | null
@@ -29,16 +22,8 @@ export type ScenarioListResponse = {
 export type ScenarioWritePayload = {
   name: string
   description?: string
-  traffic_density: string
-  pedestrian_density: string
-  emergency_mode: string
-  road_constraint: string
-  intersection_id: string
+  network_id?: string
   engine_config?: NativeScenarioConfig
-  lane_closure_config?: Record<string, unknown>
-  construction_config?: Record<string, unknown>
-  accident_config?: Record<string, unknown>
-  flooding_config?: Record<string, unknown>
 }
 
 export function listScenarios(options: { includeArchived?: boolean; officialOnly?: boolean } = {}) {
