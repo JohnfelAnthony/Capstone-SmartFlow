@@ -119,16 +119,18 @@ class NativeExperimentTests(unittest.TestCase):
         self.assertEqual(signal.family, "pedestrian")
         self.assertTrue(self.engine._crossing_occupied(ped.junction))
 
-    def test_emergency_priority_respects_yellow_and_all_red(self):
+    def test_service_request_respects_yellow_and_all_red(self):
         self.engine.configure(traffic_density="none")
         self.engine.start(60)
-        car = self.engine.add_vehicle(self.route, vehicle_type="emergency")
+        car = self.engine.add_vehicle(self.route, vehicle_type="car")
         lane = self.network.lanes[car.lane_id]
         signal = self.engine.signals[lane.target]
         signal.index = next(i for i, a in enumerate(signal.approaches) if a not in {lane.approach, "pedestrian"})
         car.position = lane.length-car.length/2-5
         self.engine.step(50)
         self.assertNotEqual(signal.family, lane.approach)
+        signal.elapsed = signal.minimum_green
+        signal.request(lane.approach)
         seen = set()
         for _ in range(120):
             self.engine.step()

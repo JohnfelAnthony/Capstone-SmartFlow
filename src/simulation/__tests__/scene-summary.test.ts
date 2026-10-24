@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { LaneMetrics } from "@/simulation/frame-types"
 import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
-import { junctionShortLabel, laneDisplayLabel, longestQueuedApproach } from "@/simulation/scene-summary"
+import { approachDirection, junctionShortLabel, laneDisplayLabel, longestQueuedApproach } from "@/simulation/scene-summary"
 import { bentNetwork } from "./geometry-fixture"
 
 const metric = (queue: number): LaneMetrics => ({ queue, vehicles: queue, mean_speed_mps: 0, density_vehicles_per_km: 0, exits: 0, closed: false, speed_factor: 1 })
@@ -41,5 +41,17 @@ describe("scene queue scope", () => {
     expect(junctionShortLabel(geometry, "J1")).toBe("J1")
     expect(laneDisplayLabel(geometry, "lane-west")).toBe("J1 approach 1")
     expect(laneDisplayLabel(geometry, "unknown-lane")).toBe("unknown-lane")
+  })
+})
+
+describe("approach direction", () => {
+  const geometry = normalizeSceneGeometry(bentNetwork)
+
+  it("names the side traffic arrives from", () => {
+    expect(approachDirection(geometry, "lane-west")).toBe("From west")
+  })
+
+  it("returns null for unknown lanes", () => {
+    expect(approachDirection(geometry, "missing")).toBeNull()
   })
 })

@@ -17,7 +17,6 @@ import {
   SearchIcon,
   PencilIcon,
   SlidersHorizontalIcon,
-  TriangleAlertIcon,
   UserRoundIcon,
 } from "lucide-react"
 
@@ -89,7 +88,6 @@ type ScenarioRecord = {
   intersectionId: string
   trafficDensity: ScenarioDensity
   pedestrianDensity: string
-  emergencyMode: string
   isOfficial: boolean
   isArchived: boolean
   createdAt: string
@@ -104,7 +102,6 @@ type ScenarioDraft = {
   intersectionId: string
   trafficDensity: ScenarioDensity
   pedestrianDensity: string
-  emergencyMode: string
   engineConfig: NativeScenarioConfig
 }
 
@@ -123,7 +120,6 @@ const emptyScenarioDraft: ScenarioDraft = {
   intersectionId: "",
   trafficDensity: "Medium",
   pedestrianDensity: "Medium",
-  emergencyMode: "Disabled",
   engineConfig: {},
 }
 
@@ -139,7 +135,6 @@ function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
     intersectionId: scenario.network_id ?? "Unresolved network",
     trafficDensity: normalizeDensity(String(scenario.engine_config.traffic_density ?? "Medium")),
     pedestrianDensity: String(scenario.engine_config.pedestrian_density ?? "none"),
-    emergencyMode: String(scenario.engine_config.emergency_mode ?? "disabled"),
     isOfficial: scenario.is_official,
     isArchived: scenario.is_archived,
     createdAt: scenario.created_at ?? "",
@@ -161,7 +156,7 @@ function formatDate(value: string) {
 }
 
 function formatIntersection(networkId: string) {
-  return networkId === "tagum_network" ? "Tagum — 5 connected junctions" : networkId.replaceAll("_", " ")
+  return networkId === "tagum_network" ? "Tagum study network" : networkId.replaceAll("_", " ")
 }
 
 function categoryMatches(scenario: ScenarioRecord, category: ScenarioCategory) {
@@ -195,7 +190,6 @@ function draftFromScenario(scenario: ScenarioRecord): ScenarioDraft {
     intersectionId: scenario.intersectionId,
     trafficDensity: scenario.trafficDensity,
     pedestrianDensity: scenario.pedestrianDensity,
-    emergencyMode: scenario.emergencyMode,
     engineConfig: structuredClone(scenario.engineConfig),
   }
 }
@@ -204,7 +198,7 @@ function payloadFromDraft(draft: ScenarioDraft): ScenarioWritePayload {
   return {
     name: draft.name, description: draft.description, network_id: draft.intersectionId,
     engine_config: { ...draft.engineConfig, traffic_density: draft.trafficDensity.toLowerCase(),
-      pedestrian_density: draft.pedestrianDensity.toLowerCase(), emergency_mode: draft.emergencyMode.toLowerCase() },
+      pedestrian_density: draft.pedestrianDensity.toLowerCase() },
   }
 }
 
@@ -393,8 +387,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
       if (request !== editRequest.current) return
       setDraft((current) => ({ ...current, engineConfig: result.engine_config,
         trafficDensity: normalizeDensity(String(result.engine_config.traffic_density)),
-        pedestrianDensity: String(result.engine_config.pedestrian_density),
-        emergencyMode: String(result.engine_config.emergency_mode) }))
+        pedestrianDensity: String(result.engine_config.pedestrian_density) }))
       setEditConfigReady(true)
     } catch (error) {
       if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load native settings.")
@@ -776,10 +769,6 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
                 <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()}
                   options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
                   onChange={(pedestrianDensity) => setDraft((current) => ({ ...current, pedestrianDensity }))} />
-                <NativeSelect label="Emergency vehicles" value={draft.emergencyMode.toLowerCase()}
-                  options={[{ label: "Disabled", value: "disabled" }, { label: "One ambulance", value: "enabled (1 ambulance)" },
-                    { label: "Enabled", value: "enabled" }, { label: "One vehicle", value: "enabled (1 vehicle)" }, { label: "Two vehicles", value: "enabled (2 vehicles)" }]}
-                  onChange={(emergencyMode) => setDraft((current) => ({ ...current, emergencyMode }))} />
               </FieldGroup>
               <fieldset className="rounded-lg border p-3 flex flex-col gap-3">
                 <legend className="font-medium">Import demand CSV</legend>
@@ -795,7 +784,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
                   <Button type="button" variant="outline" size="sm" disabled={isDownloadingTemplate || !nativeOptions} onClick={() => void downloadImportTemplate(true)}>Download synthetic example</Button>
                 </div>
                 <Alert><AlertDescription>Templates match the selected CSV schema. Synthetic examples use the loaded network's IDs and invented counts; never report them as field observations. A blank template needs at least one data row.</AlertDescription></Alert>
-                <p className="text-sm text-muted-foreground">Use exact boundary IDs for source/destination and junction or directed lane IDs where required. Times are seconds from simulation start, not clock times. Counts are non-negative whole numbers; vehicle_type can be car, motorcycle, tricycle, bus, truck or emergency. Keep unknown measurements outside this CSV instead of entering zero.</p>
+                <p className="text-sm text-muted-foreground">Use exact boundary IDs for source/destination and junction or directed lane IDs where required. Times are seconds from simulation start, not clock times. Counts are non-negative whole numbers; vehicle_type can be car, motorcycle, tricycle, bus or truck. Keep unknown measurements outside this CSV instead of entering zero.</p>
                 {importKind === "turn_counts" && <p className="text-sm text-muted-foreground">Lane IDs (source → target): {nativeOptions?.lanes.map((lane) => `${lane.id} (${lane.source} → ${lane.target})`).join(", ") ?? "loading"}. The supplied boundary route must include the recorded turn; later rerouting may change it.</p>}
                 <NativeSelect label="Data provenance" value={importSourceKind} options={[
                   { value: "synthetic", label: "Synthetic sample" }, { value: "observed", label: "Field observation" },
@@ -916,7 +905,6 @@ function ScenarioCard({
           <ScenarioMeta icon={MapPinnedIcon} label="Intersection" value={formatIntersection(scenario.intersectionId)} />
           <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
           <ScenarioMeta icon={UserRoundIcon} label="Pedestrians" value={scenario.pedestrianDensity} />
-          <ScenarioMeta icon={TriangleAlertIcon} label="Emergency" value={scenario.emergencyMode} />
         </div>
         <div className="scenario-card-actions">
           <Button size="sm" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "load")}>
@@ -1075,7 +1063,6 @@ function ScenarioDetailSheet({
           <div className="scenario-detail-grid">
             <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
             <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={scenario.pedestrianDensity} />
-            <ScenarioMeta icon={TriangleAlertIcon} label="Emergency Mode" value={scenario.emergencyMode} />
             <ScenarioMeta icon={SlidersHorizontalIcon} label="Native road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />

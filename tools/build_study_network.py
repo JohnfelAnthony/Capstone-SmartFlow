@@ -1,6 +1,7 @@
-"""Build five connected Tagum junctions from the cached OSM extract."""
+"""Build connected Tagum study junctions (default five) from the cached OSM extract."""
 from __future__ import annotations
 
+import argparse
 import json
 import math
 from collections import defaultdict
@@ -9,9 +10,14 @@ from pathlib import Path
 from simulation.road_network import clip, length, NETWORK_PATH, RoadNetwork
 
 
-def build_study_network(source_path: Path, count: int = 5) -> dict:
-    if not 4 <= count <= 6:
-        raise ValueError("Study network must have 4–6 intersections")
+COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
+def build_study_network(source_path: Path, count: int = 5, junction_ids: list[str] | None = None, name: str = "Tagum connected study network") -> dict:
+    if junction_ids:
+        count = len(junction_ids)
+    if not 2 <= count <= 6:
+        raise ValueError("Study network must have 2–6 intersections")
     raw = json.loads(source_path.read_text(encoding="utf-8"))
     raw_nodes = {entry["id"]: entry for entry in raw["elements"] if entry["type"] == "node"}
     south, west, north, east = raw["smartflow_source"]["bbox"]
@@ -66,9 +72,14 @@ def build_study_network(source_path: Path, count: int = 5) -> dict:
     for _ in range(count-1):
         expanded = {group | {neighbor} for group in groups for node in group for neighbor in graph[node] - group}
         groups = set(sorted(expanded, key=lambda group: (-score(group), sorted(group)))[:1000])
-    if not groups:
+    if junction_ids:
+        selected = frozenset(int(node) for node in junction_ids)
+        if not selected <= set(graph) or not all(graph[node] & selected for node in selected):
+            raise ValueError("Requested junctions must be connected study-area junctions")
+    elif not groups:
         raise ValueError("No connected study area in this extract")
-    selected = sorted(groups, key=lambda group: (-score(group), sorted(group)))[0]
+    else:
+        selected = sorted(groups, key=lambda group: (-score(group), sorted(group)))[0]
     nodes = {node: {"id": str(node), "x": coordinates[node][0], "y": coordinates[node][1], "lat": raw_nodes[node]["lat"], "lon": raw_nodes[node]["lon"], "boundary": False, "signal_plan": "experimental"} for node in selected}
     roads = []
     for segment in segments:
@@ -91,8 +102,8 @@ def build_study_network(source_path: Path, count: int = 5) -> dict:
             else:
                 b = boundary
         roads.append({"id": f"road{len(roads)}", "source": str(a), "target": str(b), "shape": [[round(x, 3), round(y, 3)] for x, y in shape], "oneway": segment["oneway"], "name": segment["name"], "osm_way_id": segment["osm_way_id"], "osm_node_ids": segment["osm_nodes"], "osm_tags": segment["tags"], "speed_mps": 8.33})
-    source = {**raw["smartflow_source"], "origin": {"lat": latitude, "lon": longitude}, "projection": "local equirectangular, metres; study area only", "assumptions": ["One modeled lane per permitted direction, 3.3 m wide", "30 km/h study speed; not a verified posted limit", "Experimental traffic signals at the five selected junctions", "OSM turn restrictions and lane tags require field review", "Boundary stubs truncated at 110 m; no invented road alignment", "Synthetic demand; not measured Tagum counts"]}
-    payload = {"id": "tagum_network", "version": 1, "name": "Tagum connected study network", "source": source, "nodes": list(nodes.values()), "roads": roads}
+    source = {**raw["smartflow_source"], "origin": {"lat": latitude, "lon": longitude}, "projection": "local equirectangular, metres; study area only", "assumptions": ["One modeled lane per permitted direction, 3.3 m wide", "30 km/h study speed; not a verified posted limit", f"Experimental traffic signals at the {COUNT_WORDS[count]} selected junctions", "OSM turn restrictions and lane tags require field review", "Boundary stubs truncated at 110 m; no invented road alignment", "Synthetic demand; not measured Tagum counts"]}
+    payload = {"id": "tagum_network", "version": 1, "name": name, "source": source, "nodes": list(nodes.values()), "roads": roads}
     network = RoadNetwork(payload)
     if len(network.intersections) != count:
         raise ValueError("Incorrect intersection count")
@@ -100,6 +111,11 @@ def build_study_network(source_path: Path, count: int = 5) -> dict:
 
 
 if __name__ == "__main__":
-    payload = build_study_network(NETWORK_PATH.with_name("tagum_osm.json"))
-    NETWORK_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--junctions", help="Comma-separated OSM node ids to keep instead of auto-selecting five")
+    parser.add_argument("--name", default="Tagum connected study network")
+    parser.add_argument("--output", type=Path, default=NETWORK_PATH)
+    args = parser.parse_args()
+    payload = build_study_network(NETWORK_PATH.with_name("tagum_osm.json"), junction_ids=args.junctions.split(",") if args.junctions else None, name=args.name)
+    args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({"intersections": [node["id"] for node in payload["nodes"] if not node["boundary"]], "roads": len(payload["roads"]), "names": sorted({road["name"] for road in payload["roads"]})}))

@@ -17,8 +17,8 @@ except ImportError:  # pragma: no cover - exercised when the local venv lacks th
     BaseCallback = None
 
 
-OBSERVATION_VERSION = "obs_v1"
-REWARD_VERSION = "reward_v1"
+OBSERVATION_VERSION = "obs_v2"
+REWARD_VERSION = "reward_v2"
 ACTION_SPACE_VERSION = "action_v1"
 
 

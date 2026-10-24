@@ -27,7 +27,7 @@ export function distributeEntities<T extends { id: string; lane_id: string }>(en
 }
 
 function vehicle(raw: RenderVehicle): RenderVehicle {
-  return { id:text(raw.id,"vehicle"), x:numeric(raw.x), y:numeric(raw.y), angle:numeric(raw.angle), speed:numeric(raw.speed), lane_id:text(raw.lane_id), lane_position:numeric(raw.lane_position), length:numeric(raw.length,4.5), width:numeric(raw.width,1.8), stopped:Boolean(raw.stopped), visual_type:text(raw.visual_type,"car"), emergency:Boolean(raw.emergency), ...(raw.wait_time === undefined ? {} : {wait_time:numeric(raw.wait_time)}) }
+  return { id:text(raw.id,"vehicle"), x:numeric(raw.x), y:numeric(raw.y), angle:numeric(raw.angle), speed:numeric(raw.speed), lane_id:text(raw.lane_id), lane_position:numeric(raw.lane_position), length:numeric(raw.length,4.5), width:numeric(raw.width,1.8), stopped:Boolean(raw.stopped), visual_type:text(raw.visual_type,"car"), ...(raw.wait_time === undefined ? {} : {wait_time:numeric(raw.wait_time)}) }
 }
 function pedestrian(raw: RenderPedestrian): RenderPedestrian {
   return { id:text(raw.id,"pedestrian"), x:numeric(raw.x), y:numeric(raw.y), speed:numeric(raw.speed), lane_id:text(raw.lane_id), stopped:Boolean(raw.stopped), ...(raw.wait_time === undefined ? {} : {wait_time:numeric(raw.wait_time)}) }

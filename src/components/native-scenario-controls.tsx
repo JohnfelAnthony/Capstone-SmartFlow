@@ -96,7 +96,7 @@ export function NativeScenarioControls({ value, options, onChange }: {
             <Button type="button" size="icon-sm" variant="outline" disabled={index === 0} aria-label={`Move ${phase} earlier`} onClick={() => movePhase(index, -1)}><ArrowUpIcon /></Button>
             <Button type="button" size="icon-sm" variant="outline" disabled={index === plan.phase_order.length - 1} aria-label={`Move ${phase} later`} onClick={() => movePhase(index, 1)}><ArrowDownIcon /></Button>
           </li>)}</ol>
-          <FieldDescription>Every available approach and the protected crossing appears once. Pedestrian clearance and emergency priority remain enforced.</FieldDescription>
+          <FieldDescription>Every available approach and the protected crossing appears once. Pedestrian clearance remains enforced.</FieldDescription>
         </Field>
       </> : <Alert><AlertDescription>Vehicles stop before taking turns. This junction cannot host an RL signal controller while set to all-way stop.</AlertDescription></Alert>}
       <div className="flex flex-col gap-2" aria-label="Configured junction controllers">

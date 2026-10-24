@@ -3,6 +3,7 @@ import * as React from "react"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -10,10 +11,12 @@ import {
 
 export function NavMain({
   activeItem,
+  label,
   items,
   onSelectItem,
 }: {
   activeItem: string
+  label?: string
   items: {
     title: string
     url: string
@@ -23,6 +26,7 @@ export function NavMain({
 }) {
   return (
     <SidebarGroup>
+      {label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu>
           {items.map((item) => (

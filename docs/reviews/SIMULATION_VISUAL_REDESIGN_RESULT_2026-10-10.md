@@ -1,5 +1,8 @@
 # Simulation visual redesign — implementation and verification
 
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
 Date: **2026-10-10**, Asia/Singapore. Scope: the independent SmartFlow repository.
 
 Implemented the [agreed plan](../SIMULATION_VISUAL_REDESIGN_PLAN.md) through slices A–F. Software verification includes geometry regressions, native engine equivalence, backend tests, final frontend checks, actual native browser workflows, controlled presentation/failure fixtures and two production rendering measurements. This result does **not** establish field calibration, real Tagum geography, realistic 300-vehicle road capacity or learned-policy effectiveness.

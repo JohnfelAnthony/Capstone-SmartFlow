@@ -3,7 +3,7 @@ import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
 import { interpolationDuration, interpolateVehicle, isPresentationJump } from "@/simulation/entity-interpolation"
 
 const vehicle: RenderVehicle = { id: "synthetic-vehicle", x: 10, y: 20, angle: 90, speed: 3,
-  lane_id: "lane-A", lane_position: 10, length: 3, width: 1.4, stopped: false, visual_type: "tricycle", emergency: false, wait_time: 2 }
+  lane_id: "lane-A", lane_position: 10, length: 3, width: 1.4, stopped: false, visual_type: "tricycle", wait_time: 2 }
 
 function frame(overrides: Partial<RenderFrame> = {}): RenderFrame {
   return { time: 2, render_ts: 100, step_length: .1, status: "running", flow_state: "LIVE_RUNNING",

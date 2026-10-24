@@ -7,16 +7,14 @@ const libraries: VehicleAssetLibrary[] = []
 afterEach(() => { libraries.forEach((library) => library.dispose()); libraries.length = 0; vi.unstubAllGlobals() })
 const assets = () => { const library = getFallbackVehicleAssetLibrary(); libraries.push(library); return library }
 const vehicle = (id: string, type = "car", angle = 90): RenderVehicle => ({
-  id, visual_type: type, emergency: type === "emergency", x: 12, y: 34, angle,
+  id, visual_type: type, x: 12, y: 34, angle,
   speed: 0, lane_id: "lane", lane_position: 12, length: VEHICLE_PROFILES[vehicleClass(type)].length,
   width: VEHICLE_PROFILES[vehicleClass(type)].width, stopped: true,
 })
 
-describe("canonical six-class vehicle assets", () => {
+describe("canonical five-class vehicle assets", () => {
   it("maps all engine classes explicitly, with authored classes where the inspected kit has none", () => {
-    expect(VEHICLE_CLASSES).toEqual(["car", "motorcycle", "tricycle", "bus", "truck", "emergency"])
-    expect(vehicleClass("emergency")).toBe("emergency")
-    expect(vehicleClass("car", true)).toBe("emergency")
+    expect(VEHICLE_CLASSES).toEqual(["car", "motorcycle", "tricycle", "bus", "truck"])
     expect(vehicleClass("unknown")).toBe("car")
     expect(VEHICLE_ASSET_REGISTRY.car.url).toContain("sedan.glb")
     expect(VEHICLE_ASSET_REGISTRY.tricycle.url).toBeNull()
@@ -63,10 +61,10 @@ describe("canonical six-class vehicle assets", () => {
 
   it("displays the entire 300-vehicle mixed fleet with draw calls per shared material", () => {
     const fleet = new VehicleFleetInstances(assets(), 300)
-    fleet.update(Array.from({ length: 300 }, (_, index) => vehicle(String(index), VEHICLE_CLASSES[index % 6])))
+    fleet.update(Array.from({ length: 300 }, (_, index) => vehicle(String(index), VEHICLE_CLASSES[index % VEHICLE_CLASSES.length])))
     expect(fleet.displayedCount).toBe(300)
     expect(fleet.omittedCount).toBe(0)
-    for (const type of VEHICLE_CLASSES) expect(fleet.batchCounts[type].entities).toBe(50)
+    for (const type of VEHICLE_CLASSES) expect(fleet.batchCounts[type].entities).toBe(300 / VEHICLE_CLASSES.length)
     expect(fleet.drawCallCount).toBeLessThan(40)
     fleet.dispose()
   })
@@ -94,11 +92,11 @@ describe("canonical six-class vehicle assets", () => {
     const first = await loadVehicleAssetLibrary(notice)
     const second = await loadVehicleAssetLibrary()
     libraries.push(first, second)
-    expect(fetch).toHaveBeenCalledTimes(5)
-    expect(notice).toHaveBeenCalledTimes(5)
+    expect(fetch).toHaveBeenCalledTimes(4)
+    expect(notice).toHaveBeenCalledTimes(4)
     expect(first.issues.every((issue) => issue.message.includes("distinct procedural appearance"))).toBe(true)
     for (const type of VEHICLE_CLASSES) expect(first.template(type).parts.length).toBeGreaterThan(0)
     expect(first.template("tricycle").source).toBe("authored")
-    expect(first.template("emergency").source).toBe("procedural-fallback")
+    expect(first.template("truck").source).toBe("procedural-fallback")
   })
 })

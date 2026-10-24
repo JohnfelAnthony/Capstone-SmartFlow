@@ -2,6 +2,8 @@
 
 Implemented October 4, 2026. The sidebar clock and its decorative traffic-light indicator have been removed.
 
+**October 24 scope:** current metric and calibration choices cover the ordinary five-class simulation and pedestrians. Retired vehicle-category outcomes are absent from current definitions and exports. Historical raw records retain their original provenance and frozen definitions; dormant database defaults are not measured outcomes. Current engine `native-4` uses revised RL observation/reward contracts; old models require retraining and incompatible recordings require regeneration. See the [scope decision](ARCHITECTURE_AND_PLAN.md#october-24-scope-decision-ordinary-traffic-only).
+
 ## Settings
 
 Settings shows the signed-in account, role and status, and opens the existing change-password workflow. Account identity remains administrator-managed. Theme and default 2D/3D visualization can be saved; the default view is restored on session restoration or sign-in. Theme is browser-wide, while the default view is keyed by user ID on that browser. Saving the standard theme clears a randomized palette. These preferences do not change simulation inputs.
@@ -23,11 +25,13 @@ This workspace records **numerical baseline-fit checks**. Researchers supply rev
 
 ### Matching metrics
 
+The [shared native metric catalog](../simulation/metric_definitions.json), also available at authenticated `/api/metrics/definitions`, supplies the current definitions returned to this workspace. New records identify its version; old records retain their frozen text, inputs and tolerances. Whole-network values use the shared availability checks: empty/unrecorded populations are not zero averages, queue measures need recorded ticks, and rates need positive measured time. A different recorded historical engine is not silently assigned native definitions. This does not change parameter-fitting or source-verification capabilities.
+
 | Measure | Required reference meaning |
 | --- | --- |
 | Completed network trips | Trips completing at network boundaries in the saved measurement window; not a local stop-line count. |
 | Mean stopped vehicle wait | Stopped wait for completed and active admitted vehicles divided by their count; pending arrivals are excluded. |
-| Mean incoming-lane queue | Time average per incoming signal lane for vehicles moving at at most 0.1 m/s; excludes connectors. A single queue snapshot does not match this measure. |
+| Mean incoming-lane queue | Time average per incoming modeled-junction lane, including stop-controlled junctions, for vehicles moving at at most 0.1 m/s; excludes connectors. A single queue snapshot does not match this measure. |
 | Completed-trip travel time | Full travel time for trips completing during the measurement window; unfinished trips are excluded. |
 | Mean pedestrian wait | Wait for completed and active pedestrians divided by their count; crossing time is separate. |
 | Local/custom observation | Same stop line, approach, sampling times, definition and units in the field reference and manually extracted simulation value. Cite the extraction. |

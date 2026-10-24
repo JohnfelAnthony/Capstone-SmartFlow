@@ -6,6 +6,7 @@ from pathlib import Path
 from simulation.road_network import load_network
 from simulation.scenario_config import number, read_trip_csv
 from simulation.traffic_engine import TrafficEngine
+from services.metric_definitions import metric_report_metadata
 
 
 def run_experiment(scenario, *, seed=42, duration=300, warmup=0, network=None, policy=None):
@@ -24,7 +25,7 @@ def run_experiment(scenario, *, seed=42, duration=300, warmup=0, network=None, p
     while engine.status == "running":
         engine.step(100)
     return {"experiment": engine.experiment_metadata(), "network": engine.network.payload,
-            "metrics": engine.to_dict()["metrics"], "events": engine.events,
+            "metrics": engine.to_dict()["metrics"], "metric_interpretation": metric_report_metadata(engine.to_dict()["metrics"]), "events": engine.events,
             "status": engine.status}
 
 

@@ -22,7 +22,6 @@ export type LaneEvent = {
 export type NativeScenarioConfig = {
   traffic_density?: string
   pedestrian_density?: string
-  emergency_mode?: string
   controlled_junction?: string
   green_seconds?: number
   closed_lanes?: string[]

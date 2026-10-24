@@ -750,7 +750,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, initial
               <DatabaseIcon />
               Trained Models
             </CardTitle>
-            <CardDescription>Select a registered model explicitly. A checkpoint can resume even when the final artifact is missing, if that checkpoint is compatible.</CardDescription>
+            <CardDescription>Select a registered model explicitly. A checkpoint can resume even when the final artifact is missing, if that checkpoint is compatible. The evaluation score is negative mean stopped vehicle wait, not an overall recommendation. Historical scores may lack population evidence; different input sets are not comparable.</CardDescription>
             <CardAction>
               <Badge variant="secondary">{status.models.length} models</Badge>
             </CardAction>
@@ -762,7 +762,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, initial
                   <TableHead>ID</TableHead>
                   <TableHead>Algorithm</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Best Eval</TableHead>
+                  <TableHead>Recorded −wait (s)</TableHead>
                   <TableHead>Trained</TableHead>
                 </TableRow>
               </TableHeader>

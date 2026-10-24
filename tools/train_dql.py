@@ -85,7 +85,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenario-name", default="SMARTFLOW DQL Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
-    parser.add_argument("--emergency-mode", default="disabled")
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--buffer-size", type=int, default=50_000)
     parser.add_argument("--learning-starts", type=int, default=100)
@@ -168,7 +167,6 @@ def main() -> int:
         "intersection_id": args.intersection_id,
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
-        "emergency_mode": args.emergency_mode,
     }
     scenario = load_training_scenario(args, scenario)
     seed_history = cumulative_training_seeds(args.seeds, args.resume_model, "dql", scenario)

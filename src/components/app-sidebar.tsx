@@ -45,18 +45,6 @@ const data = {
       page: "scenarios",
     },
     {
-      title: "Calibration & Validation",
-      url: "#",
-      icon: <FlaskConicalIcon />,
-      page: "scenarios",
-    },
-    {
-      title: "RL Training",
-      url: "#",
-      icon: <GraduationCapIcon />,
-      page: "rl-training",
-    },
-    {
       title: "Runs & Reports",
       url: "#",
       icon: <FileTextIcon />,
@@ -67,6 +55,20 @@ const data = {
       url: "#",
       icon: <NetworkIcon />,
       page: "compare",
+    },
+  ],
+  navResearch: [
+    {
+      title: "RL Training",
+      url: "#",
+      icon: <GraduationCapIcon />,
+      page: "rl-training",
+    },
+    {
+      title: "Calibration & Validation",
+      url: "#",
+      icon: <FlaskConicalIcon />,
+      page: "scenarios",
     },
   ],
   navSecondary: [
@@ -144,7 +146,8 @@ export function AppSidebar({
     email: currentUser?.email || currentUser?.role || "smartflow.local",
     avatar: "",
   }
-  const visibleMainItems = data.navMain.filter((item) => canViewPage(currentUser, item.page) &&
+  const visibleMainItems = data.navMain.filter((item) => canViewPage(currentUser, item.page))
+  const visibleResearchItems = data.navResearch.filter((item) => canViewPage(currentUser, item.page) &&
     (item.title !== "Calibration & Validation" || canViewPage(currentUser, "runs-reports")))
   const visibleSecondaryItems = data.navSecondary.filter((item) => canViewPage(currentUser, item.page))
   const visibleAdminItems = data.admin.filter((item) => canViewPage(currentUser, item.page))
@@ -170,9 +173,18 @@ export function AppSidebar({
       <SidebarContent>
         <NavMain
           activeItem={activeItem}
+          label="Operate"
           items={visibleMainItems}
           onSelectItem={onSelectItem}
         />
+        {visibleResearchItems.length > 0 ? (
+          <NavMain
+            activeItem={activeItem}
+            label="Research"
+            items={visibleResearchItems}
+            onSelectItem={onSelectItem}
+          />
+        ) : null}
         {visibleAdminItems.length > 0 ? (
           <NavDocuments
             activeItem={activeItem}

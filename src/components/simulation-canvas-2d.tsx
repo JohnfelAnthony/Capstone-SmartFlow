@@ -3,7 +3,7 @@ import { LocateFixed, Minus, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
-import { boundsForJunction, distanceToPolyline, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
+import { boundsForJunction, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
@@ -36,10 +36,10 @@ function label(ctx: CanvasRenderingContext2D, text: string, point: VisualPoint |
 function hashIndex(id: string) { let hash = 0; for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0; return (hash >>> 0) % palette.cars.length }
 function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, transform: Transform, selected: boolean) {
   const p = screen(vehicle, transform), length = Math.max(3, vehicle.length * transform.scale), width = Math.max(1.6, vehicle.width * transform.scale)
-  const type = normalizeVehicleClass(vehicle.visual_type, vehicle.emergency), color = palette.cars[hashIndex(vehicle.id)]
+  const type = normalizeVehicleClass(vehicle.visual_type), color = palette.cars[hashIndex(vehicle.id)]
   ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(headingToCanvasRotation(vehicle.angle))
   ctx.fillStyle = "rgba(13,24,28,.26)"; ctx.fillRect(-length / 2 + 1, -width / 2 + 1, length, width)
-  ctx.fillStyle = type === "tricycle" ? palette.tricycle : type === "emergency" ? "#F4F4ED" : type === "bus" ? "#BE9B6C" : type === "truck" ? "#9B9FA2" : color
+  ctx.fillStyle = type === "tricycle" ? palette.tricycle : type === "bus" ? "#BE9B6C" : type === "truck" ? "#9B9FA2" : color
   if (type === "motorcycle") {
     ctx.fillStyle = palette.tyre; ctx.fillRect(-length / 2, -width * .23, length, width * .46)
     ctx.fillStyle = color; ctx.fillRect(-length * .25, -width * .48, length * .55, width * .96)
@@ -57,10 +57,6 @@ function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, tran
     else if (type === "truck") {
       ctx.fillRect(length * .24, -width * .35, length * .16, width * .7); ctx.strokeStyle = "#CFD3D1"; ctx.lineWidth = 1; ctx.strokeRect(-length * .46, -width * .41, length * .65, width * .82)
     } else ctx.fillRect(-length * .25, -width * .36, length * .52, width * .72)
-    if (type === "emergency") {
-      ctx.fillStyle = "#D75152"; ctx.fillRect(-length * .25, -width * .15, length * .3, width * .3); ctx.fillRect(-length * .14, -width * .35, length * .1, width * .7)
-      ctx.fillStyle = "#428BB8"; ctx.fillRect(length * .22, -width * .38, length * .09, width * .3); ctx.fillStyle = "#D75152"; ctx.fillRect(length * .22, width * .08, length * .09, width * .3)
-    }
   }
   if (width > 4 && type !== "motorcycle") {
     ctx.fillStyle = "#F9EBC1"; ctx.fillRect(length * .43, -width * .4, Math.max(1, length * .05), width * .2); ctx.fillRect(length * .43, width * .2, Math.max(1, length * .05), width * .2)
@@ -69,23 +65,13 @@ function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, tran
   if (selected) { ctx.strokeStyle = palette.selected; ctx.lineWidth = 2; ctx.strokeRect(-length / 2 - 3, -width / 2 - 3, length + 6, width + 6) }
   ctx.restore()
 }
-function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, transform: Transform, showContext: boolean, frame: RenderFrame | null) {
+function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, transform: Transform) {
   const ground = ctx.createLinearGradient(0, 0, transform.width, transform.height); ground.addColorStop(0, "#EAF0E8"); ground.addColorStop(1, "#E1E9E2")
   ctx.fillStyle = ground; ctx.fillRect(0, 0, transform.width, transform.height)
   const gridSpacing = 25 * transform.scale
   if (gridSpacing > 14) {
     ctx.fillStyle = "rgba(80,109,90,.12)"
     for (let x = ((transform.ox % gridSpacing) + gridSpacing) % gridSpacing; x < transform.width; x += gridSpacing) for (let y = ((transform.oy % gridSpacing) + gridSpacing) % gridSpacing; y < transform.height; y += gridSpacing) ctx.fillRect(x, y, 1.5, 1.5)
-  }
-  if (showContext) for (const junction of geometry.junctions) for (const [dx, dy] of [[-28, -26], [28, -26], [-28, 26], [28, 26]]) {
-    const point = { x: junction.center.x + dx, y: junction.center.y + dy }
-    const overlapsRoad = geometry.lanes.some((lane) => distanceToPolyline(point, lane.centerline) < lane.width / 2 + 11)
-    const overlapsPeople = frame?.visual.pedestrian_paths?.some((corridor) => distanceToPolyline(point, corridor.shape) < 11)
-    if (overlapsRoad || overlapsPeople) continue
-    const p = screen(point, transform), size = 9 * transform.scale
-    ctx.fillStyle = "rgba(88,113,94,.09)"; ctx.beginPath(); ctx.roundRect(p.x - size / 2, p.y - size / 2, size, size * .78, Math.min(5, size / 6)); ctx.fill()
-    ctx.strokeStyle = "rgba(85,112,94,.16)"; ctx.lineWidth = 1; ctx.stroke()
-    ctx.fillStyle = "rgba(105,143,111,.24)"; ctx.beginPath(); ctx.arc(p.x + size * .72, p.y + size * .28, size * .18, 0, Math.PI * 2); ctx.fill()
   }
   // Curb borders are illustrative edging only: native pavement vertices stay untouched.
   for (const lane of geometry.lanes) if (lane.kind !== "connector") path(ctx, lane.polygon, transform, "#C2CDC5", "#C2CDC5", Math.max(2, transform.scale * 1.05))
@@ -120,10 +106,11 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
   for (const lane of geometry.lanes) {
     if (lane.kind === "connector") { if (presentation.overlays.connectors) path(ctx, lane.centerline, transform, undefined, "#94AAB7", 1, true); continue }
     const metrics = frame.lane_metrics?.[lane.id]
-    if (presentation.overlays.heatmap && metrics) {
-      const color = metrics.queue >= 10 ? "#CE6269" : metrics.queue >= 5 ? "#D4AC63" : metrics.queue > 0 ? "#86A79C" : "#A6B9B3"
+    // Only queued lanes are tinted so clear roads stay plain asphalt; bands match the junction panel.
+    if (presentation.overlays.heatmap && metrics && metrics.queue > 0) {
+      const color = metrics.queue >= 10 ? "#CE6269" : metrics.queue >= 5 ? "#D4AC63" : "#86A79C"
       path(ctx, lane.centerline, transform, undefined, color, Math.max(2, lane.width * transform.scale * .58))
-      if (metrics.queue > 0) label(ctx, `${metrics.queue}`, lane.centerline[Math.floor(lane.centerline.length / 2)], transform)
+      label(ctx, `${metrics.queue}`, lane.centerline[Math.floor(lane.centerline.length / 2)], transform)
     }
     if (presentation.overlays.arrows && lane.centerline.length > 1) {
       const middle = Math.max(1, Math.floor(lane.centerline.length / 2)), a = screen(lane.centerline[middle - 1], transform), b = screen(lane.centerline[middle], transform)
@@ -145,9 +132,13 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
     if (presentation.selection?.kind === "lane" && presentation.selection.id === lane.id) path(ctx, lane.centerline, transform, undefined, palette.selected, Math.max(2, lane.width * transform.scale * .35), true)
     else if (hover?.kind === "lane" && hover.id === lane.id) path(ctx, lane.centerline, transform, undefined, "rgba(178,229,207,.8)", Math.max(2, lane.width * transform.scale * .25))
   }
+  // Zebra crossing look: a wide stroke dashed every 0.6 m reads as stripes across the walking path.
   for (const corridor of frame.visual.pedestrian_paths ?? []) {
-    path(ctx, corridor.shape, transform, undefined, "#BE835E", Math.max(1, transform.scale * .4), true)
-    if (presentation.junctionId === corridor.junction_id && transform.scale > 1) label(ctx, "Illustrative crossing path", corridor.shape[Math.floor(corridor.shape.length / 2)], transform, 12)
+    if (corridor.shape.length < 2) continue
+    ctx.save(); ctx.beginPath()
+    corridor.shape.forEach((point, index) => { const p = screen(point, transform); if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y) })
+    ctx.strokeStyle = "rgba(244,246,240,.85)"; ctx.lineWidth = Math.max(3, transform.scale * 3); ctx.lineCap = "butt"
+    ctx.setLineDash([Math.max(1.5, transform.scale * .6), Math.max(1.5, transform.scale * .6)]); ctx.stroke(); ctx.restore()
   }
   for (const vehicle of frame.vehicles) {
     const p = screen(vehicle, transform), margin = Math.max(vehicle.length, vehicle.width) * transform.scale
@@ -196,7 +187,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         text = metrics ? `Lane · ${metrics.vehicles} vehicles · Queue ${metrics.queue}` : "Lane · Click to inspect"
       } else if (hover.kind === "vehicle") {
         const vehicle = displayedFrame?.vehicles.find((candidate) => candidate.id === hover?.id)
-        if (vehicle) { const name = normalizeVehicleClass(vehicle.visual_type, vehicle.emergency); text = `${name === "tricycle" ? "Tagum tricycle" : name[0].toUpperCase() + name.slice(1)} · ${vehicle.stopped ? "Stopped" : `${(vehicle.speed * 3.6).toFixed(0)} km/h`}` }
+        if (vehicle) { const name = normalizeVehicleClass(vehicle.visual_type); text = `${name === "tricycle" ? "Tagum tricycle" : name[0].toUpperCase() + name.slice(1)} · ${vehicle.stopped ? "Stopped" : `${(vehicle.speed * 3.6).toFixed(0)} km/h`}` }
       } else {
         const person = displayedFrame?.pedestrians.find((candidate) => candidate.id === hover?.id)
         text = person ? `Pedestrian · ${person.stopped ? "Waiting" : "Moving"}` : ""
@@ -219,13 +210,13 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         if (vehicle) { transform.ox = width / 2 - vehicle.x * transform.scale; transform.oy = height / 2 + vehicle.y * transform.scale }
       }
       if (current.frame?.visual.pedestrian_paths !== previousPathSource) { previousPathSource = current.frame?.visual.pedestrian_paths; pathsKey = JSON.stringify(previousPathSource ?? []) }
-      const key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${current.presentation.overlays.context}:${pathsKey}`
+      const key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${pathsKey}`
       if (cached && cacheKey !== key) {
-        cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform, current.presentation.overlays.context, current.frame); cacheKey = key
+        cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform); cacheKey = key
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       if (cached) ctx.drawImage(cache, 0, 0)
-      else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(ctx, geometry, transform, current.presentation.overlays.context, current.frame) }
+      else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(ctx, geometry, transform) }
       if (pointerPosition && !pointers.size) hover = pick(pointerPosition)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); dynamicMap(ctx, geometry, displayedFrame, current.presentation, transform, hover)
       // Read-only diagnostics support browser checks without a renderer control backdoor.

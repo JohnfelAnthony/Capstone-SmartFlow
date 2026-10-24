@@ -35,3 +35,14 @@ export function laneDisplayLabel(geometry: SceneGeometry, laneId: string) {
     .map(candidate => candidate.lane_id))]
   return `${junctionShortLabel(geometry, group.junctionId)} approach ${approaches.indexOf(laneId) + 1}`
 }
+
+/** Compass side a vehicle approach comes from, using the lane's final travel direction (+y is north). */
+export function approachDirection(geometry: SceneGeometry, laneId: string) {
+  const points = geometry.laneById.get(laneId)?.centerline ?? []
+  if (points.length < 2) return null
+  const end = points[points.length - 1], previous = points[points.length - 2]
+  const dx = end.x - previous.x, dy = end.y - previous.y
+  if (dx === 0 && dy === 0) return null
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "From west" : "From east"
+  return dy > 0 ? "From south" : "From north"
+}

@@ -1,14 +1,10 @@
 import type * as React from "react"
 import {
-  AmbulanceIcon,
   BookOpenIcon,
-  CarFrontIcon,
   CircleHelpIcon,
   DatabaseIcon,
   FileDownIcon,
   GaugeIcon,
-  HourglassIcon,
-  LeafIcon,
   MapPinnedIcon,
   MicrochipIcon,
   PlayIcon,
@@ -16,9 +12,10 @@ import {
   RouteIcon,
   Settings2Icon,
   SlidersHorizontalIcon,
-  TrafficConeIcon,
 } from "lucide-react"
 
+import { metricCatalog, metricDefinitions } from "@/lib/metrics"
+import { MetricDefinitions } from "@/components/metric-definitions"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -52,12 +49,12 @@ const quickStartSteps: HelpStep[] = [
   {
     title: "Choose a Scenario",
     icon: MapPinnedIcon,
-    description: "Open Scenarios to choose a saved Tagum intersection setup or create traffic conditions for a new experiment.",
+    description: "Choose a saved scenario. Identify its modeled network, input source and assumptions before making field claims.",
   },
   {
     title: "Select Control Mode",
     icon: SlidersHorizontalIcon,
-    description: "Use the dashboard controls to run fixed-time Python control, or prepare a recorded timeline for playback.",
+    description: "Choose fixed-time or a compatible registered policy for one selected junction. Routing is separate from signal learning.",
   },
   {
     title: "Run the Simulation",
@@ -76,44 +73,17 @@ const quickStartSteps: HelpStep[] = [
   },
 ]
 
-const metricGlossary: MetricGlossaryItem[] = [
-  {
-    title: "Average Waiting Time",
-    icon: HourglassIcon,
-    tone: "warning",
-    description: "Average seconds a vehicle spends stopped in queue before crossing the intersection.",
-  },
-  {
-    title: "Average Queue Length",
-    icon: CarFrontIcon,
+const glossaryKeys = new Set(["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
+  "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles",
+  "boundary_wait_seconds", "avg_admitted_boundary_wait", "measurement_start", "measurement_seconds"])
+const metricGlossary: MetricGlossaryItem[] = metricDefinitions
+  .filter((metric) => glossaryKeys.has(metric.key))
+  .map((metric) => ({
+    title: `${metric.label} (${metric.unit})`,
+    icon: BookOpenIcon,
     tone: "info",
-    description: "Average number of vehicles queued in the controlled approaches during a signal cycle.",
-  },
-  {
-    title: "Maximum Queue Length",
-    icon: TrafficConeIcon,
-    tone: "error",
-    description: "Peak vehicle queue observed in any approach lane, useful for spotting bottleneck movements.",
-  },
-  {
-    title: "Throughput",
-    icon: GaugeIcon,
-    tone: "success",
-    description: "Vehicles that complete their route and exit the network during the simulation window.",
-  },
-  {
-    title: "Emergency Clearance",
-    icon: AmbulanceIcon,
-    tone: "purple",
-    description: "Tracks whether emergency vehicles are prioritized and cleared through the intersection.",
-  },
-  {
-    title: "Emissions Estimate",
-    icon: LeafIcon,
-    tone: "accent",
-    description: "Estimated environmental cost from stopping, idling, and stop-and-go traffic behavior.",
-  },
-]
+    description: `${metric.definition} Population: ${metric.population} ${metric.zero}`,
+  }))
 
 const faqs: FaqItem[] = [
   {
@@ -134,7 +104,7 @@ const faqs: FaqItem[] = [
   {
     question: "How does fixed-time control differ from AI control?",
     answer:
-      "Fixed-time control follows static signal durations. The RL path is experimental and remains in the Python backend, where policies can be trained, evaluated, and later used for control.",
+      "Fixed-time uses saved signal plans with shared safety and pedestrian rules. A compatible registered RL policy can request safe service at one selected junction. Routing uses a separate graph algorithm; no controller effectiveness is established by a successful demonstration.",
   },
   {
     question: "How do pre-recorded timelines work?",
@@ -144,7 +114,7 @@ const faqs: FaqItem[] = [
 ]
 
 const systemSpecs = [
-  ["App Version", "v1.0.0 migration build"],
+  ["App Version", "Native research prototype"],
   ["Frontend", "React, Vite, TypeScript"],
   ["API Layer", "FastAPI with HTTP and WebSocket endpoints"],
   ["Simulation Engine", "Native Python traffic model"],
@@ -247,8 +217,9 @@ export function HelpAboutPage() {
       <PageSection
         title="Traffic Metrics Glossary"
         icon={BookOpenIcon}
-        description="Key performance indicators used when reviewing live and recorded runs."
+        description="Definitions shared with Python reports and calibration. — means unavailable; an empty population is not a measured zero average."
       >
+        <p>{metricCatalog.scope} {metricCatalog.window} {metricCatalog.unsupported.emissions}</p>
         <div className="help-metric-grid">
           {metricGlossary.map((metric) => {
             const Icon = metric.icon
@@ -266,6 +237,8 @@ export function HelpAboutPage() {
           })}
         </div>
       </PageSection>
+
+      <MetricDefinitions />
 
       <PageSection
         title="Frequently Asked Questions"

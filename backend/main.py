@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 import auth
 import config
 import database
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics
 from backend.schemas import (
     AdminPasswordResetResponse,
     AdminRole,
@@ -994,6 +995,7 @@ def run_record_model(row: dict) -> SimulationRunRecord:
                 metric_payload["raw_metrics"] = json.loads(raw_metrics_json)
             except (TypeError, ValueError):
                 metric_payload["raw_metrics"] = {}
+        metric_payload["metric_interpretation"] = {"version": METRIC_VERSION, "values": interpreted_metrics(metric_payload)}
     return SimulationRunRecord(
         id=int(row["id"]),
         scenario_id=row.get("scenario_id"),
@@ -1022,8 +1024,7 @@ def report_export_directory() -> Path:
 
 
 def run_metric_value(run: SimulationRunRecord, key: str, default: object = "") -> object:
-    metrics = run.metrics or {}
-    value = metrics.get(key)
+    value = metric_value(run.metrics, key)
     return default if value is None else value
 
 
@@ -1041,7 +1042,7 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Started": run.start_time or "",
         "Ended": run.end_time or "",
         "Duration Seconds": run.duration_seconds,
-        "Measurement Start Seconds": experiment.get("measurement_start", ""),
+        "Measurement Start Seconds": raw.get("measurement_start", experiment.get("measurement_start", "")),
         "Measurement Duration Seconds": raw.get("measurement_seconds", ""),
         "Seed": run.seed if run.seed is not None else "",
         "Engine Version": experiment.get("engine_version", ""),
@@ -1061,6 +1062,16 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Dropped Vehicles": raw.get("dropped_vehicles", ""),
         "Unfinished Pedestrians": raw.get("active_pedestrian_count", ""),
         "Average Pedestrian Delay": run_metric_value(run, "avg_pedestrian_delay"),
+        "Completed-trip Travel Time Seconds": run_metric_value(run, "avg_travel_time"),
+        "Requested Vehicles": run_metric_value(run, "requested_vehicles"),
+        "Admitted Vehicles Since Run Start": run_metric_value(run, "total_vehicles_spawned"),
+        "Pending Boundary Arrivals": run_metric_value(run, "pending_demand"),
+        "Pending Boundary Wait Vehicle Seconds": run_metric_value(run, "boundary_wait_seconds"),
+        "Mean Admitted Boundary Wait Seconds": run_metric_value(run, "avg_admitted_boundary_wait"),
+        "Metric Definitions Version": METRIC_VERSION,
+        "Metric Definitions JSON": json.dumps(METRIC_CATALOG, sort_keys=True),
+        "Metric Availability JSON": json.dumps(interpreted_metrics(run.metrics), sort_keys=True),
+        "Interpretation": "Per-metric tradeoffs only; no overall recommendation established. Blank averages may mean empty or unrecorded populations; raw stored evidence remains in JSON.",
         "Timeline Path": run.timeline_path or "",
         "Notes": run.notes or "",
         "Experiment JSON": json.dumps(experiment, sort_keys=True),
@@ -1090,7 +1101,8 @@ def write_runs_csv(records: list[SimulationRunRecord]) -> Path:
 
 def write_runs_json(records: list[SimulationRunRecord]) -> Path:
     path = report_export_directory() / f"smartflow_runs_export_{secrets.token_hex(6)}.json"
-    payload = [record.model_dump() for record in records]
+    payload = [{**record.model_dump(), "metric_definitions_version": METRIC_VERSION,
+                "metric_definitions": METRIC_CATALOG} for record in records]
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
     return path
 
@@ -1285,6 +1297,7 @@ def compare_run_metrics(run_id: int) -> dict:
             payload["raw_metrics"] = json.loads(raw_metrics_json)
         except (TypeError, ValueError):
             payload["raw_metrics"] = {}
+    payload["metric_interpretation"] = {"version": METRIC_VERSION, "values": interpreted_metrics(payload)}
     return payload
 
 
@@ -1312,6 +1325,8 @@ def condense_compare_frame(index: int, raw_frame: dict) -> CompareTimelineFrame:
         max_queue=compare_float(metrics.get("max_queue")),
         throughput=compare_float(metrics.get("throughput")),
         avg_ped_delay=compare_float(metrics.get("avg_ped_delay")),
+        interpreted_metrics={key: metric_value(metrics, key) for key in
+                             ("avg_wait", "avg_queue", "max_queue", "throughput", "avg_ped_delay")},
     )
 
 
@@ -1365,7 +1380,7 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
     aligned_left = [left_times[time] for time in shared_times]
     aligned_right = [right_times[time] for time in shared_times]
     frame_count = len(shared_times)
-    warnings = []
+    warnings = ["This pair shows per-metric tradeoffs, not an overall performance winner. Average waits exclude pending arrivals; review completed, unfinished and dropped demand and pedestrians. Missing or empty-population averages are unavailable, not zero."]
     if frame_count < min(len(left_frames), len(right_frames)):
         warnings.append("Some sampled frame times differ; playback shows matching times only.")
     left_metrics = compare_run_metrics(left_option.run.id)
@@ -1568,6 +1583,7 @@ def get_run_report_metrics(
             payload["raw_metrics"] = json.loads(raw_metrics_json)
         except (TypeError, ValueError):
             payload["raw_metrics"] = {}
+    payload["metric_interpretation"] = {"version": METRIC_VERSION, "values": interpreted_metrics(payload)}
     return payload
 
 

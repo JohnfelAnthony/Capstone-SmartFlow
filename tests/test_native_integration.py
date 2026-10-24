@@ -88,7 +88,7 @@ class NativeIntegrationTests(unittest.TestCase):
         env = SmartFlowRLEnv(warmup_seconds=0, evaluation_seconds=20, scenario={"traffic_density": "low"})
         try:
             observation, info = env.reset(seed=9)
-            self.assertEqual(len(observation), 30)
+            self.assertEqual(len(observation), 22)
             self.assertGreater(sum(info["valid_action_mask"]), 0)
             agent = TabularQLearningAgent(action_count=5)
             model_path = agent.save(self.root / "model.json")

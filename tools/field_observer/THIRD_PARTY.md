@@ -11,6 +11,6 @@ The field observer uses installed public APIs; no upstream repository or example
 | Pillow 12.3.0 | Consistent RGB frame rotation and reference PNG | [Pillow](https://github.com/python-pillow/Pillow) |
 | OpenCV Python 5.0.0.93 | Upstream tracker dependency; the first editor itself uses local HTML | [OpenCV Python](https://github.com/opencv/opencv-python) |
 
-The integration keeps original detector category IDs separate from track IDs and counting-line IDs. It uses RF-DETR's sparse COCO IDs (person 1, bicycle 2, car 3, motorcycle 4, bus 6, truck 8). No local tricycle, jeepney or emergency classification has been trained. Changing the checkpoint or class mapping requires an explicit adapter change and new validation.
+The integration keeps original detector category IDs separate from track IDs and counting-line IDs. It uses RF-DETR's sparse COCO IDs (person 1, bicycle 2, car 3, motorcycle 4, bus 6, truck 8). No local tricycle or jeepney classification has been trained. Changing the checkpoint or class mapping requires an explicit adapter change and new validation.
 
 The prepared official Small checkpoint is `rf-detr-small.pth`, SHA-256 `d81979a9213a2109345158ce9232668df4c1ae52e9b8db3f2ec0a8cbad959b33`. Preparation verifies the upstream registry checksum; each analysis records the local SHA-256. Weights are ignored cache artifacts, not SmartFlow RL models. RF-DETR Plus models are not selected by this tool.

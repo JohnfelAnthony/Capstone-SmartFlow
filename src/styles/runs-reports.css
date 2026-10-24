@@ -156,7 +156,7 @@
 
 .runs-detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 
@@ -179,11 +179,10 @@
 .runs-detail-grid strong {
   display: block;
   margin-top: 4px;
-  overflow: hidden;
   color: var(--foreground);
   font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .runs-empty-state {
@@ -191,6 +190,7 @@
   font-size: 13px;
 }
 
+.runs-detail-card,
 .runs-timeline-card {
   grid-column: 1 / -1;
 }

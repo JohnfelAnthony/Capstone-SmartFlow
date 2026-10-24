@@ -1,5 +1,8 @@
 # SmartFlow project history, chapter archive and migration record
 
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
 Recorded: **September 23, 2026 (Asia/Singapore)**. This is a portable snapshot for moving the `SmartFlow` folder away from its parent `trapik2` folder. It preserves what the project proposed, how the manuscripts changed, what each codebase contains, what has actually been tested, and what remains unfinished.
 
 **Read sections 1–9 for the explanation. Appendices A and B contain the extracted text of the complete original and revised PDFs, including their references.** Exact PDF copies are stored inside SmartFlow alongside this record's supporting sources. Figures and table layout remain authoritative in those PDFs; extracted text alone cannot reproduce them faithfully.

@@ -1,14 +1,17 @@
 # SmartFlow implementation handoff
 
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
 Prepared: **2026-09-23, Asia/Singapore**. Intended reader: the project owner and the next implementation chat using **GPT-6 SOL, High**.
 
-**Status update, 2026-09-24:** This document records the September 23 interruption. The six approved areas were subsequently implemented and verified on synthetic inputs; see the current checkpoint in [docs/PROGRESS_AND_HANDOFF.md](docs/PROGRESS_AND_HANDOFF.md). The remaining 31-task plan and research limitations still apply where relevant.
+**Historical handoff — navigation refreshed 2026-10-23:** sections 1–9 preserve the September 23 interruption, approved scope, original 31-task backlog and acceptance criteria. The six approved areas were subsequently implemented and verified on synthetic inputs, beginning September 24; the RL-page errors and unverified worker described below are resolved historical findings. Use [docs/PROGRESS_AND_HANDOFF.md](docs/PROGRESS_AND_HANDOFF.md) for later software evidence and remaining research/release work. Reconcile each backlog item with that evidence before treating it as unfinished. Section 10 supplies a current opening prompt; section 11 is the maintained source-reading map. This refresh does not rerun application acceptance or establish field validity.
 
-**Start here: the current working tree is unfinished and is not a release candidate.** The native engine, RL adapters, scenario storage and application pages already exist. Finish their connections and prove complete workflows before adding breadth. In particular, the RL API types were updated immediately before the implementation interruption, but the React training page was not updated to match. A fresh TypeScript check during this handoff fails in that page.
+**State at the September 23 interruption:** the working tree was unfinished and was not a release candidate. The native engine, RL adapters, scenario storage and application pages existed, but their connections still needed acceptance. The RL API types had changed immediately before the interruption while the React training page still used the earlier contract. The TypeScript check captured for this handoff failed in that page. These statements describe September 23, not the current worktree.
 
 This document covers **all 31 tasks** from the advisory list, gives implementation and acceptance instructions, and records the unfinished six-task implementation effort. It does not claim that the entire 31-task backlog was implemented or that every future operation has already been authorized. The immediate previously approved implementation scope was tasks 1–6 in the owner's six-item request, reproduced below. The owner switched this conversation to preparing this handoff; application implementation was not continued while writing it.
 
-Paths below are relative to the **SmartFlow repository root**, so this file remains useful after relocation. Current location: `C:\Users\jhepo\Desktop\trapik2\SmartFlow`. Git HEAD at inspection: **`5eb80ca`**, subject `ASTRAAA`. There are substantial uncommitted and untracked changes on top of that commit. Git HEAD alone does not describe the code being handed over.
+Paths below are relative to the **SmartFlow repository root**, so this file remains useful after relocation. Location at inspection: `C:\Users\jhepo\Desktop\trapik2\SmartFlow`. September 23 Git HEAD: **`5eb80ca`**, subject `ASTRAAA`, with substantial uncommitted and untracked changes. This records that historical worktree; inspect current Git status before implementation.
 
 ## 1. Project purpose, decisions and boundaries
 
@@ -113,7 +116,7 @@ No current training process has been positively confirmed live for the handoff. 
 
 ## 4. First repair sequence for the next chat
 
-Use this order before expanding to the broader backlog:
+This was the repair order at the interruption. Later progress records its implementation and acceptance; use it as historical rationale and reusable criteria, rather than repeating completed repairs:
 
 1. Read the documents and inspect `git status`, including untracked files. Preserve the current worktree.
 2. Repair the RL page against `src/api/rl.ts`. Do not restore obsolete fields merely to make TypeScript pass.
@@ -238,7 +241,7 @@ Use the existing synthetic cross and diamond graphs in `tests/test_native_traffi
 - Test event times exactly at zero and later tick boundaries, stable ordering for simultaneous events, and reset/repeat behavior.
 - Check eventual progress where routes and downstream storage allow it. Distinguish genuine oversaturation from a permanently stuck reservation or stale controller request.
 
-## 5. Complete 31-task implementation backlog
+## 5. Original September 23 31-task implementation backlog
 
 The numbers below match the advisory list given to the owner. “Existing” means source is present; it does not mean the complete workflow is verified. Suggested owners identify responsibilities, not assigned people. One implementer can cover several roles.
 
@@ -509,7 +512,7 @@ The present validator requires a complete permitted phase order including pedest
 
 ### RL and model contract
 
-- `SmartFlowRLEnv` currently supplies a 30-value observation and five protected service actions.
+- `SmartFlowRLEnv` currently supplies a 22-value observation, a 15-component tabular state and five protected service actions (`native-4`, `native-local-22-v2`, `obs_v2` / `reward_v2`). Historical models require retraining; incompatible recordings require regeneration.
 - Policy requests are subject to engine safety rules. Requested action, applied result and any override must remain distinguishable.
 - Bind a registered model to its algorithm, compatible engine/network/action/observation contract, trained junction and control timing.
 - Freeze the full scenario for a queued training/evaluation job. A mutable scenario ID is a reference, not an immutable experimental input.
@@ -601,17 +604,17 @@ Capture results with source revision/worktree description, command or UI action,
 
 Deferred unless explicitly required: desktop installer, arbitrary city/network editor, distributed training, multiple independent live runtimes, alternative database/queue infrastructure, decorative 3D scenery and production deployment provider. Their absence does not block the immediate six-area scope.
 
-## 10. Suggested opening message for the new chat
+## 10. Suggested opening message for a new implementation chat
 
-Copy or adapt this after selecting GPT-6 SOL with High reasoning:
+Copy or adapt this for the requested task; refreshed October 23:
 
-> Start with `AGENTS.md`, `README.md`, `IMPLEMENTATION_HANDOFF.md` sections 1–4 and 11, and `docs/PROJECT_OVERVIEW.md`. Read other documentation as needed. Inspect the current worktree and the relevant code/tests before relying on previous status; do not read the entire repository or full manuscript appendices upfront. Continue implementation inside SmartFlow only. First repair the unfinished six-area work recorded in sections 2–4, including the RL page's current TypeScript errors and the unverified training-worker rewrite. Preserve existing uncommitted/untracked work and use isolated databases for tests. Finish and verify complete workflows; do not just add placeholders or make the build pass. Use the 31-task backlog for the next delivery slices, clearly distinguishing software verification from field calibration. Ask only questions that materially change the implementation scope. Report what changed, actual verification results and remaining work. Do not deploy, relocate folders or discard historical evidence without my instruction.
+> Start with `AGENTS.md`, `README.md`, the current pointer in `docs/PROGRESS_AND_HANDOFF.md` and `docs/PROJECT_OVERVIEW.md`. Use `IMPLEMENTATION_HANDOFF.md` sections 1–9 for historical scope/acceptance criteria and section 11 for targeted source reading. The September RL-page/worker interruption was repaired; inspect current source and reproduce a suspected defect before repeating old repairs. Continue the requested task inside SmartFlow only. Preserve existing modifications, untracked files and ignored research artifacts; use isolated databases/artifact directories for tests and child processes. Finish and verify the requested workflow. Reconcile the original 31-task backlog with subsequent evidence before selecting further work. Distinguish synthetic software verification from field audit, conversion, calibration, independent validation and final comparative research. Report actual changes, verification and remaining limits. Do not deploy, relocate folders or discard historical evidence without my instruction.
 
 When finishing a slice, update the existing progress record with fresh evidence and the exact next action. Do not mark the full project or the six-task effort complete until their acceptance conditions have actually been exercised.
 
 ## 11. Codebase orientation without reading the whole repository
 
-Added during the SmartFlow-only context audit on September 23. This is a map of the inspected source, not a claim that its unfinished connections work. Use it to locate the few modules that own the requested behavior, then inspect their callers, data contracts and relevant tests. Documentation cannot replace reading the code being changed.
+Added September 23; source pointers refreshed October 23 after the canonical-scenario cleanup and visual redesign. Use this maintained map to locate the modules that own the requested behavior, then inspect their callers, data contracts and relevant tests. Progress records dated acceptance; documentation cannot replace reading and verifying the code being changed.
 
 ### 11.1 Entry points and execution paths
 
@@ -620,16 +623,17 @@ Added during the SmartFlow-only context audit on September 23. This is a map of 
 | Frontend startup and navigation | `src/main.tsx` → `src/App.tsx` → page component under `src/components/` | App restores the authenticated user and selects pages through React state. Start here before assuming a separate URL router or modifying navigation. |
 | HTTP and WebSocket connection | `src/api/client.ts`, `src/hooks/useSimulationSocket.ts` | API base URL, credentials, error decoding and frame connection/reconnection. Check the client contract before blaming server responses. |
 | Python startup | `package.json` → `scripts/python-runner.mjs` → `run_api.py` → `backend/main.py` | Commands run from SmartFlow and prefer its virtual environment. Startup initializes/seeds the database and reconciles incomplete runs/jobs. |
-| Save/edit a scenario | `scenarios-page.tsx` + `native-scenario-controls.tsx` → `src/api/scenarios.ts` / `native-scenario.ts` → scenario routes in `backend/main.py` → `database.py` | Native settings, legacy fields, normalization, validation and JSON persistence. Read `backend/schemas.py` and `simulation/scenario_config.py` alongside the form. |
+| Save/edit a scenario | `scenarios-page.tsx` + `native-scenario-controls.tsx` → `src/api/scenarios.ts` / `native-scenario.ts` → scenario routes in `backend/main.py` → `database.py` | Canonical `network_id`, complete `engine_config`, validation and JSON persistence. Read `backend/schemas.py` and `simulation/scenario_config.py` alongside the form. Historical aliases/disruptions are resolved by `services/scenario_migration.py` only at upgrade/import/restore boundaries. |
 | Configure and run live | `dashboard-page.tsx` → `src/api/simulation.ts` → lifecycle routes → `backend/simulation_runtime.py` → `simulation/traffic_engine.py` | Runtime owns the live engine and step loop. Follow `configure`, `start`, `_run_step_loop` and controller resolution; the UI must not start its own physics. |
-| Stream and render | Engine `to_dict()` → `services/render_frame_service.py` → `/ws/simulation` → `useSimulationSocket.ts` → dashboard → 3D/2D renderer | A compact frame differs from full API state. Dashboard also refreshes full state and builds fallback frames, so new fields must survive both paths. |
-| Train from the UI | `rl-training-page.tsx` → `src/api/rl.ts` → RL routes → `services/training_settings.py` / `rl_training_service.py` → CLI subprocess | This is the currently broken/unfinished integration. Follow the scenario snapshot, active job, model/checkpoint references and terminal status. |
+| Stream and render | Engine `to_dict()` → `services/render_frame_service.py` → WebSocket or HTTP compact frame → dashboard → shared host/geometry → 3D/2D renderer | Both transports carry the server-authored compact frame. Follow `src/simulation/` geometry/presentation modules, entity picking and interpolation; full metrics survive actor display limits. |
+| Train from the UI | `rl-training-page.tsx` → `src/api/rl.ts` → RL routes → `services/training_settings.py` / `rl_training_service.py` → CLI subprocess | Follow separate frozen training/evaluation scenarios and seeds, active job, model/checkpoint IDs, cancellation and terminal status. This integration has dated synthetic acceptance; relevant changes still require fresh checks. |
 | Learn in Python | `tools/train_ql.py`, `train_dql.py`, `train_ppo.py` → corresponding training module → `simulation/rl_env.py` → native engine | The RL environment supplies reset/step, observations, reward and safe service requests. Training is headless. |
 | Apply a saved policy | `services/native_controller.py` → `simulation/rl_policy_runtime.py` + `model_contract.py` → engine `set_runtime_policy` | Registered identity, compatibility, trained junction/timing, actual inference and safety application. Do not treat a label as proof of inference. |
 | Record and replay | Timeline routes → `services/timeline_generator.py` → native engine/manifest; playback routes → runtime → `simulation/timeline_engine.py` | A recording stores evidence; playback reads it. Inspect both sides when adding a state field or changing compatibility. |
 | Compare and export | `runs-reports-page.tsx`, `compare-runs-page.tsx` → `src/api/runs.ts` / `compare.ts` → routes/report helpers | Trace metrics, compatibility keys and provenance through database rows and exported data. Do not substitute historical Dash helpers based on their filenames. |
+| Research comparisons/search | `src/components/` research/search pages → `backend/research_routes.py` → `database.py` | Permission-scoped search and append-only calibration/validation snapshots; numerical fit and declared source separation do not establish field accuracy. |
 
-Page filenames in this table without a directory prefix are under `src/components/`. The actual API routes are grouped in `backend/main.py`; schemas are in `backend/schemas.py`, authentication/permission helpers in `backend/security.py` and `auth.py`.
+Page filenames in this table without a directory prefix are under `src/components/`. Core routes are in `backend/main.py`, with research/search routes in `backend/research_routes.py`; schemas are in `backend/schemas.py`, authentication/permission helpers in `backend/security.py` and `auth.py`. `services/workload_admission.py` provides one process-local compute lease across live runs, training/evaluation and recording; playback does not reserve it.
 
 ### 11.2 Engine ownership and ordering
 
@@ -660,13 +664,13 @@ Units are metres and seconds; the engine step is 0.1 seconds. The five RL action
 
 | Domain | Main routes | Persistent/serialized data |
 | --- | --- | --- |
-| Scenario/options | `/api/scenarios`, `/api/scenarios/{id}`, `/api/scenarios/{id}/native-config`, `/api/simulation/options` | `scenarios`, native `engine_config`, legacy fields, network-derived lane/junction choices. `engine_config` is added through `_migrate_scenarios`; the original CREATE TABLE text alone is not the complete current schema. |
+| Scenario/options | `/api/scenarios`, `/api/scenarios/{id}`, `/api/scenarios/{id}/native-config`, `/api/simulation/options` | Canonical `scenarios.network_id`, complete native `engine_config` and network-derived choices. Both columns exist in current CREATE TABLE text; migrations support older databases and preserve legacy recovery fields. |
 | Simulation | `/api/simulation/configure`, `/start`, `/pause`, `/resume`, `/stop`, `/reset`, `/step`, `/state`; `/ws/simulation`; `/api/visual-network` | `simulation_runs`, `run_metrics`, full state versus compact `RenderFrame`. Lifecycle suffixes here are under `/api/simulation`. |
 | Learning | `/api/rl/jobs`, `/api/rl/status`, `/api/rl/jobs/{id}/stop`, `/api/rl/models`, `/api/rl/evaluate` | `rl_training_jobs`, `rl_training_job_items`, `rl_models`, `rl_checkpoints`, scenario snapshots, progress logs and saved artifacts. |
 | Evidence | `/api/simulation/timelines`, `/api/simulation/playback/*`, `/api/runs/*`, `/api/compare/*`, `/api/reports/export` | Run metrics, timeline/manifest files, compatibility and evaluation summaries. |
 | Accounts/operations | `/api/auth/*`, `/api/admin/*` | Users, roles, permissions, sessions, audits and backup records. Read authorization helpers, not only the visible button state. |
 
-For a field change, trace **editor → TypeScript API type → request schema → validation → database representation → runtime/worker → state/frame → renderer/report**. Not every feature crosses every boundary, but skipping a consumer is how configuration gets lost. Current examples are the unmigrated training page and missing renderer consumption of road/control fields.
+For a field change, trace **editor → TypeScript API type → request schema → validation → database representation → runtime/worker → state/frame → renderer/report**. Not every feature crosses every boundary, but skipping a consumer can lose configuration. The September training-page and road/control-rendering gaps were repaired; preserve those contracts when adding fields.
 
 ### 11.4 Test map and limited reading sets
 
@@ -674,7 +678,7 @@ For a field change, trace **editor → TypeScript API type → request schema �
 | --- | --- | --- |
 | Vehicle, signals, routing, events | Engine + graph + scenario validator | `test_native_engine.py`, `test_native_experiments.py`, `test_native_regressions.py`, `test_native_traffic_contract.py` |
 | Scenario persistence or live commands | Relevant React page/API type + route/schema + runtime/database | `test_native_integration.py`, relevant regressions, then browser round trip |
-| Training UI/job lifecycle | RL page/API type + schemas/routes + training settings/worker | `test_native_learning.py` is only a starting point; worker lifecycle/API tests are still required |
+| Training UI/job lifecycle | RL page/API type + schemas/routes + training settings/worker | `test_training_worker.py`, `test_workflow_integrity.py`, `test_native_learning.py`; browser training/cancel/resume for UI changes |
 | Model/junction binding | Native controller + policy runtime/model contract + RL environment | Learning and integration tests, plus an actual selected-model run |
 | Road/controller visualization | Engine snapshot + frame serializer + frame types/socket/dashboard + renderer | Frame regression/integration tests and observed browser behavior |
 | Recording/comparison | Timeline generator/playback + relevant routes/API/page | Integration replay/compatibility tests and manual value/export checks |
@@ -684,7 +688,7 @@ Test files in this table are under `tests/`. Add meaningful coverage where the e
 ### 11.5 What to defer reading, and what must stay local
 
 - Do not start by reading `node_modules`, `.venv`, `dist`, generated logs/models/recordings, every skill copy or both full manuscript appendices. Inspect a generated artifact only when it is relevant evidence.
-- `simulation/engine.py`, `simulation/sumo_engine.py`, `simulation/sumo_config.py`, `simulation/sumo_state.py`, `services/simulation_service.py` and `sumo/` contain historical material. Confirm imports before touching anything that appears obsolete. In contrast, `services/simulation_flow.py` is still imported by the active runtime despite its older-looking name.
+- `simulation/engine.py`, `simulation/sumo_engine.py`, `simulation/sumo_config.py`, `simulation/sumo_state.py`, `services/simulation_service.py` and `sumo/` were archived and removed during the October cleanup. Consult the [cleanup result](docs/reviews/SUMO_DASH_CLEANUP_RESULT_2026-10-09.md) and recovery manifest for history. `services/simulation_flow.py` remains part of the active runtime despite its older-looking name.
 - The copied source PDFs and all current context links are inside SmartFlow. The archive is sufficient for orientation to Trapik2; detailed investigation of an old implementation could still require the old source later. That is not necessary to resume the present six areas.
 - `.agents/skills/shadcn/SKILL.md` exists within SmartFlow. Use the applicable local copy rather than depending on the parent workspace's copy; do not read all skill folders as project requirements.
 - Keep database/artifact backups when actually relocating. Opening a new chat at the same SmartFlow directory is different from moving it or cloning it. No fresh-location runtime test was performed by this documentation audit.

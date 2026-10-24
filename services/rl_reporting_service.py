@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from pathlib import Path
+from services.metric_definitions import METRIC_DEFINITIONS
 
 
 RL_CONTROLLERS = {"ql", "dql", "ppo"}
@@ -12,7 +14,10 @@ def _safe_float(value) -> float | None:
     try:
         if value is None:
             return None
-        return float(value)
+        if isinstance(value, bool):
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
     except (TypeError, ValueError):
         return None
 
@@ -196,29 +201,78 @@ def _model_record_scenarios(model_record: dict | None):
 def primary_evaluation_score(controller_summary: dict | None) -> float | None:
     if not controller_summary:
         return None
-    avg_wait = _safe_float((controller_summary.get("avg_wait") or {}).get("mean"))
+    wait_summary = controller_summary.get("avg_wait") or {}
+    if wait_summary.get("available_count", 0) < wait_summary.get("run_count", 0):
+        return None
+    avg_wait = _summary_mean(controller_summary, "avg_wait")
     if avg_wait is None:
         return None
     return round(-avg_wait, 6)
 
 
+RANKING_CRITERION = "Lowest mean stopped vehicle wait; completed trips break ties. Not an overall traffic-performance recommendation."
+RANKING_VERSION = "waiting-time-order-1"
+TRADEOFF_METRICS = ("avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time",
+                    "avg_ped_delay", "requested_vehicles", "total_vehicles_spawned", "pending_demand",
+                    "dropped_vehicles", "unfinished_vehicles", "boundary_wait_seconds",
+                    "avg_admitted_boundary_wait",
+                    "measurement_start", "measurement_seconds")
+
+
+def _summary_mean(summary: dict | None, key: str) -> float | None:
+    summary = summary or {}
+    item = summary.get(key)
+    if not isinstance(item, dict) or item.get("available_count") == 0:
+        return None
+    value = _safe_float(item.get("mean"))
+    population_keys = (METRIC_DEFINITIONS.get(key) or {}).get("population_keys", [])
+    if population_keys:
+        values = [_safe_float(summary[name].get("mean")) if isinstance(summary.get(name), dict) else None
+                  for name in population_keys]
+        if all(count is not None for count in values):
+            if sum(values) <= 0:
+                return None
+        elif value == 0 and not (_safe_float(item.get("available_count")) or 0) > 0:
+            return None
+    return value
+
+
+def _comparison(value, reference, baseline: bool) -> dict:
+    difference = value-reference if value is not None and reference is not None else None
+    return {"value": value, "fixed_time_value": reference,
+            "difference": _round_or_none(difference),
+            "percent_change": _round_or_none(difference/abs(reference)*100) if difference is not None and reference != 0 else None,
+            "percent_change_note": "Undefined for a zero reference." if reference == 0 else None,
+            "relation": "unavailable" if difference is None else "baseline" if baseline else
+                        "tie" if difference == 0 else "lower" if difference < 0 else "higher"}
+
+
 def build_combined_ranking(summary: dict, model_learning: dict | None = None) -> list[dict]:
     model_learning = model_learning or {}
     fixed_summary = summary.get("fixed-time") or {}
-    fixed_wait = _safe_float((fixed_summary.get("avg_wait") or {}).get("mean"))
-    fixed_queue = _safe_float((fixed_summary.get("avg_queue") or {}).get("mean"))
-    fixed_throughput = _safe_float((fixed_summary.get("throughput") or {}).get("mean"))
+    fixed_wait = _summary_mean(fixed_summary, "avg_wait")
+    fixed_queue = _summary_mean(fixed_summary, "avg_queue")
+    fixed_throughput = _summary_mean(fixed_summary, "throughput")
 
     rows = []
     for controller, controller_summary in summary.items():
-        avg_wait = _safe_float((controller_summary.get("avg_wait") or {}).get("mean"))
-        avg_queue = _safe_float((controller_summary.get("avg_queue") or {}).get("mean"))
-        throughput = _safe_float((controller_summary.get("throughput") or {}).get("mean"))
+        avg_wait = _summary_mean(controller_summary, "avg_wait")
+        avg_queue = _summary_mean(controller_summary, "avg_queue")
+        throughput = _summary_mean(controller_summary, "throughput")
         learning = model_learning.get(controller) or {}
         rows.append(
             {
                 "controller": controller,
+                "ranking_version": RANKING_VERSION,
+                "ranking_criterion": RANKING_CRITERION,
+                "overall_recommendation": None,
+                "interpretation": "No overall recommendation criteria have been established. Review completion, unfinished demand, pedestrians and other tradeoffs. Legacy summaries may lack population evidence.",
+                "comparison_to_fixed_time": {key: _comparison(_summary_mean(controller_summary, key),
+                    _summary_mean(fixed_summary, key), controller == "fixed-time") for key in TRADEOFF_METRICS},
                 "avg_wait_mean": _round_or_none(avg_wait),
+                "ranking_eligible": primary_evaluation_score(controller_summary) is not None,
+                "avg_wait_coverage": {key: _safe_float((controller_summary.get("avg_wait") or {}).get(key))
+                                      for key in ("available_count", "run_count")},
                 "avg_queue_mean": _round_or_none(avg_queue),
                 "throughput_mean": _round_or_none(throughput),
                 "primary_evaluation_score": primary_evaluation_score(controller_summary),
@@ -231,18 +285,21 @@ def build_combined_ranking(summary: dict, model_learning: dict | None = None) ->
                 },
                 "beats_fixed_time": {
                     "avg_wait": (
+                        None if avg_wait is None or fixed_wait is None else
                         controller != "fixed-time"
                         and avg_wait is not None
                         and fixed_wait is not None
                         and avg_wait < fixed_wait
                     ),
                     "avg_queue": (
+                        None if avg_queue is None or fixed_queue is None else
                         controller != "fixed-time"
                         and avg_queue is not None
                         and fixed_queue is not None
                         and avg_queue < fixed_queue
                     ),
                     "throughput": (
+                        None if throughput is None or fixed_throughput is None else
                         controller != "fixed-time"
                         and throughput is not None
                         and fixed_throughput is not None
@@ -254,11 +311,22 @@ def build_combined_ranking(summary: dict, model_learning: dict | None = None) ->
 
     rows.sort(
         key=lambda row: (
-            float("inf") if row["avg_wait_mean"] is None else row["avg_wait_mean"],
-            -(row["throughput_mean"] or 0),
+            float("inf") if not row["ranking_eligible"] else row["avg_wait_mean"],
+            float("inf") if row["throughput_mean"] is None else -row["throughput_mean"],
             row["controller"],
         )
     )
+    previous = None
+    rank = None
     for index, row in enumerate(rows, start=1):
-        row["traffic_performance_rank"] = index
+        criterion = (row["avg_wait_mean"], row["throughput_mean"])
+        if not row["ranking_eligible"]:
+            rank = None
+        elif criterion != previous:
+            rank = index
+        row["waiting_time_rank"] = rank
+        # Retain the old key for consumers; explicitly qualify its narrow semantics.
+        row["traffic_performance_rank"] = rank
+        row["traffic_performance_rank_semantics"] = "Legacy alias of waiting_time_rank; not overall performance."
+        previous = criterion
     return rows

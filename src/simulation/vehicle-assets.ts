@@ -20,7 +20,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { RenderVehicle } from "./frame-types"
 import { headingToThreeYaw, normalizeVehicleClass, vehicleDimensions } from "./scene-geometry"
 
-export const VEHICLE_CLASSES = ["car", "motorcycle", "tricycle", "bus", "truck", "emergency"] as const
+export const VEHICLE_CLASSES = ["car", "motorcycle", "tricycle", "bus", "truck"] as const
 export type VehicleClass = typeof VEHICLE_CLASSES[number]
 export type RoadPropType = "barrier" | "cone"
 
@@ -30,7 +30,6 @@ export const VEHICLE_PROFILES: Record<VehicleClass, { length: number; width: num
   tricycle: { length: 3, width: 1.4, height: 1.8, label: "Tagum tricycle" },
   bus: { length: 10, width: 2.5, height: 3.1, label: "Bus" },
   truck: { length: 8, width: 2.5, height: 2.8, label: "Truck" },
-  emergency: { length: 5, width: 2, height: 2.6, label: "Emergency ambulance" },
 }
 
 export const VEHICLE_ASSET_REGISTRY: Record<VehicleClass, { url: string | null; sourceForward: "+X" | "+Z" }> = {
@@ -39,7 +38,6 @@ export const VEHICLE_ASSET_REGISTRY: Record<VehicleClass, { url: string | null; 
   tricycle: { url: null, sourceForward: "+X" },
   bus: { url: null, sourceForward: "+X" },
   truck: { url: "/assets/simulation/kenney-car-kit/truck.glb", sourceForward: "+Z" },
-  emergency: { url: "/assets/simulation/kenney-car-kit/ambulance.glb", sourceForward: "+Z" },
 }
 
 const PROP_REGISTRY: Record<RoadPropType, string> = {
@@ -69,8 +67,8 @@ const colors = {
   blue: 0x467cab,
 }
 
-export function vehicleClass(type: string | undefined, emergency = false): VehicleClass {
-  return normalizeVehicleClass(type, emergency)
+export function vehicleClass(type: string | undefined): VehicleClass {
+  return normalizeVehicleClass(type)
 }
 
 /** Native angles: north=0, east=90. +X meshes rotate toward world -Z for north. */
@@ -104,7 +102,7 @@ function proceduralVehicle(type: VehicleClass) {
   const glass = material(colors.glass)
   const trim = material(colors.trim)
   const metal = material(colors.metal)
-  const body = material(type === "tricycle" ? colors.green : type === "bus" ? colors.bus : type === "truck" ? colors.truck : type === "emergency" ? colors.trim : colors.car)
+  const body = material(type === "tricycle" ? colors.green : type === "bus" ? colors.bus : type === "truck" ? colors.truck : colors.car)
 
   if (type === "tricycle") {
     // One centered front wheel, two rear wheels; a passenger cabin rather than a recolored car.
@@ -148,9 +146,8 @@ function proceduralVehicle(type: VehicleClass) {
   const width = profile.width
   const isBus = type === "bus"
   const isTruck = type === "truck"
-  const isEmergency = type === "emergency"
   const radius = isBus || isTruck ? 0.43 : 0.32
-  const bodyHeight = isBus ? 1.95 : isTruck ? 1.6 : isEmergency ? 1.6 : 0.65
+  const bodyHeight = isBus ? 1.95 : isTruck ? 1.6 : 0.65
   addBox(group, body, 0, radius + bodyHeight / 2, 0, length * 0.94, bodyHeight, width * 0.9)
   if (isBus) {
     addBox(group, trim, 0, 2.44, 0, length * 0.95, 0.14, width * 0.92)
@@ -163,20 +160,13 @@ function proceduralVehicle(type: VehicleClass) {
     addBox(group, body, length * 0.33, 1.45, 0, length * 0.25, 1.8, width * 0.9)
     addBox(group, glass, length * 0.457, 1.77, 0, 0.035, 0.72, width * 0.7)
   } else {
-    addBox(group, glass, -length * 0.03, isEmergency ? 2.1 : 1.3, 0, length * 0.49, isEmergency ? 0.58 : 0.63, width * 0.72)
-    addBox(group, body, -length * 0.035, isEmergency ? 2.42 : 1.64, 0, length * 0.51, 0.13, width * 0.79)
+    addBox(group, glass, -length * 0.03, 1.3, 0, length * 0.49, 0.63, width * 0.72)
+    addBox(group, body, -length * 0.035, 1.64, 0, length * 0.51, 0.13, width * 0.79)
   }
   for (const x of [-length * 0.32, length * 0.32]) for (const z of [-width * 0.43, width * 0.43]) {
     addWheel(group, tires, x, z, radius, width * 0.14)
   }
   addBox(group, trim, length * 0.475, radius + 0.4, 0, 0.03, 0.14, width * 0.63)
-  if (isEmergency) {
-    const red = material(colors.red)
-    const blue = material(colors.blue)
-    for (const z of [-width * 0.453, width * 0.453]) addBox(group, red, 0, 1.05, z, length * 0.91, 0.17, 0.03)
-    addBox(group, red, length * 0.1, 2.58, -0.28, 0.22, 0.15, 0.38)
-    addBox(group, blue, length * 0.1, 2.58, 0.28, 0.22, 0.15, 0.38)
-  }
   return group
 }
 
@@ -405,7 +395,7 @@ export class VehicleFleetInstances {
       batch.ids.length = 0
     }
     for (const vehicle of vehicles) {
-      const type = vehicleClass(vehicle.visual_type, vehicle.emergency)
+      const type = vehicleClass(vehicle.visual_type)
       const batch = this.batches.get(type)!
       if (this.displayedCount >= this.capacity) {
         this.omittedCount += 1

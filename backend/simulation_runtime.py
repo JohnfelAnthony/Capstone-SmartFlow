@@ -524,7 +524,6 @@ class SimulationRuntime:
                 "intersection_id": load_network().id,
                 "traffic_density": "medium",
                 "pedestrian_density": "medium",
-                "emergency_mode": "disabled",
                 "road_constraint": "None",
             },
             "dashboard": {

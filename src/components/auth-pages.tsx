@@ -182,7 +182,7 @@ export function LoginPage({ onNavigate, onLogin }: LoginPageProps) {
           subline="Traffic Intelligence"
           kicker="Tagum connected road network"
           title="Coordinate live Python traffic with confidence."
-          description="Monitor queues, signal phases, pedestrians, and emergency priority from one research-grade control room."
+          description="Monitor queues, signal phases, and pedestrian crossings from one research-grade control room."
           rlStatus="Planning"
         />
 

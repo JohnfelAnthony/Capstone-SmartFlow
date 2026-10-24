@@ -1,29 +1,4 @@
 import * as React from "react"
-import {
-  AreaChartIcon,
-  BarChart3Icon,
-  BrainIcon,
-  CheckIcon,
-  GaugeIcon,
-  HourglassIcon,
-  ListIcon,
-  PersonStandingIcon,
-  SlidersHorizontalIcon,
-  TrafficConeIcon,
-  TruckIcon,
-} from "lucide-react"
-import { FaGamepad, FaPause, FaPlay, FaRotateRight, FaSquare } from "react-icons/fa6"
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
 
 import { ApiError } from "@/api/client"
 import { listScenarios, type ApiScenario } from "@/api/scenarios"
@@ -45,45 +20,16 @@ import {
   type SimulationRunRecord,
   type SimulationStatePayload,
 } from "@/api/simulation"
+import { DashboardControls } from "@/components/dashboard-controls"
+import { DashboardKpis } from "@/components/dashboard-kpis"
+import { DashboardTrends, type TrendPoint } from "@/components/dashboard-trends"
+import { Card } from "@/components/ui/card"
 import { SimulationVisualization } from "@/simulation/simulation-visualization"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
-import { cn } from "@/lib/utils"
-
-type SelectOption = {
-  label: string
-  value: string
-}
-
-type ChartHistoryPoint = {
-  bucket: number
-  timeLabel: string
-  avgWait: number
-  avgQueue: number
-  throughput: number
-  vehicles: number
-  pedestrians: number
-}
-
-type ChartSeries = {
-  key: keyof ChartHistoryPoint
-  name: string
-  color: string
-}
-
-const durationOptions: SelectOption[] = [
-  { label: "5 Minutes (300s)", value: "300" },
-  { label: "10 Minutes (600s)", value: "600" },
-  { label: "15 Minutes (900s)", value: "900" },
-]
-
-
-function metricNumber(metrics: SimulationStatePayload["state"]["metrics"], key: string) {
-  const value = metrics?.[key]
-  return typeof value === "number" && Number.isFinite(value) ? value : 0
-}
+import { metricValue } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
@@ -92,590 +38,20 @@ function compactNumber(value: number, digits = 0) {
   })
 }
 
-function statusText(value: string | null | undefined) {
-  return String(value || "unknown").replaceAll("_", " ").replaceAll("-", " ")
-}
-
-function buildChartPoint(simulation: SimulationStatePayload): ChartHistoryPoint {
-  const time = Number(simulation.state.time ?? 0)
+function buildChartPoint(simulation: SimulationStatePayload): TrendPoint & { bucket: number } {
+  const time = Math.max(0, Math.floor(Number(simulation.state.time ?? 0)))
   const metrics = simulation.state.metrics
   return {
-    bucket: Math.max(0, Math.floor(time)),
-    timeLabel: `${Math.max(0, Math.floor(time))}s`,
-    avgWait: metricNumber(metrics, "avg_wait"),
-    avgQueue: metricNumber(metrics, "avg_queue"),
-    throughput: metricNumber(metrics, "throughput"),
-    vehicles: Number(simulation.state.vehicle_count ?? 0),
-    pedestrians: Number(simulation.state.pedestrian_count ?? 0),
-  }
-}
-
-function playbackInfo(simulation: SimulationStatePayload | null) {
-  const playback = simulation?.state.playback
-  const frameIndex = Number(playback?.frame_index ?? 0)
-  const frameCount = Number(playback?.frame_count ?? 0)
-  const progress = Number(playback?.progress_percent ?? 0)
-  return {
-    frameIndex: Number.isFinite(frameIndex) ? frameIndex : 0,
-    frameCount: Number.isFinite(frameCount) ? frameCount : 0,
-    progress: Number.isFinite(progress) ? progress : 0,
+    bucket: time,
+    timeLabel: `${time}s`,
+    avgWait: metricValue(metrics, "avg_wait"),
+    avgQueue: metricValue(metrics, "avg_queue"),
   }
 }
 
 function apiMessage(error: unknown) {
   if (error instanceof ApiError || error instanceof Error) return error.message
   return "Unable to reach the SMARTFLOW API."
-}
-
-function CardTitle({
-  children,
-  icon: Icon,
-}: {
-  children: React.ReactNode
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-}) {
-  return (
-    <h2 className="sf-card-title">
-      <Icon />
-      <span>{children}</span>
-    </h2>
-  )
-}
-
-function SelectField({
-  label,
-  options,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string
-  options: SelectOption[]
-  value: string
-  disabled?: boolean
-  onChange: (value: string) => void
-}) {
-  return (
-    <label className="sf-setting-group">
-      <span>{label}</span>
-      <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-function SimulationView({
-  scenarios,
-  selectedScenarioId,
-  durationSeconds,
-  simulation,
-  renderFrame,
-  connectionStatus,
-  visualizationMode,
-  isBusy,
-  canOperate,
-  onScenarioChange,
-  onDurationChange,
-  onConfigure,
-  onThreeUnavailable,
-  onPerformanceSample,
-  seekRevision,
-}: {
-  scenarios: ApiScenario[]
-  selectedScenarioId: string
-  durationSeconds: string
-  simulation: SimulationStatePayload | null
-  renderFrame: RenderFrame | null
-  connectionStatus: string
-  visualizationMode: VisualizationMode
-  isBusy: boolean
-  canOperate: boolean
-  onScenarioChange: (scenarioId: string) => void
-  onDurationChange: (duration: string) => void
-  onConfigure: () => void
-  onThreeUnavailable: (message: string) => void
-  onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void
-  seekRevision: number
-}) {
-  const state = simulation?.state
-  const dashboard = state?.dashboard
-  const selectedScenarioName =
-    typeof dashboard?.current_scenario_name === "string"
-      ? dashboard.current_scenario_name
-      : scenarios.find((scenario) => String(scenario.id) === selectedScenarioId)?.name ?? "Select a scenario"
-  const statusLabel = simulation?.status === "running" && connectionStatus !== "open"
-    ? `STREAM ${connectionStatus.toUpperCase()}`
-    : simulation?.state.flow?.live_indicator_label ?? "IDLE"
-  const intersectionId =
-    renderFrame?.intersection_id ??
-    (typeof state?.scenario?.intersection_id === "string" ? state.scenario.intersection_id : null)
-  const showSetupCard = !["running", "paused"].includes(simulation?.status ?? "") && simulation?.control_mode !== "playback"
-  const showLiveCanvas = !showSetupCard
-  const frozenConfig = state?.experiment?.config
-  const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null
-
-  if (showLiveCanvas) return <section className="sf-card sf-simulation-card">
-    <SimulationVisualization frame={renderFrame} networkId={intersectionId}
-      controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction}
-      mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision}
-      title={selectedScenarioName} onUnavailable={onThreeUnavailable} onPerformanceSample={onPerformanceSample} />
-  </section>
-
-  return (
-    <section className="sf-card sf-simulation-card">
-      <div className="sf-sim-viewport">
-        <div className="sf-sim-grid" aria-hidden="true" />
-        {showSetupCard ? (
-          <div className="sf-setup-card">
-            <h3>Simulation Setup</h3>
-            <SelectField
-              label="Select Scenario"
-              options={scenarios.map((scenario) => ({ label: scenario.name, value: String(scenario.id) }))}
-              value={selectedScenarioId}
-              disabled={isBusy || !canOperate || scenarios.length === 0}
-              onChange={onScenarioChange}
-            />
-            <SelectField
-              label="Run Mode"
-              options={[{ label: "Live Scenario", value: "live" }]}
-              value="live"
-              disabled
-              onChange={() => undefined}
-            />
-            <SelectField
-              label="Duration Limit"
-              options={durationOptions}
-              value={durationSeconds}
-              disabled={isBusy || !canOperate}
-              onChange={onDurationChange}
-            />
-            <button className="sf-primary-btn" type="button" disabled={isBusy || !canOperate || !selectedScenarioId} onClick={onConfigure}>
-              {isBusy ? "Applying..." : "Apply Configuration"}
-            </button>
-          </div>
-        ) : null}
-
-        <div className="sf-sim-overlay top-left">
-          <span>{statusLabel}</span>
-          <strong>{selectedScenarioName}</strong>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function ControlPanel({
-  selectedScenario,
-  scenarioConfig,
-  models,
-  controlMode,
-  seed,
-  simulation,
-  recordedRuns,
-  selectedRecordedRunId,
-  isBusy,
-  canOperate,
-  canStart,
-  onControlModeChange,
-  onSeedChange,
-  onSpeedChange,
-  onApplyScenario,
-  onRecordedRunChange,
-  onRefreshRecordings,
-  onLoadRecording,
-  onStartPlayback,
-  onSeekPlayback,
-  onStart,
-  onPause,
-  onStop,
-  onReset,
-}: {
-  selectedScenario: ApiScenario | null
-  scenarioConfig: NativeScenarioConfig | null
-  models: RLModelRecord[]
-  controlMode: string
-  seed: string
-  simulation: SimulationStatePayload | null
-  recordedRuns: SimulationRunRecord[]
-  selectedRecordedRunId: string
-  isBusy: boolean
-  canOperate: boolean
-  canStart: boolean
-  onControlModeChange: (value: string) => void
-  onSeedChange: (value: string) => void
-  onSpeedChange: (value: number) => void
-  onApplyScenario: () => void
-  onRecordedRunChange: (runId: string) => void
-  onRefreshRecordings: () => void
-  onLoadRecording: () => void
-  onStartPlayback: () => void
-  onSeekPlayback: (frameIndex: number) => void
-  onStart: () => void
-  onPause: () => void
-  onStop: () => void
-  onReset: () => void
-}) {
-  const status = simulation?.status ?? "stopped"
-  const isRunning = status === "running"
-  const isPaused = status === "paused"
-  const playback = playbackInfo(simulation)
-  const selectedRecordedRun = recordedRuns.find((run) => String(run.id) === selectedRecordedRunId)
-  const canLoadRecording = Boolean(selectedRecordedRunId && selectedRecordedRun?.status === "completed")
-  const isPlayback = simulation?.control_mode === "playback"
-
-  return (
-    <aside className="sf-right-panel">
-      <section className="sf-card sf-control-card">
-        <h2 className="sf-card-title">
-          <FaGamepad />
-          <span>Simulation Controls</span>
-        </h2>
-        <div className="sf-control-buttons">
-          <button
-            className="start"
-            type="button"
-            disabled={isBusy || !canOperate || (!isPlayback && !canStart) || isRunning}
-            onClick={isPlayback ? onStartPlayback : isPaused ? onPause : onStart}
-          >
-            <FaPlay />
-            {isPlayback ? "Play Recording" : isPaused ? "Resume Simulation" : "Start Simulation"}
-          </button>
-          <button className="pause" type="button" disabled={isBusy || !canOperate || !isRunning} onClick={onPause}>
-            <FaPause />
-            Pause
-          </button>
-          <button className="stop" type="button" disabled={isBusy || !canOperate || (!isRunning && !isPaused)} onClick={onStop}>
-            <FaSquare />
-            Stop Simulation
-          </button>
-          <button className="reset" type="button" disabled={isBusy || !canOperate} onClick={onReset}>
-            <FaRotateRight />
-            Reset Simulation
-          </button>
-        </div>
-      </section>
-
-      <section className="sf-card sf-settings-card">
-        <CardTitle icon={SlidersHorizontalIcon}>Saved Scenario and Controller</CardTitle>
-        {isPlayback ? <p>Recording: {simulation?.selected_scenario_name ?? "Saved scenario"}.</p>
-          : <p>{selectedScenario?.name ?? "Select a scenario"}: {selectedScenario?.engine_config.traffic_density ?? "—"} traffic, {selectedScenario?.engine_config.pedestrian_density ?? "—"} pedestrians. Controlled junction: {scenarioConfig?.controlled_junction ?? "loading"}. {scenarioConfig?.events?.length ?? 0} timed road events. Edit these settings on the Scenarios page.</p>}
-        <SelectField
-          label="Signal controller"
-          options={[
-            ...(isPlayback ? [{ label: simulation?.state.playback?.source_controller_label ?? "Unknown recorded controller", value: "playback" }] : []),
-            { label: "Fixed-time baseline (saved plans with shared safety and emergency priority)", value: "fixed-time" },
-            ...models.filter((model) => model.compatible && model.controlled_junction === scenarioConfig?.controlled_junction)
-              .map((model) => ({ label: `${model.algorithm} model #${model.id} · ${model.name ?? "trained policy"}`, value: `${model.algorithm.toLowerCase()}:${model.id}` })),
-          ]}
-          value={isPlayback ? "playback" : controlMode}
-          disabled={isBusy || !canOperate || isRunning || isPaused || isPlayback}
-          onChange={onControlModeChange}
-        />
-        <label className="sf-setting-group">
-          <span>Run seed (0–4294967295)</span>
-          <input type="number" min="0" max="4294967295" step="1" value={isPlayback ? simulation?.seed ?? "" : seed} disabled={isBusy || !canOperate || isRunning || isPaused || isPlayback} onChange={(event) => onSeedChange(event.target.value)} />
-        </label>
-        <SelectField label="Playback speed" value={String(simulation?.speed_multiplier ?? 1)}
-          options={[0.25, 0.5, 1, 2, 4].map((value) => ({ value: String(value), label: `${value}×` }))}
-          disabled={isBusy || !canOperate} onChange={(value) => onSpeedChange(Number(value))} />
-        {isPlayback ? <p>Recorded controller: {simulation?.state.playback?.source_controller_label ?? "Unknown"}; seed {simulation?.seed ?? "—"}. Playback displays saved frames.</p>
-          : <p>Active: {simulation?.control_mode ?? "none"}; seed {simulation?.seed ?? "—"}. The selected controller applies only to its trained junction. Other junctions follow saved plans.</p>}
-        <button className="sf-apply-btn" type="button" disabled={isBusy || !canOperate || isRunning || isPaused || !canStart} onClick={onApplyScenario}>
-          <CheckIcon />
-          Apply Scenario
-        </button>
-      </section>
-
-      <section className="sf-card sf-playback-card">
-        <CardTitle icon={AreaChartIcon}>Recorded Playback</CardTitle>
-        <label className="sf-setting-group">
-          <span>Recording</span>
-          <select value={selectedRecordedRunId} disabled={isBusy || !canOperate || recordedRuns.length === 0} onChange={(event) => onRecordedRunChange(event.target.value)}>
-            <option value="">Select recording</option>
-            {recordedRuns.map((run) => (
-              <option key={run.id} value={run.id} disabled={run.status !== "completed"}>
-                #{run.id} {run.scenario_name ?? "Recorded run"} ({statusText(run.status)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="sf-playback-buttons">
-          <button type="button" disabled={isBusy} onClick={onRefreshRecordings}>
-            Refresh
-          </button>
-          <button type="button" disabled={isBusy || !canOperate || !canLoadRecording} onClick={onLoadRecording}>
-            Load
-          </button>
-          <button type="button" disabled={isBusy || !canOperate || !isPlayback || isRunning} onClick={onStartPlayback}>
-            <FaPlay />
-            Play
-          </button>
-        </div>
-        <div className="sf-playback-scrubber">
-          <div>
-            <span>Frame</span>
-            <strong>
-              {playback.frameCount > 0 ? `${playback.frameIndex + 1}/${playback.frameCount}` : "0/0"}
-            </strong>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max={Math.max(playback.frameCount - 1, 0)}
-            value={Math.min(playback.frameIndex, Math.max(playback.frameCount - 1, 0))}
-            disabled={isBusy || !canOperate || !isPlayback || playback.frameCount <= 1}
-            onChange={(event) => onSeekPlayback(Number(event.target.value))}
-          />
-          <span>{compactNumber(playback.progress)}%</span>
-        </div>
-      </section>
-    </aside>
-  )
-}
-
-function KpiRow({ simulation }: { simulation: SimulationStatePayload | null }) {
-  const metrics = simulation?.state.metrics
-  const dashboard = simulation?.state.dashboard
-  const emergencyCount =
-    typeof dashboard?.emergency_active_count === "number" ? dashboard.emergency_active_count : 0
-  const kpis = [
-    {
-      label: "Avg. Waiting Time",
-      value: compactNumber(metricNumber(metrics, "avg_wait"), 1),
-      unit: "s",
-      color: "#00e676",
-      icon: HourglassIcon,
-    },
-    {
-      label: "Avg. Queue Length",
-      value: compactNumber(metricNumber(metrics, "avg_queue"), 1),
-      unit: "veh",
-      color: "#42a5f5",
-      icon: BarChart3Icon,
-    },
-    {
-      label: "Throughput",
-      value: compactNumber(metricNumber(metrics, "throughput")),
-      unit: "veh",
-      color: "#ab47bc",
-      icon: GaugeIcon,
-    },
-    {
-      label: "Pedestrians Crossed",
-      value: compactNumber(metricNumber(metrics, "total_pedestrians_completed")),
-      unit: "",
-      color: "#ffa726",
-      icon: PersonStandingIcon,
-    },
-    {
-      label: "Emergency Vehicles",
-      value: compactNumber(emergencyCount),
-      unit: "active",
-      color: "#ef5350",
-      icon: TruckIcon,
-    },
-  ]
-
-  return (
-    <section className="sf-kpi-row">
-      {kpis.map((kpi) => {
-        const Icon = kpi.icon
-
-        return (
-          <article className="sf-kpi-card" key={kpi.label}>
-            <div className="sf-kpi-icon" style={{ "--kpi-color": kpi.color } as React.CSSProperties}>
-              <Icon />
-            </div>
-            <div>
-              <span className="sf-kpi-label">{kpi.label}</span>
-              <strong className="sf-kpi-value">
-                {kpi.value}
-                {kpi.unit && <span>{kpi.unit}</span>}
-              </strong>
-            </div>
-          </article>
-        )
-      })}
-    </section>
-  )
-}
-
-function EmptyChart({ title }: { title: string }) {
-  return (
-    <div className="sf-empty-chart">
-      <div className="sf-chart-grid" />
-      <div className="sf-empty-chart-message">
-        <AreaChartIcon />
-        <span>{title}</span>
-        <small>No live history yet.</small>
-      </div>
-    </div>
-  )
-}
-
-function MetricChart({
-  title,
-  history,
-  series,
-  mode = "area",
-}: {
-  title: string
-  history: ChartHistoryPoint[]
-  series: ChartSeries[]
-  mode?: "area" | "line"
-}) {
-  if (history.length < 2) return <EmptyChart title={title} />
-
-  const commonProps = {
-    data: history,
-    margin: { top: 12, right: 8, bottom: 0, left: -22 },
-  }
-
-  return (
-    <div className="sf-live-chart">
-      <ResponsiveContainer width="100%" height="100%">
-        {mode === "area" ? (
-          <AreaChart {...commonProps}>
-            <CartesianGrid stroke="rgba(148, 163, 184, 0.14)" strokeDasharray="3 3" />
-            <XAxis dataKey="timeLabel" tick={{ fill: "#94a3b8", fontSize: 10 }} minTickGap={18} />
-            <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} width={34} />
-            <Tooltip contentStyle={{ background: "#111827", border: "1px solid rgba(148, 163, 184, 0.25)", borderRadius: 6 }} />
-            {series.map((item) => (
-              <Area
-                key={item.key}
-                type="monotone"
-                dataKey={item.key}
-                name={item.name}
-                stroke={item.color}
-                fill={item.color}
-                fillOpacity={0.18}
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
-            ))}
-          </AreaChart>
-        ) : (
-          <LineChart {...commonProps}>
-            <CartesianGrid stroke="rgba(148, 163, 184, 0.14)" strokeDasharray="3 3" />
-            <XAxis dataKey="timeLabel" tick={{ fill: "#94a3b8", fontSize: 10 }} minTickGap={18} />
-            <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} width={34} />
-            <Tooltip contentStyle={{ background: "#111827", border: "1px solid rgba(148, 163, 184, 0.25)", borderRadius: 6 }} />
-            {series.map((item) => (
-              <Line
-                key={item.key}
-                type="monotone"
-                dataKey={item.key}
-                name={item.name}
-                stroke={item.color}
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-            ))}
-          </LineChart>
-        )}
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
-function TimePills() {
-  return (
-    <div className="sf-time-pills">
-      <button className="active" type="button">5m</button>
-      <button type="button">15m</button>
-      <button type="button">1h</button>
-    </div>
-  )
-}
-
-function AnalyticsSection({
-  simulation,
-  chartHistory,
-}: {
-  simulation: SimulationStatePayload | null
-  chartHistory: ChartHistoryPoint[]
-}) {
-  const events = (simulation?.state.events ?? []).slice(-4).reverse()
-  const status = simulation?.state.flow?.status_label ?? "Standby"
-
-  return (
-    <section className="sf-analytics-row">
-      <article className="sf-card sf-analytics-card">
-        <div className="sf-analytics-header">
-          <CardTitle icon={AreaChartIcon}>Traffic Flow</CardTitle>
-          <TimePills />
-        </div>
-        <MetricChart
-          title="Traffic Flow"
-          history={chartHistory}
-          series={[
-            { key: "throughput", name: "Throughput", color: "#00e676" },
-            { key: "vehicles", name: "Vehicles", color: "#42a5f5" },
-          ]}
-        />
-      </article>
-
-      <article className="sf-card sf-analytics-card">
-        <div className="sf-analytics-header">
-          <CardTitle icon={BarChart3Icon}>Avg. Waiting Time</CardTitle>
-          <TimePills />
-        </div>
-        <MetricChart
-          title="Avg. Waiting Time"
-          history={chartHistory}
-          mode="line"
-          series={[
-            { key: "avgWait", name: "Wait Time", color: "#ffa726" },
-            { key: "avgQueue", name: "Queue Length", color: "#ef5350" },
-          ]}
-        />
-      </article>
-
-      <article className="sf-card sf-analytics-card">
-        <div className="sf-analytics-header">
-          <CardTitle icon={BrainIcon}>Controller Runtime</CardTitle>
-          <span className="sf-agent-badge">{status}</span>
-        </div>
-        <div className="sf-rl-stats">
-          <p>Live simulation runs the selected controller. Saved RL policies perform inference; training progress, exploration, episodes and rewards belong to the RL Training workspace.</p>
-          <div className="sf-rl-metric-grid">
-            <div><span>Controller</span><strong>{simulation?.control_mode ?? "Standby"}</strong></div>
-            <div><span>Runtime</span><strong>{simulation?.status ?? "idle"}</strong></div>
-          </div>
-        </div>
-      </article>
-
-      <article className="sf-card sf-analytics-card">
-        <div className="sf-analytics-header">
-          <CardTitle icon={ListIcon}>Recent Events</CardTitle>
-          <button className="sf-clear-btn" type="button">Clear</button>
-        </div>
-        <div className="sf-events-feed">
-          {events.length > 0 ? (
-            events.map((event, index) => (
-              <div className="sf-event-item" key={`${event.id ?? index}-${event.message ?? "event"}`}>
-                <span>{typeof event.time === "number" ? `${event.time.toFixed(1)}s` : "--:--"}</span>
-                <TrafficConeIcon />
-                <p>{String(event.message ?? "Simulation event")}</p>
-              </div>
-            ))
-          ) : (
-            <div className="sf-event-item">
-              <span>--:--</span>
-              <TrafficConeIcon />
-              <p>No live events yet</p>
-            </div>
-          )}
-        </div>
-      </article>
-    </section>
-  )
 }
 
 export function DashboardPage({
@@ -709,7 +85,8 @@ export function DashboardPage({
   const showPerformance = new URLSearchParams(window.location.search).has("perf")
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
-  const [chartHistory, setChartHistory] = React.useState<ChartHistoryPoint[]>([])
+  const [chartHistory, setChartHistory] = React.useState<TrendPoint[]>([])
+  const [baseline, setBaseline] = React.useState<SimulationRunRecord | null>(null)
   const [notice, setNotice] = React.useState("Loading simulation workspace...")
   const [isBusy, setIsBusy] = React.useState(false)
   const lastStateRefreshAt = React.useRef(0)
@@ -911,8 +288,20 @@ export function DashboardPage({
     const nextPoint = buildChartPoint(simulation)
     if (lastChartBucket.current === nextPoint.bucket) return
     lastChartBucket.current = nextPoint.bucket
-    setChartHistory((current) => [...current, nextPoint].slice(-240))
+    setChartHistory((current) => [...current, { timeLabel: nextPoint.timeLabel, avgWait: nextPoint.avgWait, avgQueue: nextPoint.avgQueue }].slice(-240))
   }, [simulation])
+
+  const runSeed = simulation?.seed
+  const activeRunId = simulation?.active_run_id
+  React.useEffect(() => {
+    const scenarioId = Number(selectedScenarioId)
+    if (!scenarioId) return
+    let cancelled = false
+    listSimulationRuns({ scenarioId, status: "completed", limit: 50 }).then((response) => {
+      if (!cancelled) setBaseline(response.runs.find((run) => run.control_mode === "fixed-time" && run.seed === runSeed && run.id !== activeRunId) ?? null)
+    }).catch(() => { if (!cancelled) setBaseline(null) })
+    return () => { cancelled = true }
+  }, [selectedScenarioId, runSeed, activeRunId])
 
   function handleScenarioChange(scenarioId: string) {
     setSelectedScenarioId(scenarioId)
@@ -979,88 +368,74 @@ export function DashboardPage({
     }
   }
 
+  const restrictedLanes = [
+    ...(renderFrame?.visual.closed_lanes ?? []).map((id) => ({ id, detail: "closed to new entry" })),
+    ...Object.entries(renderFrame?.visual.slow_lanes ?? {}).filter(([, factor]) => factor < 1).map(([id, factor]) => ({ id, detail: `${Math.round(factor * 100)}% speed` })),
+  ]
+  const ownershipNote = !canRunSimulation ? "Your role has view access only." : canOperate ? "" : "Controls are read-only until the owner resets the session."
+  const statusLine = [streamNotice ?? notice, ownershipNote, streamEnabled && streamStatus !== "open" ? `Live stream ${streamStatus}; positions may be delayed.` : ""].filter(Boolean).join(" ")
+  const hasConfiguredScenario = simulation?.selected_scenario_id != null && typeof simulation.state.dashboard?.current_scenario_name === "string"
+  const scenarioTitle = hasConfiguredScenario ? String(simulation.state.dashboard?.current_scenario_name) : selectedScenario?.name ?? "Select a scenario in Setup"
+  const intersectionId = renderFrame?.intersection_id ??
+    (typeof simulation?.state.scenario?.intersection_id === "string" ? simulation.state.scenario.intersection_id : null)
+  const frozenConfig = simulation?.state.experiment?.config
+  const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null
+
   return (
-    <div className="sf-dashboard-page">
-      <div className={cn("sf-top-row", visualizationMode === "2d" &&
-        (["running", "paused"].includes(simulation?.status ?? "") || simulation?.control_mode === "playback") && "sf-top-row--map")}>
-        <SimulationView
-          scenarios={scenarios}
-          selectedScenarioId={selectedScenarioId}
-          durationSeconds={durationSeconds}
-          simulation={simulation}
-          renderFrame={renderFrame}
-          connectionStatus={streamStatus}
-          visualizationMode={visualizationMode}
-          isBusy={isBusy}
-          canOperate={canOperate}
-          onScenarioChange={handleScenarioChange}
-          onDurationChange={setDurationSeconds}
-          onConfigure={configureSelectedScenario}
-          onThreeUnavailable={handleThreeUnavailable}
-          onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
-          seekRevision={seekRevision}
-        />
-        <ControlPanel
-          selectedScenario={selectedScenario}
-          scenarioConfig={scenarioConfig}
-          models={models}
-          controlMode={controlMode}
-          seed={seed}
-          simulation={simulation}
-          recordedRuns={recordedRuns}
-          selectedRecordedRunId={selectedRecordedRunId}
-          isBusy={isBusy}
-          canOperate={canOperate}
-          canStart={canConfigure}
-          onControlModeChange={setControlMode}
-          onSeedChange={setSeed}
-          onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }}
-          onApplyScenario={configureSelectedScenario}
-          onRecordedRunChange={setSelectedRecordedRunId}
-          onRefreshRecordings={() => void loadRecordedRuns().catch((error) => setNotice(apiMessage(error)))}
-          onLoadRecording={handleLoadRecording}
-          onStartPlayback={handleStartPlayback}
-          onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)}
-          onStart={handleStart}
-          onPause={handlePauseOrResume}
-          onStop={() => applySimulationAction(stopSimulation)}
-          onReset={() => applySimulationAction(resetSimulation)}
-        />
-      </div>
-      <section className="sf-card" aria-label="Live road and controller state">
+    <div className="flex flex-col gap-4 p-4 lg:p-6">
+      <DashboardKpis metrics={simulation?.state.metrics} baseline={baseline} isBaselineRun={simulation?.control_mode === "fixed-time"} />
+      <Card className="py-0">
+        <SimulationVisualization frame={renderFrame} networkId={intersectionId}
+          controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
+          mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision}
+          title={scenarioTitle} onUnavailable={handleThreeUnavailable} onPerformanceSample={showPerformance ? handleRenderPerformance : undefined} />
+      </Card>
+      <DashboardControls
+        simulation={simulation}
+        scenarios={scenarios}
+        selectedScenarioId={selectedScenarioId}
+        scenarioConfig={scenarioConfig}
+        models={models}
+        controlMode={controlMode}
+        seed={seed}
+        durationSeconds={durationSeconds}
+        recordedRuns={recordedRuns}
+        selectedRecordedRunId={selectedRecordedRunId}
+        isBusy={isBusy}
+        canOperate={canOperate}
+        canTakeOver={!canOperate && isAdmin}
+        status={statusLine}
+        onScenarioChange={handleScenarioChange}
+        onControlModeChange={setControlMode}
+        onSeedChange={setSeed}
+        onDurationChange={setDurationSeconds}
+        onApply={() => void configureSelectedScenario()}
+        onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }}
+        onRecordedRunChange={setSelectedRecordedRunId}
+        onLoadRecording={handleLoadRecording}
+        onStartPlayback={handleStartPlayback}
+        onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)}
+        onStart={handleStart}
+        onPause={handlePauseOrResume}
+        onStop={() => applySimulationAction(stopSimulation)}
+        onReset={() => applySimulationAction(resetSimulation)}
+        onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")}
+      />
+      <DashboardTrends history={chartHistory} />
+      <section className="sr-only" aria-label="Live road and controller state">
         <h2>Road and junction state at {compactNumber(renderFrame?.time ?? 0, 1)}s</h2>
-        <p>Shared session: {simulation?.owner_name ? `${simulation.owner_name} controls ${simulation.run_mode}${simulation.active_run_id ? ` run #${simulation.active_run_id}` : " configuration"}` : "available"}. Speed {simulation?.speed_multiplier ?? 1}×. {!canRunSimulation ? "Your role has view access only." : canOperate ? "" : "Controls are read-only until the owner resets the session."}</p>
-        {!canOperate && isAdmin && <button type="button" className="sf-apply-btn" disabled={isBusy}
-          onClick={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")}>Take over shared session (stop and reset)</button>}
-        {streamEnabled && streamStatus !== "open" && <p role="status">Live stream {streamStatus}; displayed positions may be delayed. {streamNotice}</p>}
+        <p>Shared session: {simulation?.owner_name ? `${simulation.owner_name} controls ${simulation.run_mode}${simulation.active_run_id ? ` run #${simulation.active_run_id}` : " configuration"}` : "available"}. Speed {simulation?.speed_multiplier ?? 1}×.</p>
         <p>Showing {renderFrame?.vehicles.length ?? 0} of {renderFrame?.vehicle_count ?? simulation?.state.vehicle_count ?? 0} vehicles and {renderFrame?.pedestrians.length ?? 0} of {renderFrame?.pedestrian_count ?? simulation?.state.pedestrian_count ?? 0} pedestrians in the renderer.</p>
-        {showPerformance && renderPerformance?.mode === visualizationMode &&
-          <p role="status">{visualizationMode.toUpperCase()} renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms{visualizationMode === "3d" ? `; ${renderPerformance.drawCalls} draw calls` : " (active rendering)"}.</p>}
-        <p>Legend: red lane = closed to new entry; amber lane = reduced speed. The lists identify direction and controller in text.</p>
-        <div className="flex flex-wrap gap-6">
-          <div>
-            <h3>Affected directed lanes</h3>
-            {[...(renderFrame?.visual.closed_lanes ?? []).map((id) => ({ id, detail: "closed to new entry" })),
-              ...Object.entries(renderFrame?.visual.slow_lanes ?? {}).filter(([, factor]) => factor < 1).map(([id, factor]) => ({ id, detail: `${Math.round(factor * 100)}% speed` }))].length ? (
-              <ul>{[...(renderFrame?.visual.closed_lanes ?? []).map((id) => ({ id, detail: "closed to new entry" })),
-                ...Object.entries(renderFrame?.visual.slow_lanes ?? {}).filter(([, factor]) => factor < 1).map(([id, factor]) => ({ id, detail: `${Math.round(factor * 100)}% speed` }))]
-                .map(({ id, detail }) => <li key={`${id}-${detail}`}>{nativeOptions?.lanes.find((lane) => lane.id === id)?.label ?? id}: {detail}</li>)}</ul>
-            ) : <p>No active lane restriction.</p>}
-          </div>
-          <div>
-            <h3>Actual junction controllers</h3>
-            <ul>{Object.entries(renderFrame?.junction_controls ?? {}).map(([id, control]) => (
-              <li key={id}>{nativeOptions?.junctions.find((junction) => junction.id === id)?.label ?? id}: {control.controller} · {control.phase}</li>
-            ))}</ul>
-          </div>
-        </div>
+        <h3>Affected directed lanes</h3>
+        {restrictedLanes.length ? <ul>{restrictedLanes.map(({ id, detail }) =>
+          <li key={`${id}-${detail}`}>{nativeOptions?.lanes.find((lane) => lane.id === id)?.label ?? id}: {detail}</li>)}</ul> : <p>No active lane restriction.</p>}
+        <h3>Actual junction controllers</h3>
+        <ul>{Object.entries(renderFrame?.junction_controls ?? {}).map(([id, control]) => (
+          <li key={id}>{nativeOptions?.junctions.find((junction) => junction.id === id)?.label ?? id}: {control.controller} · {control.phase}</li>
+        ))}</ul>
       </section>
-      <KpiRow simulation={simulation} />
-      <AnalyticsSection simulation={simulation} chartHistory={chartHistory} />
-      <footer className="sf-dashboard-footer">
-        <span>{streamNotice ?? notice}</span>
-        <strong>{streamEnabled ? `Stream ${streamStatus}` : "FastAPI bridge"}</strong>
-      </footer>
+      {showPerformance && renderPerformance?.mode === visualizationMode &&
+        <p role="status" className="text-xs text-muted-foreground">{visualizationMode.toUpperCase()} renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms{visualizationMode === "3d" ? `; ${renderPerformance.drawCalls} draw calls` : " (active rendering)"}.</p>}
     </div>
   )
 }

@@ -24,7 +24,7 @@ export type PresentationState = {
 }
 
 export const DEFAULT_OVERLAYS: OverlaySettings = {
-  signals: true, labels: true, queues: true, heatmap: false, arrows: false, connectors: false, context: true,
+  signals: true, labels: true, queues: true, heatmap: true, arrows: false, connectors: false, context: true,
 }
 
 function initialJunction(geometry: SceneGeometry, controlledJunction?: string | null) {

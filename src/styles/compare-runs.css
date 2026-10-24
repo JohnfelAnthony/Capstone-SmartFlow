@@ -56,6 +56,10 @@
   stroke-width: 2.4;
 }
 
+.compare-strip-metric > div {
+  min-width: 0;
+}
+
 .compare-strip-metric strong {
   display: block;
   overflow: hidden;
@@ -63,8 +67,8 @@
   font-size: 28px;
   font-weight: 800;
   line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .compare-strip-metric small {

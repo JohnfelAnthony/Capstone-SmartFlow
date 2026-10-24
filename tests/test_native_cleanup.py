@@ -78,31 +78,28 @@ class NativeCleanupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'registered'):
             TimelinePlaybackEngine(1)
 
-    def test_native_emergency_proximity_and_observation_positions(self):
+    def test_native_ordinary_traffic_observation_positions(self):
         engine = TrafficEngine()
         self.assertFalse(hasattr(engine,'connection'))
         lanes = engine.current_approach_lanes()
         approach, lane_ids = next((a, ids) for a,ids in lanes.items() if ids)
         lane = lane_ids[0]
         runtime = engine.build_rl_runtime_state()
-        runtime.update(vehicles=[{'lane_id':lane,'wait_time':30,'emergency':True,'lane_position':engine.network.lanes[lane].length/2},
-                                 {'lane_id':lane,'wait_time':90,'emergency':False}],
+        runtime.update(vehicles=[{'lane_id':lane,'wait_time':30,'lane_position':engine.network.lanes[lane].length/2},
+                                 {'lane_id':lane,'wait_time':90}],
                        pedestrians=[{'lane_id':engine.controlled_junction,'stopped':True},
                                     {'lane_id':'other-junction','stopped':True}],
                        metrics={'queue_by_approach':{approach:3}})
         with patch.object(engine,'build_rl_runtime_state',return_value=runtime):
             snapshot = extract_rl_snapshot(engine)
         index = APPROACH_ORDER.index(approach)
-        self.assertEqual(len(snapshot.observation),30)
+        self.assertEqual(len(snapshot.observation),22)
         self.assertEqual(snapshot.observation[7+index],.1)
         self.assertEqual(snapshot.observation[11+index],.5)
         self.assertEqual(snapshot.observation[15+index],.066667)
         self.assertEqual(snapshot.observation[19],.05)
-        self.assertEqual(snapshot.observation[20+index],1)
-        self.assertEqual(snapshot.observation[24+index],.5)
-        self.assertEqual(snapshot.emergency_proximity_by_approach[approach],.5)
-        self.assertEqual(native_contract()['engine'],'native-3')
-        self.assertEqual(native_contract()['observation'],'native-local-30-v1')
+        self.assertEqual(native_contract()['engine'],'native-4')
+        self.assertEqual(native_contract()['observation'],'native-local-22-v2')
         self.assertEqual(native_contract()['actions'],'protected-service-5-v1')
 
     def test_restore_compacts_deep_import_paths_without_changing_source_bytes(self):

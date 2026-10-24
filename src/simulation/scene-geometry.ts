@@ -3,7 +3,7 @@ import type { VisualNetwork, VisualPoint, VisualSignalGroup } from "@/api/visual
 /** Native metres, X east and Y north. Geometry never extends a supplied lane. */
 export type SceneBounds = { min_x: number; min_y: number; max_x: number; max_y: number }
 export type Selection = { kind: "junction" | "lane" | "vehicle" | "pedestrian"; id: string }
-export type VehicleClass = "car" | "motorcycle" | "tricycle" | "bus" | "truck" | "emergency"
+export type VehicleClass = "car" | "motorcycle" | "tricycle" | "bus" | "truck"
 export type LaneKind = "road" | "connector" | "crossing" | "walking"
 export type SceneLane = {
   id: string
@@ -44,16 +44,15 @@ export const SCENE_PALETTE = {
 export const VEHICLE_DIMENSIONS: Record<VehicleClass, { length: number; width: number }> = {
   car: { length: 4.5, width: 1.8 }, motorcycle: { length: 2, width: 0.8 },
   tricycle: { length: 3, width: 1.4 }, bus: { length: 10, width: 2.5 },
-  truck: { length: 8, width: 2.5 }, emergency: { length: 5, width: 2 },
+  truck: { length: 8, width: 2.5 },
 }
 
-export function normalizeVehicleClass(type: string | undefined, emergency = false): VehicleClass {
-  if (emergency || type === "emergency") return "emergency"
+export function normalizeVehicleClass(type: string | undefined): VehicleClass {
   return type && Object.hasOwn(VEHICLE_DIMENSIONS, type) ? type as VehicleClass : "car"
 }
 
-export function vehicleDimensions(vehicle: { visual_type?: string; emergency?: boolean; length?: number; width?: number }) {
-  const defaults = VEHICLE_DIMENSIONS[normalizeVehicleClass(vehicle.visual_type, vehicle.emergency)]
+export function vehicleDimensions(vehicle: { visual_type?: string; length?: number; width?: number }) {
+  const defaults = VEHICLE_DIMENSIONS[normalizeVehicleClass(vehicle.visual_type)]
   return {
     length: Number.isFinite(vehicle.length) && vehicle.length! > 0 ? vehicle.length! : defaults.length,
     width: Number.isFinite(vehicle.width) && vehicle.width! > 0 ? vehicle.width! : defaults.width,

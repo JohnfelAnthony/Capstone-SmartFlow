@@ -134,14 +134,14 @@ class NativeTrafficContractTests(unittest.TestCase):
         self.assertEqual((signal.family, signal.stage), ("west", "green"))
         self.assertEqual(vehicle.reserved_junction, "j")
 
-    def test_slow_pedestrian_holds_clearance_against_emergency_request(self):
+    def test_slow_pedestrian_holds_clearance_against_vehicle_demand(self):
         engine = self.engine(crossing_length=30, pedestrian_speed=.5)
         signal = self.hold_phase(engine, "pedestrian")
         signal.green_seconds = signal.maximum_green = 10
         pedestrian = Pedestrian("ped-test", "j")
         engine.pedestrians[pedestrian.id] = pedestrian
         engine.pedestrian_serial = 1
-        vehicle = engine.add_vehicle(["wf", "er"], vehicle_type="emergency")
+        vehicle = engine.add_vehicle(["wf", "er"], vehicle_type="car")
         vehicle.position = engine.network.lanes["wf"].length-vehicle.length/2
         engine.step()
         self.assertTrue(pedestrian.crossing)
@@ -152,7 +152,7 @@ class NativeTrafficContractTests(unittest.TestCase):
             self.assertEqual(signal.family, "pedestrian")
         engine.step(1000)
         self.assertEqual(engine.completed_pedestrians, 1)
-        self.assertEqual(engine.emergency_completed, 1, "Emergency vehicle must eventually cross after pedestrian clearance")
+        self.assertEqual(engine.completed, 1, "Vehicle must eventually cross after pedestrian clearance")
         self.assertNotIn(vehicle.id, engine.vehicles)
         self.assertEqual(engine._last_metrics["pedestrian_conservation_error"], 0)
 

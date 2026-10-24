@@ -1,6 +1,11 @@
 # SmartFlow manuscript revision guide
 
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
 Prepared October 8, 2026, Asia/Singapore. Companion to the separate manuscript/codebase assessment. This document specifies manuscript changes, replacement diagrams, database corrections and evidence still needed for the objectives. It does not change the application or overwrite either archived manuscript.
+
+**Schema correction, October 23:** updated the scenario ERD and dictionary for the October 9 canonical `network_id` contract, retained legacy `intersection_id`, and current CREATE TABLE definitions. An isolated in-memory check of current `database.py` confirms 18 tables, 163 columns and 15 declared foreign keys. This correction preserves the original review date and adds no field or controller-effectiveness evidence. See [current progress](../PROGRESS_AND_HANDOFF.md) for later software milestones.
 
 ## 1. How to use this guide
 
@@ -406,6 +411,7 @@ erDiagram
         INTEGER id PK
         TEXT name
         TEXT intersection_id
+        TEXT network_id
         TEXT engine_config
         INTEGER created_by FK
     }
@@ -516,7 +522,7 @@ Replacement learning/inference diagram:
 flowchart TB
     subgraph TRAIN["Offline learning"]
         SC["Frozen training scenario"] --> ENV["Gymnasium environment and native engine"]
-        ENV --> OBS["30-value observation / QL state"]
+        ENV --> OBS["22-value observation / QL state"]
         OBS --> ALG["QL, DQN or PPO adapter"]
         ALG --> ACT["Supported service request"]
         ACT --> SAFE["Native signal constraints and priority rules"]
@@ -541,7 +547,7 @@ Caption: **Offline policy learning and compatible-policy inference during simula
 
 Document the **SQLite database managed by this SmartFlow repository's `database.py`**. The default path is `data/smartflow.db`, overridable through `SMARTFLOW_DB_PATH`. Do not use the historical parent application's database as the current schema, and do not propose switching DBMS merely to align with the old diagram.
 
-The source-defined current schema has **18 tables, 162 columns after the scenario migration, and 15 declared foreign keys**. These counts were verified by executing the schema in an isolated **in-memory** SQLite connection, then applying the source's `engine_config` addition. The live research database was not opened. Older existing databases can have historical data/state; describe the schema expected after current initialization/migrations, not an uninspected database dump.
+The source-defined current schema has **18 tables, 163 columns and 15 declared foreign keys**, rechecked October 23 by executing current `SCHEMA_SQL` in an isolated **in-memory** SQLite connection. Current CREATE TABLE definitions already include `scenarios.network_id` and `scenarios.engine_config`; upgrade migrations support older databases. The live research database was not opened. Existing upgraded databases can retain historical column defaults and data/state; distinguish the source-defined fresh schema documented here from an inspected deployed schema.
 
 Connections enable foreign keys, WAL mode and a busy timeout. This improves local operation but does not make process-local live/training state shared between multiple API workers.
 
@@ -550,7 +556,7 @@ Connections enable foreign keys, WAL mode and a busy timeout. This improves loca
 | Old manuscript entity/table | Current representation | Exact manuscript correction |
 | --- | --- | --- |
 | `USERS_ACCOUNTS` / User | `users`, `roles`, `permissions`, `user_sessions` | Use actual names/keys. Replace `password` with `password_hash`; add full name/email/status, role membership, password-change flag and session lifecycle. |
-| `TRAFFIC_SCENARIOS` | `scenarios` | Replace `scenario_id` with `id`, `scenario_name` with `name`, `pedestrian_demand` with `pedestrian_density`, `emergency_condition` with `emergency_mode`. Include `engine_config`, network selection, ownership, timestamps and official/archive flags. |
+| `TRAFFIC_SCENARIOS` | `scenarios` | Replace `scenario_id` with `id`, `scenario_name` with `name`, `pedestrian_demand` with `pedestrian_density`; omit emergency settings from the active contract. Include `engine_config`, network selection, ownership, timestamps and official/archive flags. |
 | `ROAD_CONSTRAINTS` | `scenario_constraints` exists; active native events/settings live inside `scenarios.engine_config` | Remove the implied standalone road-constraint record selected by each run. Explain closure/reopening/speed events and their native lane IDs. Do not imply old detailed accident/flood JSON is an active native model. |
 | `SIGNAL_CONTROL_MODES` | `simulation_runs.control_mode`, optional model reference, and `engine_config.signal_plans` / `controlled_junction` | Remove the nonexistent separate mode table and `control_mode_id` FK. Record the actual controller identity and per-junction plans. |
 | `SIMULATION_RUNS` | `simulation_runs` | Use `id`, `user_id`, `scenario_id`; remove nonexistent `constraint_id` and `control_mode_id`. Add run mode, controller/model identity, seed, duration/status, timeline path and baseline/favorite flags. |
@@ -580,13 +586,13 @@ Together with `users`, `scenarios`, `scenario_constraints`, `simulation_runs` an
 
 ### 5.4 Dictionary corrections that matter
 
-1. **`engine_config` comes from a migration.** Reading only `CREATE TABLE scenarios` misses it. Document the post-initialization schema.
+1. **Document canonical scenario identity and both creation/upgrade paths.** Current `CREATE TABLE scenarios` includes `network_id` and `engine_config`; migrations support older databases. `network_id` is the active network selector, while `intersection_id` and old disruption columns remain recovery evidence. Historical aliases are handled only at migration/import/restore boundaries.
 2. **JSON columns are SQL `TEXT`.** There are no SQL `JSON`-typed columns in this schema. JSON validity and native semantics are checked in application paths; do not invent `json_valid` constraints.
 3. **Dates/times are generally SQL `TEXT`.** Do not label every stored timestamp `DATETIME`. Collection timestamps inside research JSON require UTC offsets through request validation; SQL audit/default timestamps follow the code's convention.
 4. **SQL `TEXT` is not a declared `VARCHAR(50/100/255)`.** Separate actual API length limits from nonexistent database length constraints. The CSV importer has its own limits; these are not column widths.
 5. **Uniqueness must be accurate.** `roles.name`, `users.username` and `users.email` have unique constraints; `run_metrics.run_id` and `user_sessions.token` are not uniquely constrained in the source schema. `system_settings.key` is a primary key.
 6. **Nullable FKs matter.** Anonymous/headless/system-origin records can lack a user or scenario where the schema permits it. Do not claim every run has a required user/scenario FK.
-7. **Default values are not measured results.** `run_metrics.emergency_clearance_time` and `signal_phase_efficiency` exist, but inspected native save paths do not compute/populate them and leave their defaults. Do not interpret their zero defaults as measured emergency clearance or signal efficiency. Actual emergency-wait measures are separate raw metrics.
+7. **Default values are not measured results.** `run_metrics.emergency_clearance_time` and `signal_phase_efficiency` exist, but inspected native save paths do not compute/populate them and leave their defaults. Do not interpret their zero defaults as measured emergency clearance or signal efficiency. Emergency metrics are no longer part of the active scope; retained historical columns/artifacts are not current outcomes.
 8. **Settings storage is mixed.** The default visualization and appearance settings use browser storage; system key/value settings use SQLite. A preference UI is not proof of server-side per-user preference rows.
 
 ### 5.5 Describe nested configuration and frozen evidence
@@ -637,13 +643,13 @@ Suggested replacement:
 
 > Field observations provide the inputs and reference measurements used to assess the study model. Offline detector/tracker outputs assist the review process but remain proposals until independently reviewed. The simulation then generates its own traffic states and performance measures from the saved configuration. These generated states form the RL environment and are distinct from real-road measurements. Calibration uses one reference period; validation uses independent evidence under a frozen structural model and measurement protocol.
 
-The current count importer distributes aggregate counts evenly within each bin as cars. Explicit trip CSVs preserve supported vehicle class and entry time. Native categories are car, motorcycle, tricycle, bus, truck and emergency. Jeepney/bicycle/other observer categories require justified mapping or necessary model extensions. Pedestrian inputs currently identify time/junction, not a specific crosswalk/direction. A local visible turn is not a directly observed full boundary OD trip.
+The current count importer distributes aggregate counts evenly within each bin as cars. Explicit trip CSVs preserve supported vehicle class and entry time. Native categories are car, motorcycle, tricycle, bus and truck. Jeepney/bicycle/other observer categories require justified mapping or necessary model extensions. Pedestrian inputs currently identify time/junction, not a specific crosswalk/direction. A local visible turn is not a directly observed full boundary OD trip.
 
 One phone means each fixed take observes one view during its own period. Sequential takes are not simultaneous network evidence. Missing or occluded counts remain unknown; they must not become zero or a claim of complete demand.
 
 ### 6.2 Describe the actual RL interface
 
-The current native contract is `native-local-30-v1` for observations and `protected-service-5-v1` for actions, tied to engine/network identity and trained-junction compatibility.
+The current native contract is `native-local-22-v2` for observations and `protected-service-5-v1` for actions, tied to engine/network identity and trained-junction compatibility.
 
 | Observation group | Values |
 | --- | ---: |
@@ -653,16 +659,14 @@ The current native contract is `native-local-30-v1` for observations and `protec
 | Average stopped wait for those approaches | 4 |
 | Active incoming vehicle counts for those approaches | 4 |
 | Waiting pedestrian count at the controlled junction | 1 |
-| Emergency presence by approach | 4 |
-| Emergency proximity by approach | 4 |
 | Network-family encoding | 2 |
-| **Total** | **30** |
+| **Total** | **22** |
 
 Supported actions, in index order: `SERVE_NORTH`, `SERVE_EAST`, `SERVE_SOUTH`, `SERVE_WEST`, `SERVE_PEDESTRIAN`. These request service; they do not directly set lamps. A valid-action mask is reported and native control validates requests. Avoid implying every algorithm implements identical action-masking internally.
 
-There is no separate explicit density or road-closure flag in this 30-value vector. Constraints affect the simulated traffic and configuration but must not be listed as direct vector features unless added and versioned. Several reward summaries are whole-network measures even though approach observations/action scope are local; describe this scope honestly rather than calling the reward entirely junction-local.
+There is no separate explicit density or road-closure flag in this 22-value vector. Constraints affect the simulated traffic and configuration but must not be listed as direct vector features unless added and versioned. Several reward summaries are whole-network measures even though approach observations/action scope are local; describe this scope honestly rather than calling the reward entirely junction-local.
 
-The current reward combines normalized completed-trip increments with penalties for mean stopped wait, average/max queue, waiting pedestrian count, critical emergency proximity and switching. The component weights in `rl_reward.py` are respectively `0.5`, `1.0`, `0.8`, `0.4`, `0.5`, `1.5` and `0.05`. Pedestrian-count penalty is not the same as a pedestrian-delay-in-seconds penalty. Provide the exact normalization/weight definitions in the methodology if reporting that reward; do not substitute a generic waiting-time-only equation.
+The current reward combines normalized completed-trip increments with penalties for mean stopped wait, average/max queue, waiting pedestrian count and switching. The component weights in `rl_reward.py` are respectively `0.5`, `1.0`, `0.8`, `0.4`, `0.5` and `0.05`. Pedestrian-count penalty is not the same as a pedestrian-delay-in-seconds penalty. Provide the exact normalization/weight definitions in the methodology if reporting that reward; do not substitute a generic waiting-time-only equation.
 
 DQL uses `stable_baselines3.DQN` with PyTorch. PPO also uses the learning framework; QL is tabular. Training proceeds offline using frozen scenario snapshots and separate evaluation settings. A saved compatible policy predicts actions during simulation. Successful short training proves execution, not convergence, optimality or generalization.
 
@@ -683,7 +687,7 @@ If the observed site requires new movement groups/geometry/actions, revise the n
 | Lane exits / junction passages | Native local counters exist. | Define actual counting location, movement/category/window and align them with field evidence before using them for validation. |
 | Unfinished/pending/dropped demand | Explicit traffic accounting measures. | Include them in results; a completed-trip average alone can favor a controller that leaves many vehicles unfinished. |
 | Conservation errors | Vehicle/pedestrian accounting residuals. | Zero establishes accounting consistency, not realistic capacity or detector accuracy. |
-| Signal efficiency / emergency clearance | Legacy summary columns exist but are not computed by the inspected native save paths. | Remove unsupported result claims or implement/define the intended measure; do not report default zero as a field result. |
+| Signal efficiency / retired clearance field | Legacy summary columns exist but are not computed by the inspected native save paths. | Remove unsupported result claims. The retired vehicle category is outside the study; retain its dormant column solely for historical database compatibility, without a current outcome. Do not report default zero as a field result. |
 
 ### 6.4 Evaluation and signal-planning method
 
@@ -691,7 +695,7 @@ Specify the actual baseline, geometry/control assumptions, calibration and valid
 
 The current evaluator already runs repeated controllers and produces mean/min/max/standard-deviation summaries. Extend the final analysis with matched/paired effect estimates and uncertainty where the study protocol requires them. Do not say evaluation is absent; distinguish implemented evaluation mechanics from completed research results.
 
-Compare signal strategies while preserving relevant exogenous inputs. Test routing changes separately with signal control fixed. For signal-planning cases, document existing/unsignalized operation and supported proposed fixed/RL alternatives. The all-way-stop mode is a modeled alternative, not proof of the actual existing unsignalized behavior. The shared emergency/pedestrian/starvation safety rules must be disclosed in baseline and RL cases.
+Compare signal strategies while preserving relevant exogenous inputs. Test routing changes separately with signal control fixed. For signal-planning cases, document existing/unsignalized operation and supported proposed fixed/RL alternatives. The all-way-stop mode is a modeled alternative, not proof of the actual existing unsignalized behavior. The shared pedestrian/starvation safety rules must be disclosed in baseline and RL cases.
 
 Recommendations can be positive, negative or inconclusive. They support bounded simulation findings; physical installation/actuation is outside the present system and requires separate engineering review.
 
@@ -751,7 +755,7 @@ Recommended order: correct architecture/terminology/DB/editorial errors now; set
 
 ## 10. Complete current SQLite data dictionary
 
-The tables below are generated from the source-defined schema in memory, including the scenario migration. “Explicit NOT NULL” reports that exact declaration; primary keys are identified separately. Integer primary keys receive generated identities, and absence of an explicit NOT NULL clause is not an API promise to accept null. In particular, the TEXT primary key of `system_settings` has no explicit NOT NULL clause, so do not invent one in the dictionary. Foreign-key deletion actions and unique constraints are stated exactly. Application-level bounds, JSON structures, purpose checks and artifact identity rules are additional contracts.
+The tables below document the source-defined fresh schema, checked in memory on October 23. Existing upgraded databases may retain older defaults; inspect them separately when describing a deployment. “Explicit NOT NULL” reports that exact declaration; primary keys are identified separately. Integer primary keys receive generated identities, and absence of an explicit NOT NULL clause is not an API promise to accept null. In particular, the TEXT primary key of `system_settings` has no explicit NOT NULL clause, so do not invent one in the dictionary. Foreign-key deletion actions and unique constraints are stated exactly. Application-level bounds, JSON structures, purpose checks and artifact identity rules are additional contracts.
 
 ### `audit_logs`
 
@@ -858,8 +862,8 @@ Registered model identity, compatibility/evaluation fields and saved policy refe
 | `checkpoint_path` | `TEXT` | No | - | - | Saved model/policy file reference. |
 | `intersection_support_json` | `TEXT` | No | `'[]'` | - | Supported network/junction scope labels as JSON text. |
 | `training_scenarios_json` | `TEXT` | No | `'[]'` | - | Training scenario metadata as JSON text. |
-| `observation_version` | `TEXT` | No | `'obs_v1'` | - | Registry observation-contract label. |
-| `reward_version` | `TEXT` | No | `'reward_v1'` | - | Registry reward-contract label. |
+| `observation_version` | `TEXT` | No | `'obs_v2'` | - | Current registry observation-contract label; old registry migrations retain their original labels. |
+| `reward_version` | `TEXT` | No | `'reward_v2'` | - | Current registry reward-contract label; old registry migrations retain their original labels. |
 | `action_space_version` | `TEXT` | No | `'action_v1'` | - | Registry action-contract label. |
 | `seed_set_json` | `TEXT` | No | `'[]'` | - | Seed-set JSON text. |
 | `training_date` | `TEXT` | No | - | - | Training timestamp. |
@@ -964,9 +968,11 @@ Saved scenarios, legacy fields and complete native engine_config.
 | `description` | `TEXT` | No | - | - | Descriptive text. |
 | `traffic_density` | `TEXT` | No | `'Medium'` | - | Supported traffic preset label. |
 | `pedestrian_density` | `TEXT` | No | `'Medium'` | - | Supported pedestrian preset label. |
-| `emergency_mode` | `TEXT` | No | `'Disabled'` | - | Emergency-demand preset label. |
+| `emergency_mode` | `TEXT` | No | `'Disabled'` | - | Dormant legacy column; excluded from the active scenario contract. |
 | `road_constraint` | `TEXT` | No | `'None'` | - | Legacy/simple disruption preset label. |
-| `intersection_id` | `TEXT` | No | `'tagum_1'` | - | Selected network identifier; not a SQL site FK. |
+| `intersection_id` | `TEXT` | No | - | - | Retained legacy selector/recovery evidence; not the active network contract or a SQL site FK. |
+| `network_id` | `TEXT` | No | - | - | Canonical native network identifier, validated by application paths; not a SQL site FK. |
+| `engine_config` | `TEXT` | No | `'{}'` | - | Complete validated native scenario settings and provenance; included in current CREATE TABLE and supported by upgrade migration. |
 | `lane_closure_config` | `TEXT` | No | `'{}'` | - | Retained legacy JSON text; not the authoritative native lane-event contract. |
 | `construction_config` | `TEXT` | No | `'{}'` | - | Retained legacy construction JSON text. |
 | `accident_config` | `TEXT` | No | `'{}'` | - | Retained legacy accident JSON text. |
@@ -976,7 +982,6 @@ Saved scenarios, legacy fields and complete native engine_config.
 | `updated_at` | `TEXT` | No | `datetime('now')` | - | Last update timestamp. |
 | `is_official` | `INTEGER` | No | `0` | - | Official-scenario integer flag. |
 | `is_archived` | `INTEGER` | No | `0` | - | Archive integer flag. |
-| `engine_config` | `TEXT` | No | `'{}'` | - | Complete validated native scenario settings and source provenance; added by migration. |
 
 ### `simulation_runs`
 

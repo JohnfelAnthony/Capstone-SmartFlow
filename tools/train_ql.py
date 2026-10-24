@@ -66,7 +66,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenario-name", default="SMARTFLOW QL Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
-    parser.add_argument("--emergency-mode", default="disabled")
     parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--gamma", type=float, default=0.9)
     parser.add_argument("--epsilon", type=float, default=0.2)
@@ -99,8 +98,8 @@ def _create_model_record(
             checkpoint_path=str(output_path),
             intersection_support=[scenario["intersection_id"]],
             training_scenarios=[scenario],
-            observation_version="obs_v1",
-            reward_version="reward_v1",
+            observation_version="obs_v2",
+            reward_version="reward_v2",
             action_space_version="action_v1",
             seed_set=list(seed_set),
             training_date=datetime.now(UTC).isoformat(),
@@ -138,6 +137,8 @@ def _save_db_checkpoint(
 
 def _load_resume_artifact(path: Path) -> tuple[TabularQLearningAgent, list[dict]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
+    from simulation.model_contract import validate_metadata
+    validate_metadata(payload.get("metadata", {}))
     agent = TabularQLearningAgent.from_artifact(payload)
     metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
     previous_episodes = list(metadata.get("episodes", []) or [])
@@ -162,8 +163,8 @@ def _build_metadata(
         "scenario": scenario,
         "seed_set": list(seed_set),
         "action_labels": list(RL_SERVICE_ACTIONS),
-        "observation_version": "obs_v1",
-        "reward_version": "reward_v1",
+        "observation_version": "obs_v2",
+        "reward_version": "reward_v2",
         "action_space_version": "action_v1",
         "episodes": episodes,
         "best_training_reward": max(rewards) if rewards else None,
@@ -189,7 +190,6 @@ def main() -> int:
         "intersection_id": args.intersection_id,
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
-        "emergency_mode": args.emergency_mode,
     }
     scenario = load_training_scenario(args, scenario)
     seed_history = cumulative_training_seeds(args.seeds, args.resume_model, "ql", scenario)

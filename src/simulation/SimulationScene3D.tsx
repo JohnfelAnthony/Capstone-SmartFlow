@@ -72,19 +72,30 @@ function stableHash(value: string) {
   return hash >>> 0
 }
 
-/** Sparse illustrative context is stable and outside buffered engine road/path geometry. */
+// Per junction corner: an L of set-back buildings plus a street-tree row along each road edge (metres from centre).
+const CORNER_BUILDINGS = [[26, 26], [42, 26], [26, 42]] as const
+const CORNER_TREES = [[32, 14], [48, 14], [14, 32], [14, 48]] as const
+
+/** Regular illustrative city blocks: stable, and kept outside buffered engine road/path geometry. */
 function contextPlacements(geometry: SceneGeometry, pedestrianPaths: readonly { shape: VisualPoint[] }[] = []) {
-  const candidates = geometry.junctions.flatMap((junction) => [-1, 1].flatMap((x) => [-1, 1].map((y) => ({
-    x: junction.center.x + x * (40 + stableHash(`${junction.id}:${x}`) % 9),
-    y: junction.center.y + y * (34 + stableHash(`${junction.id}:${y}:y`) % 11),
-    building: (stableHash(`${geometry.networkId}:${junction.id}:${x}:${y}`) % 3) !== 0,
-  }))))
+  const candidates = geometry.junctions.flatMap((junction) => [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [
+    ...CORNER_BUILDINGS.map(([dx, dy]) => ({ x: junction.center.x + sx * dx, y: junction.center.y + sy * dy, building: true })),
+    ...CORNER_TREES.map(([dx, dy]) => ({ x: junction.center.x + sx * dx, y: junction.center.y + sy * dy, building: false })),
+  ])))
+  const accepted: typeof candidates = []
   return candidates.filter((candidate) => {
-    const radius = candidate.building ? 8 : 4
+    const radius = candidate.building ? 8 : 2.5
+    if (accepted.some((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y) < (candidate.building && other.building ? 15 : 6))) return false
+    if (!isClearOfNetwork(candidate, radius)) return false
+    accepted.push(candidate)
+    return true
+  })
+
+  function isClearOfNetwork(candidate: VisualPoint, radius: number) {
     if (geometry.junctions.some((junction) => pointInPolygon(candidate, junction.polygon) || junction.polygon.some((point, index) => distanceToSegment(candidate, point, junction.polygon[(index + 1) % junction.polygon.length]) < radius + 5))) return false
     if (geometry.lanes.some((lane) => lane.centerline.slice(1).some((point, index) => distanceToSegment(candidate, lane.centerline[index], point) < radius + lane.width / 2 + 5))) return false
     return !pedestrianPaths.some((path) => path.shape.slice(1).some((point, index) => distanceToSegment(candidate, path.shape[index], point) < radius + 5))
-  })
+  }
 }
 
 export function SimulationScene3D(props: SceneProps) {
@@ -250,10 +261,10 @@ export function SimulationScene3D(props: SceneProps) {
       const buildingMesh = configureInstances(contextBuildingGeometry, contextBuildingSurface, buildings.length, context)
       const trunks = configureInstances(contextTrunkGeometry, contextTrunkSurface, trees.length, context), crowns = configureInstances(contextCrownGeometry, contextCrownSurface, trees.length, context)
       buildings.forEach((point, index) => {
-        const height = 3 + stableHash(`${point.x}:${point.y}`) % 3
+        const height = 6 + stableHash(`${point.x}:${point.y}`) % 7
         dummy.position.set(point.x, height / 2, -point.y)
         dummy.rotation.set(0, 0, 0)
-        dummy.scale.set(10, height, 8)
+        dummy.scale.set(12, height, 12)
         dummy.updateMatrix()
         buildingMesh.setMatrixAt(index, dummy.matrix)
       })

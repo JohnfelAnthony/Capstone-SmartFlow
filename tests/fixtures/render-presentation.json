@@ -210,7 +210,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.0
         },
         {
@@ -225,7 +224,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.1
         },
         {
@@ -240,7 +238,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.2
         },
         {
@@ -255,7 +252,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.3
         }
       ],
@@ -461,8 +457,7 @@
           "length": 4.5,
           "width": 1.8,
           "stopped": false,
-          "visual_type": "car",
-          "emergency": false
+          "visual_type": "car"
         }
       ],
       "pedestrians": [
@@ -5019,7 +5014,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.0
         },
         {
@@ -5034,7 +5028,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.1
         },
         {
@@ -5049,7 +5042,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.2
         },
         {
@@ -5064,7 +5056,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.3
         },
         {
@@ -5079,7 +5070,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.4
         },
         {
@@ -5094,7 +5084,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.5
         },
         {
@@ -5109,7 +5098,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.6
         },
         {
@@ -5124,7 +5112,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.7
         },
         {
@@ -5139,7 +5126,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.8
         },
         {
@@ -5154,7 +5140,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.9
         },
         {
@@ -5169,7 +5154,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.0
         },
         {
@@ -5184,7 +5168,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.1
         },
         {
@@ -5199,7 +5182,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.2
         },
         {
@@ -5214,7 +5196,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.3
         },
         {
@@ -5229,7 +5210,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.4
         },
         {
@@ -5244,7 +5224,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.5
         },
         {
@@ -5259,7 +5238,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.6
         },
         {
@@ -5274,7 +5252,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.7
         },
         {
@@ -5289,7 +5266,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.8
         },
         {
@@ -5304,7 +5280,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.9
         },
         {
@@ -5319,7 +5294,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.0
         },
         {
@@ -5334,7 +5308,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.1
         },
         {
@@ -5349,7 +5322,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.2
         },
         {
@@ -5364,7 +5336,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.3
         },
         {
@@ -5379,7 +5350,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.4
         },
         {
@@ -5394,7 +5364,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.5
         },
         {
@@ -5409,7 +5378,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.6
         },
         {
@@ -5424,7 +5392,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.7
         },
         {
@@ -5439,7 +5406,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.8
         },
         {
@@ -5454,7 +5420,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.9
         },
         {
@@ -5469,7 +5434,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.0
         },
         {
@@ -5484,7 +5448,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.1
         },
         {
@@ -5499,7 +5462,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.2
         },
         {
@@ -5514,7 +5476,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.3
         },
         {
@@ -5529,7 +5490,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.4
         },
         {
@@ -5544,7 +5504,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.5
         },
         {
@@ -5559,7 +5518,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.6
         },
         {
@@ -5574,7 +5532,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.7
         },
         {
@@ -5589,7 +5546,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.8
         },
         {
@@ -5604,7 +5560,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.9
         },
         {
@@ -5619,7 +5574,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.0
         },
         {
@@ -5634,7 +5588,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.1
         },
         {
@@ -5649,7 +5602,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.2
         },
         {
@@ -5664,7 +5616,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.3
         },
         {
@@ -5679,7 +5630,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.4
         },
         {
@@ -5694,7 +5644,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.5
         },
         {
@@ -5709,7 +5658,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.6
         },
         {
@@ -5724,7 +5672,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.7
         },
         {
@@ -5739,7 +5686,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.8
         },
         {
@@ -5754,7 +5700,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.9
         },
         {
@@ -5769,7 +5714,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.0
         },
         {
@@ -5784,7 +5728,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.1
         },
         {
@@ -5799,7 +5742,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.2
         },
         {
@@ -5814,7 +5756,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.3
         },
         {
@@ -5829,7 +5770,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.4
         },
         {
@@ -5844,7 +5784,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.5
         },
         {
@@ -5859,7 +5798,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.6
         },
         {
@@ -5874,7 +5812,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.7
         },
         {
@@ -5889,7 +5826,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.8
         },
         {
@@ -5904,7 +5840,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.9
         },
         {
@@ -5919,7 +5854,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.0
         },
         {
@@ -5934,7 +5868,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.1
         },
         {
@@ -5949,7 +5882,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.2
         },
         {
@@ -5964,7 +5896,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.3
         },
         {
@@ -5979,7 +5910,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.4
         },
         {
@@ -5994,7 +5924,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.5
         },
         {
@@ -6009,7 +5938,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.6
         },
         {
@@ -6024,7 +5952,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.7
         },
         {
@@ -6039,7 +5966,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.8
         },
         {
@@ -6054,7 +5980,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.9
         },
         {
@@ -6069,7 +5994,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.0
         },
         {
@@ -6084,7 +6008,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.1
         },
         {
@@ -6099,7 +6022,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.2
         },
         {
@@ -6114,7 +6036,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.3
         },
         {
@@ -6129,7 +6050,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.4
         },
         {
@@ -6144,7 +6064,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.5
         },
         {
@@ -6159,7 +6078,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.6
         },
         {
@@ -6174,7 +6092,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.7
         },
         {
@@ -6189,7 +6106,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.8
         },
         {
@@ -6204,7 +6120,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.9
         },
         {
@@ -6219,7 +6134,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.0
         },
         {
@@ -6234,7 +6148,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.1
         },
         {
@@ -6249,7 +6162,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.2
         },
         {
@@ -6264,7 +6176,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.3
         },
         {
@@ -6279,7 +6190,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.4
         },
         {
@@ -6294,7 +6204,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.5
         },
         {
@@ -6309,7 +6218,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.6
         },
         {
@@ -6324,7 +6232,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.7
         },
         {
@@ -6339,7 +6246,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.8
         },
         {
@@ -6354,7 +6260,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.9
         },
         {
@@ -6369,7 +6274,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.0
         },
         {
@@ -6384,7 +6288,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.1
         },
         {
@@ -6399,7 +6302,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.2
         },
         {
@@ -6414,7 +6316,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.3
         },
         {
@@ -6429,7 +6330,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.4
         },
         {
@@ -6444,7 +6344,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.5
         },
         {
@@ -6459,7 +6358,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.6
         },
         {
@@ -6474,7 +6372,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.7
         },
         {
@@ -6489,7 +6386,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.8
         },
         {
@@ -6504,7 +6400,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.9
         },
         {
@@ -6519,7 +6414,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.0
         },
         {
@@ -6534,7 +6428,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.1
         },
         {
@@ -6549,7 +6442,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.2
         },
         {
@@ -6564,7 +6456,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.3
         },
         {
@@ -6579,7 +6470,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.4
         },
         {
@@ -6594,7 +6484,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.5
         },
         {
@@ -6609,7 +6498,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.6
         },
         {
@@ -6624,7 +6512,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.7
         },
         {
@@ -6639,7 +6526,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.8
         },
         {
@@ -6654,7 +6540,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.9
         },
         {
@@ -6669,7 +6554,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.0
         },
         {
@@ -6684,7 +6568,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.1
         },
         {
@@ -6699,7 +6582,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.2
         },
         {
@@ -6714,7 +6596,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.3
         },
         {
@@ -6729,7 +6610,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.4
         },
         {
@@ -6744,7 +6624,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.5
         },
         {
@@ -6759,7 +6638,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.6
         },
         {
@@ -6774,7 +6652,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.7
         },
         {
@@ -6789,7 +6666,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.8
         },
         {
@@ -6804,7 +6680,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.9
         },
         {
@@ -6819,7 +6694,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.0
         },
         {
@@ -6834,7 +6708,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.1
         },
         {
@@ -6849,7 +6722,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.2
         },
         {
@@ -6864,7 +6736,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.3
         },
         {
@@ -6879,7 +6750,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.4
         },
         {
@@ -6894,7 +6764,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.5
         },
         {
@@ -6909,7 +6778,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.6
         },
         {
@@ -6924,7 +6792,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.7
         },
         {
@@ -6939,7 +6806,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.8
         },
         {
@@ -6954,7 +6820,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.9
         },
         {
@@ -6969,7 +6834,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.0
         },
         {
@@ -6984,7 +6848,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.1
         },
         {
@@ -6999,7 +6862,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.2
         },
         {
@@ -7014,7 +6876,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.3
         },
         {
@@ -7029,7 +6890,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.4
         },
         {
@@ -7044,7 +6904,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.5
         },
         {
@@ -7059,7 +6918,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.6
         },
         {
@@ -7074,7 +6932,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.7
         },
         {
@@ -7089,7 +6946,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.8
         },
         {
@@ -7104,7 +6960,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.9
         },
         {
@@ -7119,7 +6974,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.0
         },
         {
@@ -7134,7 +6988,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.1
         },
         {
@@ -7149,7 +7002,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.2
         },
         {
@@ -7164,7 +7016,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.3
         },
         {
@@ -7179,7 +7030,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.4
         },
         {
@@ -7194,7 +7044,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.5
         },
         {
@@ -7209,7 +7058,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.6
         },
         {
@@ -7224,7 +7072,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.7
         },
         {
@@ -7239,7 +7086,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.8
         },
         {
@@ -7254,7 +7100,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.9
         },
         {
@@ -7269,7 +7114,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.0
         },
         {
@@ -7284,7 +7128,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.1
         },
         {
@@ -7299,7 +7142,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.2
         },
         {
@@ -7314,7 +7156,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.3
         },
         {
@@ -7329,7 +7170,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.4
         },
         {
@@ -7344,7 +7184,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.5
         },
         {
@@ -7359,7 +7198,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.6
         },
         {
@@ -7374,7 +7212,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.7
         },
         {
@@ -7389,7 +7226,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.8
         },
         {
@@ -7404,7 +7240,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.9
         },
         {
@@ -7419,7 +7254,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.0
         },
         {
@@ -7434,7 +7268,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.1
         },
         {
@@ -7449,7 +7282,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.2
         },
         {
@@ -7464,7 +7296,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.3
         },
         {
@@ -7479,7 +7310,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.4
         },
         {
@@ -7494,7 +7324,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.5
         },
         {
@@ -7509,7 +7338,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.6
         },
         {
@@ -7524,7 +7352,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.7
         },
         {
@@ -7539,7 +7366,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.8
         },
         {
@@ -7554,7 +7380,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.9
         },
         {
@@ -7569,7 +7394,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.0
         },
         {
@@ -7584,7 +7408,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.1
         },
         {
@@ -7599,7 +7422,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.2
         },
         {
@@ -7614,7 +7436,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.3
         },
         {
@@ -7629,7 +7450,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.4
         },
         {
@@ -7644,7 +7464,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.5
         },
         {
@@ -7659,7 +7478,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.6
         },
         {
@@ -7674,7 +7492,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.7
         },
         {
@@ -7689,7 +7506,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.8
         },
         {
@@ -7704,7 +7520,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.9
         },
         {
@@ -7719,7 +7534,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.0
         },
         {
@@ -7734,7 +7548,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.1
         },
         {
@@ -7749,7 +7562,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.2
         },
         {
@@ -7764,7 +7576,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.3
         },
         {
@@ -7779,7 +7590,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.4
         },
         {
@@ -7794,7 +7604,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.5
         },
         {
@@ -7809,7 +7618,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.6
         },
         {
@@ -7824,7 +7632,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.7
         },
         {
@@ -7839,7 +7646,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.8
         },
         {
@@ -7854,7 +7660,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.9
         },
         {
@@ -7869,7 +7674,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.0
         },
         {
@@ -7884,7 +7688,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.1
         },
         {
@@ -7899,7 +7702,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.2
         },
         {
@@ -7914,7 +7716,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.3
         },
         {
@@ -7929,7 +7730,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.4
         },
         {
@@ -7944,7 +7744,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.5
         },
         {
@@ -7959,7 +7758,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.6
         },
         {
@@ -7974,7 +7772,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.7
         },
         {
@@ -7989,7 +7786,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.8
         },
         {
@@ -8004,7 +7800,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.9
         },
         {
@@ -8019,7 +7814,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.0
         },
         {
@@ -8034,7 +7828,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.1
         },
         {
@@ -8049,7 +7842,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.2
         },
         {
@@ -8064,7 +7856,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.3
         },
         {
@@ -8079,7 +7870,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.4
         },
         {
@@ -8094,7 +7884,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.5
         },
         {
@@ -8109,7 +7898,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.6
         },
         {
@@ -8124,7 +7912,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.7
         },
         {
@@ -8139,7 +7926,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.8
         },
         {
@@ -8154,7 +7940,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.9
         },
         {
@@ -8169,7 +7954,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.0
         },
         {
@@ -8184,7 +7968,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.1
         },
         {
@@ -8199,7 +7982,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.2
         },
         {
@@ -8214,7 +7996,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.3
         },
         {
@@ -8229,7 +8010,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.4
         },
         {
@@ -8244,7 +8024,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.5
         },
         {
@@ -8259,7 +8038,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.6
         },
         {
@@ -8274,7 +8052,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.7
         },
         {
@@ -8289,7 +8066,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.8
         },
         {
@@ -8304,7 +8080,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 21.9
         },
         {
@@ -8319,7 +8094,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.0
         },
         {
@@ -8334,7 +8108,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.1
         },
         {
@@ -8349,7 +8122,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.2
         },
         {
@@ -8364,7 +8136,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.3
         },
         {
@@ -8379,7 +8150,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.4
         },
         {
@@ -8394,7 +8164,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.5
         },
         {
@@ -8409,7 +8178,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.6
         },
         {
@@ -8424,7 +8192,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.7
         },
         {
@@ -8439,7 +8206,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.8
         },
         {
@@ -8454,7 +8220,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 22.9
         },
         {
@@ -8469,7 +8234,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.0
         },
         {
@@ -8484,7 +8248,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.1
         },
         {
@@ -8499,7 +8262,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.2
         },
         {
@@ -8514,7 +8276,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.3
         },
         {
@@ -8529,7 +8290,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.4
         },
         {
@@ -8544,7 +8304,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.5
         },
         {
@@ -8559,7 +8318,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.6
         },
         {
@@ -8574,7 +8332,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.7
         },
         {
@@ -8589,7 +8346,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.8
         },
         {
@@ -8604,7 +8360,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 23.9
         },
         {
@@ -8619,7 +8374,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.0
         },
         {
@@ -8634,7 +8388,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.1
         },
         {
@@ -8649,7 +8402,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.2
         },
         {
@@ -8664,7 +8416,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.3
         },
         {
@@ -8679,7 +8430,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.4
         },
         {
@@ -8694,7 +8444,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.5
         },
         {
@@ -8709,7 +8458,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.6
         },
         {
@@ -8724,7 +8472,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.7
         },
         {
@@ -8739,7 +8486,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.8
         },
         {
@@ -8754,7 +8500,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 24.9
         },
         {
@@ -8769,7 +8514,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.0
         },
         {
@@ -8784,7 +8528,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.1
         },
         {
@@ -8799,7 +8542,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.2
         },
         {
@@ -8814,7 +8556,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.3
         },
         {
@@ -8829,7 +8570,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.4
         },
         {
@@ -8844,7 +8584,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.5
         },
         {
@@ -8859,7 +8598,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.6
         },
         {
@@ -8874,7 +8612,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.7
         },
         {
@@ -8889,7 +8626,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.8
         },
         {
@@ -8904,7 +8640,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 25.9
         },
         {
@@ -8919,7 +8654,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.0
         },
         {
@@ -8934,7 +8668,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.1
         },
         {
@@ -8949,7 +8682,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.2
         },
         {
@@ -8964,7 +8696,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.3
         },
         {
@@ -8979,7 +8710,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.4
         },
         {
@@ -8994,7 +8724,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.5
         },
         {
@@ -9009,7 +8738,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.6
         },
         {
@@ -9024,7 +8752,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.7
         },
         {
@@ -9039,7 +8766,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.8
         },
         {
@@ -9054,7 +8780,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 26.9
         },
         {
@@ -9069,7 +8794,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.0
         },
         {
@@ -9084,7 +8808,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.1
         },
         {
@@ -9099,7 +8822,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.2
         },
         {
@@ -9114,7 +8836,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.3
         },
         {
@@ -9129,7 +8850,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.4
         },
         {
@@ -9144,7 +8864,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.5
         },
         {
@@ -9159,7 +8878,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.6
         },
         {
@@ -9174,7 +8892,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.7
         },
         {
@@ -9189,7 +8906,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.8
         },
         {
@@ -9204,7 +8920,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 27.9
         },
         {
@@ -9219,7 +8934,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.0
         },
         {
@@ -9234,7 +8948,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.1
         },
         {
@@ -9249,7 +8962,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.2
         },
         {
@@ -9264,7 +8976,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.3
         },
         {
@@ -9279,7 +8990,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.4
         },
         {
@@ -9294,7 +9004,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.5
         },
         {
@@ -9309,7 +9018,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.6
         },
         {
@@ -9324,7 +9032,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.7
         },
         {
@@ -9339,7 +9046,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.8
         },
         {
@@ -9354,7 +9060,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 28.9
         },
         {
@@ -9369,7 +9074,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.0
         },
         {
@@ -9384,7 +9088,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.1
         },
         {
@@ -9399,7 +9102,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.2
         },
         {
@@ -9414,7 +9116,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.3
         },
         {
@@ -9429,7 +9130,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.4
         },
         {
@@ -9444,7 +9144,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.5
         },
         {
@@ -9459,7 +9158,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.6
         },
         {
@@ -9474,7 +9172,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.7
         },
         {
@@ -9489,7 +9186,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.8
         },
         {
@@ -9504,7 +9200,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 29.9
         }
       ],
@@ -15190,7 +14885,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.0
         },
         {
@@ -15205,7 +14899,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.1
         },
         {
@@ -15220,7 +14913,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.2
         },
         {
@@ -15235,7 +14927,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.3
         },
         {
@@ -15250,7 +14941,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.4
         },
         {
@@ -15265,7 +14955,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.5
         },
         {
@@ -15280,7 +14969,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.6
         },
         {
@@ -15295,7 +14983,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.7
         },
         {
@@ -15310,7 +14997,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.8
         },
         {
@@ -15325,7 +15011,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 0.9
         },
         {
@@ -15340,7 +15025,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.0
         },
         {
@@ -15355,7 +15039,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.1
         },
         {
@@ -15370,7 +15053,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.2
         },
         {
@@ -15385,7 +15067,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.3
         },
         {
@@ -15400,7 +15081,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.4
         },
         {
@@ -15415,7 +15095,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.5
         },
         {
@@ -15430,7 +15109,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.6
         },
         {
@@ -15445,7 +15123,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.7
         },
         {
@@ -15460,7 +15137,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.8
         },
         {
@@ -15475,7 +15151,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 1.9
         },
         {
@@ -15490,7 +15165,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.0
         },
         {
@@ -15505,7 +15179,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.1
         },
         {
@@ -15520,7 +15193,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.2
         },
         {
@@ -15535,7 +15207,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.3
         },
         {
@@ -15550,7 +15221,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.4
         },
         {
@@ -15565,7 +15235,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.5
         },
         {
@@ -15580,7 +15249,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.6
         },
         {
@@ -15595,7 +15263,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.7
         },
         {
@@ -15610,7 +15277,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.8
         },
         {
@@ -15625,7 +15291,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 2.9
         },
         {
@@ -15640,7 +15305,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.0
         },
         {
@@ -15655,7 +15319,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.1
         },
         {
@@ -15670,7 +15333,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.2
         },
         {
@@ -15685,7 +15347,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.3
         },
         {
@@ -15700,7 +15361,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.4
         },
         {
@@ -15715,7 +15375,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.5
         },
         {
@@ -15730,7 +15389,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.6
         },
         {
@@ -15745,7 +15403,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.7
         },
         {
@@ -15760,7 +15417,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.8
         },
         {
@@ -15775,7 +15431,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 3.9
         },
         {
@@ -15790,7 +15445,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.0
         },
         {
@@ -15805,7 +15459,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.1
         },
         {
@@ -15820,7 +15473,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.2
         },
         {
@@ -15835,7 +15487,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.3
         },
         {
@@ -15850,7 +15501,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.4
         },
         {
@@ -15865,7 +15515,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.5
         },
         {
@@ -15880,7 +15529,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.6
         },
         {
@@ -15895,7 +15543,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.7
         },
         {
@@ -15910,7 +15557,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.8
         },
         {
@@ -15925,7 +15571,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 4.9
         },
         {
@@ -15940,7 +15585,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.0
         },
         {
@@ -15955,7 +15599,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.1
         },
         {
@@ -15970,7 +15613,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.2
         },
         {
@@ -15985,7 +15627,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.3
         },
         {
@@ -16000,7 +15641,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.4
         },
         {
@@ -16015,7 +15655,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.5
         },
         {
@@ -16030,7 +15669,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.6
         },
         {
@@ -16045,7 +15683,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.7
         },
         {
@@ -16060,7 +15697,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.8
         },
         {
@@ -16075,7 +15711,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 5.9
         },
         {
@@ -16090,7 +15725,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.0
         },
         {
@@ -16105,7 +15739,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.1
         },
         {
@@ -16120,7 +15753,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.2
         },
         {
@@ -16135,7 +15767,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.3
         },
         {
@@ -16150,7 +15781,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.4
         },
         {
@@ -16165,7 +15795,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.5
         },
         {
@@ -16180,7 +15809,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.6
         },
         {
@@ -16195,7 +15823,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.7
         },
         {
@@ -16210,7 +15837,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.8
         },
         {
@@ -16225,7 +15851,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 6.9
         },
         {
@@ -16240,7 +15865,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.0
         },
         {
@@ -16255,7 +15879,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.1
         },
         {
@@ -16270,7 +15893,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.2
         },
         {
@@ -16285,7 +15907,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.3
         },
         {
@@ -16300,7 +15921,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.4
         },
         {
@@ -16315,7 +15935,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.5
         },
         {
@@ -16330,7 +15949,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.6
         },
         {
@@ -16345,7 +15963,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.7
         },
         {
@@ -16360,7 +15977,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.8
         },
         {
@@ -16375,7 +15991,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 7.9
         },
         {
@@ -16390,7 +16005,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.0
         },
         {
@@ -16405,7 +16019,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.1
         },
         {
@@ -16420,7 +16033,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.2
         },
         {
@@ -16435,7 +16047,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.3
         },
         {
@@ -16450,7 +16061,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.4
         },
         {
@@ -16465,7 +16075,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.5
         },
         {
@@ -16480,7 +16089,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.6
         },
         {
@@ -16495,7 +16103,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.7
         },
         {
@@ -16510,7 +16117,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.8
         },
         {
@@ -16525,7 +16131,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 8.9
         },
         {
@@ -16540,7 +16145,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.0
         },
         {
@@ -16555,7 +16159,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.1
         },
         {
@@ -16570,7 +16173,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.2
         },
         {
@@ -16585,7 +16187,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.3
         },
         {
@@ -16600,7 +16201,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.4
         },
         {
@@ -16615,7 +16215,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.5
         },
         {
@@ -16630,7 +16229,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.6
         },
         {
@@ -16645,7 +16243,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.7
         },
         {
@@ -16660,7 +16257,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.8
         },
         {
@@ -16675,7 +16271,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 9.9
         },
         {
@@ -16690,7 +16285,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.0
         },
         {
@@ -16705,7 +16299,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.1
         },
         {
@@ -16720,7 +16313,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.2
         },
         {
@@ -16735,7 +16327,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.3
         },
         {
@@ -16750,7 +16341,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.4
         },
         {
@@ -16765,7 +16355,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.5
         },
         {
@@ -16780,7 +16369,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.6
         },
         {
@@ -16795,7 +16383,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.7
         },
         {
@@ -16810,7 +16397,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.8
         },
         {
@@ -16825,7 +16411,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 10.9
         },
         {
@@ -16840,7 +16425,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.0
         },
         {
@@ -16855,7 +16439,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.1
         },
         {
@@ -16870,7 +16453,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.2
         },
         {
@@ -16885,7 +16467,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.3
         },
         {
@@ -16900,7 +16481,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.4
         },
         {
@@ -16915,7 +16495,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.5
         },
         {
@@ -16930,7 +16509,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.6
         },
         {
@@ -16945,7 +16523,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.7
         },
         {
@@ -16960,7 +16537,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.8
         },
         {
@@ -16975,7 +16551,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 11.9
         },
         {
@@ -16990,7 +16565,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.0
         },
         {
@@ -17005,7 +16579,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.1
         },
         {
@@ -17020,7 +16593,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.2
         },
         {
@@ -17035,7 +16607,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.3
         },
         {
@@ -17050,7 +16621,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.4
         },
         {
@@ -17065,7 +16635,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.5
         },
         {
@@ -17080,7 +16649,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.6
         },
         {
@@ -17095,7 +16663,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.7
         },
         {
@@ -17110,7 +16677,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.8
         },
         {
@@ -17125,7 +16691,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 12.9
         },
         {
@@ -17140,7 +16705,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.0
         },
         {
@@ -17155,7 +16719,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.1
         },
         {
@@ -17170,7 +16733,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.2
         },
         {
@@ -17185,7 +16747,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.3
         },
         {
@@ -17200,7 +16761,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.4
         },
         {
@@ -17215,7 +16775,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.5
         },
         {
@@ -17230,7 +16789,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.6
         },
         {
@@ -17245,7 +16803,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.7
         },
         {
@@ -17260,7 +16817,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.8
         },
         {
@@ -17275,7 +16831,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 13.9
         },
         {
@@ -17290,7 +16845,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.0
         },
         {
@@ -17305,7 +16859,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.1
         },
         {
@@ -17320,7 +16873,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.2
         },
         {
@@ -17335,7 +16887,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.3
         },
         {
@@ -17350,7 +16901,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.4
         },
         {
@@ -17365,7 +16915,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.5
         },
         {
@@ -17380,7 +16929,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.6
         },
         {
@@ -17395,7 +16943,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.7
         },
         {
@@ -17410,7 +16957,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.8
         },
         {
@@ -17425,7 +16971,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 14.9
         },
         {
@@ -17440,7 +16985,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.0
         },
         {
@@ -17455,7 +16999,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.1
         },
         {
@@ -17470,7 +17013,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.2
         },
         {
@@ -17485,7 +17027,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.3
         },
         {
@@ -17500,7 +17041,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.4
         },
         {
@@ -17515,7 +17055,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.5
         },
         {
@@ -17530,7 +17069,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.6
         },
         {
@@ -17545,7 +17083,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.7
         },
         {
@@ -17560,7 +17097,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.8
         },
         {
@@ -17575,7 +17111,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 15.9
         },
         {
@@ -17590,7 +17125,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.0
         },
         {
@@ -17605,7 +17139,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.1
         },
         {
@@ -17620,7 +17153,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.2
         },
         {
@@ -17635,7 +17167,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.3
         },
         {
@@ -17650,7 +17181,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.4
         },
         {
@@ -17665,7 +17195,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.5
         },
         {
@@ -17680,7 +17209,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.6
         },
         {
@@ -17695,7 +17223,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.7
         },
         {
@@ -17710,7 +17237,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.8
         },
         {
@@ -17725,7 +17251,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 16.9
         },
         {
@@ -17740,7 +17265,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.0
         },
         {
@@ -17755,7 +17279,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.1
         },
         {
@@ -17770,7 +17293,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.2
         },
         {
@@ -17785,7 +17307,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.3
         },
         {
@@ -17800,7 +17321,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.4
         },
         {
@@ -17815,7 +17335,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.5
         },
         {
@@ -17830,7 +17349,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.6
         },
         {
@@ -17845,7 +17363,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.7
         },
         {
@@ -17860,7 +17377,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.8
         },
         {
@@ -17875,7 +17391,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 17.9
         },
         {
@@ -17890,7 +17405,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.0
         },
         {
@@ -17905,7 +17419,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.1
         },
         {
@@ -17920,7 +17433,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.2
         },
         {
@@ -17935,7 +17447,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.3
         },
         {
@@ -17950,7 +17461,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.4
         },
         {
@@ -17965,7 +17475,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.5
         },
         {
@@ -17980,7 +17489,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.6
         },
         {
@@ -17995,7 +17503,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.7
         },
         {
@@ -18010,7 +17517,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.8
         },
         {
@@ -18025,7 +17531,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 18.9
         },
         {
@@ -18040,7 +17545,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.0
         },
         {
@@ -18055,7 +17559,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.1
         },
         {
@@ -18070,7 +17573,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.2
         },
         {
@@ -18085,7 +17587,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.3
         },
         {
@@ -18100,7 +17601,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.4
         },
         {
@@ -18115,7 +17615,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.5
         },
         {
@@ -18130,7 +17629,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.6
         },
         {
@@ -18145,7 +17643,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.7
         },
         {
@@ -18160,7 +17657,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.8
         },
         {
@@ -18175,7 +17671,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 19.9
         },
         {
@@ -18190,7 +17685,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.0
         },
         {
@@ -18205,7 +17699,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.1
         },
         {
@@ -18220,7 +17713,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.2
         },
         {
@@ -18235,7 +17727,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.3
         },
         {
@@ -18250,7 +17741,6 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.4
         },
         {
@@ -18265,8 +17755,245 @@
           "width": 1.4,
           "stopped": false,
           "visual_type": "tricycle",
-          "emergency": false,
           "wait_time": 20.5
+        },
+        {
+          "id": "vehicle-0206",
+          "x": 206.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-2",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 20.6
+        },
+        {
+          "id": "vehicle-0207",
+          "x": 207.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-3",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 20.7
+        },
+        {
+          "id": "vehicle-0208",
+          "x": 208.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-0",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 20.8
+        },
+        {
+          "id": "vehicle-0209",
+          "x": 209.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-1",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 20.9
+        },
+        {
+          "id": "vehicle-0210",
+          "x": 210.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-2",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.0
+        },
+        {
+          "id": "vehicle-0211",
+          "x": 211.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-3",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.1
+        },
+        {
+          "id": "vehicle-0212",
+          "x": 212.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-0",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.2
+        },
+        {
+          "id": "vehicle-0213",
+          "x": 213.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-1",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.3
+        },
+        {
+          "id": "vehicle-0214",
+          "x": 214.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-2",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.4
+        },
+        {
+          "id": "vehicle-0215",
+          "x": 215.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-3",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.5
+        },
+        {
+          "id": "vehicle-0216",
+          "x": 216.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-0",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.6
+        },
+        {
+          "id": "vehicle-0217",
+          "x": 217.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-1",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.7
+        },
+        {
+          "id": "vehicle-0218",
+          "x": 218.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-2",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.8
+        },
+        {
+          "id": "vehicle-0219",
+          "x": 219.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-3",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 21.9
+        },
+        {
+          "id": "vehicle-0220",
+          "x": 220.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-0",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 22.0
+        },
+        {
+          "id": "vehicle-0221",
+          "x": 221.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-1",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 22.1
+        },
+        {
+          "id": "vehicle-0222",
+          "x": 222.0,
+          "y": 0.0,
+          "angle": 0.0,
+          "speed": 2.0,
+          "lane_id": "lane-2",
+          "lane_position": 0.0,
+          "length": 3.0,
+          "width": 1.4,
+          "stopped": false,
+          "visual_type": "tricycle",
+          "wait_time": 22.2
         }
       ],
       "pedestrians": [
@@ -19070,6 +18797,69 @@
           "lane_id": "J0",
           "stopped": true,
           "wait_time": 44.0
+        },
+        {
+          "id": "person-0089",
+          "x": 89.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J1",
+          "stopped": true,
+          "wait_time": 44.5
+        },
+        {
+          "id": "person-0090",
+          "x": 90.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J2",
+          "stopped": true,
+          "wait_time": 45.0
+        },
+        {
+          "id": "person-0091",
+          "x": 91.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J3",
+          "stopped": true,
+          "wait_time": 45.5
+        },
+        {
+          "id": "person-0092",
+          "x": 92.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J0",
+          "stopped": true,
+          "wait_time": 46.0
+        },
+        {
+          "id": "person-0093",
+          "x": 93.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J1",
+          "stopped": true,
+          "wait_time": 46.5
+        },
+        {
+          "id": "person-0094",
+          "x": 94.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J2",
+          "stopped": true,
+          "wait_time": 47.0
+        },
+        {
+          "id": "person-0095",
+          "x": 95.0,
+          "y": 6.0,
+          "speed": 0.0,
+          "lane_id": "J3",
+          "stopped": true,
+          "wait_time": 47.5
         }
       ],
       "visual": {
@@ -19152,11 +18942,11 @@
       "render_coverage": {
         "vehicles": {
           "total": 300,
-          "shown": 206
+          "shown": 223
         },
         "pedestrians": {
           "total": 128,
-          "shown": 89
+          "shown": 96
         },
         "limited": true,
         "reason": "byte_limit"

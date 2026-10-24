@@ -18,7 +18,6 @@ QUEUE_BIN_EDGES = (0.0, 3.0, 8.0, MAX_QUEUE_COUNT)
 WAIT_BIN_EDGES = (0.0, 15.0, 45.0, MAX_WAIT_SECONDS)
 ACTIVE_BIN_EDGES = (0.0, 3.0, 8.0, MAX_ACTIVE_VEHICLES)
 PEDESTRIAN_BIN_EDGES = (0.0, 4.0, MAX_PEDESTRIAN_WAITING)
-EMERGENCY_PROXIMITY_BIN_EDGES = (0.25, 0.65, 1.0)
 
 
 @dataclass(frozen=True)
@@ -31,8 +30,6 @@ class RLSnapshot:
     wait_by_approach: dict[str, float]
     active_vehicles_by_approach: dict[str, int]
     pedestrian_waiting_count: int
-    emergency_presence_by_approach: dict[str, int]
-    emergency_proximity_by_approach: dict[str, float]
     valid_action_mask: tuple[int, ...]
     throughput: int
     avg_wait: float
@@ -51,11 +48,6 @@ class RLSnapshot:
         encoded.extend(_discretize_value(self.wait_by_approach[approach], WAIT_BIN_EDGES) for approach in APPROACH_ORDER)
         encoded.extend(_discretize_value(self.active_vehicles_by_approach[approach], ACTIVE_BIN_EDGES) for approach in APPROACH_ORDER)
         encoded.append(_discretize_value(self.pedestrian_waiting_count, PEDESTRIAN_BIN_EDGES))
-        encoded.extend(int(bool(self.emergency_presence_by_approach[approach])) for approach in APPROACH_ORDER)
-        encoded.extend(
-            _discretize_value(self.emergency_proximity_by_approach[approach], EMERGENCY_PROXIMITY_BIN_EDGES)
-            for approach in APPROACH_ORDER
-        )
         encoded.append(INTERSECTION_ORDER.index(self.intersection_id) if self.intersection_id in INTERSECTION_ORDER else len(INTERSECTION_ORDER))
         return tuple(encoded)
 
@@ -111,8 +103,6 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
     }
     wait_by_approach = {approach: 0.0 for approach in APPROACH_ORDER}
     active_vehicles_by_approach = {approach: 0 for approach in APPROACH_ORDER}
-    emergency_presence_by_approach = {approach: 0 for approach in APPROACH_ORDER}
-    emergency_proximity_by_approach = {approach: 0.0 for approach in APPROACH_ORDER}
 
     lane_to_approach: dict[str, str] = {}
     for approach, lane_ids in approach_lanes.items():
@@ -128,12 +118,6 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         active_vehicles_by_approach[approach] += 1
         wait_by_approach[approach] += float(vehicle.get("wait_time", 0.0) or 0.0)
 
-        if not bool(vehicle.get("emergency")):
-            continue
-
-        emergency_presence_by_approach[approach] = 1
-        if lane_id in engine.network.lanes:
-            emergency_proximity_by_approach[approach] = max(emergency_proximity_by_approach[approach], _normalize(float(vehicle.get("lane_position", 0)), engine.network.lanes[lane_id].length))
 
     for approach in APPROACH_ORDER:
         vehicle_count = active_vehicles_by_approach[approach]
@@ -166,8 +150,6 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         *(_normalize(wait_by_approach[approach], MAX_WAIT_SECONDS) for approach in APPROACH_ORDER),
         *(_normalize(active_vehicles_by_approach[approach], MAX_ACTIVE_VEHICLES) for approach in APPROACH_ORDER),
         _normalize(float(pedestrian_waiting_count), MAX_PEDESTRIAN_WAITING),
-        *(float(emergency_presence_by_approach[approach]) for approach in APPROACH_ORDER),
-        *(_clamp(emergency_proximity_by_approach[approach], 0.0, 1.0) for approach in APPROACH_ORDER),
         *_intersection_one_hot(runtime_state["intersection_id"]),
     ]
 
@@ -180,8 +162,6 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         wait_by_approach={approach: round(wait_by_approach[approach], 4) for approach in APPROACH_ORDER},
         active_vehicles_by_approach=active_vehicles_by_approach,
         pedestrian_waiting_count=pedestrian_waiting_count,
-        emergency_presence_by_approach=emergency_presence_by_approach,
-        emergency_proximity_by_approach={approach: round(emergency_proximity_by_approach[approach], 6) for approach in APPROACH_ORDER},
         valid_action_mask=valid_action_mask,
         throughput=int(metrics.get("throughput", 0) or 0),
         avg_wait=float(metrics.get("avg_wait", 0.0) or 0.0),

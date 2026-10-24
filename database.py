@@ -202,8 +202,8 @@ CREATE TABLE IF NOT EXISTS rl_models (
     checkpoint_path TEXT,
     intersection_support_json TEXT DEFAULT '[]',
     training_scenarios_json TEXT DEFAULT '[]',
-    observation_version TEXT DEFAULT 'obs_v1',
-    reward_version TEXT DEFAULT 'reward_v1',
+    observation_version TEXT DEFAULT 'obs_v2',
+    reward_version TEXT DEFAULT 'reward_v2',
     action_space_version TEXT DEFAULT 'action_v1',
     seed_set_json TEXT DEFAULT '[]',
     training_date TEXT,
@@ -568,15 +568,16 @@ def seed_data():
 
         active_network = load_network()
         network_label = "Tagum" if active_network.id == NETWORK_ID else active_network.payload.get("name", active_network.id)
+        junction_count = len(active_network.intersections)
         network_description = (
-            "Five connected OSM junctions; one car; synthetic study signals."
+            f"{junction_count} connected OSM junction{'s' if junction_count != 1 else ''}; one car; synthetic study signals."
             if active_network.id == NETWORK_ID else "Configured network; one car; synthetic study signals."
         )
         official_scenarios = [
             (f"{network_label} — Single Car Demo", network_description,
-             {'traffic_density': 'single', 'pedestrian_density': 'none', 'emergency_mode': 'disabled'}),
+             {'traffic_density': 'single', 'pedestrian_density': 'none'}),
             (f"{network_label} — Network Traffic", 'Synthetic traffic for engine experiments; not measured counts.',
-             {'traffic_density': 'medium', 'pedestrian_density': 'low', 'emergency_mode': 'disabled'}),
+             {'traffic_density': 'medium', 'pedestrian_density': 'low'}),
         ]
         for name, description, settings in official_scenarios:
             native = validated_native_scenario(active_network.id, settings)
@@ -1037,8 +1038,8 @@ def create_rl_model(
     checkpoint_path=None,
     intersection_support=None,
     training_scenarios=None,
-    observation_version='obs_v1',
-    reward_version='reward_v1',
+    observation_version='obs_v2',
+    reward_version='reward_v2',
     action_space_version='action_v1',
     seed_set=None,
     training_date=None,
@@ -1276,19 +1277,19 @@ def reconcile_incomplete_rl_training_jobs() -> int:
 
 def save_run_metrics(run_id, avg_waiting_time=0, avg_queue_length=0,
                      max_queue_length=0, throughput=0,
-                     avg_pedestrian_delay=0, emergency_clearance_time=0,
+                     avg_pedestrian_delay=0,
                      signal_phase_efficiency=0, congestion_severity='low',
                      raw_metrics_json='{}'):
     with get_db() as conn:
         cursor = conn.execute(
             """INSERT INTO run_metrics (run_id, avg_waiting_time,
                avg_queue_length, max_queue_length, throughput,
-               avg_pedestrian_delay, emergency_clearance_time,
+               avg_pedestrian_delay,
                signal_phase_efficiency, congestion_severity,
                raw_metrics_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (run_id, avg_waiting_time, avg_queue_length, max_queue_length,
-             throughput, avg_pedestrian_delay, emergency_clearance_time,
+             throughput, avg_pedestrian_delay,
              signal_phase_efficiency, congestion_severity, raw_metrics_json)
         )
         return cursor.lastrowid
@@ -1302,7 +1303,12 @@ def get_run_metrics(run_id):
             (run_id,)
         )
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        metrics = dict(row)
+        # Preserve the dormant column in stored backups, not current outcome APIs.
+        metrics.pop("emergency_clearance_time", None)
+        return metrics
 
 
 # ─── Audit Logs ────────────────────────────────────────────────────

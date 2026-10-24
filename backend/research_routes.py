@@ -15,17 +15,17 @@ from pydantic import BaseModel, ConfigDict, Field
 import database
 from backend.security import require_current_user, require_permission
 from simulation.traffic_engine import ENGINE_VERSION
+from services.metric_definitions import METRIC_CATALOG, METRIC_DEFINITIONS, METRIC_VERSION, metric_reading
 
 router = APIRouter()
 
-METRICS = [
-    {"key": "throughput", "label": "Completed network trips", "unit": "vehicles", "definition": "Trips completed at network boundaries during the measurement window; not local stop-line discharge."},
-    {"key": "avg_wait", "label": "Mean stopped vehicle wait", "unit": "seconds", "definition": "Stopped wait of completed and active admitted vehicles divided by their count; pending arrivals are excluded."},
-    {"key": "avg_queue", "label": "Mean incoming-lane queue", "unit": "vehicles", "definition": "Time average per incoming signal lane, speed ≤0.1 m/s; excludes connectors. Not a local snapshot or total network queue."},
-    {"key": "avg_travel_time", "label": "Completed-trip travel time", "unit": "seconds", "definition": "Mean full travel time of trips completing in the measurement window; unfinished trips are excluded."},
-    {"key": "avg_ped_delay", "label": "Mean pedestrian wait", "unit": "seconds", "definition": "Wait of completed and active pedestrians divided by their count; not crossing duration."},
-    {"key": "local_reference", "label": "Local observation / custom measure", "unit": "researcher-defined", "definition": "Enter a simulated measurement extracted at the same location, times and definition as the field reference. Cite the extraction method; no automatic local metric is inferred."},
-]
+METRICS = [METRIC_DEFINITIONS[key] for key in
+           ("throughput", "avg_wait", "avg_queue", "avg_travel_time", "avg_ped_delay", "local_reference")]
+
+
+@router.get("/api/metrics/definitions")
+def metric_definitions(user: dict = Depends(require_current_user)):
+    return METRIC_CATALOG
 
 
 def may(user: dict, page: str, action: str = "view") -> bool:
@@ -205,23 +205,17 @@ def save_record(body: FitRequest, user: dict = Depends(require_current_user)):
                     raise ValueError("Metric units must match the saved native metric.")
                 if measurement.simulated is not None:
                     raise ValueError("Whole-network simulated values come from saved metrics; manual overrides are not allowed.")
-                simulated = metrics.get(measurement.metric)
-                if simulated is None or not isinstance(simulated, (float, int)) or not math.isfinite(simulated):
-                    raise ValueError("The selected run is missing this metric.")
-                populations = {
-                    "avg_travel_time": metrics.get("total_vehicles_completed", 0),
-                    "avg_wait": metrics.get("total_vehicles_completed", 0) + metrics.get("active_vehicle_count", 0),
-                    "avg_ped_delay": metrics.get("total_pedestrians_completed", 0) + metrics.get("active_pedestrian_count", 0),
-                }
-                if measurement.metric in populations and populations[measurement.metric] <= 0:
-                    raise ValueError("This average has no measured population. Choose a run with measured trips/pedestrians or a matched local measure.")
+                reading = metric_reading(metrics, measurement.metric)
+                if not reading["available"]:
+                    raise ValueError(reading["reason"])
+                simulated = reading["value"]
             difference = simulated - measurement.observed
             percent_error = abs(difference) / measurement.observed * 100 if measurement.observed else None
             allowed = measurement.tolerance if measurement.tolerance_mode == "absolute" else measurement.observed * measurement.tolerance / 100
             comparisons.append({**measurement.model_dump(), "simulated": simulated, "difference": difference,
                                 "absolute_error": abs(difference), "percent_error": percent_error,
                                 "within_tolerance": abs(difference) <= allowed + 1e-9})
-        payload = {**body.model_dump(), "schema_version": 1, "reviewer": user["username"], "name": body.name.strip(), "site_id": body.site_id.strip(), "snapshot": snapshot,
+        payload = {**body.model_dump(), "schema_version": 1, "metric_definitions_version": METRIC_VERSION, "reviewer": user["username"], "name": body.name.strip(), "site_id": body.site_id.strip(), "snapshot": snapshot,
                    "comparisons": comparisons, "within_tolerance": all(item["within_tolerance"] for item in comparisons),
                    "assessment": "Numerical fit check only; field truth, reference quality and study validity require independent review."}
         # A single transaction also prevents a concurrent calibration from bypassing the held-out check.
@@ -236,7 +230,7 @@ def save_record(body: FitRequest, user: dict = Depends(require_current_user)):
                     raise ValueError("Validation must reference calibration for the same site and source kind.")
                 def structure(record):
                     experiment = record["snapshot"]["experiment"]
-                    demand_keys = {"traffic_density", "pedestrian_density", "trips", "pedestrian_trips", "demand_windows", "demand_source", "vehicle_mix", "emergency_mode"}
+                    demand_keys = {"traffic_density", "pedestrian_density", "trips", "pedestrian_trips", "demand_windows", "demand_source", "vehicle_mix"}
                     return {"engine": experiment["engine_version"], "network": experiment["network_sha256"],
                             "config": {key: value for key, value in experiment.get("config", {}).items() if key not in demand_keys}}
                 if structure(parent) != structure(payload):

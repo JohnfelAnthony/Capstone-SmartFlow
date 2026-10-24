@@ -5,7 +5,7 @@ import type { RenderFrame } from "@/simulation/frame-types"
 const bounds = { min_x: -100, max_x: 100, min_y: -50, max_y: 50 }
 function frame(x: number, overrides: Partial<RenderFrame> = {}): RenderFrame {
   return { time: x, render_ts: x / 100, step_length: .1, status: "running", flow_state: "LIVE_RUNNING", intersection_id: "test", render_mode: "live", phase: "NORTH_GREEN", ns_state: "green", ew_state: "red", vehicle_count: 1, pedestrian_count: 1,
-    vehicles: [{ id: "v", x, y: 0, angle: 90, speed: 2, lane_id: "a", lane_position: x, length: 4.5, width: 1.8, stopped: false, visual_type: "car", emergency: false }],
+    vehicles: [{ id: "v", x, y: 0, angle: 90, speed: 2, lane_id: "a", lane_position: x, length: 4.5, width: 1.8, stopped: false, visual_type: "car" }],
     pedestrians: [{ id: "p", x, y: 5, speed: 1, lane_id: "p", stopped: false }], visual: { closed_lanes: [], slow_lanes: {} }, playback: { active: false, frame_index: 0, frame_count: 0 }, junction_controls: {}, traffic_lights: {}, ...overrides }
 }
 describe("2D map navigation", () => {

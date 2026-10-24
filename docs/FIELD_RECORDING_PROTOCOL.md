@@ -4,15 +4,17 @@ Prepared: **2026-10-02**. Status: **agreed project direction and proposed survey
 
 Updated: **2026-10-03** following the capstone review: manual pilot first, per-measurement coverage decisions and separate automatic-acceptance versus corrected-data checks.
 
+Documentation refresh: **2026-10-23**. The offline tool now exists; the collection procedure and field-accuracy gates below remain pending research work. See [current project evidence](PROGRESS_AND_HANDOFF.md).
+
 Read next: [Video observation tool plan](VIDEO_OBSERVATION_TOOL_PLAN.md) and [Field data integration with SmartFlow](FIELD_DATA_SMARTFLOW_INTEGRATION.md). The existing [research preparation protocol](RESEARCH_METHOD.md) provides the research and import context.
 
 ## Purpose and decisions
 
-The team will use **one mobile-phone camera**, recording selected Tagum intersections sequentially from a stationary roadside position. Each take measures one fixed view during its own dated period. Original videos will provide the field record. An offline Python tool will assist with vehicle and pedestrian observations; reviewers will correct its results and record visible signal transitions. SmartFlow will use reviewed observations to build and validate the existing-conditions model before training and comparing controllers. This update changes documentation only; vehicle graphics and application code are outside this task.
+The team will use **one mobile-phone camera**, recording selected Tagum intersections sequentially from a stationary roadside position. Each take measures one fixed view during its own dated period. Original videos will provide the field record. The offline Python tool provides vehicle/pedestrian proposals and a correction workflow; reviewers must check missed events and separately record visible signal transitions. SmartFlow will use reviewed observations to build and validate the existing-conditions model before final controller comparisons.
 
 The owner reports that intersections have been selected, but their names, boundaries, physical layouts and identifiers have not yet been supplied in this plan. The supplied software `tagum_network` must not be assumed to match them. Record the actual sites before preparing a full survey.
 
-The observation tool will initially live in `tools/field_observer/` inside SmartFlow. Its local generated artifacts will live in `data/generated/field_observer/`; large original videos will be kept in designated research storage rather than committed to Git. This document specifies collection work; it does not implement the tool.
+The [Field Observer](../tools/field_observer/README.md) lives in `tools/field_observer/` with its own Python environment and local GUI. The GUI stores copied sources and generated evidence under `data/generated/field_observer_gui/`; CLI examples use `data/generated/field_observer/`. Preserve original footage in designated research storage and back up observer folders separately from the main SmartFlow bundle. Exports remain provisional: independent field audit and conversion to native scenarios are subsequent stages. This document specifies collection work; installed tooling does not establish collected or validated data.
 
 The first deliverable is one **10-minute roadside pilot, a manual reference count and a coverage/model-gap decision**. Use ordinary video playback and structured observation tables for this first pass; a custom counting or review application is not a prerequisite. Full collection follows the site-coverage decision and a predeclared sampling schedule. Automated output alone is not verified field evidence.
 
@@ -30,11 +32,11 @@ The first deliverable is one **10-minute roadside pilot, a manual reference coun
 | Travel-time sample | Defined segment with entry and exit visible in the same fixed take, event times and match method | Only the measured segment; the phone cannot establish travel time along an unseen route. |
 | Conditions | Weather, lighting, obstruction, unusual event and its time | Explain variation, coverage failures and periods unsuitable for particular measurements. |
 
-Use vehicle classes `car`, `motorcycle`, `tricycle`, `jeepney`, `bus`, `truck`, `bicycle`, `emergency_confirmed`, `other` and `unknown` in the original observation tables. Agree category examples during the pilot. Preserve jeepneys and bicycles as separate field classes even if SmartFlow needs an explicit later mapping. Do not infer emergency priority from a detector label alone; record the observable basis for an emergency classification.
+Use vehicle classes `car`, `motorcycle`, `tricycle`, `jeepney`, `bus`, `truck`, `bicycle`, `other` and `unknown` in the original observation tables. Agree category examples during the pilot. Preserve jeepneys and bicycles as separate field classes even if SmartFlow needs an explicit later mapping. Special-response traffic is outside the study. If it affects a survey period, retain an observation note and flag the affected coverage; do not silently convert it to ordinary simulated demand.
 
 ### Vehicle categories and the pictured Tagum passenger tricycle
 
-Use **seven ordinary field categories** initially. Count pedestrians in separate crossing tables; retain `other`, `unknown` and confirmed emergency observations as additional labels rather than forcing every road user into a known category.
+Use **seven ordinary field categories** initially. Count pedestrians in separate crossing tables; retain `other` and `unknown` observations as additional labels rather than forcing every road user into a known category.
 
 | Field category | What to distinguish |
 | --- | --- |

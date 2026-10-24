@@ -5,7 +5,7 @@ import copy
 import json
 
 from simulation.road_network import load_network
-from simulation.scenario_config import DEFAULTS, object_config
+from simulation.scenario_config import DEFAULTS, object_config, normalize_vehicle_scope
 
 MIGRATION_VERSION = 1
 LEGACY_DISRUPTIONS = ('lane_closure_config', 'construction_config', 'accident_config', 'flooding_config')
@@ -16,6 +16,7 @@ def resolve_legacy_scenario(scenario: dict, network=None) -> tuple[dict, list[st
     """Interpret old fields only at an import/upgrade boundary; never guess lanes."""
     from simulation.traffic_engine import TrafficEngine
 
+    scenario = normalize_vehicle_scope(scenario)
     network = network or load_network()
     warnings = []
     requested = scenario.get('network_id') or scenario.get('intersection_id') or network.id
@@ -96,22 +97,23 @@ def migrate_connection(conn, *, apply=False, network=None) -> dict:
 
 def native_snapshot(scenario: dict) -> dict:
     """Project migrated storage onto the native envelope, preserving artifact keys."""
+    scenario = normalize_vehicle_scope(scenario)
     if not scenario.get('network_id'):
         # Produce the specific error where possible; otherwise require the upgrade.
         resolve_legacy_scenario(scenario)
         raise ValueError('Scenario needs native migration before execution.')
+    from simulation.traffic_engine import TrafficEngine
+    engine = TrafficEngine()
+    engine.configure_from_scenario(scenario)
     return {'id': scenario.get('id'), 'name': scenario.get('name', ''),
             'intersection_id': scenario['network_id'],
-            'engine_config': object_config(scenario.get('engine_config', {}), 'engine_config')}
+            'engine_config': copy.deepcopy(engine.config)}
 
 
 def import_snapshot(scenario: dict) -> dict:
     """Convert CLI/import snapshots in memory; their original evidence stays intact."""
     if scenario.get('network_id'):
-        from simulation.traffic_engine import TrafficEngine
-        engine = TrafficEngine()
-        engine.configure_from_scenario(scenario)
-        return native_snapshot({**scenario, 'engine_config': engine.config})
+        return native_snapshot(scenario)
     resolved, _ = resolve_legacy_scenario(scenario)
     return {'id': scenario.get('id'), 'name': scenario.get('name', ''),
             'intersection_id': resolved['network_id'], 'engine_config': resolved['engine_config']}

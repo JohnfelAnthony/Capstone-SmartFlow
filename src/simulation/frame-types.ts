@@ -10,7 +10,6 @@ export type RenderVehicle = {
   width: number
   stopped: boolean
   visual_type: string
-  emergency: boolean
   wait_time?: number
 }
 

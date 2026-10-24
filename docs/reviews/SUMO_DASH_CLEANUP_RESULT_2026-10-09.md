@@ -1,5 +1,8 @@
 # SUMO/Dash cleanup implementation result
 
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
 Implementation began **2026-10-09**; completion evidence finalized **2026-10-10** (Asia/Singapore). Scope: the independent **SmartFlow** repository. Implementation follows the [revised cleanup plan](SUMO_DASH_CLEANUP_PLAN_2026-10-09.md).
 
 The inactive implementation has been archived and removed. The primary database's **12 scenarios migrated successfully**, with **zero blocked rows**. Active scenario APIs now use canonical `network_id` and complete native `engine_config`. Legacy SQLite columns, research references, original manuscripts and historical artifacts remain preserved.

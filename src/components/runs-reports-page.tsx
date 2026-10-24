@@ -1,3 +1,5 @@
+import { metricValue, metricLabel, metricDescription, metricDefinition, formatMetric } from "@/lib/metrics"
+import { MetricDefinitions } from "@/components/metric-definitions"
 import * as React from "react"
 import {
   BarChart3Icon,
@@ -101,13 +103,31 @@ function formatMode(value: string | null | undefined) {
 }
 
 function metricNumber(run: SimulationRunRecord, key: string) {
-  const value = run.metrics?.[key]
-  return typeof value === "number" && Number.isFinite(value) ? value : null
+  return metricValue(run.metrics, key)
 }
 
 function rawRunMetrics(run: SimulationRunRecord): Record<string, unknown> {
   const raw = run.metrics?.raw_metrics
   return raw && typeof raw === "object" ? raw as Record<string, unknown> : {}
+}
+
+function sourceRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function RunSourceSummary({ run }: { run: SimulationRunRecord }) {
+  const experiment = sourceRecord(rawRunMetrics(run).experiment)
+  const settings = sourceRecord(experiment.config)
+  const source = sourceRecord(settings.demand_source)
+  const datasets = Array.isArray(source.datasets) ? source.datasets.map(sourceRecord) : []
+  const text = (value: unknown) => typeof value === "string" && value ? value : "Not recorded"
+  return <section className="flex flex-col gap-2" aria-label="Saved input context">
+    <p>Model network: {text(experiment.network_id)}. Controlled model junction: {text(settings.controlled_junction)}. These identifiers do not establish the final field site.</p>
+    <p>Saved input assumptions: {text(source.description)}.</p>
+    {datasets.length ? <ul>{datasets.map((dataset, index) => <li key={index}>
+      {text(dataset.description)} — declared {text(dataset.kind)}; {text(dataset.schema)}; collection date {text(dataset.collected_on)}; period {text(dataset.collection_start)} to {text(dataset.collection_end)}. Conversion: {text(dataset.conversion)}.
+    </li>)}</ul> : <p>No collection periods or reviewed datasets are recorded in this run's frozen source metadata.</p>}
+  </section>
 }
 
 function demandSourceKind(run: SimulationRunRecord) {
@@ -150,8 +170,8 @@ function TimelinePreviewCard({
   const frames = preview?.frames ?? []
   const chartData = frames.map((frame) => ({
     time: frame.time,
-    avgWait: frame.avg_wait,
-    avgQueue: frame.avg_queue,
+    avgWait: frame.interpreted_metrics?.avg_wait ?? null,
+    avgQueue: frame.interpreted_metrics?.avg_queue ?? null,
     throughput: frame.throughput,
   }))
 
@@ -213,7 +233,7 @@ function RunsSelect({
   options: { label: string; value: string }[]
 }) {
   return (
-    <Select value={value} onValueChange={(nextValue) => nextValue !== null && onChange(nextValue)}>
+    <Select items={options} value={value} onValueChange={(nextValue) => nextValue !== null && onChange(nextValue)}>
       <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
@@ -230,7 +250,10 @@ function RunsSelect({
   )
 }
 
-export function RunsReportsPage({ onOpenDashboard, initialRunId }: { onOpenDashboard?: () => void; initialRunId?: number | null }) {
+export function RunsReportsPage({ onOpenDashboard, initialRunId, onOpenResearch, onOpenCompare }: {
+  onOpenDashboard?: () => void; initialRunId?: number | null;
+  onOpenResearch?: () => void; onOpenCompare?: () => void;
+}) {
   const [runs, setRuns] = React.useState<SimulationRunRecord[]>([])
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [filters, setFilters] = React.useState<FilterState>(defaultFilters)
@@ -244,11 +267,10 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId }: { onOpenDashb
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null
   const selectedIds = selectedRunIds.length ? selectedRunIds : selectedRun ? [selectedRun.id] : []
   const completedRuns = runs.filter((run) => run.status === "completed")
-  const avgWait =
-    completedRuns.length > 0
-      ? completedRuns.reduce((sum, run) => sum + (metricNumber(run, "avg_waiting_time") ?? 0), 0) / completedRuns.length
-      : 0
-  const throughputTotal = completedRuns.reduce((sum, run) => sum + (metricNumber(run, "throughput") ?? 0), 0)
+  const measuredWaits = completedRuns.map((run) => metricNumber(run, "avg_waiting_time")).filter((value): value is number => value !== null)
+  const avgWait = measuredWaits.length ? measuredWaits.reduce((sum, value) => sum + value, 0) / measuredWaits.length : null
+  const completions = completedRuns.map((run) => metricNumber(run, "throughput")).filter((value): value is number => value !== null)
+  const throughputTotal = completions.length ? completions.reduce((sum, value) => sum + value, 0) : null
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true)
@@ -390,9 +412,9 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId }: { onOpenDashb
 
   const metrics = [
     { label: "Total Runs", value: runs.length, hint: "Current filters", icon: HistoryIcon, tone: "info" },
-    { label: "Completed", value: completedRuns.length, hint: "Replay-ready", icon: CheckCircle2Icon, tone: "success" },
-    { label: "Avg Wait", value: `${compactNumber(avgWait, 1)}s`, hint: "Completed runs", icon: BarChart3Icon, tone: "warning" },
-    { label: "Throughput", value: compactNumber(throughputTotal), hint: "Total vehicles", icon: ListFilterIcon, tone: "purple" },
+    { label: "Completed", value: completedRuns.length, hint: "Saved completed runs", icon: CheckCircle2Icon, tone: "success" },
+    { label: "Run-mean stopped wait", value: `${formatMetric(avgWait, 1)}s`, hint: "Unweighted available run means; empty populations excluded", icon: BarChart3Icon, tone: "warning" },
+    { label: "Sum completed trips", value: formatMetric(throughputTotal, 0), hint: "Available completed-run counts; inputs may repeat", icon: ListFilterIcon, tone: "purple" },
   ]
 
   return (
@@ -571,7 +593,7 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId }: { onOpenDashb
               <BarChart3Icon />
               Run Details
             </CardTitle>
-            <CardDescription>{selectedRun ? `Run #${selectedRun.id}` : "Select a run to inspect metrics."}</CardDescription>
+            <CardDescription>{selectedRun ? `Run #${selectedRun.id}. Metrics show separate outcomes, not an overall recommendation. — means unavailable.` : "Select a run to inspect metrics."}</CardDescription>
           </CardHeader>
           <CardContent>
             {selectedRun ? (
@@ -582,14 +604,30 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId }: { onOpenDashb
                 <div><span>Pedestrian Delay</span><strong>{metricNumber(selectedRun, "avg_pedestrian_delay") === null ? "—" : `${compactNumber(metricNumber(selectedRun, "avg_pedestrian_delay")!, 1)}s`}</strong></div>
                 <div><span>Seed</span><strong>{selectedRun.seed ?? "--"}</strong></div>
                 <div><span>Model ID</span><strong>{selectedRun.rl_model_id ?? "None"}</strong></div>
-                <div><span>Scheduled vehicles</span><strong>{String(rawRunMetrics(selectedRun).scheduled_vehicles ?? "—")}</strong></div>
-                <div><span>Unfinished vehicles</span><strong>{String(rawRunMetrics(selectedRun).unfinished_vehicles ?? "—")}</strong></div>
+                <div><span>Scheduled vehicles</span><strong>{formatMetric(metricNumber(selectedRun, "scheduled_vehicles"), 0)}</strong></div>
+                <div><span>Unfinished vehicles</span><strong>{formatMetric(metricNumber(selectedRun, "unfinished_vehicles"), 0)}</strong></div>
                 <div><span>Demand source</span><strong>{demandSourceKind(selectedRun)}</strong></div>
                 <div><span>Timeline</span><strong>{selectedRun.timeline_path ? "Available" : "None"}</strong></div>
               </div>
             ) : (
               <div className="runs-empty-state">No run selected.</div>
             )}
+            {selectedRun && <div className="runs-detail-grid">{["avg_wait", "avg_queue", "throughput", "avg_travel_time", "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles", "boundary_wait_seconds", "avg_admitted_boundary_wait", "measurement_start", "measurement_seconds"].map((key) =>
+              <div key={key} title={metricDescription(key)}><span>{metricLabel(key)}</span><strong>{formatMetric(metricNumber(selectedRun, key), 2)} {metricDefinition(key)?.unit}</strong></div>)}</div>}
+            <MetricDefinitions />
+            {selectedRun && <section aria-label="Research context and next actions" className="flex flex-col gap-3 p-3">
+              <h3>Research context and next actions</h3>
+              <RunSourceSummary run={selectedRun} />
+              <p>Declared input kind: {demandSourceKind(selectedRun)}. A source label does not certify field accuracy. This is single-run evidence, not a completed repeated study or an overall recommendation.</p>
+              <p>Study question and final field-site mapping are not recorded by this run contract. Retain the study protocol alongside the scenario. Run note: {selectedRun.notes || "Not recorded."}</p>
+              <p>Before field claims, match this run and its frozen network/settings with the supporting calibration and independent-validation records. Numerical fit and compatibility alone are not field certification.</p>
+              <details><summary>Frozen inputs, periods, assumptions and reproduction references</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(rawRunMetrics(selectedRun).experiment ?? { note: "No frozen experiment metadata was retained by this historical run." }, null, 2)}</pre></details>
+              <div className="flex flex-wrap gap-2">
+                {onOpenResearch && <Button variant="outline" onClick={onOpenResearch}>Review baseline evidence</Button>}
+                {onOpenCompare && <Button variant="outline" onClick={onOpenCompare}>Compare matched recordings</Button>}
+              </div>
+              <p>Use Export CSV or Export JSON above to retain metric definitions, missing-value reasons and original experiment inputs. Additional seeds over one measured schedule are not independent field observations.</p>
+            </section>}
           </CardContent>
         </Card>
 

@@ -24,7 +24,7 @@ The chosen direction is **ordinary-laptop performance, opening at the selected R
 **3D scene**
 
 - Use warm neutral ground, charcoal asphalt, clear markings, restrained building shapes, muted greenery, and subtle shadows.
-- Give **cars, motorcycles, green Tagum tricycles, buses, trucks, and emergency vehicles** distinct silhouettes. These six categories already exist in the engine.
+- Give **cars, motorcycles, green Tagum tricycles, buses and trucks** distinct silhouettes. These five categories already exist in the engine.
 - Include a recognizable three-wheeled passenger tricycle with its green body and covered cabin. Scale every model to its engine-defined dimensions.
 - Keep buildings low and sparse so they cannot obscure traffic.
 - Represent pedestrian waiting and crossing clearly. Crossing graphics must follow the modeled pedestrian paths; current paths are simplified and should remain identified as illustrative.
@@ -261,13 +261,13 @@ Laptop and Enhanced quality must receive the same state and population. Quality 
 ### Slice B — Build the reusable architectural scene and fleet
 
 1. Implement the palette, coherent pavement/curbs, legible signal heads, minimal context, and illustrative pedestrian-path overlay.
-2. Create an explicit asset registry for `car`, `motorcycle`, `tricycle`, `bus`, `truck`, and `emergency`. Map an ambulance appearance to the existing `emergency` type without changing the engine enum.
+2. Create an explicit asset registry for `car`, `motorcycle`, `tricycle`, `bus` and `truck`. The registry follows the five supported ordinary-traffic classes.
 3. Curate only needed files from the Kenney sources linked above. Inspect their actual contents before claiming any category is supplied. Use locally authored lightweight assets for missing classes and the distinctive green Tagum tricycle; do not substitute a recolored car or motorcycle.
 4. Normalize source assets to the shared origin/dimensions. Use GLTFLoader for GLB files; cache templates and batch repeated parts by geometry/material. Procedural geometry is acceptable for missing assets if the class silhouette is recognizably different and follows the same style.
 5. Use opaque dark glass where possible, one simple material palette/atlas, and low polygon counts. Store runtime assets under `public/assets/simulation/`; add an asset manifest with source URL, author, license, modifications, orientation, and normalization notes. Keep original license notices.
 6. On asset-load failure, show a distinct procedural class fallback and a non-blocking message; keep the simulation usable. No runtime dependency on external CDNs or removed cleanup assets.
 
-**Gate:** one representative junction demonstrates the final visual language in the real simulation; all six classes are distinguishable, the tricycle has three wheels and a covered passenger cabin, assets remain aligned at stops/turns, and the same renderer can display other junctions without hand-placed per-junction traffic geometry.
+**Gate:** one representative junction demonstrates the final visual language in the real simulation; all five supported classes are distinguishable, the tricycle has three wheels and a covered passenger cabin, assets remain aligned at stops/turns, and the same renderer can display other junctions without hand-placed per-junction traffic geometry.
 
 ### Slice C — Complete the analytical 2D view and navigation
 
@@ -344,7 +344,7 @@ Use isolated test databases/artifact directories and existing test initializatio
 
 ### Browser acceptance sequence
 
-1. Open a clearly synthetic mixed-fleet scenario; start fixed-time control. Confirm the default junction focus, minimap, all six class appearances, and accurate controller label.
+1. Open a clearly synthetic mixed-fleet scenario; start fixed-time control. Confirm the default junction focus, minimap, all five supported class appearances, and accurate controller label.
 2. Toggle 2D/3D, inspect each entity kind, pan/zoom, use the keyboard junction picker, enter/exit fullscreen, and return to default focus.
 3. Run a congested case and inspect lane queues, total/displayed populations, and heatmap legend. Confirm the overlay follows complete metrics even in an above-limit case.
 4. Apply configured lane closure and slowdown events. Confirm only their directed lanes are marked and reopening clears the visual state. Do not manufacture a route trail.
@@ -375,7 +375,7 @@ That command measures engine/serialization cost and actual generated demand; it 
 
 - [ ] Shared geometry fixes and centered vehicle transforms verified.
 - [ ] Junction-focused opening, minimap, inspection, and mode switching complete.
-- [ ] Architectural scene and all six recognizable classes, including the green Tagum tricycle, complete.
+- [ ] Architectural scene and all five supported recognizable classes, including the green Tagum tricycle, complete.
 - [ ] Analytical 2D map, accessibility controls, and 2D fallback complete.
 - [ ] Same-snapshot metrics, accurate RL/fixed-time timing, event meanings, and coverage disclosure complete.
 - [ ] New and older replay compatibility verified.

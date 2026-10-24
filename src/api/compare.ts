@@ -42,6 +42,7 @@ export type CompareTimelineFrame = {
   max_queue: number
   throughput: number
   avg_ped_delay: number
+  interpreted_metrics?: Record<string, number | null>
 }
 
 export type CompareRunBundle = {

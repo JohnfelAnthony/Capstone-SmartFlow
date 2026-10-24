@@ -193,7 +193,9 @@ export default function App() {
               <RLTrainingPage initialModelId={selection?.id} currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
             ) : activePage === "Runs & Reports" ? (
-              <RunsReportsPage initialRunId={selection?.id} onOpenDashboard={() => navigate("Dashboard")} />
+              <RunsReportsPage initialRunId={selection?.id} onOpenDashboard={() => navigate("Dashboard")}
+                onOpenResearch={can("scenarios", "view") && can("runs-reports", "view") ? () => navigate("Calibration & Validation") : undefined}
+                onOpenCompare={can("compare", "view") ? () => navigate("Compare Runs") : undefined} />
             ) : activePage === "Compare Runs" ? (
               <CompareRunsPage />
             ) : activePage === "User Management" ? (

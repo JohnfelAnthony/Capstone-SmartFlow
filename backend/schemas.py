@@ -409,6 +409,7 @@ class CompareTimelineFrame(BaseModel):
     max_queue: float = 0
     throughput: float = 0
     avg_ped_delay: float = 0
+    interpreted_metrics: dict[str, float | None] = Field(default_factory=dict)
 
 
 class CompareRunBundle(BaseModel):

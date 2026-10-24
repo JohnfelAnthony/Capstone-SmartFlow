@@ -19,6 +19,8 @@ import {
   YAxis,
 } from "recharts"
 
+import { metricDefinition, metricDescription, metricValue, formatMetric } from "@/lib/metrics"
+import { MetricDefinitions } from "@/components/metric-definitions"
 import { ApiError } from "@/api/client"
 import {
   getComparePair,
@@ -58,15 +60,15 @@ import "@/styles/compare-runs.css"
 
 const noSelection = "none"
 const approachLabels = ["north", "east", "south", "west"]
-const kpiRows = [
-  { key: "avg_waiting_time", label: "Avg Wait", unit: "s", lowerIsBetter: true },
-  { key: "avg_queue_length", label: "Avg Queue", unit: "veh", lowerIsBetter: true },
-  { key: "max_queue_length", label: "Max Queue", unit: "veh", lowerIsBetter: true },
-  { key: "throughput", label: "Throughput", unit: "veh", lowerIsBetter: false },
-  { key: "avg_pedestrian_delay", label: "Ped Delay", unit: "s", lowerIsBetter: true },
-  { key: "scheduled_vehicles", label: "Scheduled Vehicles", unit: "veh", lowerIsBetter: null },
-  { key: "unfinished_vehicles", label: "Unfinished Vehicles", unit: "veh", lowerIsBetter: true },
-]
+const kpiRows = ["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
+  "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles",
+  "boundary_wait_seconds", "avg_admitted_boundary_wait",
+  "measurement_start", "measurement_seconds"].map((key) => {
+    const definition = metricDefinition(key)!
+    const neutral = ["requested_vehicles", "total_vehicles_spawned", "measurement_start", "measurement_seconds"].includes(key)
+    return { key, label: definition.label, unit: definition.unit,
+      lowerIsBetter: neutral ? null : !["throughput"].includes(key) }
+  })
 
 function compareErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError || error instanceof Error) {
@@ -76,18 +78,9 @@ function compareErrorMessage(error: unknown, fallback: string) {
 }
 
 function formatNumber(value: number | null | undefined, digits = 1) {
-  const safeValue = Number.isFinite(value) ? Number(value) : 0
-  return safeValue.toLocaleString(undefined, {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  })
+  return formatMetric(value, digits)
 }
 
-function metricValue(metrics: Record<string, unknown>, key: string) {
-  const raw = metrics.raw_metrics as Record<string, unknown> | undefined
-  const value = metrics[key] ?? raw?.[key]
-  return typeof value === "number" && Number.isFinite(value) ? value : null
-}
 
 function runModeLabel(value: string | null | undefined) {
   return String(value || "unknown").replaceAll("-", " ")
@@ -107,7 +100,7 @@ function RunSelect({
   disabled?: boolean
 }) {
   return (
-    <Select value={value} onValueChange={(nextValue) => onChange(nextValue ?? noSelection)} disabled={disabled}>
+    <Select items={[{ value: noSelection, label: placeholder }, ...options.map((option) => ({ value: String(option.run.id), label: option.label }))]} value={value} onValueChange={(nextValue) => onChange(nextValue ?? noSelection)} disabled={disabled}>
       <SelectTrigger className="w-full">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -126,6 +119,8 @@ function RunSelect({
 }
 
 function StatStrip({ pair }: { pair: ComparePairResponse | null }) {
+  const rawMetrics = pair?.left.metrics.raw_metrics as { experiment?: { network_id?: string } } | undefined
+  const networkId = rawMetrics?.experiment?.network_id ?? pair?.left.option.timeline.intersection_id
   const frameCount = pair?.frame_count ?? 0
   const duration = pair ? Math.min(pair.left.option.timeline.actual_duration_seconds, pair.right.option.timeline.actual_duration_seconds) : 0
   const compatible = pair ? `${pair.comparison_type[0].toUpperCase()}${pair.comparison_type.slice(1)}` : "Waiting"
@@ -133,7 +128,7 @@ function StatStrip({ pair }: { pair: ComparePairResponse | null }) {
     { label: "Comparable Frames", value: frameCount.toLocaleString(), icon: ActivityIcon },
     { label: "Synced Duration", value: `${formatNumber(duration, 1)}s`, icon: ClockIcon },
     { label: "Comparison", value: compatible, icon: GitCompareArrowsIcon },
-    { label: "Intersection", value: pair?.left.option.timeline.intersection_id ?? "None", icon: BarChart3Icon },
+    { label: "Modeled network", value: networkId?.replaceAll("_", " ") ?? "Not recorded", icon: BarChart3Icon },
   ]
   return (
     <div className="compare-metric-strip">
@@ -266,12 +261,12 @@ function TimelineChart({ pair }: { pair: ComparePairResponse | null }) {
       const rightFrame = pair.right.frames[index]
       return {
         time: leftFrame.time,
-        leftWait: leftFrame.avg_wait,
-        rightWait: rightFrame?.avg_wait ?? 0,
-        leftQueue: leftFrame.avg_queue,
-        rightQueue: rightFrame?.avg_queue ?? 0,
+        leftWait: leftFrame.interpreted_metrics?.avg_wait ?? null,
+        rightWait: rightFrame?.interpreted_metrics?.avg_wait ?? null,
+        leftQueue: leftFrame.interpreted_metrics?.avg_queue ?? null,
+        rightQueue: rightFrame?.interpreted_metrics?.avg_queue ?? null,
         leftThroughput: leftFrame.throughput,
-        rightThroughput: rightFrame?.throughput ?? 0,
+        rightThroughput: rightFrame?.interpreted_metrics?.throughput ?? null,
       }
     })
   }, [pair])
@@ -280,14 +275,14 @@ function TimelineChart({ pair }: { pair: ComparePairResponse | null }) {
     <Card className="compare-chart-card">
       <CardHeader>
         <CardTitle>Metric History</CardTitle>
-        <CardDescription>Saved timeline frames, played back together.</CardDescription>
+        <CardDescription>Saved timeline frames include warmup. Final metrics below use the separately saved measurement start and duration.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="compare-chart-grid">
           {[
-            { title: "Average Wait", left: "leftWait", right: "rightWait" },
-            { title: "Average Queue", left: "leftQueue", right: "rightQueue" },
-            { title: "Throughput", left: "leftThroughput", right: "rightThroughput" },
+            { title: "Mean stopped wait (s)", left: "leftWait", right: "rightWait" },
+            { title: "Mean incoming-lane queue (vehicles)", left: "leftQueue", right: "rightQueue" },
+            { title: "Completed network trips", left: "leftThroughput", right: "rightThroughput" },
           ].map((chart) => (
             <div className="compare-chart-panel" key={chart.title}>
               <strong>{chart.title}</strong>
@@ -314,7 +309,7 @@ function KpiTable({ pair }: { pair: ComparePairResponse | null }) {
     <Card className="compare-kpi-card">
       <CardHeader>
         <CardTitle>KPI Comparison</CardTitle>
-        <CardDescription>Final metrics persisted with each simulation run.</CardDescription>
+        <CardDescription>Saved per-metric tradeoffs, not an overall winner. Right minus left is shown; unavailable values are not zero. Average waits exclude pending arrivals. Read completion, pedestrians and unfinished demand together.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -328,14 +323,14 @@ function KpiTable({ pair }: { pair: ComparePairResponse | null }) {
           </TableHeader>
           <TableBody>
             {kpiRows.map((row) => {
-              const left = pair ? metricValue(pair.left.metrics, row.key) : 0
-              const right = pair ? metricValue(pair.right.metrics, row.key) : 0
+              const left = pair ? metricValue(pair.left.metrics, row.key) : null
+              const right = pair ? metricValue(pair.right.metrics, row.key) : null
               const delta = left === null || right === null ? null : right - left
               const isNeutral = delta === null || Math.abs(delta) < 0.0001 || row.lowerIsBetter === null
               const isGood = delta !== null && (row.lowerIsBetter ? delta < 0 : delta > 0)
               return (
                 <TableRow key={row.key}>
-                  <TableCell>{row.label}</TableCell>
+                  <TableCell title={metricDescription(row.key)}>{row.label}</TableCell>
                   <TableCell>{left === null ? "—" : formatNumber(left, row.key.includes("vehicles") || row.key === "throughput" ? 0 : 2)} {row.unit}</TableCell>
                   <TableCell>{right === null ? "—" : formatNumber(right, row.key.includes("vehicles") || row.key === "throughput" ? 0 : 2)} {row.unit}</TableCell>
                   <TableCell>
@@ -348,6 +343,7 @@ function KpiTable({ pair }: { pair: ComparePairResponse | null }) {
             })}
           </TableBody>
         </Table>
+        <MetricDefinitions keys={kpiRows.map((row) => row.key)} />
       </CardContent>
     </Card>
   )

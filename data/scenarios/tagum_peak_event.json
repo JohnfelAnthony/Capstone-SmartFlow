@@ -3,7 +3,6 @@
   "intersection_id": "tagum_network",
   "traffic_density": "none",
   "pedestrian_density": "medium",
-  "emergency_mode": "Enabled (1 Ambulance)",
   "engine_config": {
     "demand_source": {
       "kind": "synthetic",

@@ -14,7 +14,7 @@ from . import __version__
 from .media import probe_video
 
 CLASSES = ("car", "motorcycle", "tricycle", "jeepney", "bus", "truck", "bicycle",
-           "emergency_confirmed", "other", "unknown")
+           "other", "unknown")
 EVENT_TYPES = ("vehicle_arrival", "vehicle_movement", "vehicle_discharge",
                "pedestrian_arrival", "pedestrian_start", "pedestrian_complete")
 STATUSES = ("proposed", "accepted", "corrected", "rejected", "uncertain")

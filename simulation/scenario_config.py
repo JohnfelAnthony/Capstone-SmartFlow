@@ -13,10 +13,9 @@ VEHICLE_TYPES = {
     "tricycle": {"length": 3.0, "width": 1.4, "speed_factor": 0.75},
     "bus": {"length": 10.0, "width": 2.5, "speed_factor": 0.85},
     "truck": {"length": 8.0, "width": 2.5, "speed_factor": 0.8},
-    "emergency": {"length": 5.0, "width": 2.0, "speed_factor": 1.0},
 }
 DEFAULTS = {
-    "traffic_density": "single", "pedestrian_density": "none", "emergency_mode": "disabled",
+    "traffic_density": "single", "pedestrian_density": "none",
     "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
@@ -50,11 +49,28 @@ def object_config(value, label):
     return copy.deepcopy(value)
 
 
+def normalize_vehicle_scope(settings: dict) -> dict:
+    """Reject removed demand before native/legacy fields can override each other."""
+    result = copy.deepcopy(settings)
+    if "emergency_mode" in result:
+        if str(result.pop("emergency_mode")).lower() != "disabled":
+            raise ValueError("Emergency vehicles are outside the study scope; remove the legacy enabled setting before running this scenario")
+    mix = result.get("vehicle_mix")
+    trips = result.get("trips")
+    removed_mix = isinstance(mix, dict) and "emergency" in mix
+    removed_trips = isinstance(trips, list) and any(
+        isinstance(trip, dict) and trip.get("vehicle_type") == "emergency" for trip in trips)
+    if removed_mix or removed_trips:
+        raise ValueError("Emergency vehicles are outside the study scope; review the original demand and remove unsupported trips/classes explicitly")
+    return result
+
+
 def validate_config(current: dict, settings: dict, network) -> dict:
     """Build a candidate before committing anything to a running engine."""
-    result = copy.deepcopy(current)
     if not isinstance(settings, dict) or any(not isinstance(key, str) for key in settings):
         raise ValueError("Engine settings must be an object with named fields")
+    result = normalize_vehicle_scope(current)
+    settings = normalize_vehicle_scope(settings)
     unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id"})
     if unknown:
         raise ValueError(f"Unknown engine settings: {', '.join(sorted(unknown))}")
@@ -83,10 +99,6 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         result[key] = str(result[key]).lower()
         if result[key] not in allowed:
             raise ValueError(f"Unsupported {key}")
-    emergency = str(result["emergency_mode"]).lower()
-    if emergency not in {"disabled", "enabled", "enabled (1 vehicle)", "enabled (1 ambulance)", "enabled (2 vehicles)"}:
-        raise ValueError("Unsupported emergency mode")
-    result["emergency_mode"] = emergency
     if not isinstance(result["routing_mode"], str) or result["routing_mode"] not in {"adaptive", "static"}:
         raise ValueError("routing_mode must be adaptive or static")
     for key, low, high in (("green_seconds", 5, 180), ("reroute_interval", 1, 300),

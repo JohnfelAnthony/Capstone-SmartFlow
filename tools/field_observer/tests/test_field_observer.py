@@ -63,6 +63,15 @@ class EvidenceTests(unittest.TestCase):
         self.save("coverage.csv", [self.coverage()])
         self.save("events.csv", [self.event()])
 
+    def test_removed_response_category_is_not_exported_or_reclassified(self):
+        self.save("coverage.csv", [self.coverage()])
+        self.save("events.csv", [self.event(reviewed_class="emergency_confirmed", vehicle_subtype="")])
+        original = (self.take / "draft/events.csv").read_bytes()
+        with self.assertRaisesRegex(ValueError, "invalid vehicle/person category"):
+            export_revision(self.take, "reviewer", "Historical category requires a scope review")
+        self.assertEqual((self.take / "draft/events.csv").read_bytes(), original)
+        self.assertFalse(list((self.take / "revisions").glob("revision*")))
+
     def test_registration_preserves_source_and_refuses_overwrite(self):
         self.assertEqual(sha256(self.video), self.manifest["source_sha256"])
         self.assertEqual(self.manifest["camera_id"], "PHONE_01")

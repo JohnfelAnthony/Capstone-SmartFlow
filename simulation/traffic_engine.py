@@ -15,7 +15,7 @@ from .demand import Arrival, build_schedule, schedule_hash
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
 STEP_LENGTH = 0.1
-ENGINE_VERSION = "native-3"
+ENGINE_VERSION = "native-4"
 RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
 CAR_LENGTH = 4.5
@@ -96,7 +96,6 @@ class Vehicle:
     connector_position: float = 0.0
     reserved_junction: str | None = None
     reroute_at: float = 0.0
-    emergency: bool = False
     vehicle_type: str = "car"
     length: float = CAR_LENGTH
     width: float = 1.8
@@ -131,7 +130,6 @@ class TrafficEngine:
         self.controlled_junction = self.network.intersections[0]
         self.traffic_density = "single"
         self.pedestrian_density = "none"
-        self.emergency_mode = "disabled"
         self.road_constraint = "None"
         self.closed_lanes: set[str] = set()
         self.slow_lanes: dict[str, float] = {}
@@ -190,8 +188,7 @@ class TrafficEngine:
         self.last_safety_override = None
         self.measurement_start = 0.0
         self.admitted_at_measurement = self.pedestrians_at_measurement = 0
-        self.completed_external_wait = self.emergency_wait = 0.0
-        self.emergency_completed = 0
+        self.completed_external_wait = 0.0
         self.lane_exits = dict.fromkeys(self.network.lanes, 0)
         self.last_served = {node: dict.fromkeys(signal.approaches, 0.0) for node, signal in self.signals.items()}
         self.last_action, self.last_error, self.run_id = "Ready", "None", "-"
@@ -236,7 +233,7 @@ class TrafficEngine:
         candidate = validate_config(self.config, settings, self.network)
         arrivals = build_schedule(candidate, self.network, self.seed, self.duration_limit)
         self.config = candidate
-        for key in ("traffic_density", "pedestrian_density", "emergency_mode", "green_seconds", "controlled_junction"):
+        for key in ("traffic_density", "pedestrian_density", "green_seconds", "controlled_junction"):
             setattr(self, key, candidate[key])
         self._reset_state(arrivals=arrivals)
         self._add_event("configuration", "Scenario configured for the Python engine")
@@ -244,6 +241,8 @@ class TrafficEngine:
     def configure_from_scenario(self, scenario: dict):
         if not isinstance(scenario, dict):
             raise ValueError("Scenario must be an object")
+        from .scenario_config import normalize_vehicle_scope
+        scenario = normalize_vehicle_scope(scenario)
         if 'network_id' in scenario:
             if scenario['network_id'] != self.network.id:
                 raise ValueError('Scenario network is unresolved or differs from the configured network; migrate it before execution.')
@@ -258,7 +257,7 @@ class TrafficEngine:
         for field in ("lane_closure_config", "construction_config", "accident_config", "flooding_config"):
             if object_config(scenario.get(field, {}), field):
                 raise ValueError(f"{field} uses legacy disruption settings; migrate them to engine_config.closed_lanes, slow_lanes or events")
-        settings = {key: value for key, value in scenario.items() if key in DEFAULTS or key in {"controlled_junction", "intersection_id"}}
+        settings = {key: value for key, value in scenario.items() if key in DEFAULTS or key in {"controlled_junction", "intersection_id", "emergency_mode"}}
         native = object_config(scenario.get("engine_config", {}), "engine_config")
         settings.update(native)
         self.configure(**settings)
@@ -348,7 +347,7 @@ class TrafficEngine:
         self.vehicle_serial += 1
         vehicle = Vehicle(f"car-{self.vehicle_serial}", list(route), self.network.lanes[route[-1]].target,
                           self.simulation_time, position=spawn_position, speed=speed,
-                          emergency=vehicle_type == "emergency", vehicle_type=vehicle_type,
+                          vehicle_type=vehicle_type,
                           requested_at=self.simulation_time if requested_at is None else requested_at, **spec)
         self.vehicles[vehicle.id] = vehicle
         if requested_at is None:
@@ -360,8 +359,7 @@ class TrafficEngine:
         if single_demo and not self.vehicles and self.simulation_time < self.duration_limit:
             pair = self._demand_pair()
             if pair:
-                emergency = self.emergency_mode.startswith("enabled") and self.vehicle_serial < (2 if "2 vehicles" in self.emergency_mode else 1)
-                self.add_vehicle(self.network.route(*pair, closed=self.closed_lanes), vehicle_type="emergency" if emergency else "car")
+                self.add_vehicle(self.network.route(*pair, closed=self.closed_lanes), vehicle_type="car")
         while self.arrival_index < len(self.arrivals) and self.arrivals[self.arrival_index].time <= self.simulation_time:
             arrival = self.arrivals[self.arrival_index]
             self.arrival_index += 1
@@ -421,10 +419,6 @@ class TrafficEngine:
                 self._request_safety_service(node, "pedestrian", "pedestrian_wait")
             elif overdue_approach:
                 self._request_safety_service(node, oldest, "approach_starvation")
-            else:
-                emergency = min((v for v in self.vehicles.values() if v.emergency and not v.connector and self.network.lanes[v.lane_id].target == node and self.network.lanes[v.lane_id].length-v.position < 80), key=lambda v: (v.born, v.id), default=None)
-                if emergency and signal.family != "pedestrian":
-                    self._request_safety_service(node, self.network.lanes[emergency.lane_id].approach, "emergency_priority")
 
     def _request_safety_service(self, node, family, reason):
         signal = self.signals[node]
@@ -554,9 +548,6 @@ class TrafficEngine:
                 self.completed += 1
                 self.lifetime_completed += 1
                 self.completed_external_wait += vehicle.born-vehicle.requested_at
-                if vehicle.emergency:
-                    self.emergency_completed += 1
-                    self.emergency_wait += vehicle.wait
                 self.completed_wait += vehicle.wait
                 self.completed_travel += self.simulation_time+STEP_LENGTH-vehicle.born
                 if vehicle.reserved_junction:
@@ -641,8 +632,6 @@ class TrafficEngine:
             "mean_speed_mps": sum(v.speed for v in self.vehicles.values())/max(1, len(self.vehicles)),
             "density_vehicles_per_km": len(self.vehicles)/(sum(l.length for l in self.network.lanes.values())/1000),
             "throughput_per_hour": self.completed*3600/elapsed if elapsed else 0,
-            "emergency_completed": self.emergency_completed,
-            "avg_emergency_wait": (self.emergency_wait+sum(v.wait for v in self.vehicles.values() if v.emergency))/max(1, self.emergency_completed+sum(v.emergency for v in self.vehicles.values())),
             "lanes": {lane.id: {"vehicles": lane_counts[lane.id], "queue": queues[lane.id],
                                 "density_vehicles_per_km": lane_counts[lane.id]*1000/lane.length,
                                 "mean_speed_mps": lane_speeds[lane.id]/max(1, lane_counts[lane.id]),
@@ -663,7 +652,7 @@ class TrafficEngine:
         for vehicle in self.vehicles.values():
             lane = self.network.lanes[vehicle.lane_id]
             x, y, heading = sample(vehicle.connector or lane.shape, vehicle.connector_position if vehicle.connector else vehicle.position)
-            records.append({"id": vehicle.id, "x": x, "y": y, "angle": (90-math.degrees(heading)) % 360, "speed": vehicle.speed, "lane_id": vehicle.lane_id, "lane_position": vehicle.position, "length": vehicle.length, "width": vehicle.width, "stopped": vehicle.speed <= 0.1, "visual_type": vehicle.vehicle_type, "emergency": vehicle.emergency, "wait_time": vehicle.wait})
+            records.append({"id": vehicle.id, "x": x, "y": y, "angle": (90-math.degrees(heading)) % 360, "speed": vehicle.speed, "lane_id": vehicle.lane_id, "lane_position": vehicle.position, "length": vehicle.length, "width": vehicle.width, "stopped": vehicle.speed <= 0.1, "visual_type": vehicle.vehicle_type, "wait_time": vehicle.wait})
         return records
 
     def _pedestrian_path_origin(self, junction):
@@ -696,7 +685,7 @@ class TrafficEngine:
             if lane.target in self.signals:
                 signal = self.signals[lane.target]
                 lights[lane.id] = {"state": "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.family == lane.approach else "y" if signal.stage == "yellow" and signal.family == lane.approach else "r", "phase": signal.phase}
-        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "emergency_mode": self.emergency_mode, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
+        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
 
     get_state = to_dict
 
@@ -759,7 +748,7 @@ class TrafficEngine:
         return phase_family_from_name(self.phase)
 
     def build_rl_runtime_state(self):
-        return {"intersection_id": self.intersection_id, "phase": self.phase, "phase_family": self.current_phase_family(), "phase_remaining": self.phase_remaining, "simulation_time": self.simulation_time, "metrics": self._last_metrics, "vehicles": self.vehicle_records(), "pedestrians": self.pedestrian_records(), "emergency_vehicle_ids": [car.id for car in self.vehicles.values() if car.emergency], "approach_lanes": self.current_approach_lanes(), "rl_total_phase_switches": self.rl_total_phase_switches}
+        return {"intersection_id": self.intersection_id, "phase": self.phase, "phase_family": self.current_phase_family(), "phase_remaining": self.phase_remaining, "simulation_time": self.simulation_time, "metrics": self._last_metrics, "vehicles": self.vehicle_records(), "pedestrians": self.pedestrian_records(), "approach_lanes": self.current_approach_lanes(), "rl_total_phase_switches": self.rl_total_phase_switches}
 
     def reset_metrics(self):
         self.policy_decisions = self.safety_overrides = 0
@@ -770,8 +759,7 @@ class TrafficEngine:
         self.measurement_start = self.simulation_time
         self.admitted_at_measurement = self.vehicle_serial-len(self.vehicles)
         self.pedestrians_at_measurement = self.pedestrian_serial-len(self.pedestrians)-self.dropped_pedestrians
-        self.completed_external_wait = self.emergency_wait = 0.0
-        self.emergency_completed = 0
+        self.completed_external_wait = 0.0
         self.lane_exits = dict.fromkeys(self.network.lanes, 0)
         self.charts = {key: [] for key in self.charts}
         for vehicle in self.vehicles.values():

@@ -40,10 +40,6 @@ def build_schedule(config: dict, network, seed: int, duration: float) -> list[Ar
             if len(arrivals) > 100000:
                 raise ValueError("Experiment exceeds 100,000 scheduled vehicles; shorten the duration or lower demand")
     arrivals.sort(key=lambda arrival: arrival.time)
-    emergency_count = 2 if "2 vehicles" in config["emergency_mode"] else 1 if config["emergency_mode"].startswith("enabled") else 0
-    for index in range(min(emergency_count, len(arrivals))):
-        old = arrivals[index]
-        arrivals[index] = Arrival(old.time, old.source, old.destination, "emergency")
     return arrivals
 
 

@@ -45,7 +45,7 @@ describe("canonical native display geometry", () => {
 })
 
 describe("centered vehicles and native clockwise-from-north heading", () => {
-  it.each([["car", 4.5, 1.8], ["motorcycle", 2, .8], ["tricycle", 3, 1.4], ["bus", 10, 2.5], ["truck", 8, 2.5], ["emergency", 5, 2]])(
+  it.each([["car", 4.5, 1.8], ["motorcycle", 2, .8], ["tricycle", 3, 1.4], ["bus", 10, 2.5], ["truck", 8, 2.5]])(
     "retains native %s class dimensions", (visual_type, length, width) => {
       expect(normalizeVehicleClass(String(visual_type))).toBe(visual_type)
       expect(vehicleDimensions({ visual_type: String(visual_type) })).toEqual({ length, width })

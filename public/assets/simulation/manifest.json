@@ -1,7 +1,7 @@
 {
   "date": "2026-10-10",
   "runtime_downloads": "Local bundled assets only; no CDN or external HTTP.",
-  "inspection": "Actual ZIP listings and GLB JSON inspected; Car Kit includes sedan, truck and ambulance but no bus, motorcycle or passenger tricycle.",
+  "inspection": "Actual ZIP listings and GLB JSON inspected; retained Car Kit vehicle assets are sedan and truck. Bus, motorcycle and passenger tricycle use authored geometry.",
   "assets": [
     {
       "file": "kenney-car-kit/sedan.glb",
@@ -34,23 +34,6 @@
       "bytes": 183780,
       "triangles": 2082,
       "modifications": "Embedded palette atlas; green truck paint remapped to muted slate blue to preserve the distinctive tricycle green. Geometry unchanged.",
-      "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
-      "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
-    },
-    {
-      "file": "kenney-car-kit/ambulance.glb",
-      "category": "emergency",
-      "source_url": "https://kenney.nl/assets/car-kit",
-      "source_archive": "kenney_car-kit.zip",
-      "source_version": "3.1",
-      "author": "Kenney",
-      "license": "CC0-1.0",
-      "license_notice": "kenney-car-kit/License.txt",
-      "source_sha256": "9e429e2b6202c0d78d0c38b2adbaae6b77716bb2a0f6fbb2811556e1fb31edba",
-      "sha256": "c11347dfaf7aada6627b5a4290d92ebe0ac8bbd79f43c6fe28bf8ebac89bc3c9",
-      "bytes": 246020,
-      "triangles": 2804,
-      "modifications": "Embedded original palette atlas in GLB; geometry and colors unchanged on disk.",
       "orientation": "Vehicle sources face +Z. Runtime rotates +90 degrees about Y to forward +X; props retain source orientation.",
       "normalization": "Runtime bakes node transforms, centers X/Z bounds, grounds minimum Y, normalizes footprint to one unit and height to class profile; instance scale uses authoritative engine length/width."
     },

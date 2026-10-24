@@ -1,5 +1,8 @@
 # SmartFlow manuscript and current codebase review
 
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
 Reviewed October 8, 2026, Asia/Singapore. This is an assessment and proposed work sequence. It does not implement the recommendations or revise the source manuscripts.
 
 ## Main assessment

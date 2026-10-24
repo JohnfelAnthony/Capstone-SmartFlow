@@ -1,12 +1,17 @@
 # Project purpose and scope
 
-Reviewed: **2026-09-23** (Asia/Singapore). Applies to the React/Python application inside `SmartFlow`.
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
+
+
+Reviewed: **2026-10-23** (Asia/Singapore). Applies to the React/Python application inside `SmartFlow`; application verification remains dated separately in progress.
 
 Navigation: [Start here](../README.md) · [Architecture and plan](ARCHITECTURE_AND_PLAN.md) · [Progress and handoff](PROGRESS_AND_HANDOFF.md)
 
-For the latest interrupted implementation and targeted source-reading instructions, see [IMPLEMENTATION_HANDOFF.md](../IMPLEMENTATION_HANDOFF.md), sections 1–4 and 11. This overview explains purpose and research scope; earlier verification mentions below are dated checkpoints, not certification of the latest worktree.
+For current status and dated evidence, see [Progress and handoff](PROGRESS_AND_HANDOFF.md). [IMPLEMENTATION_HANDOFF.md](../IMPLEMENTATION_HANDOFF.md) preserves the resolved September 23 interruption and original scope; section 11 provides the maintained source-reading map. This overview explains purpose and research scope; earlier verification mentions below describe their own checkpoints.
 
-**Planning update:** the owner reported approximately 35 days remaining in the September 22 discussion, giving a provisional deadline around October 27, 2026. The exact date and whether RL must control one junction, every junction independently, or coordinate the network remain unconfirmed. The current single-junction environment is an implementation fact, not proof of academic acceptance. The [technical-lead review](ARCHITECTURE_AND_PLAN.md) sets an early scope decision and protects five final days for corrections and rehearsal.
+**Planning context:** the owner reported approximately 35 days remaining in the September 22 discussion, giving a provisional deadline around October 27, 2026. This is the original planning anchor, not a new countdown or a confirmed submission date. The exact date and whether RL must control one junction, every junction independently, or coordinate the network remain unconfirmed in the repository. The current single-junction environment is an implementation fact, not proof of academic acceptance. The [technical-lead review](ARCHITECTURE_AND_PLAN.md) retains the original schedule and decision gates as history.
+
+**Current software and research distinction:** scenario editing, live runs, RL jobs, replay/reporting, research comparisons and shared 2D/3D views are implemented with dated synthetic verification. The offline [Field Observer](../tools/field_observer/README.md) provides provisional proposals and reviewed exports; [Calibration & Validation](RESEARCH_WORKSPACE.md) stores baseline-fit and independent-validation records. Neither tool establishes audited field accuracy or a validated baseline. Final site mapping, field audit/conversion, model fidelity and final comparative results remain research work.
 
 ## Purpose
 
@@ -58,7 +63,7 @@ The intended experiment workflow is:
 | Signal arrangement recommendations | Compare explicitly configured signalized and unsignalized alternatives. | Evaluate candidate arrangements; no automatic optimal signal-placement result is established. |
 | Metrics and reporting | Record waiting, queues, throughput, travel time, pedestrian delay, speed/density and unfinished demand. | Check definitions, measurement windows and report consistency. |
 
-Emergency priority and mixed vehicle categories are also being carried into the engine from the project discussions and earlier scope. Their behavior and parameters need explicit evaluation rather than being presented as calibrated Tagum behavior by default.
+The native engine supports five vehicle categories: car, motorcycle, tricycle, bus and truck. Emergency-vehicle demand, priority, outcomes and RL features were removed by the owner on October 24, 2026. Ordinary vehicle behavior and parameters still need evaluation before being presented as calibrated Tagum behavior.
 
 ## Decisions already made
 
@@ -68,9 +73,9 @@ Emergency priority and mixed vehicle categories are also being carried into the 
 | Use the React web application as the primary interface. | Keep the browser responsible for interaction and rendering; run traffic logic on Python. A separate desktop application is not the current implementation direction. |
 | Obtain road geometry from available map data, initially OpenStreetMap. | Automate import and retain bends/connectivity/source metadata; avoid manually drawing the whole study network. |
 | Begin with roughly four to six connected junctions. | The current supplied study network has five junctions. Larger coverage follows demonstrated correctness and measured performance. |
-| Keep the initial 3D scene minimal. | Roads, intersections, signal heads and a single-car demonstration take priority over houses, trees or decorative scenery. Traffic experiments can still contain many vehicles and pedestrians. |
+| Begin with a minimal 3D scene, then add faithful presentation. | The October 10–12 implementation supplies shared native 2D/3D geometry, five vehicle appearances, inspection, follow and analytical overlays. Illustrative context supplies no field evidence; traffic remains authoritative in Python. |
 | Separate adaptive routing from RL signal control. | A travel-time graph algorithm handles routes; RL chooses safe signal service requests. |
-| Prioritize the Python engine before more visual work. | Engine requirements and reproducible experiments precede further 3D development. |
+| Prioritize traffic correctness and reproducible experiments. | Keep presentation separate from traffic behavior; subsequent visual work does not settle baseline fidelity, calibration or research conclusions. |
 | Consolidate documentation, then resume the Python engine at the owner's request. | The September 23 `native-3` checkpoint passed 40 Python tests; research and application release gates remain. |
 | Preserve both codebases' history and both manuscripts before relocating SmartFlow. | Keep the self-contained chapter/history archive and source PDFs inside SmartFlow; preserve uncommitted work and ignored research artifacts separately. |
 

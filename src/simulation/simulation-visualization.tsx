@@ -6,27 +6,37 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel, FieldSet, FieldLegend } from "@/components/ui/field"
+import { Progress, ProgressLabel } from "@/components/ui/progress"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { RenderFrame, ControllerEvent } from "@/simulation/frame-types"
+import type { RenderFrame } from "@/simulation/frame-types"
 import { normalizeSceneGeometry, selectionKey, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import { createPresentationState, presentationReducer, type PresentationState, type OverlaySettings } from "@/simulation/presentation-state"
 import { timingLabel } from "@/simulation/render-frame-adapter"
-import { junctionShortLabel, laneDisplayLabel, longestQueuedApproach } from "@/simulation/scene-summary"
+import { approachDirection, junctionShortLabel, laneDisplayLabel } from "@/simulation/scene-summary"
 import { SimulationScene3D } from "@/simulation/SimulationScene3D"
 
 type PerformanceSample = { fps: number; p95FrameMs: number; drawCalls: number }
 const value = (number: number | undefined, unit = "") => number === undefined ? "Unavailable" : `${number.toFixed(1)}${unit}`
 const OVERLAY_LABELS: Record<keyof OverlaySettings, string> = { signals: "Signals", labels: "Labels", queues: "Queue counts", heatmap: "Queue heatmap", arrows: "Flow direction", connectors: "Turn paths", context: "Street context" }
 
-function EventDetail({ event, label, geometry }: { event: ControllerEvent | null | undefined; label: string; geometry: SceneGeometry }) {
-  if (!event) return <p>{label}: Unavailable</p>
-  const service = event.service ?? event.action ?? "Unavailable"
-  const junction = event.junction_id ? geometry.junctionById.get(event.junction_id)?.label ?? event.junction_id : "Junction not recorded"
-  return <p>{label}: {String(service)} at {value(event.time, " s")} · {String(event.result ?? event.reason ?? "Result unavailable")} · {junction}</p>
+const readable = (text: string | null | undefined) => text ? text.replaceAll("_", " ").toLowerCase().replace(/^\w/, letter => letter.toUpperCase()) : "Unavailable"
+const clock = (seconds: number | undefined) => seconds === undefined ? "--:--" : `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`
+// Same bands as the map legend: 0 clear · 1–4 low · 5–9 moderate · 10+ high.
+const queueBand = (queue: number) => queue >= 10 ? "High" : queue >= 5 ? "Moderate" : queue >= 1 ? "Low" : "Clear"
+
+function ChoiceSelect({ id, label, value, options, onChange }: { id: string; label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
+  return <Field className="sf-scene-field"><FieldLabel htmlFor={id} className="sr-only">{label}</FieldLabel>
+    <Select items={options} value={value} onValueChange={next => next !== null && onChange(next)}>
+      <SelectTrigger id={id} size="sm" className="w-full"><SelectValue /></SelectTrigger>
+      <SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+    </Select>
+  </Field>
 }
 
-export function ControllerInspector({ frame, geometry, presentation, onClose, children }: { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onClose?: () => void; children?: React.ReactNode }) {
+export function JunctionPanel({ frame, geometry, presentation, onClose, children }: { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onClose?: () => void; children?: React.ReactNode }) {
   const id = presentation.selection?.kind === "junction" ? presentation.selection.id : presentation.junctionId
   const control = id ? frame?.junction_controls[id] : undefined
   const metric = id ? frame?.junction_metrics?.[id] : undefined
@@ -36,25 +46,33 @@ export function ControllerInspector({ frame, geometry, presentation, onClose, ch
   const entity = selection?.kind === "vehicle" ? frame?.vehicles.find(vehicle => vehicle.id === selection.id) : selection?.kind === "pedestrian" ? frame?.pedestrians.find(person => person.id === selection.id) : undefined
   const stopped = !frame || frame.status === "stopped"
   const allWayStop = control?.mode === "all_way_stop"
-  const events = stopped ? undefined : frame.controller_events
-  return <aside id="scene-inspector" className="sf-scene-inspector" aria-label="Simulation inspector">
-    <div className="sf-scene-inspector-heading"><strong>Inspect simulation</strong>{onClose ? <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close inspector"><XIcon /></Button> : null}</div>
-    {children}
+  const approaches = id ? [...new Set(geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === id).map(group => group.lane_id))]
+    .map(laneId => ({ laneId, queue: stopped ? undefined : frame?.lane_metrics?.[laneId]?.queue })) : []
+  const barScale = Math.max(10, ...approaches.map(approach => approach.queue ?? 0))
+  return <aside id="scene-inspector" className="sf-scene-inspector" aria-label="Junction details">
+    <div className="sf-scene-inspector-heading"><strong>{id ? `${junctionShortLabel(geometry, id)} junction` : "Junction"}</strong>{onClose ? <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close junction panel"><XIcon /></Button> : null}</div>
+    <section className="sf-scene-controller-detail">
+      <h3>{label}</h3>
+      <Badge variant="secondary">{stopped ? "Not running" : readable(control?.controller)}</Badge>
+      <div className="sf-scene-section-label">Now serving</div>
+      <p className="sf-scene-service">{stopped ? "—" : allWayStop ? "All-way stop (no signal)" : readable(control?.phase)}</p>
+      <p>{stopped ? "Start the simulation to see signal timing." : timingLabel(control)}</p>
+    </section>
+    <section className="sf-scene-queues">
+      <div className="sf-scene-section-label">Waiting vehicles per approach</div>
+      {approaches.length ? approaches.map(({ laneId, queue }) =>
+        <Progress key={laneId} value={queue === undefined ? 0 : queue / barScale * 100} className="sf-queue-bar" data-band={queue === undefined ? undefined : queueBand(queue)}>
+          <ProgressLabel title={laneDisplayLabel(geometry, laneId)}>{approachDirection(geometry, laneId) ?? laneDisplayLabel(geometry, laneId)}</ProgressLabel>
+          <span className="ml-auto text-sm tabular-nums">{queue === undefined ? "—" : `${queue} · ${queueBand(queue)}`}</span>
+        </Progress>) : <p>No signalized approaches.</p>}
+      <dl className="sf-scene-measurements"><div><dt>Total queue</dt><dd>{stopped ? "—" : metric?.queue ?? "—"}</dd></div><div><dt>Waiting pedestrians</dt><dd>{stopped ? "—" : metric?.waiting_pedestrians ?? "—"}</dd></div></dl>
+    </section>
     {selection && selection.kind !== "junction" ? <section className="sf-selected-detail">
       <div className="sf-scene-section-label">Selected {selection.kind}</div>
       <h4>{selection.kind === "lane" ? laneDisplayLabel(geometry, selection.id) : selection.id}</h4>
-      {selection.kind === "lane" ? <><code>{selection.id}</code><dl className="sf-scene-measurements"><div><dt>Queue</dt><dd>{lane?.queue ?? "—"}</dd></div><div><dt>Mean speed</dt><dd>{value(lane?.mean_speed_mps === undefined ? undefined : lane.mean_speed_mps * 3.6, " km/h")}</dd></div></dl><p>Density: {value(lane?.density_vehicles_per_km, " vehicles/km")}</p><p>{lane ? lane.closed ? "Closed to new entry" : lane.speed_factor < 1 ? `Speed limited to ${Math.round(lane.speed_factor * 100)}%` : "Open to traffic" : "Restrictions unavailable"}</p></> : <><p>Class: {!entity ? "Unavailable" : "visual_type" in entity ? String(entity.visual_type) : "Pedestrian"}</p><dl className="sf-scene-measurements"><div><dt>Speed</dt><dd>{value(entity?.speed === undefined ? undefined : entity.speed * 3.6, " km/h")}</dd></div><div><dt>Waiting</dt><dd>{value(entity?.wait_time, " s")}</dd></div></dl><p>State: {entity ? entity.stopped ? "Waiting / stopped" : "Moving" : "Not in displayed population"}</p></>}
+      {selection.kind === "lane" ? <><dl className="sf-scene-measurements"><div><dt>Queue</dt><dd>{lane?.queue ?? "—"}</dd></div><div><dt>Mean speed</dt><dd>{value(lane?.mean_speed_mps === undefined ? undefined : lane.mean_speed_mps * 3.6, " km/h")}</dd></div></dl><p>{lane ? lane.closed ? "Closed to new entry" : lane.speed_factor < 1 ? `Speed limited to ${Math.round(lane.speed_factor * 100)}%` : "Open to traffic" : "Restrictions unavailable"}</p></> : <><p>Class: {!entity ? "Unavailable" : "visual_type" in entity ? String(entity.visual_type) : "Pedestrian"}</p><dl className="sf-scene-measurements"><div><dt>Speed</dt><dd>{value(entity?.speed === undefined ? undefined : entity.speed * 3.6, " km/h")}</dd></div><div><dt>Waiting</dt><dd>{value(entity?.wait_time, " s")}</dd></div></dl><p>State: {entity ? entity.stopped ? "Waiting / stopped" : "Moving" : "Not in displayed population"}</p></>}
     </section> : null}
-    <section className="sf-scene-controller-detail">
-      <div className="sf-scene-section-label">{selection?.kind === "junction" ? "Selected junction" : "Focused junction"}</div>
-      <h3>{label}</h3>
-      <Badge variant="secondary">{stopped ? "Stopped" : control?.controller?.replaceAll("_", " ") ?? "Controller unavailable"}</Badge>
-      <p className="sf-scene-service">{stopped ? "Service unavailable" : allWayStop ? "Unsignalized all-way stop" : control?.phase?.replaceAll("_", " ") ?? "Service unavailable"}</p>
-      <p>{stopped ? "Timing unavailable" : timingLabel(control)}</p>
-      <dl className="sf-scene-measurements"><div><dt>Junction queue</dt><dd>{stopped ? "—" : metric?.queue ?? "—"}</dd></div><div><dt>Waiting pedestrians</dt><dd>{stopped ? "—" : metric?.waiting_pedestrians ?? "—"}</dd></div></dl>
-      <details className="sf-scene-technical"><summary>Controller details</summary><code>{id}</code><p>Elapsed stage: {stopped || allWayStop ? "Unavailable" : value(control?.elapsed_seconds, " s")}</p><p>Pending request: {stopped || control?.pending_service === undefined ? "Unavailable" : control.pending_service ?? "None recorded"}</p></details>
-    </section>
-    <details className="sf-scene-events"><summary>Latest network controller events</summary><p className="sf-scene-muted">These events may belong to a different junction.</p><EventDetail event={events?.last_policy_decision} label="Latest policy request" geometry={geometry} /><EventDetail event={events?.last_safety_override} label="Latest recorded safety event" geometry={geometry} /></details>
+    <details className="sf-scene-technical"><summary>Technical details</summary>{children}<code>{id}</code><p>Elapsed stage: {stopped || allWayStop ? "Unavailable" : value(control?.elapsed_seconds, " s")}</p><p>Pending request: {stopped || control?.pending_service === undefined ? "Unavailable" : control.pending_service ?? "None recorded"}</p></details>
   </aside>
 }
 
@@ -78,7 +96,7 @@ function Workspace({ geometry, frame, controlledJunction, mode, runKey, seekRevi
   const [inspectorPreference, setInspectorPreference] = React.useState<boolean | null>(null)
   const [layersOpen, setLayersOpen] = React.useState(false)
   const is2D = mode === "2d" || Boolean(failure)
-  const inspectorOpen = inspectorPreference ?? !is2D
+  const inspectorOpen = inspectorPreference ?? true
   const host = React.useRef<HTMLDivElement | null>(null)
   const inspectorToggle = React.useRef<HTMLButtonElement | null>(null)
   const previous = React.useRef({ runKey, seekRevision, time: frame?.time ?? 0, status: frame?.status, controlledJunction })
@@ -115,11 +133,6 @@ function Workspace({ geometry, frame, controlledJunction, mode, runKey, seekRevi
     try { if (host.current?.requestFullscreen) await host.current.requestFullscreen(); else setExpanded(true) } catch { setExpanded(true) }
   }
   const selectedKey = selectionKey(presentation.selection)
-  const networkFocus = presentation.focus === "network"
-  const stopped = !frame || frame.status === "stopped"
-  const longestQueue = longestQueuedApproach(geometry, stopped ? undefined : frame.lane_metrics, networkFocus ? null : presentation.junctionId)
-  const focusedJunction = geometry.junctionById.get(presentation.junctionId ?? "")
-  const focusedControl = frame?.junction_controls[presentation.junctionId ?? ""]
   const coverage = frame?.render_coverage
   const displayedPopulationComplete = coverage ? !coverage.limited : Boolean(frame && frame.vehicles.length >= frame.vehicle_count && frame.pedestrians.length >= frame.pedestrian_count)
   const entities = inspectorOpen ? [
@@ -130,29 +143,28 @@ function Workspace({ geometry, frame, controlledJunction, mode, runKey, seekRevi
   ] : []
   return <div ref={host} className={cn("sf-scene-workspace", expanded && "sf-scene-expanded")} data-mode={is2D ? "2d" : "3d"} data-focus={presentation.focus} data-junction={presentation.junctionId} data-selection={selectedKey}>
     <header className="sf-scene-heading">
-      <div className="sf-scene-title"><div className="sf-scene-eyebrow">{is2D ? "TRAFFIC EXPLORER" : "ARCHITECTURAL VIEW"}</div><strong>{title}</strong></div>
-      <div className="sf-scene-heading-actions"><Badge variant={frame?.status === "running" ? "secondary" : "outline"}>{frame?.playback.active ? "Replay" : frame?.status ?? "idle"}</Badge><span className="sf-scene-clock">{value(frame?.time, " s")}</span><Button variant="outline" size="sm" onClick={() => void fullscreen()} aria-label={expanded ? "Exit fullscreen" : "Enter fullscreen"}>{expanded ? <MinimizeIcon data-icon="inline-start" /> : <MaximizeIcon data-icon="inline-start" />}{expanded ? "Exit" : "Expand"}</Button></div>
+      <div className="sf-scene-title"><strong>{title}</strong></div>
+      <div className="sf-scene-heading-actions"><Badge variant={frame?.status === "running" ? "secondary" : "outline"}>{frame?.playback.active ? "Replay" : frame?.status ?? "idle"}</Badge><span className="sf-scene-clock" title="Simulation time">{clock(frame?.time)}</span><Button variant="outline" size="sm" onClick={() => void fullscreen()} aria-label={expanded ? "Exit fullscreen" : "Enter fullscreen"}>{expanded ? <MinimizeIcon data-icon="inline-start" /> : <MaximizeIcon data-icon="inline-start" />}{expanded ? "Exit" : "Expand"}</Button></div>
     </header>
     <div className="sf-scene-toolbar">
       <ToggleGroup value={[presentation.focus]} onValueChange={values => { const next = values[0]; if (next === "junction" || next === "network" || next === "follow") dispatch({ type: "focus", focus: next }) }} size="sm" variant="outline" aria-label="Camera focus">
         <ToggleGroupItem value="junction" aria-label="Junction focus"><CrosshairIcon data-icon="inline-start" />Junction</ToggleGroupItem><ToggleGroupItem value="network" aria-label="Network overview"><MapIcon data-icon="inline-start" />Network</ToggleGroupItem><ToggleGroupItem value="follow" disabled={presentation.selection?.kind !== "vehicle"} title="Select a vehicle on the map to follow it">Follow vehicle</ToggleGroupItem>
       </ToggleGroup>
-      <Field className="sf-scene-field"><FieldLabel htmlFor="scene-junction" className="sr-only">Junction</FieldLabel><select id="scene-junction" value={presentation.junctionId ?? ""} onChange={event => focus(event.target.value)}>{geometry.junctions.map(junction => <option key={junction.id} value={junction.id}>{junctionShortLabel(geometry, junction.id)} · {junction.label}</option>)}</select></Field>
-      <div className="sf-scene-toolbar-actions"><Button variant="ghost" size="icon-sm" onClick={() => dispatch({ type: "reset", junctionId: controlledJunction })} aria-label="Reset view" title="Reset view"><RotateCcwIcon /></Button><Button variant={layersOpen ? "secondary" : "outline"} size="sm" aria-expanded={layersOpen} aria-controls="scene-layers" onClick={() => setLayersOpen(open => !open)}><LayersIcon data-icon="inline-start" />Layers</Button><Button ref={inspectorToggle} variant={inspectorOpen ? "secondary" : "outline"} size="sm" aria-expanded={inspectorOpen} aria-controls="scene-inspector" onClick={() => setInspectorPreference(!inspectorOpen)}><PanelRightIcon data-icon="inline-start" />Inspect</Button></div>
+      <ChoiceSelect id="scene-junction" label="Junction" value={presentation.junctionId ?? ""} onChange={focus} options={geometry.junctions.map(junction => ({ value: junction.id, label: /^J\d+:/.test(junction.label) ? junction.label : `${junctionShortLabel(geometry, junction.id)} · ${junction.label}` }))} />
+      <div className="sf-scene-toolbar-actions"><Button variant="ghost" size="icon-sm" onClick={() => dispatch({ type: "reset", junctionId: controlledJunction })} aria-label="Reset view" title="Reset view"><RotateCcwIcon /></Button><Button variant={layersOpen ? "secondary" : "outline"} size="sm" aria-expanded={layersOpen} aria-controls="scene-layers" onClick={() => setLayersOpen(open => !open)}><LayersIcon data-icon="inline-start" />Layers</Button><Button ref={inspectorToggle} variant={inspectorOpen ? "secondary" : "outline"} size="sm" aria-expanded={inspectorOpen} aria-controls="scene-inspector" onClick={() => setInspectorPreference(!inspectorOpen)}><PanelRightIcon data-icon="inline-start" />Junction panel</Button></div>
     </div>
-    {layersOpen ? <div id="scene-layers" className="sf-scene-layer-panel"><FieldSet><FieldLegend className="sr-only">Scene overlays</FieldLegend><div className="sf-scene-toggles">{Object.entries(presentation.overlays).map(([key, enabled]) => <label key={key}><input type="checkbox" checked={enabled} onChange={event => dispatch({ type: "overlay", overlay: key as keyof OverlaySettings, enabled: event.target.checked })} />{OVERLAY_LABELS[key as keyof OverlaySettings]}</label>)}</div></FieldSet>{!is2D ? <Field className="sf-scene-field"><FieldLabel htmlFor="scene-quality">Quality</FieldLabel><select id="scene-quality" value={presentation.quality} onChange={event => dispatch({ type: "quality", quality: event.target.value === "enhanced" ? "enhanced" : "laptop" })}><option value="laptop">Laptop</option><option value="enhanced">Enhanced shadows</option></select></Field> : null}</div> : null}
+    {layersOpen ? <div id="scene-layers" className="sf-scene-layer-panel"><FieldSet><FieldLegend className="sr-only">Scene overlays</FieldLegend><div className="sf-scene-toggles">{Object.entries(presentation.overlays).map(([key, enabled]) => <Field key={key} orientation="horizontal"><Checkbox id={`overlay-${key}`} checked={enabled} onCheckedChange={checked => dispatch({ type: "overlay", overlay: key as keyof OverlaySettings, enabled: checked })} /><FieldLabel htmlFor={`overlay-${key}`}>{OVERLAY_LABELS[key as keyof OverlaySettings]}</FieldLabel></Field>)}</div></FieldSet>{!is2D ? <ChoiceSelect id="scene-quality" label="Quality" value={presentation.quality} onChange={next => dispatch({ type: "quality", quality: next === "enhanced" ? "enhanced" : "laptop" })} options={[{ value: "laptop", label: "Laptop quality" }, { value: "enhanced", label: "Enhanced shadows" }]} /> : null}</div> : null}
     {failure ? <Alert><AlertDescription>{failure}</AlertDescription></Alert> : null}
     {presentation.notice ? <p className="sf-scene-notice" role="status">{presentation.notice}</p> : null}
     <div className="sf-scene-layout" data-inspector={inspectorOpen}>
       <div className="sf-scene-viewport">
         {is2D ? <SimulationCanvas2D frame={frame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={select} onPerformanceSample={onPerformanceSample} /> : <SimulationScene3D frame={frame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={select} onUnavailable={fallback} onPerformanceSample={onPerformanceSample} />}
         <Minimap geometry={geometry} junctionId={presentation.junctionId} onFocus={focus} />
-        {presentation.overlays.labels ? <div className="sf-scene-caption"><div className="sf-scene-caption-label">{networkFocus ? "NETWORK OVERVIEW" : presentation.focus === "follow" ? "FOLLOWING VEHICLE" : "JUNCTION FOCUS"}</div><strong>{networkFocus ? `${geometry.junctions.length} connected junctions` : presentation.focus === "follow" ? presentation.selection?.id : focusedJunction?.label ?? "Network"}</strong>{!networkFocus ? <span>{stopped ? "Service unavailable" : focusedControl?.mode === "all_way_stop" ? "All-way stop" : focusedControl?.phase?.replaceAll("_", " ") ?? "Service unavailable"}</span> : null}{presentation.overlays.queues ? <span className="sf-scene-caption-queue">{networkFocus ? "Longest network queue" : "Longest incoming queue"}: <b>{longestQueue?.queue ?? "—"}</b>{longestQueue ? <span title={longestQueue.id}>{laneDisplayLabel(geometry, longestQueue.id)}</span> : null}</span> : null}</div> : null}
       </div>
-      {inspectorOpen ? <ControllerInspector frame={frame} geometry={geometry} presentation={presentation} onClose={() => { setInspectorPreference(false); inspectorToggle.current?.focus() }}><Field className="sf-scene-object-field"><FieldLabel htmlFor="scene-object">Inspect object</FieldLabel><select id="scene-object" value={selectedKey} onChange={event => { const item = entities.find(entity => selectionKey(entity) === event.target.value); select(item ? { kind: item.kind, id: item.id } : null) }}><option value="">Choose an object or click the map</option>{entities.map(entity => <option key={selectionKey(entity)} value={selectionKey(entity)}>{entity.kind}: {entity.label}</option>)}</select></Field></ControllerInspector> : null}
+      {inspectorOpen ? <JunctionPanel frame={frame} geometry={geometry} presentation={presentation} onClose={() => { setInspectorPreference(false); inspectorToggle.current?.focus() }}><Field className="sf-scene-object-field"><FieldLabel htmlFor="scene-object">Find a vehicle, lane or junction</FieldLabel><select id="scene-object" value={selectedKey} onChange={event => { const item = entities.find(entity => selectionKey(entity) === event.target.value); select(item ? { kind: item.kind, id: item.id } : null) }}><option value="">Choose an object or click the map</option>{entities.map(entity => <option key={selectionKey(entity)} value={selectionKey(entity)}>{entity.kind}: {entity.label}</option>)}</select></Field></JunctionPanel> : null}
     </div>
     <footer className="sf-scene-footer"><div className="sf-scene-population"><span><CarFrontIcon aria-hidden="true" /><b>{coverage?.vehicles.total ?? frame?.vehicle_count ?? 0}</b> vehicles</span><span><PersonStandingIcon aria-hidden="true" /><b>{coverage?.pedestrians.total ?? frame?.pedestrian_count ?? 0}</b> pedestrians</span>{coverage?.limited ? <span className="sf-scene-muted">Showing {coverage.vehicles.shown}/{coverage.vehicles.total} vehicles · {coverage.pedestrians.shown}/{coverage.pedestrians.total} pedestrians ({coverage.reason?.replaceAll("_", " ")})</span> : <span className="sf-scene-muted">{displayedPopulationComplete ? "All displayed" : "Display coverage unavailable"}</span>}</div><span className="sf-scene-source">Illustrative geometry · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></span></footer>
-    <details className="sf-scene-options"><summary>Map legend and research notes</summary><div className="sf-scene-legend"><span><i className="sf-legend-dot sf-legend-tricycle" />Green Tagum tricycle</span><span><i className="sf-legend-dot sf-legend-pedestrian" />Pedestrian</span><span><i className="sf-legend-dot sf-legend-selected" />Selected object</span><span><i className="sf-legend-dot sf-legend-closed" />Closed entry</span><span><i className="sf-legend-dot sf-legend-slow" />Reduced speed</span></div><p>Cars, motorcycles, tricycles, buses, trucks and emergency vehicles use distinct silhouettes. Signals: red / yellow / green; dark lamps are unlit.</p><p>Queue bands: 0 clear · 1–4 low · 5–9 moderate · 10+ high. Counts come from engine telemetry, including vehicles outside the visible map.</p><p>Buildings, greenery and dashed pedestrian paths are illustrative. No field geometry or calibration is implied.</p></details>
+    <details className="sf-scene-options"><summary>Map legend</summary><div className="sf-scene-legend"><span><i className="sf-legend-dot sf-legend-tricycle" />Green Tagum tricycle</span><span><i className="sf-legend-dot sf-legend-pedestrian" />Pedestrian</span><span><i className="sf-legend-dot sf-legend-selected" />Selected object</span><span><i className="sf-legend-dot sf-legend-closed" />Closed entry</span><span><i className="sf-legend-dot sf-legend-slow" />Reduced speed</span></div><p>Cars, motorcycles, tricycles, buses and trucks use distinct silhouettes. Signals: red / yellow / green; dark lamps are unlit.</p><p>Queue bands: 0 clear · 1–4 low · 5–9 moderate · 10+ high. Counts come from engine telemetry, including vehicles outside the visible map.</p><p>Buildings, greenery and dashed pedestrian paths are illustrative. No field geometry or calibration is implied.</p></details>
   </div>
 }
 

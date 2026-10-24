@@ -1,8 +1,13 @@
-# Architecture, technical-lead review and 35-day delivery plan
+# Architecture, technical-lead review and historical delivery plan
 
-Reviewed: **2026-09-23** (Asia/Singapore); repository evidence inspected on September 22–23. The original review was **PLAN** work. Scope: the React/Python application inside **`SmartFlow`** only.
+> **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
 
-**Checkpoint history:** after the original plan, the owner requested resumed engine implementation and a portable archive. That earlier `native-3` checkpoint passed 40 Python tests, API compilation and a three-seed synthetic headless check. A still later six-area implementation changed scenario controls and the training worker and was interrupted with a failing RL-page type check. [IMPLEMENTATION_HANDOFF.md](../IMPLEMENTATION_HANDOFF.md), sections 1–4 and 11, is the latest captured implementation state and repair map. The 40-test evidence below remains historical; it does not certify those subsequent edits. See [progress](PROGRESS_AND_HANDOFF.md) for dated evidence and [project history](../PROJECT_HISTORY_AND_MIGRATION.md) for the manuscripts. Research validation, browser acceptance and hosting gates remain open.
+
+Original review: **2026-09-23** (Asia/Singapore), based on September 22–23 evidence. Architecture/status references refreshed **2026-10-24** against current source. The original review was **PLAN** work. Scope: the React/Python application inside **`SmartFlow`** only.
+
+**Current architecture:** FastAPI owns the native engine and process-local run ownership; React consumes authoritative state through shared HTTP/WebSocket compact frames. Saved scenarios use canonical `network_id` and complete `engine_config`. Selected-junction QL/DQL/PPO training, registered inference, replay/reports and baseline-fit evidence workflows are implemented. Routing remains a separate weighted graph search. One compute lease covers API live runs, training/evaluation and recording; playback reads saved frames. Shared 2D/3D presentation displays up to 300 vehicles and 128 pedestrians while retaining full metrics. Keep one API worker.
+
+**Evidence and history:** the September 23 RL-page/worker interruption in [IMPLEMENTATION_HANDOFF.md](../IMPLEMENTATION_HANDOFF.md) was subsequently repaired and exercised on synthetic inputs. Its sections 1–9 preserve historical scope/backlog; section 11 is the maintained source map. [Progress](PROGRESS_AND_HANDOFF.md) records later backend, browser and standalone checks. The [October 21 report](reports/SMARTFLOW_PROGRESS_REPORT_2026-10-21.docx) records 101 frontend tests and API compilation at revision `30da696`, without a full backend/browser rerun. This documentation refresh does not renew software acceptance. Field audit/conversion, baseline fidelity, calibration, independent validation, final comparisons and public hosting remain open.
 
 **September 27 status addendum:** the later browser workflow and separate-location rebuild now pass on synthetic inputs; see [progress](PROGRESS_AND_HANDOFF.md). The original planning paragraphs below remain historical. Public hosting and research validation remain open.
 
@@ -16,21 +21,33 @@ Python serializes complete lane/junction metrics, signal timing meaning, control
 
 **October 9 architecture decision — canonical native scenarios and explicit historical boundaries:** active storage and scenario APIs use `network_id` plus a complete validated `engine_config`. `services/scenario_migration.py` alone interprets historical aliases/disruption fields at upgrade/import/restore boundaries; `tools/migrate_native_scenarios.py` exposes a read-only dry run and transactional apply. Existing legacy columns remain recovery evidence and do not override canonical settings. Ambiguous/enabled disruptions block pending explicit lane/event mapping. Startup repeats safely without overwriting migrated edits or adding duplicate official scenarios.
 
-The inactive SUMO/generic engines, old services, static assets and generated SUMO geometry were archived and removed. Native RL now reads only native runtime state; `native-3`, `native-local-30-v1` and `protected-service-5-v1` remain unchanged. Immutable artifact envelopes retain `intersection_id`; registered historical paths remain intact and incompatible artifacts remain rejected. Restore rehearsals relocate verified bundle contents through compact directory aliases to avoid repeating long checkout paths on Windows, preserve job subtrees and sidecars, and migrate only the staged database. See the [implementation result](reviews/SUMO_DASH_CLEANUP_RESULT_2026-10-09.md), [migration report](reviews/NATIVE_SCENARIO_MIGRATION_2026-10-09.json) and [removal/recovery manifest](reviews/SUMO_DASH_CLEANUP_MANIFEST_2026-10-09.json). These are software maintenance decisions, with no expansion of RL coverage or field-calibration claims.
+The inactive SUMO/generic engines, old services, static assets and generated SUMO geometry were archived and removed. That October 9 cleanup retained `native-3`, `native-local-30-v1` and `protected-service-5-v1`; the October 24 vehicle-scope decision below supersedes the engine and observation versions. Immutable artifact envelopes retain `intersection_id`; registered historical paths remain intact and incompatible artifacts remain rejected. Restore rehearsals relocate verified bundle contents through compact directory aliases to avoid repeating long checkout paths on Windows, preserve job subtrees and sidecars, and migrate only the staged database. See the [implementation result](reviews/SUMO_DASH_CLEANUP_RESULT_2026-10-09.md), [migration report](reviews/NATIVE_SCENARIO_MIGRATION_2026-10-09.json) and [removal/recovery manifest](reviews/SUMO_DASH_CLEANUP_MANIFEST_2026-10-09.json). These are software maintenance decisions, with no expansion of RL coverage or field-calibration claims.
 
 The project owner reported **about 35 days remaining** during the September 22 planning discussion. That puts the provisional deadline around **2026-10-27**; the exact submission/defense date is not confirmed. This review keeps that planning anchor rather than restarting the countdown on each edit. The owner is unsure whether the panel requires RL to coordinate all intersections. This is an unresolved scope requirement, not approval to claim network-wide RL.
 
 Navigation: [Start here](../README.md) · [Project purpose](PROJECT_OVERVIEW.md) · [Implementation evidence and handoff](PROGRESS_AND_HANDOFF.md)
 
-**Recommendation:** continue with the custom Python engine and React/Three.js website. Make the next 35 days a completion and validation effort: finish one reproducible experiment workflow before adding features. Keep the five-junction study, separate routing from signal learning, train offline, and prepare a limited hosted demonstration with explicit run ownership. Broader coverage or coordinated RL depends on early academic confirmation and feasibility.
+**Recommendation:** continue with the custom Python engine and React/Three.js website. Use the integrated software workflow to complete site confirmation, field evidence, model fidelity and reproducible evaluation. Keep the bounded study, separate routing from signal learning and train offline for a hosted demonstration. Broader coverage or coordinated RL depends on academic confirmation and feasibility. The original 35-day schedule below is historical planning context; it does not establish today's available time or completed research gates.
 
 This preserves the agreed direction. It does not certify traffic realism or approve public deployment. The later engine work followed the owner's separate implementation request.
+
+## October 24 scope decision: ordinary traffic only
+
+The owner removed emergency-vehicle support from the capstone. The engine, scenario/import controls, demand generation, signal priority, metrics/reports, RL state/reward, 2D/3D presentation and Field Observer reviewed-class selector follow this decision. Supported simulation classes are `car`, `motorcycle`, `tricycle`, `bus` and `truck`; pedestrians remain supported. Special-response events seen in real footage should be noted as coverage/context exceptions, not silently mapped into ordinary demand.
+
+The engine contract is `native-4`; the RL observation contract is `native-local-22-v2` (22 continuous values; 15 tabular-state components). Observation/reward metadata are `obs_v2` / `reward_v2`. The five protected-service actions and ordinary pedestrian/starvation/clearance safeguards remain. Old model artifacts require retraining and old recordings require regeneration under the current engine. Do not relabel old contracts to bypass compatibility checks.
+
+Legacy `emergency_mode: disabled` is removed during configuration normalization. Enabled legacy settings and emergency vehicle classes/mixes/trips are rejected with validation errors before runtime mutation. Historical databases, raw reports, frozen research records and original manuscript files are preserved. Dormant database columns may remain for restoration compatibility; they are not selectable behavior or current reported outcomes.
+
+Keep a rejected historical scenario as evidence. After reviewing its demand against the revised scope, create a new ordinary-traffic scenario with the supported classes, or explicitly correct a separate imported configuration; do not silently relabel its retired-class trips. An enabled value is rejected even when a native envelope or nested disabled value would otherwise hide it. New training snapshots validate the original scenario before projection. Historical model registry labels remain historical; current QL, DQN and PPO loaders and resume paths must reject incompatible artifacts before inference or resumed training, without rewriting the source model or recording.
+
+Current research guides and manuscript revision recommendations must describe five vehicle classes, the 22-value observation and the reward without an emergency penalty. Historical handoffs, audit records and extracted original manuscript text retain dated wording under a scope notice. New field collection, calibration and controller experiments must use this revised scope. Implementation verification is recorded separately in progress.
 
 ## 1. Problem framing and open questions
 
 ### Problem, users and critical workflow
 
-SmartFlow must become a defensible capstone system for testing traffic signals and adaptive routes in a bounded Tagum study area. The remaining challenge is connecting partially verified engine, UI, learning and reporting components into a reliable research workflow within approximately 35 days.
+SmartFlow must become a defensible capstone system for testing traffic signals and adaptive routes in a bounded Tagum study area. The engine, UI, learning and reporting workflow has dated synthetic acceptance. The remaining research challenge is to establish representative inputs and baseline fidelity, then complete independent validation and fair controller/routing comparisons within the confirmed academic schedule.
 
 Researchers need reproducible experiments; traffic/planning reviewers and panel members need understandable evidence; administrators need access control and preserved results. These audiences do not imply that each has a separately implemented account role.
 
@@ -40,7 +57,7 @@ The research question is whether the tested strategies improve selected traffic 
 
 ### Scope, non-goals and definition of done
 
-The agreed scope is React, custom Python traffic logic, dynamic connected-road visualization, configurable demand/signals/disruptions, separate adaptive routing, RL signal evaluation and saved evidence. The supplied network contains five junctions, twelve road segments and twenty-four directed lanes. The minimal scene prioritizes roads, signals and a single-car demonstration; research experiments can contain many vehicles and pedestrians.
+The agreed scope is React, custom Python traffic logic, dynamic connected-road visualization, configurable demand/signals/disruptions, separate adaptive routing, RL signal evaluation and saved evidence. The supplied network contains five junctions, twelve road segments and twenty-four directed lanes. The initial single-car demonstration remains available; the implemented shared 2D/3D scene also supports mixed traffic, pedestrians, inspection and analytical overlays.
 
 Do not spend this release on decorative scenery, a citywide road editor, a second desktop implementation, live CCTV/GPS/IoT ingestion or physical signal control. Map import does not automatically produce a calibrated traffic model.
 
@@ -62,13 +79,13 @@ Software tests do not establish calibration, and a successful defense demonstrat
 | Type | Item | Consequence |
 | --- | --- | --- |
 | User-confirmed | Remove SUMO; focus inside `SmartFlow`; pause for the review, then resume engine work and create a portable history; approximately 35 days reported. | Preserve the scope and distinguish the successive work phases. |
-| Source-confirmed | FastAPI uses `simulation/traffic_engine.py`, engine ID `native-3`; React/Three.js consumes its output. | Stabilize these entry points. Older engines remain historical. |
-| Source-confirmed, updated for handoff | Backend/database preserve `engine_config`; native React types and editor controls have subsequently been added. | Editor/runtime round-trip acceptance remains. The RL training page still needs migration to its changed API types. |
-| Source-confirmed | One process-local live engine; one selected RL-controlled junction. | Run ownership and coordinated network learning cannot be claimed as complete. |
+| Source-confirmed | FastAPI uses `simulation/traffic_engine.py`, engine ID `native-4`; shared 2D/3D presentation consumes its output. | Preserve these entry points. Obsolete engines were archived and removed; their history remains documented. |
+| Source-confirmed, refreshed October 23 | Canonical `network_id` and complete `engine_config` cross the scenario editor, runtime and training/evaluation snapshots. The training page uses saved scenarios and registered model/checkpoint IDs. | Round-trip and job acceptance are recorded in progress; repeat relevant checks after changes. |
+| Source-confirmed | One process-local live engine with owner/conflict checks; one selected RL-controlled junction. | Ownership is implemented. Multiple API workers and coordinated network learning require a different design and evidence. |
 | Earlier checkpoint inventory | 40 test methods in five files at that checkpoint; the later effort added `test_native_traffic_contract.py`. OSM retrieval recorded as 2026-09-21 at 14:10:12 UTC. | Test count alone is not a pass result; retrieval date is not a field-survey date. |
-| Captured earlier verification | All 40 tests passed after the earlier engine fixes; API compilation and three-seed synthetic command passed. | Latest worktree has different verification status; see the implementation handoff. |
+| Captured earlier verification | All 40 tests passed after the earlier engine fixes; API compilation and three-seed synthetic command passed. | This is September evidence; use progress for subsequent acceptance and current-source checks. |
 | Assumption | Team can maintain Python/React and has an offline training machine. | Confirm capacity before promising dates or purchasing compute. |
-| Assumption | One active operator plus authenticated viewers is sufficient initially. | A bounded hosting policy is possible, but must be enforced. |
+| Operating scope | One active operator plus authenticated viewers; owner/admin conflict handling and a shared compute lease are implemented. | Keep one API worker and verify deployment-specific behavior on the target host. |
 | Recommendation | Freeze scope, start field collection immediately, and require end-to-end acceptance. | Prevent unsupported claims and late rework. |
 
 ### Questions that can change the decision
@@ -85,7 +102,7 @@ Adviser question to resolve: **“Is RL control of one selected junction within 
 
 ## 2. Options and tradeoff matrix
 
-These assessments use the current worktree and deadline. Relative costs are planning judgments, not measured performance or hosting quotations.
+These assessments preserve the September 23 options review and its deadline assumptions. Relative costs are historical planning judgments, not current measurements or hosting quotations. Use the current architecture and progress pointers above for implemented behavior.
 
 | Criterion | A. Current Python engine + React website | B. Established simulator backend + existing React website | C. Installed application using the current engine |
 | --- | --- | --- | --- |
@@ -107,7 +124,7 @@ CityFlow is one option-B candidate: its official introduction describes microsco
 1. **Removing SUMO transfers traffic-model responsibility to this project.** Passing safety tests can coexist with unrealistic junction capacity or travel times. The current entire-junction reservation for one vehicle is a concrete capacity limitation that could distort controller comparisons.
 2. **Map automation was not uniquely enabled by removing SUMO.** SUMO supports native OSM import and scenario-generation tooling. The defensible rationale is implementation control and fit with the selected stack, not impossibility of connected OSM roads in SUMO. This correction does not reverse the user's removal decision. [SUMO OSM import](https://sumo.dlr.de/docs/Networks/Import/OpenStreetMap.html).
 3. **RL can exploit a simulator's shortcuts.** Reward improvements require field plausibility, a fair baseline, matched demand and held-out evaluation before being interpreted as traffic improvements.
-4. **The configuration contract is more urgent than another algorithm.** Server-side preservation is now fixed and tested; complete the browser editing/model-selection workflow before expanding algorithms.
+4. **The configuration contract remains essential.** Browser editing/model selection and saved native settings now have dated acceptance; preserve that contract when extending the engine or adding algorithms.
 5. **Existing effort does not justify ignoring failure.** If the early validity gate fails, reconsider the model or obtain an explicit scope decision. Additional visual polish cannot resolve a research blocker.
 
 ## 3. Recommendation and decision record
@@ -121,13 +138,13 @@ Prioritize DQN/DQL as the primary neural workflow because it aligns with the pre
 | D1 | Native Python; no SUMO in active serving/training. | Existing user decision. | Preserve historical evidence; reconsider only explicitly if required fidelity cannot be delivered. |
 | D2 | React/Three.js website; routing separate from RL signals. | Existing user direction. | Keep boundaries stable; desktop packaging remains optional. |
 | D3 | Five-junction study and minimal scenery first. | Existing direction. | Verify geographic/traffic assumptions before expansion. |
-| D4 | Approximately 35-day completion plan with final buffer. | New planning recommendation based on the deadline. | Confirm exact dates; scope changes need project-lead decisions. |
+| D4 | Approximately 35-day completion plan with final buffer. | Historical September 23 recommendation, not a renewed countdown. | Confirm exact dates and remaining availability; scope changes need project-lead decisions. |
 | D5 | One selected RL junction as provisional scope. | **Unconfirmed academic assumption.** | Resolve by day 2; never label it coordinated network optimization. |
 | D6 | One active operator, authenticated viewers, one live API process. | Process-local ownership and conflict checks implemented September 24; hosting assurance remains. | Reset releases ownership; an administrator can explicitly take over. Independent concurrent runs or multiple API workers trigger redesign. |
 | D7 | Offline training; trusted versioned policies for hosted inference. | Recommendation. | Avoid live/training resource contention; cloud training requires measured need and budget. |
 | D8 | Keep the four foundation documents, the owner-requested history archive and implementation handoff; use AGENTS.md as their compact entry point. | Documentation decision updated September 23. | Separate design rationale, dated verification, active implementation instructions and archived manuscripts. Keep status pointers consistent. |
 | D9 | Separate view and run authority for training, recheck stream sessions, and stage all API restores away from the live database. | Implemented September 27; see dated evidence in progress. | Existing standard-user databases need an administrator to grant the new `rl-training:run` permission; fresh databases seed it. Bundles contain network and referenced artifacts; legacy SQLite-only copies remain incomplete. A staged API uses `restore_environment.json` and a separately supplied secret key. |
-| D10 | Keep simulation demand and rendering capacity distinct. Measure the native loop and visible production browser independently. | Local synthetic measurements September 27; deployment certification open. | At 300 seconds Very High traffic, compute stays ahead of real time while 132 arrivals remain pending. The 3D renderer shows a disclosed 80-vehicle live cap. Repeat on target hardware and with concurrent viewers before setting hosted limits. |
+| D10 | Keep simulation demand and rendering capacity distinct. Measure the native loop and browser independently. | Native measurements September 27; rendering updated October 10–12. Target deployment certification remains open. | The shared server-authored display cap is 300 vehicles and 128 pedestrians, with a 262,144-byte encoded frame limit. Full metrics include undisplayed entities. September's 80-vehicle cap and measurements describe that older build. Later rendering fixtures do not establish realistic traffic capacity; repeat on target hardware and with concurrent viewers. |
 | D11 | Package a single-worker API behind a same-origin HTTPS reverse proxy, with exact HTTP/WebSocket browser origins and secure cookies in production. | Local package and preflight implemented September 27; no public host selected. | Process-local live and training state rules out multiple workers. Serve the built frontend through the proxy and keep SQLite, recordings and model artifacts on persistent storage. Resolve applicable dependency advisories and re-measure on target hardware before publishing. |
 | D12 | Keep field calibration, held-out evaluation and manuscript conclusions separate from synthetic software acceptance. | Method drafted September 27; owner left final junctions and RL coverage open. | Use the collection and analysis protocol in [Research preparation](RESEARCH_METHOD.md); do not claim Tagum effectiveness until observations and validation support it. |
 | D13 | Freeze separate training and evaluation scenario snapshots and disjoint seed sets for RL jobs. | Implemented September 28 for automatic and selected-model evaluation. | Both scenarios must control the same junction. Software separation does not substitute for field calibration, adviser-approved study selection or adequate repetitions. |
@@ -146,6 +163,12 @@ Reversible choices include scenario parameters, UI layout, host configuration an
 
 ## 4. Architecture and delivery plan
 
+**D24 — LGU-facing dashboard and provisional two-junction site, October 24:** the primary audience is an LGU traffic administrator, so the Dashboard is one shadcn layout: four KPI cards (average wait, average queue, completed-trip rate, completed trips) with a percentage change against the latest completed fixed-time run of the same scenario and seed; the map with a junction panel (current service, timer and waiting vehicles per approach labelled by compass side with clear/low/moderate/high bands); one control bar (Live/Replay, start/pause/stop, speed, Setup sheet); and a collapsible trend chart. 2D is the primary view and 3D an optional illustrative view with regular set-back blocks. The sidebar groups Operate, Research and Admin pages. The final two study intersections are not yet confirmed; `data/networks/tagum_network_2j.json` (J1 Arellano/Osmeña and J2 Mabini/Osmeña, built by `tools/build_study_network.py --junctions`) is a provisional placeholder selected with `SMARTFLOW_NETWORK_PATH` and an isolated database. It keeps the `tagum_network` id because RL state encodes that id; the five-junction file remains the default. Swapping in the final site means regenerating that file, not changing the UI.
+
+**D23 — result interpretation, October 24:** `simulation/metric_definitions.json` is the versioned native metric catalog shared by Python reporting/calibration and TypeScript Help/live/saved/comparison views. `services/metric_definitions.py` and `src/lib/metrics.ts` interpret availability without changing stored numeric evidence: missing/non-finite values, empty/unrecorded average populations, unsampled queues and zero-duration rates are unavailable. Explicitly different historical engines are not assigned current native meanings. `/api/metrics/definitions` exposes the same catalog to authenticated clients. New exports retain raw metrics and add definitions/version and missing-value reasons; calibration records retain their frozen definitions and new records identify the catalog version. Original artifacts and older frozen fit records are not rewritten.
+
+Controller summaries retain each repetition, available/total counts and unweighted per-run mean/min/max/population standard deviation; unavailable averages are excluded and incomplete wait coverage is not ranked. The score remains negative mean stopped vehicle wait. `waiting_time_rank` orders that mean with completed trips as the tie-breaker, uses shared ranks for ties and leaves unavailable cases unranked. `traffic_performance_rank` remains an explicitly labeled legacy alias. New summaries carry a criterion/version, per-metric differences and zero-reference percentage unavailability, and `overall_recommendation: null`; no weighted score or acceptable-degradation rule is invented. Standard deviation is not a confidence interval. At this interpretation checkpoint the only engine addition was an active-emergency population counter; the subsequent ordinary-traffic scope decision above removes that counter and its metrics, advances native compatibility and leaves the ordinary traffic mathematics intact.
+
 ### Boundaries and interfaces
 
 ```mermaid
@@ -162,7 +185,7 @@ flowchart LR
     Batch --> Evidence[Timelines, manifests and reports]
 ```
 
-Run ownership and complete versioned frame delivery in this diagram are target responsibilities, not certified existing behavior.
+Run ownership, shared frame delivery, headless experiments and trusted registered inference in this diagram are implemented responsibilities with dated synthetic verification in progress. Deployment and field validity require separate evidence.
 
 | Boundary | Current files | Required contract |
 | --- | --- | --- |
@@ -178,29 +201,29 @@ Keep `/api/simulation/configure`, lifecycle routes, `/ws/simulation`, `/api/visu
 
 ### Native model reference
 
-- **Time:** `native-3`, 0.1-second steps, metres/seconds/m/s. Start/reset restores baseline constraints before replaying events. Version changes intentionally invalidate incompatible model/recording artifacts.
+- **Time:** `native-4`, 0.1-second steps, metres/seconds/m/s. Start/reset restores baseline constraints before replaying events. Version changes intentionally invalidate incompatible model/recording artifacts.
 - **Graph:** five junctions, twelve roads, twenty-four directed lanes, covering parts of Arellano, Jose Abad Santos, Lapu-Lapu, Mabini and Osmeña streets. Assumptions include one lane per direction, 3.3 m width, 8.33 m/s study speed and experimental signals. Supplied prohibited turns are supported; actual lane/turn/signal details need field review.
-- **Vehicles:** IDM-style following plus hard gaps; car, motorcycle, tricycle, bus, truck and emergency dimensions/speed factors. This does not imply lane changing, overtaking or motorcycle filtering.
+- **Vehicles:** IDM-style following plus hard gaps; car, motorcycle, tricycle, bus and truck dimensions/speed factors. This does not imply lane changing, overtaking or motorcycle filtering.
 - **Junctions:** exclusive reservations, signal/stop permission, downstream storage and pedestrian clearance. Simplified all-way-stop comparison exists. One-vehicle junction capacity is a modeling limitation requiring early plausibility checks.
-- **Signals:** phase order/timing/offset, green limits, yellow/all-red, pedestrian service and emergency requests through safety rules. Log safety overrides separately from learned decisions.
+- **Signals:** phase order/timing/offset, green limits, yellow/all-red, pedestrian service through safety rules. Log safety overrides separately from learned decisions.
 - **Routing:** travel-time/queue costs; avoids closed/prohibited movements. Default reroute interval is 15 seconds with a 15% improvement threshold. `static` suppresses congestion rerouting but still permits closure detours.
 - **Demand:** single-car replacement is a demonstration, not a matched-arrival comparison. Seeded schedules/windows and explicit trips supply experiments. Blocked arrivals wait subject to reported capacity limits; crossing distance/speed and pedestrian waiting threshold are configurable.
-- **RL:** 30 observation values, five service actions, one selected junction. Metadata identifies `native-local-30-v1`, `protected-service-5-v1` and the default network fingerprint. Compatibility metadata alone does not establish artifact trust.
+- **RL:** 22 continuous observation values, 15 tabular-state components, five service actions, one selected junction. Metadata identifies `native-local-22-v2`, `obs_v2`, `reward_v2`, `protected-service-5-v1` and the default network fingerprint. The reward retains throughput, wait, queue, maximum queue, pedestrian and switching terms. Compatibility metadata alone does not establish artifact trust.
 
-Custom graph JSON is supported through Python/headless paths. The hosted geometry endpoint serves the default study network; `tagum_1`, `tagum_2`, `tagum_3` are compatibility aliases, not three native networks. Older generic/SUMO engines, `services/simulation_service.py` and `sumo/` assets remain historical; avoid reconnecting them to active paths.
+Custom graph JSON is supported through Python/headless paths, including the configured `SMARTFLOW_NETWORK_PATH`. The visual endpoint serves the configured native network and accepts its exact ID, or an omitted ID. Historical `tagum_1`, `tagum_2` and `tagum_3` aliases are interpreted only at migration/import/restore boundaries; active APIs reject them. Obsolete generic/SUMO engines, `services/simulation_service.py` and `sumo/` assets were archived and removed. Their recovery manifests and historical artifact envelopes remain; avoid reconnecting TraCI to active paths.
 
 ### Data changes and compatibility
 
-| Data | Present state | Next requirement |
+| Data | Present state | Continuing requirement |
 | --- | --- | --- |
-| Saved scenarios | JSON `engine_config` exists in SQLite/API; native frontend types/editor controls were added in the interrupted effort. | Verify preservation through edits and live/training use; define replacement versus partial-update semantics; test advanced fields. |
+| Saved scenarios | Canonical `network_id` and complete JSON `engine_config` in SQLite/API/editor, runtime and training/evaluation snapshots. | Preserve validated round trips and omitted-versus-explicit update semantics after changes. Legacy recovery columns do not override native settings. |
 | Native config | Signal plans/control junction, vehicle mix, provenance, demand windows/trips, constraints/events, routing/crossing parameters and limits. | Validate types, finite values, IDs/ranges and unknown fields; document intentionally additive overlapping windows. |
-| Legacy disruption JSON | Older structured fields coexist with presets. | Translate supported settings or reject/explain them; do not silently ignore intended inputs. |
+| Legacy disruption JSON | Retained as recovery evidence; a shared migration resolver handles historical inputs only at explicit boundaries. Ambiguous/enabled restrictions block pending lane/event mapping. | Preserve originals and actionable errors; active requests use native lane restrictions and events. |
 | Graph | Versioned JSON/provenance and refresh scripts. | Retain extract, derived graph, field corrections and assumptions; never rewrite a historical run's graph. |
-| Runs | New manifests include experiment/network information. | Verify immutable normalized config, seed, demand hash, duration, warmup, engine/graph versions and model ID/hash. Add model content hashing where absent. |
-| Models | Compatibility checks and registered-policy resolver exist. | UI selects `ql:<id>`, `dql:<id>` or `ppo:<id>`; reject stale metadata and untrusted paths; show actual controller. |
+| Runs | Experiment snapshots and report/comparison identities retain full config, seed, timing, engine/network/demand identity and model provenance. | Preserve immutable evidence across scenario edits, relocation and export; inspect actual artifacts before reusing a result. |
+| Models | Registered UI selection uses `ql:<id>`, `dql:<id>` or `ppo:<id>`; compatible inference, junction/timing checks and checkpoint resume exist. | Reject stale/incompatible artifacts and untrusted paths; retain actual-controller/request/override evidence. |
 | Recordings/comparison | Native compatibility checks and full-input comparison keys. | Distinguish a matched policy comparison from a deliberate changed-scenario/network experiment; label changed inputs explicitly. |
-| Observations | Trip CSV input and a synthetic peak-event JSON example exist. | Preserve survey dates/method/units, raw observations and transformations; distinguish measured counts from inferred OD trips. |
+| Observations | Four CSV schemas/templates, source retention/hashes and declared held-out guards; isolated Field Observer proposals/review; durable baseline-fit records. | Complete independent field audit and faithful conversion, then calibration/validation. Preserve dates/method/units and distinguish measured local counts from inferred boundary OD trips. |
 
 Keep metric definitions stable: `avg_wait` is stopped time for relevant admitted vehicles; `avg_queue` is time-averaged queue per incoming lane; `max_queue` is the largest stopped lane queue; `throughput` counts completed trips in the measurement window; `avg_travel_time` uses full trip times of window completions; `avg_ped_delay` is waiting time. Include pending, dropped and unfinished demand. Audit warmup/denominators across live state, saved metrics, replay and exports.
 
@@ -214,9 +237,9 @@ FastAPI documents that separate worker processes normally have separate memory. 
 
 No hosting price can be responsibly selected without a provider, region, budget and measured workload. Measure CPU/RAM, step/frame time, recording growth and training wall time. Budget for API uptime, storage, backups, bandwidth and any approved training compute. Recording volume is approximately `recorded frames × average bytes per frame × retained runs`, adjusted using measured compression. Independent concurrent runs, rather than registered account count, are the immediate compute scaling issue.
 
-### Small delivery slices within 35 days
+### Historical September 23 delivery slices within 35 days
 
-For scheduling only, day 1 is September 23 and day 35 is October 27, 2026. These are calendar windows, not 35 full working days; confirm the actual deadline and availability before committing dates. Assign named teammates to the owner roles on day 1; if one person holds multiple roles, do not assume parallel capacity. Field collection begins alongside software stabilization.
+The following table preserves the original plan. For that schedule only, day 1 is September 23 and day 35 is October 27, 2026. These are historical calendar windows, not a current remaining-time estimate or evidence that each slice/gate was completed. Confirm the actual deadline and availability before rescheduling; use progress for delivered software and the field integration plan for remaining research. The day-number deadlines elsewhere in this original review refer to this planning anchor. If one person holds multiple owner roles, do not assume parallel capacity.
 
 | Slice / window | Useful delivered result | Owner | Dependencies | Acceptance evidence |
 | --- | --- | --- | --- | --- |
@@ -241,16 +264,16 @@ Likelihood is qualitative, not measured. Release blockers apply to the stated ca
 | --- | --- | --- | --- |
 | Academic RL scope unknown, confirmed by user. | High uncertainty; potential redesign. | Adviser decision by day 2. If coordination is mandatory, reassess state/action/reward and critical path immediately. | Research/project lead |
 | Exclusive whole-junction reservations distort capacity. | High modeling risk; invalid conclusions. | Early discharge/queue/travel checks against observations. Model or explicitly agreed scope decision by day 7. | Engine + research |
-| Native scenario UI remains incomplete. | Server preservation fixed/tested; browser editing/model selection still pending. | Complete native controls/types and create/edit/reload/run acceptance before evaluation. | API/frontend |
+| Scenario settings regress during new work. | Editor/runtime/training round trips have dated synthetic acceptance. | Preserve canonical settings and repeat relevant create/edit/reload/run checks after changes. | API/frontend |
 | Actual data arrives too late. | Unknown availability; blocks actual-data claim. | Collect now, checkpoint day 7, dataset gate day 14. Synthetic-only fallback needs explicit academic acceptance. | Field-data lead |
 | RL gains reflect selected seeds, changed demand or censored trips. | Material research risk. | Held-out protocol, paired inputs, unfinished/external demand and sensitivity analysis; compare traffic outcomes beyond reward. | ML/research |
-| Users control the same global run. | Confirmed design issue for concurrent operators. | Enforce owner/admin takeover rules; test two users; add independent sessions only if required. | API/deployment |
-| Stream/session and expensive-job permissions are incomplete. | September 27 code now rechecks WebSocket sessions and uses training `run`; hosted security review remains. | Rehearse origin/CSRF behavior, proxy deployment and all role workflows in the target environment. | Security/API |
+| Multiple operators or workers diverge from the shared-runtime design. | Owner/admin conflict rules and one compute lease exist within one process. | Keep one API worker, verify target-host role/conflict behavior and design independent runs only if required. | API/deployment |
+| Target-host session/job security differs from local checks. | WebSocket session rechecks and training `run` permissions are implemented; public-host security review remains. | Rehearse origin/CSRF behavior, proxy deployment and all role workflows in the target environment. | Security/API |
 | Models are stale or untrusted. | Historical artifacts present; inference/data risk. | Native contract, trusted storage, model identity/hash and rollback. Metadata compatibility is not authenticity. | ML/deployment |
-| CPU/RAM/disk exhaustion from demand, jobs or recordings. | Unmeasured; demo/hosting failure. | Separate heavy jobs, enforce limits, profile, bound retention and report overflow. | Engine/deployment |
+| CPU/RAM/disk exhaustion from demand, jobs or recordings. | Local synthetic measurements exist; target-host and field-load capacity remain unverified. | Retain admission/size limits, measure the intended workload, bound retention and report overflow. | Engine/deployment |
 | OSM geometry is mistaken for observed traffic/signals. | Confirmed experimental assumptions; misleading claims. | Verify roads/turns/signals; retain attribution/date; label inferred values and version corrections. | Field-data/research |
 | Crash, schema change or deletion loses evidence. | Possible; high recovery cost. | Coherent database/artifact backup, immutable raw observations, restore drill and interrupted-job reconciliation. | Deployment/project lead |
-| Python passes are treated as full release acceptance. | 40 tests passed; browser/research/hosting gates still open. | Tie suite/build/browser and research evidence to the release checkpoint; disclose missing gates. | Implementation lead |
+| Software passes are treated as full capstone acceptance. | Dated backend, frontend, browser and standalone checks exist; field and public-hosting gates remain open. | Tie each check to its source/date/scope; complete research and target-release evidence separately. | Implementation lead |
 
 Hidden costs include field collection, map correction, traffic-model calibration, repeated training, retraining after graph changes, report consistency, storage, recovery drills and manuscript explanation. Removing an external dependency does not remove these obligations.
 
@@ -258,12 +281,12 @@ Hidden costs include field collection, map correction, traffic-model calibration
 
 ### Release evidence
 
-The 40 passing tests are a software checkpoint, not proof that every acceptance condition below is covered. Add meaningful tests for demonstrated gaps as implementation continues. Keep the command, environment, source revision or worktree snapshot, result and artifact references with the release evidence.
+Historical test totals, including the original 40-test checkpoint, do not prove every acceptance condition below. Progress records later suites and browser checks with their actual scopes. Add meaningful tests for demonstrated gaps as implementation continues. Keep the command, environment, source revision or worktree snapshot, result and artifact references with release evidence.
 
 | Gate | Verification required | Acceptance / owner |
 | --- | --- | --- |
 | Configuration and reproducibility | Create/edit/reload/run advanced settings; reject invalid inputs atomically; reset/repeat the same scenario and seed. | No lost fields or partial mutations; repeatable demand and result fingerprints under the same version. API/engine owner. |
-| Traffic safety and progress | Dense mixed traffic, downstream blockage, closures/reopening, red/yellow/all-red, pedestrian clearance, emergency requests and stop control. | No overlapping reservations, unsafe permissions, lost vehicles or conservation error. Demonstrate progress where routes and downstream capacity permit it; explain genuine oversaturation. Engine owner. |
+| Traffic safety and progress | Dense mixed traffic, downstream blockage, closures/reopening, red/yellow/all-red, pedestrian clearance and stop control. | No overlapping reservations, unsafe permissions, lost vehicles or conservation error. Demonstrate progress where routes and downstream capacity permit it; explain genuine oversaturation. Engine owner. |
 | Metrics | Hand-check small scenarios, warmup boundaries, completed/unfinished trip cohorts, queues, waits and external demand. | Finite values, explicit denominators and agreement among live output, saved runs, replay and reports within documented numeric precision. Engine/research owner. |
 | Controllers | Short real train/save/reload/infer runs for each required algorithm; action bounds, safe transitions, selected junction, model identity and stale-artifact rejection. | The selected model actually controls the run; requested actions and applied safety overrides are separately inspectable. ML owner. |
 | Research validity | Field plausibility, calibration record, held-out comparisons, repeated seeds, unfinished demand and uncertainty. | Results support only the tested conditions; software test success is not substituted for validation. Research lead. |
@@ -333,7 +356,7 @@ Documentation verification on September 23 passed: four main documents, all eigh
 
 The repository already contained substantial uncommitted migration work. Its presence in Git status is not evidence of changes made by the original review. At that planning checkpoint, the latest combined regression was unconfirmed and the 27-method source count was not a pass result.
 
-**Subsequent authorized implementation:** the baseline 27 tests passed, demonstrated gaps were corrected, and all 40 updated tests passed in 72.961 seconds, including short real learning smoke tests. API compilation and the three-seed headless example passed. The [handoff](PROGRESS_AND_HANDOFF.md) records changes, commands, limits and remaining gates. The later owner-requested [history archive](../PROJECT_HISTORY_AND_MIGRATION.md) preserves both manuscripts and codebase progress; this file was updated to avoid presenting fixed defects or the earlier pause as current status. No new frontend acceptance, field calibration or deployment is claimed.
+**Subsequent September 23 authorized implementation:** the baseline 27 tests passed, demonstrated gaps were corrected, and all 40 updated tests passed in 72.961 seconds, including short real learning smoke tests. API compilation and the three-seed headless example passed. The [progress record](PROGRESS_AND_HANDOFF.md) retains changes, commands, limits and later milestones. The owner-requested [history archive](../PROJECT_HISTORY_AND_MIGRATION.md) preserves both manuscripts and codebase progress. That September checkpoint did not include new frontend acceptance, field calibration or deployment; later software acceptance is recorded separately above and in progress.
 
 ## 8. Deferred decisions and triggers for revisiting them
 

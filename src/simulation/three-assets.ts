@@ -11,7 +11,7 @@ import {
   type Object3D,
 } from "three"
 
-export type VehicleAssetType = "car" | "bus" | "truck" | "ambulance" | "motorcycle"
+export type VehicleAssetType = "car" | "bus" | "truck" | "motorcycle"
 export type PedestrianAssetPose = "standing" | "walking"
 export type SignalAssetType = "vehicle" | "pedestrian"
 
@@ -91,18 +91,6 @@ const vehicleStyles: Record<VehicleAssetType, VehicleStyle> = {
     cabinOffsetZ: 1.05,
     wheelRadius: 0.22,
     wheelWidth: 0.14,
-  },
-  ambulance: {
-    bodyColor: palette.white,
-    accentColor: palette.red,
-    cabinColor: palette.glass,
-    width: 1.48,
-    height: 0.82,
-    length: 3.45,
-    cabinLength: 1.05,
-    cabinOffsetZ: 0.9,
-    wheelRadius: 0.2,
-    wheelWidth: 0.13,
   },
   motorcycle: {
     bodyColor: palette.deepGreen,
@@ -196,7 +184,6 @@ export class SmartFlowAssetKit {
     }
 
     if (type === "bus") this.addBusWindows(group, style)
-    if (type === "ambulance") this.addEmergencyDetails(group, style)
 
     this.addWheels(group, style)
     setShadow(group)
@@ -361,7 +348,6 @@ export class SmartFlowAssetKit {
       [this.createVehicle("car"), -7.8, 0, -2.4],
       [this.createVehicle("bus"), -4.4, 0, -2.4],
       [this.createVehicle("truck"), -0.4, 0, -2.4],
-      [this.createVehicle("ambulance"), 3.4, 0, -2.4],
       [this.createVehicle("motorcycle"), 6.6, 0, -2.4],
       [this.createPedestrian("standing"), -7.4, 0, 1.1],
       [this.createPedestrian("walking"), -6.4, 0, 1.1],
@@ -408,18 +394,6 @@ export class SmartFlowAssetKit {
       window.position.set(style.width / 2 + 0.03, 0.78, z)
       group.add(window)
     }
-  }
-
-  private addEmergencyDetails(group: Group, style: VehicleStyle) {
-    const stripe = new Mesh(this.box("ambulance-red-stripe", style.width + 0.03, 0.09, style.length * 0.72), this.material("ambulance-red", palette.red))
-    stripe.position.set(0, 0.58, 0)
-    group.add(stripe)
-
-    const redLight = new Mesh(this.box("ambulance-light", 0.2, 0.08, 0.14), this.material("ambulance-light-red", palette.red, { emissive: palette.red, emissiveIntensity: 0.45 }))
-    const blueLight = new Mesh(this.box("ambulance-light", 0.2, 0.08, 0.14), this.material("ambulance-light-blue", palette.blue, { emissive: palette.blue, emissiveIntensity: 0.45 }))
-    redLight.position.set(-0.18, style.height + 0.58, 0.05)
-    blueLight.position.set(0.18, style.height + 0.58, 0.05)
-    group.add(redLight, blueLight)
   }
 
   private createMotorcycle() {

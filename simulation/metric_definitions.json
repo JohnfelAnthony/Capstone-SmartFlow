@@ -1,0 +1,476 @@
+{
+  "version": "native-metric-interpretation-2",
+  "scope": "Native network; per-junction telemetry is separate from whole-network summaries.",
+  "window": "Metrics have different windows. Read each definition: measurement reset affects stopped waits/completions/queues, while demand accounting remains cumulative since run start.",
+  "unsupported": {
+    "emissions": "Unavailable: no emissions or CO2 model is implemented in the active engine."
+  },
+  "metrics": [
+    {
+      "key": "avg_wait",
+      "label": "Mean stopped vehicle wait",
+      "unit": "seconds",
+      "aliases": [
+        "avg_waiting_time"
+      ],
+      "population": "Completed-in-window and currently active admitted vehicles across the network.",
+      "definition": "Stopped time accumulated since measurement reset, divided by that completed-plus-active population; speed at most 0.1 m/s. Pending boundary arrivals and pre-reset stopped time are excluded.",
+      "population_keys": [
+        "total_vehicles_completed",
+        "active_vehicle_count"
+      ],
+      "requires_ticks": false,
+      "zero": "Zero means a nonempty measured population had zero time/speed; an empty population is unavailable.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "avg_queue",
+      "label": "Mean incoming-lane queue",
+      "unit": "vehicles",
+      "aliases": [
+        "avg_queue_length"
+      ],
+      "population": "Incoming lanes of all modeled junctions, including stop-controlled junctions.",
+      "definition": "Mean stopped count per incoming lane at each recorded engine tick, averaged over ticks since measurement reset. Vehicles on connectors and outgoing boundary lanes are excluded. Not a signal-cycle average or a total network queue.",
+      "population_keys": [],
+      "requires_ticks": true,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "max_queue",
+      "label": "Maximum lane queue",
+      "unit": "vehicles",
+      "aliases": [
+        "max_queue_length"
+      ],
+      "population": "Any modeled lane across the network.",
+      "definition": "Largest stopped count on any one lane at a recorded tick since measurement reset; speed at most 0.1 m/s. Connector vehicles are excluded. Unlike mean queue, this includes outgoing boundary lanes.",
+      "population_keys": [],
+      "requires_ticks": true,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "throughput",
+      "label": "Completed network trips",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Trips ending at network boundaries.",
+      "definition": "Count of vehicle trips completing since measurement reset. Excludes unfinished trips and local junction passages; a stop-line discharge count is not this measure.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "avg_travel_time",
+      "label": "Completed-trip travel time",
+      "unit": "seconds",
+      "aliases": [],
+      "population": "Trips completing at network boundaries since measurement reset.",
+      "definition": "Mean full time from network admission to completion for trips completing in the measurement window. Includes pre-window travel of warmup-born trips; excludes boundary waiting and unfinished trips.",
+      "population_keys": [
+        "total_vehicles_completed"
+      ],
+      "requires_ticks": false,
+      "zero": "Zero means a nonempty measured population had zero time/speed; an empty population is unavailable.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "avg_ped_delay",
+      "label": "Mean pedestrian wait",
+      "unit": "seconds",
+      "aliases": [
+        "avg_pedestrian_delay"
+      ],
+      "population": "Completed-in-window and currently active pedestrians across all modeled crossings.",
+      "definition": "Accumulated waiting time since measurement reset divided by completed-plus-active pedestrian count. Crossing duration is excluded; active crossers retain their preceding waiting time.",
+      "population_keys": [
+        "total_pedestrians_completed",
+        "active_pedestrian_count"
+      ],
+      "requires_ticks": false,
+      "zero": "Zero means a nonempty measured population had zero time/speed; an empty population is unavailable.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "requested_vehicles",
+      "label": "Requested vehicles",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "All vehicle arrivals due by the current simulation time.",
+      "definition": "Cumulative count since run start, including warmup, whether admitted, still pending or dropped. Excludes arrivals scheduled in the future.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "total_vehicles_spawned",
+      "label": "Admitted vehicles",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Vehicles admitted to the network.",
+      "definition": "Cumulative admissions since run start, including warmup and vehicles completed before measurement reset. Pending and dropped requests are excluded; this is not the measured average-wait denominator.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "pending_demand",
+      "label": "Pending boundary arrivals",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Due vehicle requests still outside the network.",
+      "definition": "Current count waiting for a route or entry space. Includes requests originating in warmup; not included in in-network average stopped wait.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "dropped_vehicles",
+      "label": "Dropped vehicle requests",
+      "unit": "vehicles",
+      "aliases": [
+        "deferred_demand"
+      ],
+      "population": "Requests refused when the configured pending limit is exceeded.",
+      "definition": "Cumulative count since run start, including warmup. Also historically named deferred_demand; these requests are not automatically retried.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "unfinished_vehicles",
+      "label": "Unfinished vehicles",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Currently active vehicles plus pending boundary requests.",
+      "definition": "Current count at the reported horizon; includes warmup-born requests still unresolved. Dropped requests and completed trips are excluded. Report alongside completed-trip averages.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "boundary_wait_seconds",
+      "label": "Pending boundary waiting",
+      "unit": "vehicle-seconds",
+      "aliases": [],
+      "population": "Currently pending boundary requests only.",
+      "definition": "Sum of current time minus requested arrival time for requests still pending. Includes pre-window waiting of warmup requests; excludes admitted and dropped requests. This is a current pending stock, not all historical boundary delay.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "avg_admitted_boundary_wait",
+      "label": "Mean admitted boundary wait",
+      "unit": "seconds",
+      "aliases": [],
+      "population": "Completed-in-window and currently active admitted vehicles.",
+      "definition": "Mean admission time minus requested arrival time for that population. Includes full pre-admission waiting even for warmup-born vehicles; excludes requests still pending and dropped requests.",
+      "population_keys": [
+        "total_vehicles_completed",
+        "active_vehicle_count"
+      ],
+      "requires_ticks": false,
+      "zero": "Zero means a nonempty measured population had zero time/speed; an empty population is unavailable.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "measurement_start",
+      "label": "Measurement start / warmup elapsed",
+      "unit": "seconds",
+      "aliases": [],
+      "population": "Simulation clock from run start.",
+      "definition": "Actual simulation time at the latest metric reset. Evaluation uses fixed-time warmup before this reset. Live runs without reset start measuring at zero; use this actual value rather than assuming configured warmup.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "measurement_seconds",
+      "label": "Measured duration",
+      "unit": "seconds",
+      "aliases": [],
+      "population": "Simulation clock since measurement start.",
+      "definition": "Elapsed simulation time minus measurement start. Excludes warmup; an interrupted run may measure less than its requested duration.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "scheduled_vehicles",
+      "label": "Scheduled vehicle arrivals",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Full exogenous schedule for the configured run horizon.",
+      "definition": "Total scheduled arrivals, including warmup and requests not yet due. It is not the number requested so far or the number admitted.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "active_vehicle_count",
+      "label": "Active admitted vehicles",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Vehicles currently inside the network.",
+      "definition": "Current count, including connectors and warmup-born vehicles; excludes pending, dropped and completed requests.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "total_vehicles_completed",
+      "label": "Completed trips in window",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Vehicle trips completing in the measurement window.",
+      "definition": "Same completion count as throughput; resets after warmup. Not lifetime completions.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "total_pedestrians_completed",
+      "label": "Completed pedestrian crossings",
+      "unit": "pedestrians",
+      "aliases": [],
+      "population": "Pedestrians completing a modeled crossing.",
+      "definition": "Count since measurement reset; does not include people still waiting or crossing.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "active_pedestrian_count",
+      "label": "Active pedestrians",
+      "unit": "pedestrians",
+      "aliases": [],
+      "population": "People currently waiting or crossing.",
+      "definition": "Current count across all modeled crossings, including warmup-born pedestrians; excludes completed and dropped pedestrians.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "dropped_pedestrians",
+      "label": "Dropped pedestrian requests",
+      "unit": "pedestrians",
+      "aliases": [],
+      "population": "Pedestrian arrivals refused by the configured active limit.",
+      "definition": "Cumulative count since run start, including warmup. Refused requests are not automatically retried.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "mean_speed_mps",
+      "label": "Current mean vehicle speed",
+      "unit": "metres/second",
+      "aliases": [],
+      "population": "Currently active admitted vehicles.",
+      "definition": "Snapshot mean speed across active vehicles, including connectors. Not a journey average, and pending arrivals are excluded.",
+      "population_keys": [
+        "active_vehicle_count"
+      ],
+      "requires_ticks": false,
+      "zero": "Zero means a nonempty measured population had zero time/speed; an empty population is unavailable.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "throughput_per_hour",
+      "label": "Completed-trip rate",
+      "unit": "vehicles/hour",
+      "aliases": [],
+      "population": "Trips completing in the measurement window.",
+      "definition": "Completed network trips multiplied by 3600 and divided by measured seconds. A scaled rate, not an observed one-hour count.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero means no completions over a positive measured duration; no elapsed measurement is unavailable.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": true
+    },
+    {
+      "key": "local_reference",
+      "label": "Local observation / custom measure",
+      "unit": "researcher-defined",
+      "aliases": [],
+      "population": "Researcher-defined location, population and window.",
+      "definition": "Enter a simulated measurement extracted at the same location, times and definition as the field reference. Cite the extraction method; no automatic local metric is inferred.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
+      "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "density_vehicles_per_km",
+      "label": "Current network vehicle density",
+      "unit": "vehicles/kilometre",
+      "aliases": [],
+      "population": "Currently active admitted vehicles, including connectors.",
+      "definition": "Active admitted count divided by total modeled lane length in kilometres; pending requests are excluded. This is not density per city road-kilometre.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "total_stopped_seconds",
+      "label": "Measured stopped vehicle time",
+      "unit": "vehicle-seconds",
+      "aliases": [],
+      "population": "Completed-in-window plus currently active admitted vehicles.",
+      "definition": "Sum of accumulated stopped time since measurement reset; pending boundary waiting is excluded. This is the numerator of mean stopped vehicle wait.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "total_pedestrian_wait_seconds",
+      "label": "Measured pedestrian waiting time",
+      "unit": "pedestrian-seconds",
+      "aliases": [],
+      "population": "Completed-in-window plus currently active pedestrians.",
+      "definition": "Sum of accumulated pedestrian waiting time since measurement reset; crossing duration is excluded. This is the numerator of mean pedestrian wait.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "lifetime_completed",
+      "label": "Completed trips since run start",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Network-boundary trip completions.",
+      "definition": "Cumulative count since run start, including warmup. Unlike throughput, this counter is not reset after warmup.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "reroutes",
+      "label": "Route changes since run start",
+      "unit": "route changes",
+      "aliases": [],
+      "population": "Admitted vehicles whose remaining route changes.",
+      "definition": "Cumulative reroute count since run start, including warmup. A route change does not prove a faster trip; signal learning does not choose routes.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "policy_decisions",
+      "label": "Policy decisions in window",
+      "unit": "decisions",
+      "aliases": [],
+      "population": "Inference decisions at the selected RL junction.",
+      "definition": "Count since measurement reset. Requested service is subject to clearance and shared safety rules; this is not a count of successfully changed phases.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "safety_overrides",
+      "label": "Safety service requests in window",
+      "unit": "requests",
+      "aliases": [],
+      "population": "Safety override requests recorded by the engine.",
+      "definition": "Count since measurement reset, separate from learned decisions. A request count is not a pedestrian outcome.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "step_count",
+      "label": "Recorded metric ticks",
+      "unit": "ticks",
+      "aliases": [],
+      "population": "Recorded engine metric samples.",
+      "definition": "Number of metric samples since measurement reset. Queue means and maxima require at least one recorded tick.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "vehicle_conservation_error",
+      "label": "Vehicle demand accounting error",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "All due vehicle requests since run start.",
+      "definition": "Requested minus lifetime completed minus active minus pending minus dropped vehicles. Zero indicates balanced accounting, not field realism.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "pedestrian_conservation_error",
+      "label": "Pedestrian accounting error",
+      "unit": "pedestrians",
+      "aliases": [],
+      "population": "All generated pedestrian requests since run start.",
+      "definition": "Generated minus lifetime completed minus active minus dropped pedestrians. Zero indicates balanced accounting, not verified observation coverage.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    }
+  ],
+  "engine_version": "native-4"
+}

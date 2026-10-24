@@ -86,7 +86,6 @@ def _serialize_vehicle_entity(raw_vehicle: dict) -> dict:
         "width": _safe_float(raw_vehicle.get("width"), 1.8),
         "stopped": bool(raw_vehicle.get("stopped")),
         "visual_type": _safe_text(raw_vehicle.get("visual_type"), "car"),
-        "emergency": bool(raw_vehicle.get("emergency")),
     }
     if "wait_time" in raw_vehicle:
         vehicle["wait_time"] = _safe_float(raw_vehicle["wait_time"])

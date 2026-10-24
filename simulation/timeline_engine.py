@@ -29,7 +29,6 @@ class TimelinePlaybackEngine:
         self.intersection_id = DEFAULT_INTERSECTION_ID
         self.traffic_density = "low"
         self.pedestrian_density = "low"
-        self.emergency_mode = "disabled"
         self.road_constraint = "None"
         self.seed = 42
         self.simulation_time = 0.0
@@ -119,7 +118,6 @@ class TimelinePlaybackEngine:
         self.intersection_id = scenario.get("intersection_id", self.intersection_id) or self.intersection_id
         self.traffic_density = scenario.get("traffic_density", self.traffic_density)
         self.pedestrian_density = scenario.get("pedestrian_density", self.pedestrian_density)
-        self.emergency_mode = scenario.get("emergency_mode", self.emergency_mode)
         self.road_constraint = scenario.get("road_constraint", self.road_constraint)
         self.simulation_time = float(frame.get("time", self.simulation_time) or 0)
         self.phase = frame.get("phase", self.phase)
@@ -231,7 +229,6 @@ class TimelinePlaybackEngine:
                 "intersection_id": self.intersection_id,
                 "traffic_density": self.traffic_density,
                 "pedestrian_density": self.pedestrian_density,
-                "emergency_mode": self.emergency_mode,
                 "road_constraint": self.road_constraint,
             },
             "dashboard": {

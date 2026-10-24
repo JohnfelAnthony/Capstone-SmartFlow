@@ -11,7 +11,7 @@ describe("shared presentation navigation lifecycle", () => {
     expect(state.focus).toBe("junction")
     expect(state.junctionId).toBe("J1")
     expect(state.quality).toBe("laptop")
-    expect(state.overlays).toEqual({ signals: true, labels: true, queues: true, heatmap: false, arrows: false, connectors: false, context: true })
+    expect(state.overlays).toEqual({ signals: true, labels: true, queues: true, heatmap: true, arrows: false, connectors: false, context: true })
   })
 
   it("uses the first valid junction when a configured junction is absent", () => {
@@ -39,11 +39,11 @@ describe("shared presentation navigation lifecycle", () => {
     let state = createPresentationState(geometry, "J1")
     state = presentationReducer(state, { type: "select", selection: { kind: "lane", id: "lane-west" } })
     state = presentationReducer(state, { type: "quality", quality: "enhanced" })
-    state = presentationReducer(state, { type: "overlay", overlay: "heatmap", enabled: true })
+    state = presentationReducer(state, { type: "overlay", overlay: "heatmap", enabled: false })
     state = presentationReducer(state, { type: "entities", vehicleIds: [], pedestrianIds: [] })
     expect(state.selection).toEqual({ kind: "lane", id: "lane-west" })
     expect(state.quality).toBe("enhanced")
-    expect(state.overlays.heatmap).toBe(true)
+    expect(state.overlays.heatmap).toBe(false)
     // View mode is intentionally owned by the host; toggling it does not reset shared state.
   })
 

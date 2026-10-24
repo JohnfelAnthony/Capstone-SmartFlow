@@ -19,11 +19,14 @@ import config
 import database
 from services.timeline_artifacts import timeline_artifact_paths
 from services.observation_identity import has_observed_inputs, validate_observed_holdout
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value
 from simulation.model_contract import artifact_metadata
 from services.rl_reporting_service import (
     build_combined_ranking,
     load_model_learning_summary,
     primary_evaluation_score,
+    RANKING_CRITERION,
+    RANKING_VERSION,
 )
 from simulation.rl_policy_runtime import RuntimePolicy, load_runtime_policy
 from simulation.scenario_config import number
@@ -362,41 +365,28 @@ def _run_controller_once(
         engine.stop()
 
 
-def _metric_summary(values: list[float]) -> dict:
-    if not values:
-        return {"mean": 0, "min": 0, "max": 0, "std": 0}
+def _metric_summary(values: list[float | None]) -> dict:
+    available = [value for value in values if value is not None]
+    coverage = {"available_count": len(available), "run_count": len(values)}
+    if not available:
+        return {"mean": None, "min": None, "max": None, "std": None, **coverage}
     return {
-        "mean": round(statistics.fmean(values), 6),
-        "min": round(min(values), 6),
-        "max": round(max(values), 6),
-        "std": round(statistics.pstdev(values), 6) if len(values) > 1 else 0.0,
+        "mean": round(statistics.fmean(available), 6),
+        "min": round(min(available), 6),
+        "max": round(max(available), 6),
+        "std": round(statistics.pstdev(available), 6) if len(available) > 1 else 0.0,
+        **coverage,
     }
 
 
 def _build_summary(results: list[dict]) -> dict:
-    metric_keys = (
-        "avg_wait",
-        "avg_queue",
-        "max_queue",
-        "throughput",
-        "avg_ped_delay",
-        "avg_travel_time",
-        "avg_admitted_boundary_wait",
-        "boundary_wait_seconds",
-        "unfinished_vehicles",
-        "pending_demand",
-        "dropped_vehicles",
-        "requested_vehicles",
-        "vehicle_conservation_error",
-        "pedestrian_conservation_error",
-        "rl_total_phase_switches",
-    )
+    metric_keys = tuple(item["key"] for item in METRIC_CATALOG["metrics"] if item["key"] != "local_reference") + ("rl_total_phase_switches",)
     summary: dict[str, dict] = {}
     for controller in sorted({result["controller"] for result in results}):
         controller_results = [result for result in results if result["controller"] == controller]
         summary[controller] = {
             metric_key: _metric_summary(
-                [float(result["metrics"].get(metric_key, 0) or 0) for result in controller_results]
+                [metric_value(result["metrics"], metric_key) for result in controller_results]
             )
             for metric_key in metric_keys
         }
@@ -450,7 +440,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
-    parser.add_argument("--emergency-mode", default="disabled")
     parser.add_argument("--ql-model", type=Path, default=None)
     parser.add_argument("--dql-model", type=Path, default=None)
     parser.add_argument("--ppo-model", type=Path, default=None)
@@ -468,7 +457,6 @@ def main() -> int:
         "intersection_id": args.intersection_id,
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
-        "emergency_mode": args.emergency_mode,
     }
     scenario = load_training_scenario(args, scenario)
 
@@ -559,6 +547,12 @@ def main() -> int:
     payload = {
         "generated_at": _utc_now_iso(),
         "protocol": "compare_v1",
+        "interpretation_version": RANKING_VERSION,
+        "ranking_criterion": RANKING_CRITERION,
+        "overall_recommendation": None,
+        "metric_definitions_version": METRIC_VERSION,
+        "metric_definitions": METRIC_CATALOG,
+        "aggregation": "Unweighted mean/min/max and population standard deviation of available per-run values. std is not a confidence interval. available_count/run_count disclose missing values. Additional seeds over one observed schedule are not independent field observations.",
         "scenario_id": scenario_id,
         "scenario": scenario,
         "controllers": list(args.controllers),

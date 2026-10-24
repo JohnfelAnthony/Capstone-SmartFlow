@@ -5,13 +5,13 @@ This folder is the independent SmartFlow repository. Work from this root, even i
 ## Read progressively
 
 1. [README.md](README.md): startup, repository orientation and documentation index.
-2. [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md), sections **1–4**: latest captured implementation state, approved six-area scope, unfinished edits and first repairs. Section **11** maps tasks to the exact code paths to read.
+2. [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md): current status pointer and dated verification. [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md), sections **1–4**, preserve the September 23 scope and interruption; those repairs were subsequently completed. Section **11** is the maintained source-reading map.
 3. [Project overview](docs/PROJECT_OVERVIEW.md): capstone purpose, revised-chapter requirements and research limits.
 4. Read the relevant source, API types and tests for the requested task. Follow its callers and consumers; do not read the entire repository indiscriminately.
 
-Consult handoff sections 5–9 for the 31-task backlog, contracts, delivery slices and verification. Consult [architecture](docs/ARCHITECTURE_AND_PLAN.md) for design rationale and [progress](docs/PROGRESS_AND_HANDOFF.md) for dated evidence. The [history archive](PROJECT_HISTORY_AND_MIGRATION.md) sections 1–9 explain both codebases and manuscript changes; its long appendices and PDFs are reference material to read only when the task requires their exact wording or figures.
+Consult handoff sections 5–9 for the historical 31-task backlog, contracts and acceptance criteria; reconcile each task with subsequent progress before treating it as unfinished. Consult [architecture](docs/ARCHITECTURE_AND_PLAN.md) for current boundaries and dated design decisions. The [history archive](PROJECT_HISTORY_AND_MIGRATION.md) sections 1–9 explain both codebases and manuscript changes; its long appendices and PDFs are reference material to read only when the task requires their exact wording or figures.
 
-The latest source and fresh verification establish current software behavior. Older “40 tests passed” records describe an earlier checkpoint, not the interrupted worktree. Do not assume `dist/`, running servers or model files match current source. Recheck the handoff's known failures after changing relevant code.
+The latest source and fresh verification establish current software behavior. Older test results and the September interruption describe their own checkpoints. Do not assume `dist/`, running servers or model files match current source. Reproduce a suspected failure before treating an old repair item as a current defect.
 
 ## Architecture boundaries
 
@@ -19,6 +19,7 @@ The latest source and fresh verification establish current software behavior. Ol
 - The active engine is `simulation/traffic_engine.py`; do not substitute similarly named legacy engines or reconnect SUMO/TraCI.
 - `engine_config` is the native scenario contract. Preserve complete saved settings through editing, running, training and evaluation.
 - RL currently controls one selected junction; routing is separate. Final study intersections and field calibration are not established. Label synthetic evidence honestly.
+- Supported simulation classes are car, motorcycle, tricycle, bus and truck, plus separate pedestrian support. The retired emergency feature must not be restored through legacy settings; `native-4` / `native-local-22-v2` models require the current observation/reward contract. Preserve old artifacts as history rather than relabeling them.
 - This application currently uses process-local live/training runtimes. Do not assume multiple API workers share that state.
 
 ## Work and verification conventions

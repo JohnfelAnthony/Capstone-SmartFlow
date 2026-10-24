@@ -1,0 +1,259 @@
+{
+  "id": "tagum_network",
+  "version": 1,
+  "name": "Tagum provisional 2-junction site",
+  "source": {
+    "provider": "OpenStreetMap",
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "bbox": [
+      7.443,
+      125.801,
+      7.451,
+      125.81
+    ],
+    "downloaded_at": "2026-09-21T14:10:12.782841+00:00",
+    "query": "[out:json][timeout:35];way[\"highway\"~\"^(primary|secondary|tertiary|residential|unclassified|living_street|primary_link|secondary_link|tertiary_link)$\"](7.443,125.801,7.451,125.810);(._;>;);out body;",
+    "origin": {
+      "lat": 7.446999999999999,
+      "lon": 125.8055
+    },
+    "projection": "local equirectangular, metres; study area only",
+    "assumptions": [
+      "One modeled lane per permitted direction, 3.3 m wide",
+      "30 km/h study speed; not a verified posted limit",
+      "Experimental traffic signals at the two selected junctions",
+      "OSM turn restrictions and lane tags require field review",
+      "Boundary stubs truncated at 110 m; no invented road alignment",
+      "Synthetic demand; not measured Tagum counts"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "1226402048",
+      "x": -100.13767541982574,
+      "y": -33.073171999906705,
+      "lat": 7.4467029,
+      "lon": 125.8045928,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "1217544499",
+      "x": -100.39155180055701,
+      "y": 42.92499200004787,
+      "lat": 7.4473856,
+      "lon": 125.8045905,
+      "boundary": false,
+      "signal_plan": "experimental"
+    },
+    {
+      "id": "boundary_0",
+      "x": -99.92837182351236,
+      "y": -95.48688822880074,
+      "boundary": true
+    },
+    {
+      "id": "boundary_1",
+      "x": 4.70295154773207,
+      "y": 43.58570479773577,
+      "boundary": true
+    },
+    {
+      "id": "boundary_2",
+      "x": -100.61219315928577,
+      "y": 109.31283122859844,
+      "boundary": true
+    },
+    {
+      "id": "boundary_4",
+      "x": -203.9850289962802,
+      "y": -33.94643586822938,
+      "boundary": true
+    },
+    {
+      "id": "boundary_5",
+      "x": 4.625711179185984,
+      "y": -32.37199233990066,
+      "boundary": true
+    }
+  ],
+  "roads": [
+    {
+      "id": "road0",
+      "source": "boundary_0",
+      "target": "1226402048",
+      "shape": [
+        [
+          -99.928,
+          -95.487
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Osmeña Street",
+      "osm_way_id": 31614940,
+      "osm_node_ids": [
+        376307147,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Osmeña Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road1",
+      "source": "1217544499",
+      "target": "boundary_1",
+      "shape": [
+        [
+          -100.392,
+          42.925
+        ],
+        [
+          4.703,
+          43.586
+        ]
+      ],
+      "oneway": false,
+      "name": "Mabini Street",
+      "osm_way_id": 1113257006,
+      "osm_node_ids": [
+        1217544499,
+        1217544575
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Mabini Street",
+        "surface": "paved"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road2",
+      "source": "1217544499",
+      "target": "boundary_2",
+      "shape": [
+        [
+          -100.392,
+          42.925
+        ],
+        [
+          -100.612,
+          109.313
+        ]
+      ],
+      "oneway": false,
+      "name": "Osmeña Street",
+      "osm_way_id": 31614940,
+      "osm_node_ids": [
+        1217544499,
+        1226398954
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Osmeña Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road3",
+      "source": "1217544499",
+      "target": "1226402048",
+      "shape": [
+        [
+          -100.392,
+          42.925
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Osmeña Street",
+      "osm_way_id": 31614940,
+      "osm_node_ids": [
+        1217544499,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Osmeña Street",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road4",
+      "source": "boundary_4",
+      "target": "1226402048",
+      "shape": [
+        [
+          -203.985,
+          -33.946
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Arellano Street",
+      "osm_way_id": 105732736,
+      "osm_node_ids": [
+        1217544505,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "lanes": "2",
+        "name": "Arellano Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road5",
+      "source": "boundary_5",
+      "target": "1226402048",
+      "shape": [
+        [
+          4.626,
+          -32.372
+        ],
+        [
+          -100.138,
+          -33.073
+        ]
+      ],
+      "oneway": false,
+      "name": "Arellano Street",
+      "osm_way_id": 105732736,
+      "osm_node_ids": [
+        1217544567,
+        1226402048
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "lanes": "2",
+        "name": "Arellano Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    }
+  ]
+}
