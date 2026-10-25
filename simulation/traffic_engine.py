@@ -20,6 +20,10 @@ RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", 
 APPROACHES = ("north", "east", "south", "west")
 CAR_LENGTH = 4.5
 MIN_GAP = 2.0
+# Car following creeps towards its standstill gap without reaching it, so entry keeps this slack past release.
+EXIT_SPACE_MARGIN = 1.0
+STUCK_IN_JUNCTION_SECONDS = 30.0
+GRIDLOCK_SECONDS = 60.0
 
 
 def phase_family_from_name(phase: str) -> str:
@@ -102,6 +106,7 @@ class Vehicle:
     speed_factor: float = 1.0
     requested_at: float = 0.0
     stop_arrival: float | None = None
+    stopped_for: float = 0.0
 
     @property
     def lane_id(self):
@@ -159,6 +164,7 @@ class TrafficEngine:
         self.vehicles: dict[str, Vehicle] = {}
         self.pedestrians: dict[str, Pedestrian] = {}
         self.reservations: dict[str, str] = {}
+        self.last_vehicle_movement = 0.0
         self.signals = {}
         for node in self.network.intersections:
             available = [a for a in APPROACHES if any(self.network.lanes[lane].approach == a for lane in self.network.incoming[node])] + ["pedestrian"]
@@ -465,7 +471,9 @@ class TrafficEngine:
                     del self.pedestrians[pedestrian.id]
 
     def _exit_has_space(self, lane_id: str, entering: Vehicle):
-        return all(vehicle.connector is not None or vehicle.lane_id != lane_id or vehicle.position-vehicle.length/2 >= entering.length/2+MIN_GAP+1 for vehicle in self.vehicles.values())
+        """Entry needs room for the whole vehicle past the junction, so it can always release its reservation."""
+        required_tail_rear = entering.length+MIN_GAP+EXIT_SPACE_MARGIN
+        return all(vehicle.connector is not None or vehicle.lane_id != lane_id or vehicle.position-vehicle.length/2 >= required_tail_rear for vehicle in self.vehicles.values())
 
     def _stop_priority(self, vehicle: Vehicle, node: str):
         if vehicle.stop_arrival is None:
@@ -500,13 +508,16 @@ class TrafficEngine:
         if vehicle.connector:
             vehicle.speed = min(4.0, vehicle.speed+1.5*STEP_LENGTH)
             vehicle.connector_position += vehicle.speed*STEP_LENGTH
+            vehicle.stopped_for = 0.0
+            self.last_vehicle_movement = self.simulation_time
             if vehicle.connector_position >= length(vehicle.connector):
                 vehicle.position = vehicle.connector_position-length(vehicle.connector)
                 vehicle.connector, vehicle.route = None, vehicle.route[1:]
                 vehicle.stop_arrival = None
             return
         lane = self.network.lanes[vehicle.lane_id]
-        if vehicle.reserved_junction and lane.source == vehicle.reserved_junction and vehicle.position >= vehicle.length/2+MIN_GAP:
+        has_left_junction = vehicle.position-vehicle.length/2 >= 0
+        if vehicle.reserved_junction and lane.source == vehicle.reserved_junction and has_left_junction:
             self.reservations.pop(vehicle.reserved_junction, None)
             vehicle.reserved_junction = None
         self._reroute(vehicle)
@@ -537,8 +548,13 @@ class TrafficEngine:
         travel = min(next_speed*STEP_LENGTH, max(0.0, gap-MIN_GAP))
         vehicle.speed = travel/STEP_LENGTH
         vehicle.position += travel
+        if travel > 0:
+            self.last_vehicle_movement = self.simulation_time
         if vehicle.speed <= 0.1:
             vehicle.wait += STEP_LENGTH
+            vehicle.stopped_for += STEP_LENGTH
+        else:
+            vehicle.stopped_for = 0.0
         if vehicle.position >= lane.length:
             self.lane_exits[lane.id] += 1
             if len(vehicle.route) > 1:
@@ -598,6 +614,24 @@ class TrafficEngine:
                 result[vehicle.lane_id] += 1
         return result
 
+    def _blocked_on_green(self, vehicle: Vehicle):
+        """Stopped at its stop line while its own approach may go: it waits only for downstream space."""
+        if vehicle.connector or vehicle.stop_arrival is None or len(vehicle.route) < 2:
+            return False
+        lane = self.network.lanes[vehicle.lane_id]
+        signal = self.signals.get(lane.target)
+        if signal is None:
+            return False
+        has_green = signal.mode == "signalized" and signal.stage == "green" and signal.family == lane.approach
+        return has_green or signal.mode == "all_way_stop"
+
+    def _gridlock_seconds(self):
+        """Time with no vehicle movement while someone holds a green; normal red waits do not count."""
+        stalled_seconds = self.simulation_time-self.last_vehicle_movement
+        if not self.vehicles or stalled_seconds < GRIDLOCK_SECONDS:
+            return 0.0
+        return stalled_seconds if any(self._blocked_on_green(vehicle) for vehicle in self.vehicles.values()) else 0.0
+
     def _refresh_metrics(self, record: bool = False):
         queues = self._lane_queues()
         incoming = [lane for lane in self.network.lanes.values() if lane.target in self.signals]
@@ -626,6 +660,8 @@ class TrafficEngine:
             "vehicle_conservation_error": self.requested_vehicles-self.lifetime_completed-len(self.vehicles)-len(self.pending_demand)-self.deferred_demand,
             "pedestrian_conservation_error": self.pedestrian_serial-self.lifetime_pedestrians_completed-len(self.pedestrians)-self.dropped_pedestrians,
             "dropped_pedestrians": self.dropped_pedestrians,
+            "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.reserved_junction and vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS),
+            "gridlock_seconds": self._gridlock_seconds(),
             "boundary_wait_seconds": sum(self.simulation_time-item.time for item in self.pending_demand),
             "avg_admitted_boundary_wait": external_wait/max(1, self.completed+len(self.vehicles)),
             "total_stopped_seconds": wait, "total_pedestrian_wait_seconds": ped_wait,

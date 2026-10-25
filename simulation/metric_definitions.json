@@ -1,5 +1,5 @@
 {
-  "version": "native-metric-interpretation-2",
+  "version": "native-metric-interpretation-3",
   "scope": "Native network; per-junction telemetry is separate from whole-network summaries.",
   "window": "Metrics have different windows. Read each definition: measurement reset affects stopped waits/completions/queues, while demand accounting remains cumulative since run start.",
   "unsupported": {
@@ -442,6 +442,32 @@
       "population_keys": [],
       "requires_ticks": false,
       "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "stuck_junction_vehicles",
+      "label": "Vehicles stuck inside a junction",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Active vehicles holding a junction reservation.",
+      "definition": "Vehicles that hold a junction reservation and have been stopped for more than 30 s. The entry rule guarantees room to clear the junction, so any non-zero value indicates an engine fault, not traffic.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "gridlock_seconds",
+      "label": "Gridlock duration",
+      "unit": "seconds",
+      "aliases": [],
+      "population": "All active vehicles.",
+      "definition": "Seconds without any vehicle movement once that exceeds 60 s while at least one vehicle waits at its stop line on green (or at an all-way stop) for downstream space. Waiting at a red signal does not count. Zero means no gridlock is in progress.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero means no gridlock is in progress; it is not proof of realistic traffic.",
       "unavailable": "Missing or non-finite values are unavailable.",
       "requires_elapsed": false
     },
