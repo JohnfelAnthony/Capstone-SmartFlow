@@ -7,6 +7,34 @@ Updated: **2026-10-25** (Asia/Singapore). Scope: `SmartFlow` only. Documentation
 
 **Current status pointer:** the integrated native prototype includes canonical saved scenarios, timed disruptions/routing, selected-junction QL/DQL/PPO training and inference, recording/replay, reports, baseline-fit comparisons and shared 2D/3D presentation. October 24 adds consistent result interpretation and clearer research guidance, described next. The September 23 interruption was repaired; the October 21 adviser report and older backend/browser/standalone records retain their dates and scopes. Final site mapping, independent field audit and faithful conversion, baseline fidelity/calibration, independent validation, final comparative research and public hosting are not established by software checks.
 
+**October 25 — engine fix P1-3, same pedestrian rule for both controllers:** implemented the shared pedestrian rule from P1-3 of the [engine fix plan](ENGINE_FIX_PLAN_2026-10-25.md).
+
+New per-junction plan field `pedestrian_phase`:
+- **`on_call`, the default (owner's choice):** the walk phase is skipped when nobody is waiting at that junction, for fixed-time and RL alike. RL keeps the 90 s `pedestrian_max_wait` guarantee.
+- **`every_cycle`:** fixed-time serves the walk phase every cycle as before. An RL junction is held to the same interval (the plan's own fixed-time red); if it leaves the walk phase unserved that long, the engine requests it.
+
+Before this change, fixed-time always served a 14 s walk phase while RL could skip it, which inflated any RL gain. The `Signal` class itself still defaults to `every_cycle`, so direct signal unit tests keep the classic sequence; scenarios default to `on_call` through the engine. The field is accepted in `engine_config`; the scenario editor does not expose it yet.
+
+**Fixed-time comparison** (seed 101, 1800 s, medium vehicle demand):
+
+| Network | Pedestrians | Rule | Completed trips | Average wait | Pedestrians crossed | Pedestrian delay |
+| --- | --- | --- | --- | --- | --- | --- |
+| Default | none | every cycle | 405 | 182.2 s | — | — |
+| Default | none | on-call | 463 | 84.3 s | — | — |
+| Default | medium | every cycle | 396 | 183.5 s | 117 | 39.8 s |
+| Default | medium | on-call | 437 | 129.7 s | 115 | 46.1 s |
+| 2-junction | none | every cycle | 406 | 139.6 s | — | — |
+| 2-junction | none | on-call | 467 | 60.9 s | — | — |
+| 2-junction | medium | every cycle | 370 | 160.2 s | 109 | 48.8 s |
+| 2-junction | medium | on-call | 371 | 172.5 s | 110 | 48.4 s |
+
+- On-call removes the empty walk phase when nobody crosses, which roughly halves average vehicle wait. With medium pedestrian demand the phase is called most cycles, so gains shrink. The 2-junction single-seed result is slightly worse, within what one seed can show.
+- Watchdog metrics and both conservation errors stayed 0 in all eight runs.
+
+**Tests:** new `tests/test_pedestrian_rule.py` (5 tests; 4 failed before the change). Full backend suite **168 passed in 227.4 s** (isolated storage).
+
+**Still open in P1-3:** basing the fixed-time timing on the signal plans observed at the Tagum sites (field work, not code). The engine version is still `native-4`.
+
 **October 25 — engine fix P1-4, maximum wait for green:** implemented P1-4 from the [engine fix plan](ENGINE_FIX_PLAN_2026-10-25.md).
 - **New per-junction plan field `maximum_red_seconds`.** It replaces the old starvation bound (`maximum_green` × services, 300 s by default and up to 900 s). When an approach with waiting vehicles has gone this long without green, the engine requests its green under any controller.
 - **Default.** If the field is not set, the cap is 120 s or the plan's own fixed-time red (cycle minus green), whichever is longer. A legal fixed-time baseline never trips the guard, and RL is never held to a stricter standard than the baseline it is compared with. The default 14 s plan has a 73 s red, so its cap is 120 s.

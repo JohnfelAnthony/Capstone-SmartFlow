@@ -26,6 +26,10 @@ DEFAULTS = {
 
 
 DEFAULT_MAXIMUM_RED_SECONDS = 120.0
+# Both controllers follow the same walk-phase rule: on_call skips it when nobody waits (pushbutton style);
+# every_cycle serves it each fixed-time cycle and holds RL to the same interval.
+DEFAULT_PEDESTRIAN_PHASE = "on_call"
+PEDESTRIAN_PHASE_RULES = {"on_call", "every_cycle"}
 
 
 def fixed_red_seconds(order, green, yellow, all_red):
@@ -146,10 +150,12 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")
-        if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds", "maximum_red_seconds"}:
+        if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds", "maximum_red_seconds", "pedestrian_phase"}:
             raise ValueError("Unknown signal plan field")
         if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop"}:
             raise ValueError("Signal mode must be signalized or all_way_stop")
+        if plan.get("pedestrian_phase", DEFAULT_PEDESTRIAN_PHASE) not in PEDESTRIAN_PHASE_RULES:
+            raise ValueError("pedestrian_phase must be on_call or every_cycle")
         available = {network.lanes[lane].approach for lane in network.incoming[node]} | {"pedestrian"}
         order = plan.get("phase_order", [a for a in ("north", "east", "south", "west", "pedestrian") if a in available])
         if not isinstance(order, list) or any(not isinstance(item, str) for item in order) or len(order) != len(set(order)) or set(order) != available:

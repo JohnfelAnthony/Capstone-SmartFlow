@@ -10,7 +10,7 @@ import math
 import random
 from dataclasses import dataclass
 
-from .scenario_config import DEFAULTS, VEHICLE_TYPES, effective_maximum_red, number, object_config, validate_config
+from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
 from .demand import Arrival, build_schedule, schedule_hash
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
@@ -55,6 +55,10 @@ class Signal:
     mode: str = "signalized"
     # Longest a demanded approach may wait for green before the engine requests it (any controller).
     maximum_red: float = 120.0
+    # Walk-phase rule; engine plans default to on_call (see scenario_config.DEFAULT_PEDESTRIAN_PHASE).
+    pedestrian_phase: str = "every_cycle"
+    # Under every_cycle, the longest RL may leave the walk phase unserved: the plan's own fixed-time red.
+    walk_interval: float = math.inf
 
     @property
     def family(self):
@@ -77,7 +81,7 @@ class Signal:
         self.pending = family if family != self.family else None
         return {"applied": bool(self.pending), "reason": "queued_safely" if self.pending else "already_serving"}
 
-    def step(self, dt: float, crossing_occupied: bool):
+    def step(self, dt: float, crossing_occupied: bool, pedestrians_waiting: bool = False):
         self.elapsed = round(self.elapsed + dt, 6)
         if self.mode == "all_way_stop":
             return
@@ -90,7 +94,9 @@ class Signal:
         elif self.stage == "yellow" and self.elapsed >= self.yellow_seconds:
             self.stage, self.elapsed = "red", 0
         elif self.stage == "red" and self.elapsed >= self.all_red_seconds and not crossing_occupied:
-            self.index = self.approaches.index(self.pending) if self.pending else (self.index+1) % len(self.approaches)
+            next_index = self.approaches.index(self.pending) if self.pending else (self.index+1) % len(self.approaches)
+            skip_walk = self.approaches[next_index] == "pedestrian" and self.pedestrian_phase == "on_call" and not pedestrians_waiting
+            self.index = (next_index+1) % len(self.approaches) if skip_walk else next_index
             self.stage, self.elapsed, self.pending = "green", 0, None
             self.switches += 1
 
@@ -186,7 +192,9 @@ class TrafficEngine:
                                            else plan.get("minimum_green", min(self.green_seconds, 10.0))),
                             maximum_green=plan.get("maximum_green", max(60, self.green_seconds)),
                             yellow_seconds=plan.get("yellow_seconds", 3), all_red_seconds=plan.get("all_red_seconds", 1),
-                            mode=plan.get("mode", "signalized"), maximum_red=effective_maximum_red(plan, order, green))
+                            mode=plan.get("mode", "signalized"), maximum_red=effective_maximum_red(plan, order, green),
+                            pedestrian_phase=plan.get("pedestrian_phase", DEFAULT_PEDESTRIAN_PHASE),
+                            walk_interval=fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1)))
             # Offset is a phase-clock shift; there are no road users during initialization.
             for _ in range(round(plan.get("offset_seconds", 0)/STEP_LENGTH)):
                 signal.step(STEP_LENGTH, False)
@@ -429,11 +437,16 @@ class TrafficEngine:
             oldest = min(demanded, key=lambda a: (self.last_served[node][a], a), default=None)
             overdue_approach = oldest is not None and self.simulation_time-self.last_served[node][oldest] >= signal.maximum_red
             overdue_pedestrians = any(p.junction == node and not p.crossing and p.wait >= self.config["pedestrian_max_wait"] for p in self.pedestrians.values())
+            # Fixed-time serves an every_cycle walk phase by itself; RL is held to the same interval.
+            walk_overdue = (signal.external and signal.pedestrian_phase == "every_cycle" and signal.family != "pedestrian"
+                            and self.simulation_time-self.last_served[node]["pedestrian"] >= signal.walk_interval)
             # Bound service starvation even when a policy repeatedly asks for the same phase.
             if signal.elapsed >= signal.maximum_green:
                 self._request_safety_service(node, signal.approaches[(signal.index+1) % len(signal.approaches)], "maximum_green")
             elif overdue_pedestrians and signal.family != "pedestrian":
                 self._request_safety_service(node, "pedestrian", "pedestrian_wait")
+            elif walk_overdue:
+                self._request_safety_service(node, "pedestrian", "walk_interval")
             elif overdue_approach:
                 self._request_safety_service(node, oldest, "approach_starvation")
 
@@ -460,6 +473,9 @@ class TrafficEngine:
         self.configure_rl_control(decision_interval=decision_interval, minimum_green_hold=minimum_green_hold,
                                   controller_label=policy.controller_provenance.upper(), controller_provenance=policy.controller_provenance)
         self.runtime_policy = policy
+
+    def _pedestrians_waiting(self, node: str):
+        return any(pedestrian.junction == node and not pedestrian.crossing for pedestrian in self.pedestrians.values())
 
     def _crossing_occupied(self, node: str):
         return any(pedestrian.junction == node and pedestrian.crossing for pedestrian in self.pedestrians.values())
@@ -669,7 +685,7 @@ class TrafficEngine:
             self._apply_scheduled_events()
             self._control_signals()
             for node, signal in self.signals.items():
-                signal.step(STEP_LENGTH, self._crossing_occupied(node))
+                signal.step(STEP_LENGTH, self._crossing_occupied(node), self._pedestrians_waiting(node))
             self._step_pedestrians()
             # Front vehicles move first; followers are capped against the updated leader.
             for vehicle in sorted(list(self.vehicles.values()), key=lambda car: (-car.position, car.id)):
