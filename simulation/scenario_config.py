@@ -25,6 +25,22 @@ DEFAULTS = {
 }
 
 
+DEFAULT_MAXIMUM_RED_SECONDS = 120.0
+
+
+def fixed_red_seconds(order, green, yellow, all_red):
+    """How long each approach waits for green under the plan's own fixed-time cycle (cycle minus its green)."""
+    cycle = sum(green+all_red+(0 if service == "pedestrian" else yellow) for service in order)
+    return cycle-green
+
+
+def effective_maximum_red(plan, order, green):
+    """The explicit cap, else 120 s or the plan's own fixed-time red if longer, so a legal baseline never trips it."""
+    if "maximum_red_seconds" in plan:
+        return plan["maximum_red_seconds"]
+    return max(DEFAULT_MAXIMUM_RED_SECONDS, fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1)))
+
+
 def number(value, label, minimum=0.0, maximum=86400.0):
     if isinstance(value, bool):
         raise ValueError(f"{label} must be a number")
@@ -130,7 +146,7 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")
-        if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds"}:
+        if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds", "maximum_red_seconds"}:
             raise ValueError("Unknown signal plan field")
         if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop"}:
             raise ValueError("Signal mode must be signalized or all_way_stop")
@@ -146,6 +162,11 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             plan[key] = number(plan.get(key, default), key, low, high)
         if not plan["minimum_green"] <= plan["green_seconds"] <= plan["maximum_green"]:
             raise ValueError("Signal timing requires minimum_green <= green_seconds <= maximum_green")
+        if "maximum_red_seconds" in plan:
+            plan["maximum_red_seconds"] = number(plan["maximum_red_seconds"], "maximum_red_seconds", 30, 600)
+            own_red = fixed_red_seconds(order, plan["green_seconds"], plan["yellow_seconds"], plan["all_red_seconds"])
+            if plan.get("mode", "signalized") == "signalized" and plan["maximum_red_seconds"] < own_red:
+                raise ValueError(f"maximum_red_seconds ({plan['maximum_red_seconds']:g} s) is shorter than this plan's own fixed-time red ({own_red:g} s)")
     mix = result["vehicle_mix"]
     if not mix or mix.keys() - VEHICLE_TYPES.keys():
         raise ValueError("Unknown or empty vehicle mix")

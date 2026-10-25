@@ -7,6 +7,22 @@ Updated: **2026-10-25** (Asia/Singapore). Scope: `SmartFlow` only. Documentation
 
 **Current status pointer:** the integrated native prototype includes canonical saved scenarios, timed disruptions/routing, selected-junction QL/DQL/PPO training and inference, recording/replay, reports, baseline-fit comparisons and shared 2D/3D presentation. October 24 adds consistent result interpretation and clearer research guidance, described next. The September 23 interruption was repaired; the October 21 adviser report and older backend/browser/standalone records retain their dates and scopes. Final site mapping, independent field audit and faithful conversion, baseline fidelity/calibration, independent validation, final comparative research and public hosting are not established by software checks.
 
+**October 25 — engine fix P1-4, maximum wait for green:** implemented P1-4 from the [engine fix plan](ENGINE_FIX_PLAN_2026-10-25.md).
+- **New per-junction plan field `maximum_red_seconds`.** It replaces the old starvation bound (`maximum_green` × services, 300 s by default and up to 900 s). When an approach with waiting vehicles has gone this long without green, the engine requests its green under any controller.
+- **Default.** If the field is not set, the cap is 120 s or the plan's own fixed-time red (cycle minus green), whichever is longer. A legal fixed-time baseline never trips the guard, and RL is never held to a stricter standard than the baseline it is compared with. The default 14 s plan has a 73 s red, so its cap is 120 s.
+- **Validation.** An explicit value must be 30–600 s and not shorter than the plan's own red.
+- **Deviation from the plan:** the plan said long fixed-time plans would be rejected. Instead the default adapts, because the scenario editor allows greens up to 180 s and saved settings must keep working.
+- **Not in the scenario editor yet;** the field is accepted in `engine_config` only.
+
+**Measured on the synthetic cross at medium demand over 600 s.** The longest wait for green for an approach with waiting vehicles fell from 325.9 s to 138.0 s under an always-North policy, and to 149.0 s under always-pedestrians. The green is *requested* at 120 s and served after the current minimum green, clearance and any other overdue approach, so it is not a hard 120 s ceiling.
+
+**Tests:**
+- New `tests/test_maximum_red.py` (4 tests; all failed before the change).
+- The capacity tests lift the cap only during their artificial 240 s queue-building red.
+- Full backend suite: 161 passed plus the 2 capacity tests re-run after that adjustment, isolated storage.
+
+The engine version is still `native-4`.
+
 **October 25 — engine fix P1-2 step 1, junction capacity:** implemented step 1 of P1-2 from the [engine fix plan](ENGINE_FIX_PLAN_2026-10-25.md).
 - **Approach-scoped occupancy.** At signalized junctions, vehicles from the approach that has green may be inside together. Other approaches and pedestrians wait until the junction is empty. All-way stops still admit one vehicle.
 - **Proceed vs commit.** A vehicle that may proceed no longer brakes for the line. It commits only at its last comfortable-stop point, never behind an uncommitted vehicle.

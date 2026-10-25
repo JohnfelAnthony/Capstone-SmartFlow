@@ -23,7 +23,8 @@ class JunctionCapacityTests(unittest.TestCase):
         engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static",
                          trips=[{"time": index*0.5, "source": "w", "destination": destination, "vehicle_type": vehicle_type} for index in range(120)])
         engine.start(600)
-        self.hold_phase(engine, "north")
+        # Building a long queue needs a 240 s red, longer than the maximum-red guard allows in normal operation.
+        self.hold_phase(engine, "north").maximum_red = 600
         engine.step(2400)
         west_lane = next(lane.id for lane in engine.network.lanes.values() if lane.source == "w")
         self.assertGreater(engine._lane_queues()[west_lane], 30, "the approach must be saturated before green")

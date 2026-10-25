@@ -1,6 +1,6 @@
 # Traffic engine fix plan
 
-Planned: **2026-10-25** (Asia/Singapore). Status: **P0-1 and P1-2 step 1 implemented 2026-10-25** (engine version intentionally still `native-4`; see progress for evidence). Remaining fixes proposed and reviewed, not implemented. P1-2 deviation: the exit check became a lane-storage rule (everything on or committed to the exit lane must fit end to end), because the P0-1 "tail must already be clear" rule capped discharge at about 3.5 s per vehicle. Scope: critical and high findings from the October 25 engine review (`simulation/traffic_engine.py`, RL modules).
+Planned: **2026-10-25** (Asia/Singapore). Status: **P0-1, P1-2 step 1 and P1-4 implemented 2026-10-25** (engine version intentionally still `native-4`; see progress for evidence). Remaining fixes proposed and reviewed, not implemented. P1-2 deviation: the exit check became a lane-storage rule (everything on or committed to the exit lane must fit end to end), because the P0-1 "tail must already be clear" rule capped discharge at about 3.5 s per vehicle. P1-4 deviation: when `maximum_red_seconds` is not set, the cap defaults to 120 s or the plan's own fixed-time red, whichever is longer, instead of rejecting long fixed-time plans. Scope: critical and high findings from the October 25 engine review (`simulation/traffic_engine.py`, RL modules).
 
 Navigation: [Start here](../README.md) · [Progress and handoff](PROGRESS_AND_HANDOFF.md) · [Architecture and plan](ARCHITECTURE_AND_PLAN.md) · [Research method](RESEARCH_METHOD.md)
 

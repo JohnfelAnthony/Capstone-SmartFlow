@@ -10,7 +10,7 @@ import math
 import random
 from dataclasses import dataclass
 
-from .scenario_config import DEFAULTS, VEHICLE_TYPES, number, object_config, validate_config
+from .scenario_config import DEFAULTS, VEHICLE_TYPES, effective_maximum_red, number, object_config, validate_config
 from .demand import Arrival, build_schedule, schedule_hash
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
@@ -53,6 +53,8 @@ class Signal:
     yellow_seconds: float = 3.0
     all_red_seconds: float = 1.0
     mode: str = "signalized"
+    # Longest a demanded approach may wait for green before the engine requests it (any controller).
+    maximum_red: float = 120.0
 
     @property
     def family(self):
@@ -177,13 +179,14 @@ class TrafficEngine:
         for node in self.network.intersections:
             available = [a for a in APPROACHES if any(self.network.lanes[lane].approach == a for lane in self.network.incoming[node])] + ["pedestrian"]
             plan = self.config["signal_plans"].get(node, {})
-            signal = Signal(plan.get("phase_order", available),
-                            green_seconds=plan.get("green_seconds", self.green_seconds),
+            order, green = plan.get("phase_order", available), plan.get("green_seconds", self.green_seconds)
+            signal = Signal(order,
+                            green_seconds=green,
                             minimum_green=(self.rl_minimum_green_hold if self.rl_control_enabled and node == self.controlled_junction
                                            else plan.get("minimum_green", min(self.green_seconds, 10.0))),
                             maximum_green=plan.get("maximum_green", max(60, self.green_seconds)),
                             yellow_seconds=plan.get("yellow_seconds", 3), all_red_seconds=plan.get("all_red_seconds", 1),
-                            mode=plan.get("mode", "signalized"))
+                            mode=plan.get("mode", "signalized"), maximum_red=effective_maximum_red(plan, order, green))
             # Offset is a phase-clock shift; there are no road users during initialization.
             for _ in range(round(plan.get("offset_seconds", 0)/STEP_LENGTH)):
                 signal.step(STEP_LENGTH, False)
@@ -424,7 +427,7 @@ class TrafficEngine:
             self.last_served[node][signal.family] = self.simulation_time
             demanded = {self.network.lanes[v.lane_id].approach for v in self.vehicles.values() if not v.connector and self.network.lanes[v.lane_id].target == node}
             oldest = min(demanded, key=lambda a: (self.last_served[node][a], a), default=None)
-            overdue_approach = oldest is not None and self.simulation_time-self.last_served[node][oldest] >= signal.maximum_green*len(signal.approaches)
+            overdue_approach = oldest is not None and self.simulation_time-self.last_served[node][oldest] >= signal.maximum_red
             overdue_pedestrians = any(p.junction == node and not p.crossing and p.wait >= self.config["pedestrian_max_wait"] for p in self.pedestrians.values())
             # Bound service starvation even when a policy repeatedly asks for the same phase.
             if signal.elapsed >= signal.maximum_green:
