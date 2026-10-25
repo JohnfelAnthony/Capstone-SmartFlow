@@ -1,10 +1,10 @@
 import * as React from "react"
 import {
-  AmbientLight, BoxGeometry, BufferGeometry, CircleGeometry, Color, CylinderGeometry,
+  AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, CircleGeometry, Color, CylinderGeometry,
   DirectionalLight, DoubleSide, DynamicDrawUsage, Group, InstancedMesh, Line,
   LineDashedMaterial, LineLoop, LineBasicMaterial, Mesh, MeshBasicMaterial,
   MeshStandardMaterial, Object3D, PCFSoftShadowMap, PerspectiveCamera, Raycaster,
-  Scene, Shape, ShapeGeometry, SphereGeometry, SRGBColorSpace, Vector2, Vector3,
+  Scene, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, Vector2, Vector3,
   WebGLRenderer, type Material,
 } from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
@@ -13,6 +13,7 @@ import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
 import { boundsForJunction, headingToThreeYaw, lanePolygon, SCENE_PALETTE, selectionKey, signalAppearance, type SceneBounds, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
+import { junctionTagText } from "@/simulation/scene-summary"
 import { interpolateVehicle, interpolationDuration, isPresentationJump } from "@/simulation/entity-interpolation"
 import { getFallbackVehicleAssetLibrary, loadVehicleAssetLibrary, VehicleFleetInstances, VEHICLE_CLASSES } from "@/simulation/vehicle-assets"
 import { perspectiveBoundsFit } from "@/simulation/camera-fit"
@@ -172,6 +173,27 @@ export function SimulationScene3D(props: SceneProps) {
     const connectors = new Group(), arrows = new Group(), signalGroup = new Group()
     const context = new Group(), pedestrianPaths = new Group(), restrictions = new Group()
     scene.add(connectors, arrows, signalGroup, context, pedestrianPaths, restrictions)
+    // Junction tags match the 2D map tags; clicks still land on the junction surface underneath.
+    const junctionTags = new Map<string, Sprite>(), tagTextures: CanvasTexture[] = []
+    for (const junction of geometry.junctions) {
+      const text = junctionTagText(junction.label), tagCanvas = document.createElement("canvas"), drawing = tagCanvas.getContext("2d")
+      if (!drawing) continue
+      drawing.font = "600 40px system-ui"
+      tagCanvas.width = Math.ceil(drawing.measureText(text).width) + 48
+      tagCanvas.height = 72
+      drawing.font = "600 40px system-ui"
+      drawing.fillStyle = "#1F7A5A"; drawing.beginPath(); drawing.roundRect(0, 0, tagCanvas.width, tagCanvas.height, 18); drawing.fill()
+      drawing.fillStyle = "#FFFFFF"; drawing.textAlign = "center"; drawing.textBaseline = "middle"; drawing.fillText(text, tagCanvas.width / 2, tagCanvas.height / 2)
+      const texture = new CanvasTexture(tagCanvas)
+      texture.colorSpace = SRGBColorSpace
+      tagTextures.push(texture)
+      const tag = new Sprite(addMaterial(new SpriteMaterial({ map: texture, depthTest: false, transparent: true })))
+      tag.scale.set(tagCanvas.width / tagCanvas.height * 3.5, 3.5, 1)
+      tag.position.set(junction.center.x, 12, -junction.center.y)
+      tag.renderOrder = 10
+      scene.add(tag)
+      junctionTags.set(junction.id, tag)
+    }
     for (const lane of geometry.lanes) {
       if (lane.kind === "connector") {
         mesh(ribbon(lane.centerline, 0.09, 0.07), markingsSurface, connectors)
@@ -528,6 +550,8 @@ export function SimulationScene3D(props: SceneProps) {
       }
       connectors.visible = presentation.overlays.connectors
       arrows.visible = presentation.overlays.arrows
+      const taggedJunction = presentation.selection?.kind === "junction" ? presentation.selection.id : presentation.junctionId
+      for (const [id, tag] of junctionTags) { tag.visible = presentation.overlays.labels; tag.material.opacity = id === taggedJunction ? 1 : .55 }
       context.visible = presentation.overlays.context
       signalGroup.visible = presentation.overlays.signals
       updateRestrictions(next)
@@ -596,6 +620,7 @@ export function SimulationScene3D(props: SceneProps) {
       pathGeometries.forEach((value) => value.dispose())
       geometries.forEach((value) => value.dispose())
       materials.forEach((value) => value.dispose())
+      tagTextures.forEach((value) => value.dispose())
       sun.shadow.map?.dispose()
       renderer.dispose()
       renderer.domElement.remove()

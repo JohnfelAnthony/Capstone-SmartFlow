@@ -5,7 +5,6 @@ import { listScenarios, type ApiScenario } from "@/api/scenarios"
 import { getNativeScenarioOptions, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions } from "@/api/native-scenario"
 import { listRLModels, type RLModelRecord } from "@/api/rl"
 import {
-  configureSimulation,
   getSimulationState,
   listSimulationRuns,
   loadPlayback,
@@ -20,10 +19,9 @@ import {
   type SimulationRunRecord,
   type SimulationStatePayload,
 } from "@/api/simulation"
-import { DashboardControls } from "@/components/dashboard-controls"
+import { SetupCard, SignalControlCard, SimControlBar } from "@/components/dashboard-controls"
 import { DashboardKpis } from "@/components/dashboard-kpis"
 import { DashboardTrends, type TrendPoint } from "@/components/dashboard-trends"
-import { Card } from "@/components/ui/card"
 import { SimulationVisualization } from "@/simulation/simulation-visualization"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
@@ -156,26 +154,6 @@ export function DashboardPage({
       return firstCompleted ? String(firstCompleted.id) : ""
     })
   }, [])
-
-  const configureSelectedScenario = React.useCallback(() => {
-    if (!canConfigure) {
-      setNotice("Select a scenario before applying configuration.")
-      return
-    }
-    const parsedSeed = Number(seed)
-    if (!Number.isInteger(parsedSeed) || parsedSeed < 0 || parsedSeed > 4294967295 || seed.trim() === "") {
-      setNotice("Run seed must be a whole number from 0 to 4294967295.")
-      return
-    }
-    return applySimulationAction(() =>
-      configureSimulation({
-        scenario_id: Number(selectedScenarioId),
-        duration_seconds: Number(durationSeconds),
-        seed: parsedSeed,
-        control_mode: controlMode,
-      })
-    )
-  }, [applySimulationAction, canConfigure, controlMode, durationSeconds, seed, selectedScenarioId])
 
   React.useEffect(() => {
     let isMounted = true
@@ -373,54 +351,36 @@ export function DashboardPage({
     ...Object.entries(renderFrame?.visual.slow_lanes ?? {}).filter(([, factor]) => factor < 1).map(([id, factor]) => ({ id, detail: `${Math.round(factor * 100)}% speed` })),
   ]
   const ownershipNote = !canRunSimulation ? "Your role has view access only." : canOperate ? "" : "Controls are read-only until the owner resets the session."
-  const statusLine = [streamNotice ?? notice, ownershipNote, streamEnabled && streamStatus !== "open" ? `Live stream ${streamStatus}; positions may be delayed.` : ""].filter(Boolean).join(" ")
   const hasConfiguredScenario = simulation?.selected_scenario_id != null && typeof simulation.state.dashboard?.current_scenario_name === "string"
-  const scenarioTitle = hasConfiguredScenario ? String(simulation.state.dashboard?.current_scenario_name) : selectedScenario?.name ?? "Select a scenario in Setup"
+  const scenarioTitle = hasConfiguredScenario ? String(simulation.state.dashboard?.current_scenario_name) : selectedScenario?.name ?? "No scenario selected"
+  const statusLine = [scenarioTitle, streamNotice ?? notice, ownershipNote, streamEnabled && streamStatus !== "open" ? `Live stream ${streamStatus}; positions may be delayed.` : ""].filter(Boolean).join(" · ")
   const intersectionId = renderFrame?.intersection_id ??
     (typeof simulation?.state.scenario?.intersection_id === "string" ? simulation.state.scenario.intersection_id : null)
   const frozenConfig = simulation?.state.experiment?.config
   const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null
+  const isIdle = !["running", "paused"].includes(simulation?.status ?? "") && simulation?.control_mode !== "playback"
+  const laneStreets = React.useMemo(() => Object.fromEntries((nativeOptions?.lanes ?? []).map((lane) => [lane.id, lane.road_name])), [nativeOptions])
+  const selectedModel = models.find((model) => `${model.algorithm.toLowerCase()}:${model.id}` === controlMode)
+  const controllerLabel = selectedModel ? `${selectedModel.algorithm} model #${selectedModel.id}` : "Fixed-time plan"
 
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
       <DashboardKpis metrics={simulation?.state.metrics} baseline={baseline} isBaselineRun={simulation?.control_mode === "fixed-time"} />
-      <Card className="py-0">
-        <SimulationVisualization frame={renderFrame} networkId={intersectionId}
-          controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
-          mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision}
-          title={scenarioTitle} onUnavailable={handleThreeUnavailable} onPerformanceSample={showPerformance ? handleRenderPerformance : undefined} />
-      </Card>
-      <DashboardControls
-        simulation={simulation}
-        scenarios={scenarios}
-        selectedScenarioId={selectedScenarioId}
-        scenarioConfig={scenarioConfig}
-        models={models}
-        controlMode={controlMode}
-        seed={seed}
-        durationSeconds={durationSeconds}
-        recordedRuns={recordedRuns}
-        selectedRecordedRunId={selectedRecordedRunId}
-        isBusy={isBusy}
-        canOperate={canOperate}
-        canTakeOver={!canOperate && isAdmin}
-        status={statusLine}
-        onScenarioChange={handleScenarioChange}
-        onControlModeChange={setControlMode}
-        onSeedChange={setSeed}
-        onDurationChange={setDurationSeconds}
-        onApply={() => void configureSelectedScenario()}
-        onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }}
-        onRecordedRunChange={setSelectedRecordedRunId}
-        onLoadRecording={handleLoadRecording}
-        onStartPlayback={handleStartPlayback}
-        onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)}
-        onStart={handleStart}
-        onPause={handlePauseOrResume}
-        onStop={() => applySimulationAction(stopSimulation)}
-        onReset={() => applySimulationAction(resetSimulation)}
-        onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")}
-      />
+      <SimulationVisualization frame={renderFrame} networkId={intersectionId}
+        controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
+        mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
+        onUnavailable={handleThreeUnavailable} onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
+        controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} canOperate={canOperate} canStart={canConfigure}
+          onStart={handleStart} onStartPlayback={handleStartPlayback} onPause={handlePauseOrResume} onStop={() => applySimulationAction(stopSimulation)} onReset={() => applySimulationAction(resetSimulation)}
+          onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }} onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)} />}
+        overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controllerLabel={controllerLabel}
+          recordedRuns={recordedRuns} selectedRecordedRunId={selectedRecordedRunId} isBusy={isBusy} canOperate={canOperate} canTakeOver={!canOperate && isAdmin}
+          onScenarioChange={handleScenarioChange} onDurationChange={setDurationSeconds} onSeedChange={setSeed} onStart={handleStart}
+          onRecordedRunChange={setSelectedRecordedRunId} onLoadRecording={handleLoadRecording}
+          onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null}
+        sidePanel={<SignalControlCard simulation={simulation} models={models} controlMode={controlMode} scenarioConfig={scenarioConfig} nativeOptions={nativeOptions}
+          isLocked={isBusy || !canOperate} onControlModeChange={setControlMode} />} />
+      <p className="text-xs text-muted-foreground" role="status">{statusLine}</p>
       <DashboardTrends history={chartHistory} />
       <section className="sr-only" aria-label="Live road and controller state">
         <h2>Road and junction state at {compactNumber(renderFrame?.time ?? 0, 1)}s</h2>

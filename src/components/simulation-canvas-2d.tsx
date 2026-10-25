@@ -5,6 +5,7 @@ import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
 import { boundsForJunction, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
+import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
 type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void }
@@ -23,15 +24,15 @@ function path(ctx: CanvasRenderingContext2D, points: VisualPoint[], transform: T
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width / transform.scale; ctx.lineCap = "butt"; ctx.lineJoin = "round"; ctx.setLineDash(dashed ? [5 / transform.scale, 5 / transform.scale] : []); ctx.stroke(fill ? paths.closed : paths.open) }
   ctx.restore()
 }
-function label(ctx: CanvasRenderingContext2D, text: string, point: VisualPoint | undefined, transform: Transform, offset = 0) {
+function label(ctx: CanvasRenderingContext2D, text: string, point: VisualPoint | undefined, transform: Transform, offset = 0, highlighted = false) {
   if (!point) return
   const p = screen(point, transform)
   ctx.font = "600 11px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
   const width = ctx.measureText(text).width + 18, height = 23, occupied = occupiedLabels.get(ctx) ?? []
   const rect = claimMapLabel([offset, offset - 28, offset + 28].map((dy) => ({ x: p.x - width / 2, y: p.y + dy - height / 2, width, height })), occupied, transform.width, transform.height)
   if (!rect) return
-  ctx.beginPath(); ctx.roundRect(rect.x, rect.y, width, height, 7); ctx.fillStyle = "rgba(250,252,248,.96)"; ctx.fill(); ctx.strokeStyle = "rgba(63,87,74,.14)"; ctx.lineWidth = 1; ctx.stroke()
-  ctx.fillStyle = "#2D493D"; ctx.fillText(text, rect.x + width / 2, rect.y + height / 2)
+  ctx.beginPath(); ctx.roundRect(rect.x, rect.y, width, height, 7); ctx.fillStyle = highlighted ? "#1F7A5A" : "rgba(250,252,248,.96)"; ctx.fill(); ctx.strokeStyle = highlighted ? "#1F7A5A" : "rgba(63,87,74,.14)"; ctx.lineWidth = 1; ctx.stroke()
+  ctx.fillStyle = highlighted ? "#FFFFFF" : "#2D493D"; ctx.fillText(text, rect.x + width / 2, rect.y + height / 2)
 }
 function hashIndex(id: string) { let hash = 0; for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0; return (hash >>> 0) % palette.cars.length }
 function drawVehicle(ctx: CanvasRenderingContext2D, vehicle: RenderVehicle, transform: Transform, selected: boolean) {
@@ -95,11 +96,7 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
   for (const junction of orderedJunctions) {
     const focused = junction.id === presentation.junctionId, selected = presentation.selection?.kind === "junction" && presentation.selection.id === junction.id
     if (selected || focused) path(ctx, junction.polygon, transform, "rgba(84,195,156,.1)", selected ? palette.selected : "#8BCDB2", selected ? 2.5 : 1.5)
-    if (presentation.overlays.labels && (focused || presentation.focus === "network")) label(ctx, junction.label, junction.center, transform, -35)
-    if (presentation.overlays.queues && focused) {
-      const metrics = frame?.junction_metrics?.[junction.id]
-      label(ctx, metrics ? `Queue ${metrics.queue} · Waiting ${metrics.waiting_pedestrians}` : "Queue / waiting unavailable", junction.center, transform, 37)
-    }
+    if (presentation.overlays.labels) label(ctx, junctionTagText(junction.label), junction.center, transform, -35, focused || selected)
   }
   if (!frame) return
   const closed = new Set(frame.visual.closed_lanes)
@@ -110,8 +107,8 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
     if (presentation.overlays.heatmap && metrics && metrics.queue > 0) {
       const color = metrics.queue >= 10 ? "#CE6269" : metrics.queue >= 5 ? "#D4AC63" : "#86A79C"
       path(ctx, lane.centerline, transform, undefined, color, Math.max(2, lane.width * transform.scale * .58))
-      label(ctx, `${metrics.queue}`, lane.centerline[Math.floor(lane.centerline.length / 2)], transform)
     }
+    if (presentation.overlays.queues && metrics && metrics.queue > 0) label(ctx, `${metrics.queue}`, lane.centerline[Math.floor(lane.centerline.length / 2)], transform)
     if (presentation.overlays.arrows && lane.centerline.length > 1) {
       const middle = Math.max(1, Math.floor(lane.centerline.length / 2)), a = screen(lane.centerline[middle - 1], transform), b = screen(lane.centerline[middle], transform)
       ctx.save(); ctx.translate((a.x + b.x) / 2, (a.y + b.y) / 2); ctx.rotate(Math.atan2(b.y - a.y, b.x - a.x)); ctx.strokeStyle = palette.markings; ctx.lineWidth = 1.5

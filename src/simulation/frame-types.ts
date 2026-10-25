@@ -24,12 +24,14 @@ export type RenderPedestrian = {
 }
 
 export type LaneMetrics = { vehicles: number; queue: number; mean_speed_mps: number; density_vehicles_per_km: number; exits: number; closed: boolean; speed_factor: number }
-export type JunctionMetrics = { queue: number; vehicle_passages: number; waiting_pedestrians: number }
+export type JunctionMetrics = { queue: number; vehicle_passages: number; waiting_pedestrians: number; phase?: string; mode?: string }
 export type JunctionControl = {
   mode: string; controller: string; selected_for_rl: boolean; phase: string
   stage?: string; elapsed_seconds?: number; remaining_seconds?: number | null
   timing_kind?: "fixed_stage" | "minimum_hold" | "clearance" | "none"
   pending_service?: string | null; external_control?: boolean
+  phase_order?: string[]; green_seconds?: number; minimum_green?: number; maximum_green?: number
+  yellow_seconds?: number; all_red_seconds?: number
 }
 export type ControllerEvent = { time?: number; junction_id?: string; action?: number | string; service?: string; applied?: boolean; result?: string; reason?: string; [key: string]: unknown }
 export type ControllerEvents = { last_policy_decision: ControllerEvent | null; last_safety_override: ControllerEvent | null }

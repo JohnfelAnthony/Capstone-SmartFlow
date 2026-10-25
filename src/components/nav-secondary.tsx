@@ -9,9 +9,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { MoonIcon, SunIcon } from "lucide-react"
+import { MoonIcon, ShuffleIcon, SunIcon } from "lucide-react"
 
-import { getInitialTheme, applyTheme, clearRandomPalette, type ThemeMode } from "@/lib/appearance"
+import { getInitialTheme, applyTheme, clearRandomPalette, generateRandomPalette, applyRandomPalette, type ThemeMode, type RandomPalette } from "@/lib/appearance"
 
 export function NavSecondary({
   activeItem,
@@ -28,6 +28,13 @@ export function NavSecondary({
   onSelectItem: (item: string) => void
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   const [theme, setTheme] = React.useState<ThemeMode>(getInitialTheme)
+  const [randomCount, setRandomCount] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return 0
+    }
+
+    return Number(window.localStorage.getItem("smartflow-random-count") || "0")
+  })
   const isLight = theme === "light"
   const ThemeIcon = isLight ? SunIcon : MoonIcon
 
@@ -37,7 +44,15 @@ export function NavSecondary({
   }, [theme])
 
   React.useEffect(() => {
-    clearRandomPalette()
+    const savedPalette = window.localStorage.getItem("smartflow-random-palette")
+
+    if (savedPalette) {
+      try {
+        applyRandomPalette(JSON.parse(savedPalette) as RandomPalette)
+      } catch {
+        clearRandomPalette()
+      }
+    }
   }, [])
 
   React.useEffect(() => {
@@ -45,6 +60,16 @@ export function NavSecondary({
     window.addEventListener("smartflow-appearance", update)
     return () => window.removeEventListener("smartflow-appearance", update)
   }, [])
+
+  function handleRandomize() {
+    const palette = generateRandomPalette()
+    const nextCount = randomCount + 1
+
+    applyRandomPalette(palette)
+    setRandomCount(nextCount)
+    window.localStorage.setItem("smartflow-random-count", String(nextCount))
+    window.localStorage.setItem("smartflow-random-palette", JSON.stringify(palette))
+  }
 
   function handleThemeToggle() {
     clearRandomPalette()
@@ -55,6 +80,16 @@ export function NavSecondary({
     <SidebarGroup {...props}>
       <SidebarGroupContent>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="smartflow-randomize-button"
+              onClick={handleRandomize}
+            >
+              <ShuffleIcon />
+              <span>Randomize</span>
+              <span className="smartflow-random-count">{randomCount}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               className="smartflow-theme-toggle"

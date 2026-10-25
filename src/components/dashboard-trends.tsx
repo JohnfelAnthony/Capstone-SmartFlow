@@ -16,7 +16,7 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function DashboardTrends({ history }: { history: TrendPoint[] }) {
-  const [open, setOpen] = React.useState(true)
+  const [open, setOpen] = React.useState(false)
   return <Collapsible open={open} onOpenChange={setOpen} render={<Card size="sm" />}>
     <CardHeader>
       <CardTitle>Trends over time</CardTitle>

@@ -1,26 +1,4 @@
-import type { LaneMetrics } from "@/simulation/frame-types"
 import type { SceneGeometry } from "@/simulation/scene-geometry"
-
-/** Signal groups identify incoming approaches; lane endpoints also include exits. */
-export function longestQueuedApproach(
-  geometry: SceneGeometry,
-  metrics: Record<string, LaneMetrics> | undefined,
-  junctionId: string | null,
-) {
-  if (!metrics) return null
-  const incoming = junctionId === null ? null : new Set(geometry.signalGroups
-    .filter(group => group.kind === "vehicle" && group.junctionId === junctionId)
-    .map(group => group.lane_id))
-  let longest: { id: string; queue: number } | null = null
-  for (const [id, metric] of Object.entries(metrics)) {
-    if (incoming && !incoming.has(id)) continue
-    if (!Number.isFinite(metric.queue)) continue
-    if (!longest || metric.queue > longest.queue || metric.queue === longest.queue && id.localeCompare(longest.id) < 0) {
-      longest = { id, queue: metric.queue }
-    }
-  }
-  return longest
-}
 
 export function junctionShortLabel(geometry: SceneGeometry, junctionId: string) {
   const index = geometry.junctions.findIndex(junction => junction.id === junctionId)
@@ -45,4 +23,18 @@ export function approachDirection(geometry: SceneGeometry, laneId: string) {
   if (dx === 0 && dy === 0) return null
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "From west" : "From east"
   return dy > 0 ? "From south" : "From north"
+}
+
+/** "J1: Arellano Street / Osmeña Street" → "J1 · Arellano × Osmeña" for compact map tags. */
+export function junctionTagText(label: string) {
+  const match = /^(J\d+):\s*(.*)$/.exec(label)
+  const streets = (match ? match[2] : label).split(" / ").map(street => street.replace(/\s+Street$/i, "")).join(" × ")
+  return match ? `${match[1]} · ${streets}` : streets
+}
+
+/** Engine phase name ("SOUTH_GREEN", "PED_GREEN", "ALL_RED") → the service it belongs to, or null during all-red. */
+export function phaseService(phase: string | undefined) {
+  if (!phase || phase === "ALL_RED") return null
+  const family = phase.split("_")[0].toLowerCase()
+  return family === "ped" ? "pedestrian" : family
 }

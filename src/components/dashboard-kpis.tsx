@@ -7,10 +7,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatMetric, metricDescription, metricValue, percentChange } from "@/lib/metrics"
 
 const KPIS = [
-  { key: "avg_wait", label: "Average wait", unit: "s", digits: 1, lowerIsBetter: true },
-  { key: "avg_queue", label: "Average queue", unit: "veh", digits: 1, lowerIsBetter: true },
-  { key: "throughput_per_hour", label: "Throughput", unit: "veh/h", digits: 0, lowerIsBetter: false },
-  { key: "throughput", label: "Completed trips", unit: "veh", digits: 0, lowerIsBetter: false },
+  { key: "avg_wait", label: "Average wait", unit: "s", digits: 1, lowerIsBetter: true, scale: 1 },
+  { key: "avg_queue", label: "Average queue", unit: "veh", digits: 1, lowerIsBetter: true, scale: 1 },
+  { key: "throughput_per_hour", label: "Throughput", unit: "veh/h", digits: 0, lowerIsBetter: false, scale: 1 },
+  // Engine reports seconds; minutes read better for whole trips.
+  { key: "avg_travel_time", label: "Average travel time", unit: "min", digits: 1, lowerIsBetter: true, scale: 1 / 60 },
 ]
 
 export function DashboardKpis({ metrics, baseline, isBaselineRun }: {
@@ -39,7 +40,7 @@ export function DashboardKpis({ metrics, baseline, isBaselineRun }: {
             </Tooltip>
           </CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums">
-            {formatMetric(current, kpi.digits)} <span className="text-sm font-normal text-muted-foreground">{kpi.unit}</span>
+            {formatMetric(current === null ? null : current * kpi.scale, kpi.digits)} <span className="text-sm font-normal text-muted-foreground">{kpi.unit}</span>
           </CardTitle>
           {change !== undefined ? <CardAction>
             <Badge variant={isUnchanged || isBetter ? "secondary" : "destructive"}>
