@@ -5,10 +5,26 @@ from pathlib import Path
 
 from simulation.road_network import RoadNetwork
 from simulation.scenario_config import VEHICLE_TYPES
-from simulation.traffic_engine import TrafficEngine
+from simulation.traffic_engine import MIN_GAP, TrafficEngine
 from tests import test_native_traffic_contract as contract
 
 TWO_JUNCTION_NETWORK = Path(__file__).resolve().parents[1] / "data/networks/tagum_network_2j.json"
+
+
+def two_junction_line(link_length=60):
+    """w -> j1 -> j2 -> e, one-way, so a red at j2 can hold a queue on the j1-j2 link."""
+    coordinates = {"w": (-150, 0), "j1": (0, 0), "j2": (link_length, 0), "e": (link_length+150, 0),
+                   "n1": (0, 150), "n2": (link_length, 150)}
+    nodes = [{"id": name, "x": x, "y": y, "boundary": not name.startswith("j")} for name, (x, y) in coordinates.items()]
+    roads = [{"id": road, "source": start, "target": end, "shape": [coordinates[start], coordinates[end]], "oneway": True, "speed_mps": 8.33}
+             for road, start, end in (("in", "w", "j1"), ("link", "j1", "j2"), ("out", "j2", "e"), ("n1", "n1", "j1"), ("n2", "n2", "j2"))]
+    return RoadNetwork({"id": "two-junction-line", "nodes": nodes, "roads": roads, "source": {"kind": "synthetic"}})
+
+
+def hold(engine, node, family):
+    signal = engine.signals[node]
+    signal.index, signal.stage, signal.elapsed = signal.approaches.index(family), "green", 0
+    signal.external, signal.maximum_green = True, 180
 
 
 class JunctionReleaseTests(unittest.TestCase):
@@ -16,29 +32,42 @@ class JunctionReleaseTests(unittest.TestCase):
     engine = contract.NativeTrafficContractTests.engine
     hold_phase = contract.NativeTrafficContractTests.hold_phase
 
-    def test_any_admitted_vehicle_clears_and_releases_behind_a_stopped_leader(self):
-        """For every class pair and leader position: the vehicle never enters, or it enters and releases."""
+    def test_any_admitted_vehicle_clears_and_releases_behind_a_held_queue(self):
+        """For every class pair and queue length on the link: the vehicle never enters, or it enters and releases.
+        The queue is held by a red at the next junction, like spillback towards the first one."""
+        outcomes = set()
         for entering_type in VEHICLE_TYPES:
-            for leader_type in VEHICLE_TYPES:
-                for leader_rear in (1.0, 3.0, 5.25, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0, 20.0, 25.0):
-                    with self.subTest(entering=entering_type, leader=leader_type, leader_rear=leader_rear):
-                        engine = self.engine(network=contract.cross_network())
-                        self.hold_phase(engine, "west")
-                        leader = engine.add_vehicle(["er"], vehicle_type=leader_type)
-                        entering = engine.add_vehicle(["wf", "er"], vehicle_type=entering_type)
-                        entering.position = engine.network.lanes["wf"].length-entering.length/2
+            for queued_type in VEHICLE_TYPES:
+                for queued_count in range(0, 12):
+                    with self.subTest(entering=entering_type, queued=queued_type, count=queued_count):
+                        engine = TrafficEngine(seed=7, network=two_junction_line())
+                        engine.configure(traffic_density="none", pedestrian_density="none")
+                        engine.start(300)
+                        hold(engine, "j1", "west")
+                        hold(engine, "j2", "north")
+                        route = engine.network.route("w", "e")
+                        link = engine.network.lanes[route[1]]
+                        front = link.length
+                        for _ in range(queued_count):
+                            queued = engine.add_vehicle(route[1:], vehicle_type=queued_type)
+                            if queued is None:
+                                break  # the link is already full back to j1
+                            queued.position = front-queued.length/2
+                            front -= queued.length+MIN_GAP
+                        entering = engine.add_vehicle(route, vehicle_type=entering_type)
+                        entering.position = engine.network.lanes[route[0]].length-entering.length/2
                         entered = False
                         for _ in range(400):
-                            # The leader stands still, like the tail of a queue that is not moving.
-                            leader.position, leader.speed = leader_rear+leader.length/2, 0.0
                             engine.step()
-                            entered = entered or entering.reserved_junction is not None
+                            entered = entered or entering.reserved_junction == "j1"
+                        outcomes.add(entered)
                         if entered:
-                            self.assertEqual(entering.lane_id, "er")
-                            self.assertIsNone(entering.reserved_junction)
-                            self.assertNotIn("j", engine.reservations)
+                            self.assertEqual(entering.lane_id, route[1])
+                            self.assertNotEqual(entering.reserved_junction, "j1")
+                            self.assertNotIn("j1", engine.reservations)
                         else:
-                            self.assertEqual(entering.lane_id, "wf")
+                            self.assertEqual(entering.lane_id, route[0])
+        self.assertEqual(outcomes, {True, False}, "both admitted and refused cases must be exercised")
 
     def test_watchdog_metrics_flag_blocked_green_but_not_red_waits(self):
         engine = self.engine(network=contract.cross_network())

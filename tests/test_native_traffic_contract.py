@@ -84,12 +84,22 @@ class NativeTrafficContractTests(unittest.TestCase):
         self.hold_phase(engine, "west")
         vehicle = engine.add_vehicle(["wf", "er"], vehicle_type="bus")
         vehicle.position = engine.network.lanes["wf"].length-vehicle.length/2
-        blocker = engine.add_vehicle(["er"], vehicle_type="truck")
+        # Fill the exit lane end to end with trucks: nothing more fits until some of them leave.
+        front, blockers = engine.network.lanes["er"].length, []
+        while True:
+            blocker = engine.add_vehicle(["er"], vehicle_type="truck")
+            if blocker is None:
+                break
+            blocker.position = front-blocker.length/2
+            front -= blocker.length+MIN_GAP
+            blockers.append(blocker)
+        self.assertFalse(engine._exit_has_space("er", vehicle))
         for _ in range(5):
             engine.step()
             self.assertIsNone(vehicle.reserved_junction)
             self.assertIsNone(vehicle.connector)
-        blocker.position = 50
+        for blocker in blockers[1:]:
+            del engine.vehicles[blocker.id]
         engine.step()
         self.assertEqual(vehicle.reserved_junction, "j")
         for _ in range(500):

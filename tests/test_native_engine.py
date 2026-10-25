@@ -56,7 +56,7 @@ class NativeEngineTests(unittest.TestCase):
         self.assertGreaterEqual(len(visited), 3)
         self.assertGreater(engine.completed, 0)
 
-    def test_heavy_traffic_preserves_gaps_and_junction_exclusivity(self):
+    def test_heavy_traffic_preserves_gaps_and_approach_exclusivity(self):
         engine = TrafficEngine(seed=27)
         engine.configure(traffic_density="high", pedestrian_density="high")
         engine.start(300)
@@ -66,9 +66,10 @@ class NativeEngineTests(unittest.TestCase):
                 cars = sorted((car for car in engine.vehicles.values() if car.lane_id == lane and car.connector is None), key=lambda car: car.position)
                 for rear, front in zip(cars, cars[1:]):
                     self.assertGreaterEqual(front.position-rear.position, CAR_LENGTH+MIN_GAP-0.001)
-            crossing_nodes = [car.reserved_junction for car in engine.vehicles.values() if car.connector]
-            self.assertEqual(len(crossing_nodes), len(set(crossing_nodes)))
-            for node in crossing_nodes:
+            inside = [car for car in engine.vehicles.values() if car.connector]
+            for node in {car.reserved_junction for car in inside}:
+                # Approach-scoped occupancy: vehicles inside a junction all come from one approach, and nobody crosses on foot.
+                self.assertEqual(len({engine.network.lanes[car.route[0]].approach for car in inside if car.reserved_junction == node}), 1)
                 self.assertFalse(engine._crossing_occupied(node))
             self.assertTrue(all(math.isfinite(car.speed) and car.speed >= 0 for car in engine.vehicles.values()))
         self.assertGreater(engine.completed, 0)

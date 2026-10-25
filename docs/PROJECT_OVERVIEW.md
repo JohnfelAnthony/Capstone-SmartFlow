@@ -89,7 +89,7 @@ The current map pipeline derives a bounded cached network. A browser feature tha
 
 - The initial study is a small connected network, not a complete Tagum city model.
 - The present lane model uses one modeled lane per permitted direction. Mixed vehicle lengths/speeds do not imply lane changing, overtaking or motorcycle filtering.
-- Junction reservations are conservative: one vehicle at a time through a junction. This limits modeled capacity and must be stated in comparisons.
+- Junction occupancy is approach-scoped (since October 25, 2026): only vehicles from the approach with green share a junction, and turns are slower than through movements. Synthetic discharge is about 1,480 veh/h/lane straight through; field calibration of discharge headways is still required and must be stated in comparisons.
 - Simulated pedestrians and ordinary vehicles follow traffic logic; the primary RL agent is the signal controller.
 - The current RL environment controls one selected junction. It does not establish coordinated multi-agent optimization across all five junctions.
 - Signal placement and timing in the supplied network are experimental assumptions. All-way-stop comparison is one modeled alternative, not a comprehensive model of local unsignalized driving behavior.

@@ -1,6 +1,6 @@
 """Deterministic, headless microscopic traffic simulator in metres and seconds.
 
-IDM car following, conservative junction reservations, protected crossings,
+IDM car following, approach-scoped junction occupancy, protected crossings,
 seeded demand and travel-time routing. Rendering never advances this engine.
 """
 from __future__ import annotations
@@ -24,6 +24,12 @@ MIN_GAP = 2.0
 EXIT_SPACE_MARGIN = 1.0
 STUCK_IN_JUNCTION_SECONDS = 30.0
 GRIDLOCK_SECONDS = 60.0
+# Turning speed through a junction and the straight-ahead tolerance; both are calibration parameters.
+# shortcut: fixed constants until field discharge headways exist, then move them into the scenario config.
+TURN_SPEED_MPS = 5.0
+THROUGH_ANGLE_DEGREES = 30.0
+COMFORTABLE_DECELERATION = 2.0
+TIME_HEADWAY = 1.2
 
 
 def phase_family_from_name(phase: str) -> str:
@@ -163,7 +169,9 @@ class TrafficEngine:
         self.status, self.simulation_time, self.ticks = "stopped", 0.0, 0
         self.vehicles: dict[str, Vehicle] = {}
         self.pedestrians: dict[str, Pedestrian] = {}
-        self.reservations: dict[str, str] = {}
+        # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
+        self.reservations: dict[str, set[str]] = {}
+        self.reservation_approach: dict[str, str] = {}
         self.last_vehicle_movement = 0.0
         self.signals = {}
         for node in self.network.intersections:
@@ -471,9 +479,76 @@ class TrafficEngine:
                     del self.pedestrians[pedestrian.id]
 
     def _exit_has_space(self, lane_id: str, entering: Vehicle):
-        """Entry needs room for the whole vehicle past the junction, so it can always release its reservation."""
-        required_tail_rear = entering.length+MIN_GAP+EXIT_SPACE_MARGIN
-        return all(vehicle.connector is not None or vehicle.lane_id != lane_id or vehicle.position-vehicle.length/2 >= required_tail_rear for vehicle in self.vehicles.values())
+        """Storage rule: everything on the exit lane or committed to it, plus the entrant, must fit end to end.
+        Vehicles only stop behind a leader or a stop line, so even if the lane's far end holds them all, each
+        committed vehicle can still leave the junction and release it."""
+        occupying = [vehicle for vehicle in self.vehicles.values() if vehicle is not entering and (
+            (vehicle.connector is None and vehicle.lane_id == lane_id)
+            or (vehicle.reserved_junction and len(vehicle.route) > 1 and vehicle.route[1] == lane_id))]
+        required_length = sum(vehicle.length+MIN_GAP+EXIT_SPACE_MARGIN for vehicle in occupying+[entering])
+        return required_length <= self.network.lanes[lane_id].length
+
+    def _reserve(self, vehicle: Vehicle, node: str, approach: str):
+        self.reservations.setdefault(node, set()).add(vehicle.id)
+        self.reservation_approach[node] = approach
+        vehicle.reserved_junction = node
+
+    def _release(self, vehicle: Vehicle):
+        node = vehicle.reserved_junction
+        occupants = self.reservations.get(node, set())
+        occupants.discard(vehicle.id)
+        if not occupants:
+            self.reservations.pop(node, None)
+            self.reservation_approach.pop(node, None)
+        vehicle.reserved_junction = None
+
+    def _junction_open_to(self, node: str, approach: str, signal: Signal):
+        """Signalized junctions admit more vehicles only from the approach already inside; stop control admits one."""
+        if node not in self.reservations:
+            return True
+        return signal.mode == "signalized" and self.reservation_approach.get(node) == approach
+
+    def _movement_speed(self, incoming: str, outgoing: str):
+        """Through movements keep road speed; turns slow to the turning speed."""
+        entry, exit_lane = self.network.lanes[incoming], self.network.lanes[outgoing]
+        (ax, ay), (bx, by) = entry.shape[-2], entry.shape[-1]
+        (cx, cy), (dx, dy) = exit_lane.shape[0], exit_lane.shape[1]
+        turn = abs((math.degrees(math.atan2(dy-cy, dx-cx)-math.atan2(by-ay, bx-ax))+180) % 360-180)
+        return min(entry.speed, exit_lane.speed) if turn <= THROUGH_ANGLE_DEGREES else TURN_SPEED_MPS
+
+    def _connector_gap(self, vehicle: Vehicle, connector_length: float):
+        """Distance to the nearest vehicle ahead on the same movement, including the exit lane's tail."""
+        gap, leader_speed = math.inf, vehicle.speed
+        for other in self.vehicles.values():
+            if other is vehicle:
+                continue
+            if other.connector is not None and other.route[:2] == vehicle.route[:2] and other.connector_position > vehicle.connector_position:
+                ahead = other.connector_position
+            elif other.connector is None and len(vehicle.route) > 1 and other.lane_id == vehicle.route[1]:
+                ahead = connector_length+other.position
+            else:
+                continue
+            candidate = ahead-(other.length+vehicle.length)/2-vehicle.connector_position
+            if candidate < gap:
+                gap, leader_speed = candidate, other.speed
+        return gap, leader_speed
+
+    def _advance(self, vehicle: Vehicle, gap: float, leader_speed: float, desired_speed: float):
+        """IDM step; travel never closes the gap below MIN_GAP. Returns the distance moved."""
+        gap = max(0.01, gap)
+        desired_gap = MIN_GAP + max(0.0, vehicle.speed*TIME_HEADWAY + vehicle.speed*(vehicle.speed-leader_speed)/(2*math.sqrt(1.5*COMFORTABLE_DECELERATION)))
+        acceleration = 1.5*(1-(vehicle.speed/desired_speed)**4-(desired_gap/gap)**2)
+        next_speed = max(0.0, min(desired_speed, vehicle.speed+max(-4.5, acceleration)*STEP_LENGTH))
+        travel = min(next_speed*STEP_LENGTH, max(0.0, gap-MIN_GAP))
+        vehicle.speed = travel/STEP_LENGTH
+        if travel > 0:
+            self.last_vehicle_movement = self.simulation_time
+        if vehicle.speed <= 0.1:
+            vehicle.wait += STEP_LENGTH
+            vehicle.stopped_for += STEP_LENGTH
+        else:
+            vehicle.stopped_for = 0.0
+        return travel
 
     def _stop_priority(self, vehicle: Vehicle, node: str):
         if vehicle.stop_arrival is None:
@@ -506,11 +581,11 @@ class TrafficEngine:
 
     def _move_vehicle(self, vehicle: Vehicle):
         if vehicle.connector:
-            vehicle.speed = min(4.0, vehicle.speed+1.5*STEP_LENGTH)
-            vehicle.connector_position += vehicle.speed*STEP_LENGTH
-            vehicle.stopped_for = 0.0
-            self.last_vehicle_movement = self.simulation_time
-            if vehicle.connector_position >= length(vehicle.connector):
+            connector_length = length(vehicle.connector)
+            gap, leader_speed = self._connector_gap(vehicle, connector_length)
+            desired_speed = self._movement_speed(vehicle.route[0], vehicle.route[1])*vehicle.speed_factor
+            vehicle.connector_position += self._advance(vehicle, gap, leader_speed, desired_speed)
+            if vehicle.connector_position >= connector_length:
                 vehicle.position = vehicle.connector_position-length(vehicle.connector)
                 vehicle.connector, vehicle.route = None, vehicle.route[1:]
                 vehicle.stop_arrival = None
@@ -518,43 +593,41 @@ class TrafficEngine:
         lane = self.network.lanes[vehicle.lane_id]
         has_left_junction = vehicle.position-vehicle.length/2 >= 0
         if vehicle.reserved_junction and lane.source == vehicle.reserved_junction and has_left_junction:
-            self.reservations.pop(vehicle.reserved_junction, None)
-            vehicle.reserved_junction = None
+            self._release(vehicle)
         self._reroute(vehicle)
         leader = min((other for other in self.vehicles.values() if other.id != vehicle.id and other.connector is None and other.lane_id == vehicle.lane_id and other.position > vehicle.position), key=lambda other: other.position, default=None)
         obstacle = leader.position-(leader.length+vehicle.length)/2 if leader else math.inf
         leader_speed = leader.speed if leader else vehicle.speed
+        # A vehicle that has just turned off this lane is still physically ahead of its followers.
+        for other in self.vehicles.values():
+            if other.connector is not None and other.route[0] == vehicle.lane_id:
+                connector_obstacle = lane.length+other.connector_position-(other.length+vehicle.length)/2
+                if connector_obstacle < obstacle:
+                    obstacle, leader_speed = connector_obstacle, other.speed
         if lane.target in self.signals and len(vehicle.route) > 1 and vehicle.reserved_junction != lane.target:
             signal = self.signals[lane.target]
             outgoing = vehicle.route[1]
-            if vehicle.position >= lane.length-vehicle.length/2-1 and vehicle.speed <= .1 and vehicle.stop_arrival is None:
+            stop_position = lane.length-vehicle.length/2
+            if vehicle.position >= stop_position-1 and vehicle.speed <= .1 and vehicle.stop_arrival is None:
                 vehicle.stop_arrival = self.simulation_time
             has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.family == lane.approach
-            can_enter = (has_permission and lane.target not in self.reservations and not self._crossing_occupied(lane.target) and outgoing not in self.closed_lanes and self._exit_has_space(outgoing, vehicle))
-            if can_enter and vehicle.position >= lane.length-vehicle.length/2-1:
-                self.reservations[lane.target] = vehicle.id
-                vehicle.reserved_junction = lane.target
-            else:
-                stop_position = lane.length-vehicle.length/2
-                if stop_position < obstacle:
-                    obstacle, leader_speed = stop_position+MIN_GAP, 0.0
+            may_proceed = (has_permission and self._junction_open_to(lane.target, lane.approach, signal)
+                           and not self._crossing_occupied(lane.target) and outgoing not in self.closed_lanes
+                           and self._exit_has_space(outgoing, vehicle))
+            # Commit at the last point where a comfortable stop is still possible; until then a vehicle that may
+            # proceed keeps moving instead of braking for the line, and it brakes gently if permission or space goes.
+            commit_distance = vehicle.speed**2/(2*COMFORTABLE_DECELERATION)+vehicle.speed*STEP_LENGTH+EXIT_SPACE_MARGIN
+            must_decide = stop_position-vehicle.position <= commit_distance
+            # Never commit behind an uncommitted vehicle that could still be held at the line.
+            clear_ahead = leader is None or leader.reserved_junction == lane.target
+            if may_proceed and must_decide and clear_ahead:
+                self._reserve(vehicle, lane.target, lane.approach)
+            elif not may_proceed and stop_position < obstacle:
+                obstacle, leader_speed = stop_position+MIN_GAP, 0.0
         desired_speed = lane.speed*self.slow_lanes.get(lane.id, 1.0)*vehicle.speed_factor
         if vehicle.reserved_junction == lane.target:
-            desired_speed = min(desired_speed, 4.0)
-        gap = max(0.01, obstacle-vehicle.position)
-        desired_gap = MIN_GAP + max(0.0, vehicle.speed*1.2 + vehicle.speed*(vehicle.speed-leader_speed)/(2*math.sqrt(1.5*2.0)))
-        acceleration = 1.5*(1-(vehicle.speed/desired_speed)**4-(desired_gap/gap)**2)
-        next_speed = max(0.0, min(desired_speed, vehicle.speed+max(-4.5, acceleration)*STEP_LENGTH))
-        travel = min(next_speed*STEP_LENGTH, max(0.0, gap-MIN_GAP))
-        vehicle.speed = travel/STEP_LENGTH
-        vehicle.position += travel
-        if travel > 0:
-            self.last_vehicle_movement = self.simulation_time
-        if vehicle.speed <= 0.1:
-            vehicle.wait += STEP_LENGTH
-            vehicle.stopped_for += STEP_LENGTH
-        else:
-            vehicle.stopped_for = 0.0
+            desired_speed = min(desired_speed, self._movement_speed(lane.id, vehicle.route[1])*vehicle.speed_factor)
+        vehicle.position += self._advance(vehicle, obstacle-vehicle.position, leader_speed, desired_speed)
         if vehicle.position >= lane.length:
             self.lane_exits[lane.id] += 1
             if len(vehicle.route) > 1:
@@ -567,7 +640,7 @@ class TrafficEngine:
                 self.completed_wait += vehicle.wait
                 self.completed_travel += self.simulation_time+STEP_LENGTH-vehicle.born
                 if vehicle.reserved_junction:
-                    self.reservations.pop(vehicle.reserved_junction, None)
+                    self._release(vehicle)
                 del self.vehicles[vehicle.id]
 
     def _apply_scheduled_events(self):

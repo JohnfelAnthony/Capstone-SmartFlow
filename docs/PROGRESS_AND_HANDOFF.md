@@ -7,6 +7,43 @@ Updated: **2026-10-25** (Asia/Singapore). Scope: `SmartFlow` only. Documentation
 
 **Current status pointer:** the integrated native prototype includes canonical saved scenarios, timed disruptions/routing, selected-junction QL/DQL/PPO training and inference, recording/replay, reports, baseline-fit comparisons and shared 2D/3D presentation. October 24 adds consistent result interpretation and clearer research guidance, described next. The September 23 interruption was repaired; the October 21 adviser report and older backend/browser/standalone records retain their dates and scopes. Final site mapping, independent field audit and faithful conversion, baseline fidelity/calibration, independent validation, final comparative research and public hosting are not established by software checks.
 
+**October 25 — engine fix P1-2 step 1, junction capacity:** implemented step 1 of P1-2 from the [engine fix plan](ENGINE_FIX_PLAN_2026-10-25.md).
+- **Approach-scoped occupancy.** At signalized junctions, vehicles from the approach that has green may be inside together. Other approaches and pedestrians wait until the junction is empty. All-way stops still admit one vehicle.
+- **Proceed vs commit.** A vehicle that may proceed no longer brakes for the line. It commits only at its last comfortable-stop point, never behind an uncommitted vehicle.
+- **Car following inside the junction,** including from an approach lane onto a connector.
+- **Movement speeds.** Through movements keep road speed; turns use 5 m/s (`TURN_SPEED_MPS`, a calibration parameter).
+- **Lane-storage entry rule.** Everything on or committed to the exit lane, plus the entrant, must fit end to end. This replaces P0-1's "tail must already be clear" rule, which forced gaps of 10 m or more between discharging vehicles. It keeps the deadlock guarantee because vehicles stop only behind a leader or a stop line.
+
+The engine version is still `native-4`, pending the planned single bump.
+
+**Synthetic saturation headways** (400 m approach, 60 s green, `tests/test_junction_capacity.py`):
+
+| Movement | Before | Now | Rate |
+| --- | --- | --- | --- |
+| Car, through | 7.9 s | 2.43 s | ≈1,480 veh/h/lane |
+| Car, turning | 8.1 s | 2.91 s | ≈1,240 |
+| Motorcycle | 7.1 s | 2.01 s | ≈1,790 |
+| Bus | 9.6 s | 3.62 s | ≈1,000 |
+
+**Tests:**
+- New capacity tests: through and turning headways, clearance before the next approach, and gaps on connectors.
+- The P0-1 property test was rewritten around a queue held by a red at the next junction (300 class × queue-length cases). It fails 60 cases on the pre-P0-1 engine and passes now.
+- Two existing tests that encoded the one-vehicle rule were updated: the heavy-traffic invariant (now "occupants from one approach") and the blocked-exit test (now a genuinely full exit lane).
+- Full backend suite: **159 passed in 346.2 s** (isolated database and temp directory).
+
+**1800 s acceptance (seed 101).** Completed trips more than doubled versus P0-1 alone:
+
+| Network | Demand | Completed trips (P0-1 → now) | Pending at 1800 s |
+| --- | --- | --- | --- |
+| Default | medium | 179 → 405 | 37 |
+| Default | high | 183 → 397 | 649 |
+| 2-junction | medium | 185 → 406 | 61 |
+| 2-junction | high | 184 → 408 | 703 |
+
+Both watchdog metrics and the conservation error stayed 0. "High" synthetic demand still exceeds capacity.
+
+RL environment speed is unchanged at 43.7 decisions/s on the 2-junction network. None of this is field calibration: turning speed, headway and approach speeds still need Tagum discharge observations.
+
 **October 25 — engine fix P0-1, junction reservation deadlock:** implemented step P0-1 of the [engine fix plan](ENGINE_FIX_PLAN_2026-10-25.md). A vehicle now releases its junction reservation once its rear has left the junction, and may enter only when the downstream tail leaves room for its whole length plus `MIN_GAP` and a 1 m margin (`simulation/traffic_engine.py`). Two watchdog metrics were added to the engine and the metric catalog (now `native-metric-interpretation-3`): `stuck_junction_vehicles` (reservation holders stopped for more than 30 s) and `gridlock_seconds` (no vehicle movement for more than 60 s while a vehicle waits on green for downstream space). **The engine version was deliberately left at `native-4`** pending the planned single `native-5` bump, so runs recorded before that bump mix two behaviours under one label. Verification: the new `tests/test_junction_deadlock.py` fails on the old code and passes now (class-pair property test across 275 subtests, watchdog test, 2-junction regression test). The full backend suite passed (**155 tests in 265.4 s**, isolated database and temp directory), and the frontend passed 104 tests with TypeScript. An 1800 s acceptance run at seed 101 showed no lock-up. Default network: medium 97 → 179 completed trips between t=900 and 1800 s, high 96 → 183. 2-junction network: medium 93 → 185, high 91 → 184. Both watchdog metrics stayed 0 and vehicle conservation error stayed 0. Pending demand still grows (203–920 vehicles at 1800 s), which is the junction-capacity limit addressed by P1-2, not a lock-up.
 
 **October 25 — minimal simulation map and junction column:** implemented the owner-approved [dashboard redesign plan](DASHBOARD_REDESIGN_PLAN_2026-10-25.md) (architecture decision D25). The map keeps only three corner chips, zoom controls and J-tags (2D canvas labels, 3D sprites). The control bar shows an elapsed / duration clock, and the idle setup card offers New run and Replay recording. The right column has a network map, a junction card with a labelled placeholder photo (CC BY 3.0, credited) and Signal phases / Queue info / Performance tabs, plus a Signal control card. The KPI row now shows average travel time instead of completed trips. The sidebar Randomize button was restored at the owner's request. Verification: 104 frontend tests in nine suites (the unused longest-queue helper and its five tests were removed), full lint, TypeScript, API compilation and a production build passed. A browser check on the provisional 2-junction network with an isolated scratch database covered login, the idle setup card, a live fixed-time run in 2D and 3D, phase chips and timer, J1/J2 selection from the network map, all three tabs, Signal control with no trained model, and 1600 px and 1100 px layouts. Not verified in the browser: Replay (no pre-recorded run existed in the scratch database), RL method selection and KPI deltas (no trained model). No field accuracy is implied.
