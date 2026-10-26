@@ -76,4 +76,4 @@ def metric_report_metadata(metrics: dict | None) -> dict:
     return {"version": METRIC_VERSION, "definitions": METRIC_CATALOG,
             "values": interpreted_metrics(metrics),
             "historical_note": "Stored values/artifacts are unchanged. Unavailable averages are not zero. "
-                               "Definitions describe native-4; historical artifacts need their engine provenance checked."}
+                               f"Definitions describe {METRIC_CATALOG['engine_version']}; historical artifacts need their engine provenance checked."}

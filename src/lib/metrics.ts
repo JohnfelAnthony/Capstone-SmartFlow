@@ -14,12 +14,20 @@ function finite(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
+function rawMetrics(saved: Record<string, unknown>) {
+  return saved.raw_metrics && typeof saved.raw_metrics === "object" ? saved.raw_metrics as Record<string, unknown> : saved
+}
+
+export function metricEngineVersion(metrics: Record<string, unknown> | null | undefined): unknown {
+  const raw = rawMetrics(metrics ?? {})
+  return raw.experiment && typeof raw.experiment === "object" ? (raw.experiment as Record<string, unknown>).engine_version : undefined
+}
+
 export function metricValue(metrics: Record<string, unknown> | null | undefined, key: string): number | null {
   const saved = metrics ?? {}
-  const raw = saved.raw_metrics && typeof saved.raw_metrics === "object"
-    ? saved.raw_metrics as Record<string, unknown> : saved
-  const experiment = raw.experiment && typeof raw.experiment === "object" ? raw.experiment as Record<string, unknown> : {}
-  if (experiment.engine_version !== undefined && experiment.engine_version !== null && experiment.engine_version !== metricCatalog.engine_version) return null
+  const raw = rawMetrics(saved)
+  const engineVersion = metricEngineVersion(saved)
+  if (engineVersion !== undefined && engineVersion !== null && engineVersion !== metricCatalog.engine_version) return null
   const definition = byKey.get(key)
   const sources = raw === saved ? [saved] : [raw, saved]
   const lookup = (keys: string[]) => {

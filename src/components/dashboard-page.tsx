@@ -27,7 +27,7 @@ import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
-import { metricValue } from "@/lib/metrics"
+import { metricCatalog, metricEngineVersion, metricValue } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
@@ -276,7 +276,10 @@ export function DashboardPage({
     if (!scenarioId) return
     let cancelled = false
     listSimulationRuns({ scenarioId, status: "completed", limit: 50 }).then((response) => {
-      if (!cancelled) setBaseline(response.runs.find((run) => run.control_mode === "fixed-time" && run.seed === runSeed && run.id !== activeRunId) ?? null)
+      // Only a run from the current engine is a fair baseline; runs without an engine version predate the native engine.
+      const isComparableBaseline = (run: SimulationRunRecord) => run.control_mode === "fixed-time" && run.seed === runSeed && run.id !== activeRunId
+        && metricEngineVersion(run.metrics) === metricCatalog.engine_version
+      if (!cancelled) setBaseline(response.runs.find(isComparableBaseline) ?? null)
     }).catch(() => { if (!cancelled) setBaseline(null) })
     return () => { cancelled = true }
   }, [selectedScenarioId, runSeed, activeRunId])

@@ -512,7 +512,7 @@ The present validator requires a complete permitted phase order including pedest
 
 ### RL and model contract
 
-- `SmartFlowRLEnv` currently supplies a 22-value observation, a 15-component tabular state and five protected service actions (`native-4`, `native-local-22-v2`, `obs_v2` / `reward_v2`). Historical models require retraining; incompatible recordings require regeneration.
+- `SmartFlowRLEnv` currently supplies a 22-value observation, a 15-component tabular state and five protected service actions (`native-5` since October 26, `native-local-22-v2`, `obs_v2` / `reward_v2`). Historical models require retraining; incompatible recordings require regeneration.
 - Policy requests are subject to engine safety rules. Requested action, applied result and any override must remain distinguishable.
 - Bind a registered model to its algorithm, compatible engine/network/action/observation contract, trained junction and control timing.
 - Freeze the full scenario for a queued training/evaluation job. A mutable scenario ID is a reference, not an immutable experimental input.

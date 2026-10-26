@@ -15,7 +15,7 @@ from .demand import Arrival, build_schedule, schedule_hash
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
 STEP_LENGTH = 0.1
-ENGINE_VERSION = "native-4"
+ENGINE_VERSION = "native-5"
 RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
 CAR_LENGTH = 4.5

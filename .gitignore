@@ -25,6 +25,7 @@ __pycache__/
 data/smartflow.db
 data/smartflow.db-wal
 data/smartflow.db-shm
+data/smartflow.db.artifacts/
 data/backups/
 data/models/
 data/generated/
