@@ -22,6 +22,11 @@ from .traffic_engine import RL_SERVICE_ACTIONS, TrafficEngine
 from .scenario_config import number
 from .training_control import check_training_cancelled
 
+# Engine fix plan P1-7: about 100k decisions (560 episodes x 181 decisions), each episode starting from developed traffic.
+DEFAULT_TRAINING_EPISODES = 560
+DEFAULT_WARMUP_SECONDS = 300.0
+DEFAULT_EPISODE_SECONDS = 900.0
+
 RL_CONTROLLER_LABELS = {
     "ql": "Q-Learning",
     "dql": "Deep Q-Learning",
@@ -53,8 +58,8 @@ class SmartFlowRLEnv(BaseEnv):
         *,
         scenario: dict | None = None,
         seed: int = 42,
-        warmup_seconds: float = 20.0,
-        evaluation_seconds: float = 300.0,
+        warmup_seconds: float = DEFAULT_WARMUP_SECONDS,
+        evaluation_seconds: float = DEFAULT_EPISODE_SECONDS,
         decision_interval_seconds: float = 5.0,
         minimum_green_hold_seconds: float = 10.0,
         controller_provenance: str = "ql",

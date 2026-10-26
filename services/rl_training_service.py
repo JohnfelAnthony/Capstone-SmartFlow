@@ -13,6 +13,7 @@ import database
 import config
 from uuid import uuid4
 from simulation.model_contract import artifact_metadata, training_junction
+from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES, DEFAULT_WARMUP_SECONDS
 from services.training_settings import prepare_settings, validate_advanced, validate_model_for_settings
 from services.observation_identity import validate_observed_holdout
 from services.workload_admission import workload_admission
@@ -101,9 +102,9 @@ def build_training_command(algorithm: str, settings: dict, advanced: dict | None
         _python_executable(),
         "-u",
         TRAINING_SCRIPT[algorithm],
-        "--episodes", str(int(_setting(settings, "episodes", 10))),
-        "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", 20.0))),
-        "--evaluation-seconds", str(float(_setting(settings, "evaluation_seconds", 300.0))),
+        "--episodes", str(int(_setting(settings, "episodes", DEFAULT_TRAINING_EPISODES))),
+        "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", DEFAULT_WARMUP_SECONDS))),
+        "--evaluation-seconds", str(float(_setting(settings, "evaluation_seconds", DEFAULT_EPISODE_SECONDS))),
         "--seeds", str(_setting(settings, "seeds", DEFAULT_SEEDS)),
         "--checkpoint-every", str(int(_setting(settings, "checkpoint_every", 25))),
     ]
@@ -159,8 +160,8 @@ def build_evaluation_command(algorithms: list[str], settings: dict, model_paths:
         "tools/evaluate_controllers.py",
         "--controllers", ",".join(controllers),
         "--seeds", str(_setting(settings, "evaluation_seeds", "101,102,103,104,105")),
-        "--duration-seconds", str(float(_setting(settings, "evaluation_seconds", 300.0))),
-        "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", 20.0))),
+        "--duration-seconds", str(float(_setting(settings, "evaluation_seconds", DEFAULT_EPISODE_SECONDS))),
+        "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", DEFAULT_WARMUP_SECONDS))),
     ]
     for algorithm, model_path in model_paths.items():
         if algorithm in MODEL_FLAG and model_path:

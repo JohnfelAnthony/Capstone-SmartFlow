@@ -28,6 +28,7 @@ from services.rl_reporting_service import (
     RANKING_CRITERION,
     RANKING_VERSION,
 )
+from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_WARMUP_SECONDS
 from simulation.rl_policy_runtime import RuntimePolicy, load_runtime_policy
 from simulation.scenario_config import number
 from simulation.traffic_engine import STEP_LENGTH
@@ -430,8 +431,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--controllers", type=_parse_controller_set, default=SUPPORTED_CONTROLLERS)
     parser.add_argument("--seeds", type=_parse_seed_set, default=DEFAULT_SEEDS)
-    parser.add_argument("--duration-seconds", type=float, default=300.0)
-    parser.add_argument("--warmup-seconds", type=float, default=20.0)
+    parser.add_argument("--duration-seconds", type=float, default=DEFAULT_EPISODE_SECONDS)
+    parser.add_argument("--warmup-seconds", type=float, default=DEFAULT_WARMUP_SECONDS)
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
     parser.add_argument("--intersection-id", default="tagum_network")

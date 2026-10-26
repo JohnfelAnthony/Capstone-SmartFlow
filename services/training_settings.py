@@ -7,6 +7,7 @@ import database
 from services.scenario_identity import validate_resume_snapshot
 from services.observation_identity import validate_observed_holdout
 from simulation.model_contract import artifact_metadata, training_junction
+from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES, DEFAULT_WARMUP_SECONDS
 from simulation.traffic_engine import TrafficEngine
 
 
@@ -43,8 +44,8 @@ def prepare_settings(settings: dict) -> dict:
         raise ValueError("Training and held-out scenarios must use the same controlled junction.")
     normalized["evaluation_scenario_id"] = evaluation_scenario_id
     for key, default, lower, upper, integer in (
-        ("episodes", 10, 1, 100000, True), ("checkpoint_every", 25, 0, 100000, True),
-        ("warmup_seconds", 20, 0, 86400, False), ("evaluation_seconds", 300, .1, 86400, False),
+        ("episodes", DEFAULT_TRAINING_EPISODES, 1, 100000, True), ("checkpoint_every", 25, 0, 100000, True),
+        ("warmup_seconds", DEFAULT_WARMUP_SECONDS, 0, 86400, False), ("evaluation_seconds", DEFAULT_EPISODE_SECONDS, .1, 86400, False),
         ("decision_interval_seconds", 5, .1, 60, False), ("minimum_green_hold_seconds", 10, 5, 60, False),
     ):
         normalized[key] = numeric(settings.get(key, default), key.replace("_", " "), lower, upper, integer=integer)

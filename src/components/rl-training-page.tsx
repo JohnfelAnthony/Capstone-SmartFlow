@@ -86,14 +86,15 @@ const algorithmOptions: { value: AlgorithmId; label: string }[] = [
   { value: "ppo", label: "PPO" },
 ]
 
+// Mirrors simulation/rl_env.py DEFAULT_* (engine fix plan P1-7): about 100k decisions from developed traffic.
 const defaultSettings: RLTrainingSettings = {
   scenario_id: null,
   evaluation_scenario_id: null,
-  episodes: 150,
+  episodes: 560,
   seeds: "11,22,33,44,55",
   evaluation_seeds: "101,102,103,104,105",
-  warmup_seconds: 20,
-  evaluation_seconds: 300,
+  warmup_seconds: 300,
+  evaluation_seconds: 900,
   decision_interval_seconds: 5,
   minimum_green_hold_seconds: 10,
   checkpoint_every: 25,

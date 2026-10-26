@@ -24,7 +24,7 @@ from simulation.dql_training import (
     calculate_dql_timesteps,
     train_deep_q_learning,
 )
-from simulation.rl_env import SmartFlowRLEnv
+from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES, DEFAULT_WARMUP_SECONDS, SmartFlowRLEnv
 from simulation.traffic_engine import RL_SERVICE_ACTIONS
 
 
@@ -72,10 +72,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Train the SMARTFLOW Deep Q-Learning baseline offline using Stable-Baselines3 DQN."
     )
-    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--episodes", type=int, default=DEFAULT_TRAINING_EPISODES)
     parser.add_argument("--seeds", type=_parse_seed_set, default=_parse_seed_set("11,22,33,44,55"))
-    parser.add_argument("--warmup-seconds", type=float, default=20.0)
-    parser.add_argument("--evaluation-seconds", type=float, default=300.0)
+    parser.add_argument("--warmup-seconds", type=float, default=DEFAULT_WARMUP_SECONDS)
+    parser.add_argument("--evaluation-seconds", type=float, default=DEFAULT_EPISODE_SECONDS)
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
     parser.add_argument("--max-steps-per-episode", type=int, default=None)
