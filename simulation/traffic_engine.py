@@ -176,6 +176,9 @@ class TrafficEngine:
         self.scheduled_events = copy.deepcopy(self.config["events"])
         self.status, self.simulation_time, self.ticks = "stopped", 0.0, 0
         self.vehicles: dict[str, Vehicle] = {}
+        # Search indexes, valid only while a tick moves vehicles or spawns demand; None means scan every vehicle.
+        self._tick_index = None
+        self._spawn_rears = None
         self.pedestrians: dict[str, Pedestrian] = {}
         # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
         self.reservations: dict[str, set[str]] = {}
@@ -367,7 +370,10 @@ class TrafficEngine:
         speed = number(speed, "initial speed", 0, 60)
         spec = VEHICLE_TYPES[vehicle_type]
         spawn_position = spec["length"]/2
-        blocked = any(other.lane_id == route[0] and not other.connector and other.position-other.length/2 < spec["length"]+MIN_GAP for other in self.vehicles.values())
+        if self._spawn_rears is None:
+            blocked = any(other.lane_id == route[0] and not other.connector and other.position-other.length/2 < spec["length"]+MIN_GAP for other in self.vehicles.values())
+        else:
+            blocked = self._spawn_rears.get(route[0], math.inf) < spec["length"]+MIN_GAP
         if route[0] in self.closed_lanes or blocked or len(self.vehicles) >= self.config["max_active_vehicles"]:
             return None
         self.vehicle_serial += 1
@@ -376,12 +382,25 @@ class TrafficEngine:
                           vehicle_type=vehicle_type,
                           requested_at=self.simulation_time if requested_at is None else requested_at, **spec)
         self.vehicles[vehicle.id] = vehicle
+        if self._spawn_rears is not None:
+            self._spawn_rears[route[0]] = min(self._spawn_rears.get(route[0], math.inf), vehicle.position-vehicle.length/2)
         if requested_at is None:
             self.requested_vehicles += 1
         return vehicle
 
     def _spawn_demand(self):
-        single_demo = self.traffic_density == "single" and not self.config["trips"] and not self.config["demand_windows"]
+        # Rearmost vehicle per lane, so each spawn check reads one value instead of scanning every vehicle.
+        self._spawn_rears = {}
+        for other in self.vehicles.values():
+            if not other.connector:
+                self._spawn_rears[other.lane_id] = min(self._spawn_rears.get(other.lane_id, math.inf), other.position-other.length/2)
+        try:
+            self._spawn_vehicles_and_pedestrians()
+        finally:
+            self._spawn_rears = None
+
+    def _spawn_vehicles_and_pedestrians(self):
+        single_demo =self.traffic_density == "single" and not self.config["trips"] and not self.config["demand_windows"]
         if single_demo and not self.vehicles and self.simulation_time < self.duration_limit:
             pair = self._demand_pair()
             if pair:
@@ -398,6 +417,12 @@ class TrafficEngine:
         for arrival in self.pending_demand[:]:
             if len(self.vehicles) >= self.config["max_active_vehicles"]:
                 break
+            spec = VEHICLE_TYPES.get(arrival.vehicle_type)
+            # Every route starts on one of the source's outgoing lanes; when all are closed or full, entry fails anyway.
+            entry_possible = spec is None or any(lane not in self.closed_lanes and self._spawn_rears.get(lane, math.inf) >= spec["length"]+MIN_GAP
+                                                 for lane in self.network.outgoing.get(arrival.source, []))
+            if not entry_possible:
+                continue
             route = self.network.route(arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None)
             if route and self.add_vehicle(route, vehicle_type=arrival.vehicle_type, requested_at=arrival.time):
                 self.pending_demand.remove(arrival)
@@ -498,11 +523,36 @@ class TrafficEngine:
                     self.completed_pedestrian_wait += pedestrian.wait
                     del self.pedestrians[pedestrian.id]
 
+    def _build_tick_index(self):
+        """Index vehicles by lane, by lane they are turning off and by next lane, in self.vehicles order."""
+        order, on_lane, turning_off, next_lane = {}, {}, {}, {}
+        for position, vehicle in enumerate(self.vehicles.values()):
+            order[vehicle.id] = position
+            (on_lane if vehicle.connector is None else turning_off).setdefault(vehicle.route[0], []).append(vehicle)
+            if len(vehicle.route) > 1:
+                next_lane.setdefault(vehicle.route[1], []).append(vehicle)
+        self._tick_index = {"order": order, "on_lane": on_lane, "turning_off": turning_off, "next_lane": next_lane, "changed": {}}
+
+    def _candidates(self, *lookups: tuple[str, str]):
+        """Every live vehicle that could match the lookups, in self.vehicles order: the tick-start index plus vehicles
+        whose lane or route changed earlier in this tick. Callers still apply their full condition, so results match a
+        scan of every vehicle exactly."""
+        index = self._tick_index
+        if index is None:
+            return list(self.vehicles.values())
+        if len(lookups) == 1 and not index["changed"]:
+            name, key = lookups[0]
+            return [vehicle for vehicle in index[name].get(key, ()) if self.vehicles.get(vehicle.id) is vehicle]
+        pool = {vehicle.id: vehicle for name, key in lookups for vehicle in index[name].get(key, ())}
+        pool.update(index["changed"])
+        live = [vehicle for vehicle in pool.values() if self.vehicles.get(vehicle.id) is vehicle]
+        return sorted(live, key=lambda vehicle: index["order"][vehicle.id])
+
     def _exit_has_space(self, lane_id: str, entering: Vehicle):
         """Storage rule: everything on the exit lane or committed to it, plus the entrant, must fit end to end.
         Vehicles only stop behind a leader or a stop line, so even if the lane's far end holds them all, each
         committed vehicle can still leave the junction and release it."""
-        occupying = [vehicle for vehicle in self.vehicles.values() if vehicle is not entering and (
+        occupying = [vehicle for vehicle in self._candidates(("on_lane", lane_id), ("next_lane", lane_id)) if vehicle is not entering and (
             (vehicle.connector is None and vehicle.lane_id == lane_id)
             or (vehicle.reserved_junction and len(vehicle.route) > 1 and vehicle.route[1] == lane_id))]
         required_length = sum(vehicle.length+MIN_GAP+EXIT_SPACE_MARGIN for vehicle in occupying+[entering])
@@ -539,7 +589,8 @@ class TrafficEngine:
     def _connector_gap(self, vehicle: Vehicle, connector_length: float):
         """Distance to the nearest vehicle ahead on the same movement, including the exit lane's tail."""
         gap, leader_speed = math.inf, vehicle.speed
-        for other in self.vehicles.values():
+        lookups = [("turning_off", vehicle.route[0])] + ([("on_lane", vehicle.route[1])] if len(vehicle.route) > 1 else [])
+        for other in self._candidates(*lookups):
             if other is vehicle:
                 continue
             if other.connector is not None and other.route[:2] == vehicle.route[:2] and other.connector_position > vehicle.connector_position:
@@ -587,8 +638,10 @@ class TrafficEngine:
     def _reroute(self, vehicle: Vehicle):
         if vehicle.connector or len(vehicle.route) < 2 or vehicle.reserved_junction:
             return
+        if self.simulation_time < vehicle.reroute_at:
+            return
         route_blocked = any(lane in self.closed_lanes for lane in vehicle.route[1:])
-        if self.simulation_time < vehicle.reroute_at or (not route_blocked and self.config["routing_mode"] == "static"):
+        if not route_blocked and self.config["routing_mode"] == "static":
             return
         vehicle.reroute_at = self.simulation_time+self.config["reroute_interval"]
         current = self.network.lanes[vehicle.lane_id]
@@ -617,11 +670,11 @@ class TrafficEngine:
         if vehicle.reserved_junction and lane.source == vehicle.reserved_junction and has_left_junction:
             self._release(vehicle)
         self._reroute(vehicle)
-        leader = min((other for other in self.vehicles.values() if other.id != vehicle.id and other.connector is None and other.lane_id == vehicle.lane_id and other.position > vehicle.position), key=lambda other: other.position, default=None)
+        leader = min((other for other in self._candidates(("on_lane", vehicle.lane_id)) if other.id != vehicle.id and other.connector is None and other.lane_id == vehicle.lane_id and other.position > vehicle.position), key=lambda other: other.position, default=None)
         obstacle = leader.position-(leader.length+vehicle.length)/2 if leader else math.inf
         leader_speed = leader.speed if leader else vehicle.speed
         # A vehicle that has just turned off this lane is still physically ahead of its followers.
-        for other in self.vehicles.values():
+        for other in self._candidates(("turning_off", vehicle.lane_id)):
             if other.connector is not None and other.route[0] == vehicle.lane_id:
                 connector_obstacle = lane.length+other.connector_position-(other.length+vehicle.length)/2
                 if connector_obstacle < obstacle:
@@ -691,8 +744,15 @@ class TrafficEngine:
                 signal.step(STEP_LENGTH, self._crossing_occupied(node), self._pedestrians_waiting(node))
             self._step_pedestrians()
             # Front vehicles move first; followers are capped against the updated leader.
-            for vehicle in sorted(list(self.vehicles.values()), key=lambda car: (-car.position, car.id)):
-                self._move_vehicle(vehicle)
+            self._build_tick_index()
+            try:
+                for vehicle in sorted(list(self.vehicles.values()), key=lambda car: (-car.position, car.id)):
+                    before = (vehicle.connector is None, vehicle.route[:2])
+                    self._move_vehicle(vehicle)
+                    if (vehicle.connector is None, vehicle.route[:2]) != before:
+                        self._tick_index["changed"][vehicle.id] = vehicle
+            finally:
+                self._tick_index = None
             self.ticks += 1
             self.simulation_time = round(self.ticks*STEP_LENGTH, 6)
             self._apply_scheduled_events()
