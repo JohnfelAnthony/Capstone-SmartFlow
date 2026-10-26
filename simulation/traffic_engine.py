@@ -215,6 +215,7 @@ class TrafficEngine:
         self.admitted_at_measurement = self.pedestrians_at_measurement = 0
         self.completed_external_wait = 0.0
         self.lane_exits = dict.fromkeys(self.network.lanes, 0)
+        self.lane_stopped_seconds = dict.fromkeys(self.network.lanes, 0.0)
         self.last_served = {node: dict.fromkeys(signal.approaches, 0.0) for node, signal in self.signals.items()}
         self.last_action, self.last_error, self.run_id = "Ready", "None", "-"
         self.events = []
@@ -565,6 +566,8 @@ class TrafficEngine:
         if vehicle.speed <= 0.1:
             vehicle.wait += STEP_LENGTH
             vehicle.stopped_for += STEP_LENGTH
+            # On a connector lane_id is still the incoming lane, so junction-internal stops count for that approach.
+            self.lane_stopped_seconds[vehicle.lane_id] += STEP_LENGTH
         else:
             vehicle.stopped_for = 0.0
         return travel
@@ -767,6 +770,8 @@ class TrafficEngine:
                                 "speed_factor": self.slow_lanes.get(lane.id, 1)} for lane in self.network.lanes.values()},
             "junctions": {node: {"queue": sum(queues[lane] for lane in self.network.incoming[node]),
                                   "vehicle_passages": sum(self.lane_exits[lane] for lane in self.network.incoming[node]),
+                                  "stopped_seconds": sum(self.lane_stopped_seconds[lane] for lane in self.network.incoming[node]),
+                                  "stopped_seconds_by_approach": {approach: sum(self.lane_stopped_seconds[lane] for lane in self.network.incoming[node] if self.network.lanes[lane].approach == approach) for approach in APPROACHES},
                                   "phase": signal.phase, "mode": signal.mode,
                                   "waiting_pedestrians": sum(p.junction == node and not p.crossing for p in self.pedestrians.values())} for node, signal in self.signals.items()},
         })
@@ -889,6 +894,7 @@ class TrafficEngine:
         self.pedestrians_at_measurement = self.pedestrian_serial-len(self.pedestrians)-self.dropped_pedestrians
         self.completed_external_wait = 0.0
         self.lane_exits = dict.fromkeys(self.network.lanes, 0)
+        self.lane_stopped_seconds = dict.fromkeys(self.network.lanes, 0.0)
         self.charts = {key: [] for key in self.charts}
         for vehicle in self.vehicles.values():
             vehicle.wait = 0.0
