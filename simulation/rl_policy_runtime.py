@@ -88,22 +88,18 @@ def _first_valid_action(valid_action_mask: tuple[int, ...] | None) -> int:
     return 0
 
 
-def _masked_argmax(values: Iterable[float], valid_action_mask: tuple[int, ...] | None = None) -> int:
-    q_values = tuple(float(value) for value in values)
-    if not q_values:
+def _raw_policy_action(model, observation, valid_action_mask: tuple[int, ...] | None) -> int:
+    """The model's own deterministic action, as training applies it; the engine's safety layer handles unsafe requests."""
+    raw_action, _ = model.predict(observation, deterministic=True)
+    if hasattr(raw_action, "item"):
+        action = int(raw_action.item())
+    elif isinstance(raw_action, (list, tuple)):
+        action = int(raw_action[0])
+    else:
+        action = int(raw_action)
+    if action < 0 or action >= len(RL_SERVICE_ACTIONS):
         return _first_valid_action(valid_action_mask)
-
-    best_action = None
-    best_value = None
-    for index, value in enumerate(q_values):
-        if valid_action_mask is not None and (index >= len(valid_action_mask) or not valid_action_mask[index]):
-            continue
-        if best_value is None or value > best_value:
-            best_action = index
-            best_value = value
-    if best_action is None:
-        return _first_valid_action(valid_action_mask)
-    return int(best_action)
+    return action
 
 
 def _extract_dql_q_values(model, observation) -> tuple[float, ...]:
@@ -151,24 +147,7 @@ class DQLRuntimePolicy:
         info = info or {}
         valid_action_mask = _coerce_valid_action_mask(info.get("valid_action_mask"))
         q_values = tuple(round(value, 8) for value in _extract_dql_q_values(self.model, observation))
-        if q_values:
-            action = _masked_argmax(q_values, valid_action_mask)
-        else:
-            raw_action, _ = self.model.predict(observation, deterministic=True)
-            if hasattr(raw_action, "item"):
-                action = int(raw_action.item())
-            elif isinstance(raw_action, (list, tuple)):
-                action = int(raw_action[0])
-            else:
-                action = int(raw_action)
-            if valid_action_mask is not None and (
-                action >= len(valid_action_mask) or not valid_action_mask[action]
-            ):
-                action = _first_valid_action(valid_action_mask)
-
-        if action < 0 or action >= len(RL_SERVICE_ACTIONS):
-            action = _first_valid_action(valid_action_mask)
-
+        action = _raw_policy_action(self.model, observation, valid_action_mask)
         return PolicyPrediction(
             action=action,
             action_name=RL_SERVICE_ACTIONS[action],
@@ -197,21 +176,7 @@ class PPORuntimePolicy:
     def predict(self, observation=None, info: dict | None = None) -> PolicyPrediction:
         info = info or {}
         valid_action_mask = _coerce_valid_action_mask(info.get("valid_action_mask"))
-        raw_action, _ = self.model.predict(observation, deterministic=True)
-        if hasattr(raw_action, "item"):
-            action = int(raw_action.item())
-        elif isinstance(raw_action, (list, tuple)):
-            action = int(raw_action[0])
-        else:
-            action = int(raw_action)
-
-        if action < 0 or action >= len(RL_SERVICE_ACTIONS):
-            action = _first_valid_action(valid_action_mask)
-        if valid_action_mask is not None and (
-            action >= len(valid_action_mask) or not valid_action_mask[action]
-        ):
-            action = _first_valid_action(valid_action_mask)
-
+        action = _raw_policy_action(self.model, observation, valid_action_mask)
         return PolicyPrediction(
             action=action,
             action_name=RL_SERVICE_ACTIONS[action],
