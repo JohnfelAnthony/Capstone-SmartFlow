@@ -1,6 +1,6 @@
 # Mixed traffic: side-by-side vehicles and motorcycle filtering — design
 
-Date: **2026-10-26** (Asia/Singapore). Status: **proposed, awaiting owner approval**. Nothing described here is implemented yet.
+Date: **2026-10-26** (Asia/Singapore). Status: **approved by the owner on 2026-10-26**, revised during planning (2026-10-26) and after an external review (2026-10-27). Nothing described here is implemented yet.
 
 The owner chose **option 2, the "mixed-traffic engine"**: real road width, vehicles side by side, motorcycles filtering to the stop line, and varied drivers. The cheap visible parts come first. Calls marked **(my call)** were made by the assistant after the owner handed those decisions over; everything else follows the owner's choice or the existing project rules.
 
@@ -12,6 +12,13 @@ The owner chose **option 2, the "mixed-traffic engine"**: real road width, vehic
 - The junction method is settled in 6.4.
 
 All of these are marked **(my call)**.
+
+**Revised after an external review (2026-10-27, approved by the owner):** the review found that the first version could undo the junction-capacity repair, make vehicles jump or lock up inside the junction, check a different body shape from the one drawn, and accept results it had forced.
+
+- **Exit space (6.5):** the sideways-band reservation is dropped. It allowed only one committed car per exit lane and brought back the old "tail must be clear" condition. The `native-5` end-to-end storage rule stays, counting each vehicle's own minimum gap.
+- **Junction (6.4):** a vehicle enters its connector at its real sideways position. Vehicles that would merge or cross follow a fixed order, so two vehicles can never wait for each other inside the junction.
+- **Sideways movement (6.3, 6.9):** cars, tricycles, buses and trucks move sideways only while moving forward. The drawn angle is capped, and the engine checks the same turned body that is drawn.
+- **Acceptance (8):** overlap is checked at every tick, the determinism fingerprint covers sideways state and reservations, safety runs last 1800 s, and speed is timed in separate runs. Behaviour checks compare filtering on and off with everything else equal; wider comparisons are reported, not required.
 
 ## 1. Why
 
@@ -113,7 +120,7 @@ This matters for more than looks. Queue lengths, how fast a queue empties on gre
 - **Clearances (provisional, my call):** 0.3 m between vehicles side by side, and 0.1 m from the road edge. Both live in the parameter table (Section 6.7).
 - **Keeping positions (my call):** cars, buses and trucks keep to the centre-line side of the lane portion they use, which leaves the kerb side for two-wheelers. Tricycles keep to the kerb. Motorcycles have no keeping position.
 - The stop-line rule, the commit rule and the IDM itself are unchanged; only which vehicle counts as "ahead" changes.
-- Vehicles may never overlap: two footprints (length × width rectangles at their positions) must never intersect on a lane or inside the junction.
+- Vehicles may never overlap: two footprints (length × width rectangles at their positions, turned as drawn, see 6.9) must never intersect on a lane or inside the junction.
 
 ### 6.3 Gap seeking and motorcycle filtering (G4, G5)
 
@@ -121,8 +128,10 @@ This matters for more than looks. Queue lengths, how fast a queue empties on gre
 - **Choice.** It compares candidate sideways positions on a fine grid across its lane (provisional 0.25 m) and picks the one with the most room to advance, minus a cost for how far it has to move.
   - Cars, buses, trucks and tricycles are pulled towards their keeping position (6.2), which gives weak lane discipline.
   - Motorcycles have no keeping position and readily use gaps and edges.
-- **Safety.** A sideways move is only allowed if the target band is clear beside the vehicle (no vehicle within its length plus clearance) and stays inside the road edges.
+- **Safety.** A sideways move is only chosen if the target band is clear beside the vehicle (no vehicle within its length plus clearance) and stays inside the road edges. A vehicle near the start of a lane does not move into the path of a vehicle arriving from the junction.
+- **Each step is checked again (revised 2026-10-27).** Turning swings the tail slightly toward the side being left, so during a move the turned body (6.9) may use the clearances, but it must never touch another vehicle or leave the road. A step that fails is shortened; if even a short step fails, the move stops.
 - **Lateral speed limits (provisional):** motorcycle 1.0 m/s, tricycle 0.6, car 0.5, bus and truck 0.3.
+- **Sideways only while moving forward (revised 2026-10-27, my call).** Cars, tricycles, buses and trucks move sideways at most at forward speed × tan 10°, so a stopped one cannot slide sideways. Motorcycles may also shuffle sideways at up to 0.3 m/s when slow or stopped, as riders do with their feet.
 - **No jitter.** A move happens only when the gain passes a threshold, and a vehicle that just moved waits before deciding again.
 - **Turn side (provisional, optional).** In the last stretch before the junction, vehicles prefer the side of the road matching their turn: left turners to the left, right turners to the right (traffic drives on the right). This reduces paths crossing inside the junction.
 - **Stop line.** Vehicles stop with their front at the line wherever they are sideways. Because narrow vehicles keep finding gaps, motorcycles end up at the line beside and ahead of cars. On green, everything at the line is free to go, subject to the existing junction rules.
@@ -130,23 +139,27 @@ This matters for more than looks. Queue lengths, how fast a queue empties on gre
 ### 6.4 Through the junction (G5)
 
 - **Approach-scoped occupancy is unchanged**: only vehicles from the approach that has green are inside together, so conflicting streams still never meet.
-- A vehicle carries its sideways offset onto its connector and blends smoothly to its chosen position on the exit lane. A connector's usable width is the smaller of its entry and exit lane widths, and the offset is limited to it.
+- A vehicle enters its connector at its **real sideways position** and blends smoothly to its exit position: its own position, limited to the exit lane's width. There is no jump at the stop line, even from a wide approach into a narrow exit (revised 2026-10-27).
 - **Following inside the junction** must account for all vehicles from the same approach that could overlap, not only those on the same movement. Vehicles of one approach doing different movements must not intersect inside the junction.
+- **Fixed order (revised 2026-10-27, my call).** Two vehicles of one approach must never wait for each other:
+  - **Merging:** two vehicles bound for the same exit lane whose exit positions would come within the sideways clearance go single file. The later one follows the earlier along the path, waiting at the line if needed.
+  - **Crossing:** a vehicle whose path crosses that of a vehicle beside it (for example a left turner on the kerb side of a through vehicle) does not enter the junction while that vehicle is beside it. Once that vehicle is fully ahead, the normal following rules apply. The turn-side preference (6.3) makes this rare.
+  - **Level at the line:** when two such vehicles both stopped at the line, the one that stopped first goes first, then the lower vehicle ID (the order the all-way stop already uses).
 - **Method (my call, settled during planning):**
-  - Vehicles on the same movement keep the existing along-the-path following, now with the sideways-overlap check.
+  - Merging vehicles keep the existing along-the-path following.
   - Other vehicles in the junction and at the start of the exit lane are judged in the moving vehicle's own frame of reference.
   - A final footprint check shortens any step that would make two vehicles overlap.
 
 ### 6.5 Exit space and the deadlock guarantee
 
-The P0-1 guarantee must survive: **every vehicle that commits to a junction must be able to leave it completely.** With width, "fits end to end" no longer describes the exit lane.
+The P0-1 guarantee must survive: **every vehicle that commits to a junction must be able to leave it completely.**
 
-- **Suggested approach:**
-  1. On commit, the vehicle **reserves a sideways band** at the start of its exit lane.
-  2. Entry is allowed only if that band's first stretch (vehicle length + minimum gap + margin) is clear, counting vehicles already committed to that band.
-  3. No vehicle may move sideways into a reserved band near the exit lane's start.
-  4. Separately, the total footprint area of vehicles on or committed to the exit lane must stay within its usable area × a packing factor (provisional 0.8).
-- The builder may choose another mechanism, but must extend the P0-1 property test to sideways positions (class pairs × sideways positions) and show it fails for a rule that can strand a vehicle inside the junction.
+- **Rule (revised 2026-10-27):** keep the `native-5` storage rule. Everything on or committed to the exit lane, plus the entrant, must fit end to end, each counted as its length plus its own minimum gap plus the existing margin.
+- **Why it still holds side by side:** a vehicle stops only behind a leader or a stop line. Every vehicle in the chain of leaders in front of an entrant is already counted, whatever its sideways position, so that chain is never longer than the counted total, which leaves room for the entrant.
+- **Why not count per sideways band:** on a wide road a motorcycle in the middle overlaps both sides, so a queue can zigzag across bands, and a per-band total undercounts it.
+- **Rejected first version:** reserving a sideways band per committed vehicle allowed only one committed car per exit lane and brought back the old "tail must be clear" condition. It would have undone the junction-capacity repair (about 2.4 s per car).
+- **Accepted limitation:** an exit road backed up with vehicles side by side counts as full sooner than it really is, so during spillback the upstream junction lets fewer vehicles in than real traffic would. A finer rule can follow calibration if field data show that spillback matters.
+- **Proof:** extend the P0-1 property test to sideways positions (class pairs × sideways positions × road widths) and show that it fails for an area-only rule, which can strand a vehicle. Show that several following cars can be committed at once.
 
 ### 6.6 Spawning
 
@@ -182,7 +195,8 @@ The P0-1 guarantee must survive: **every vehicle that commits to a junction must
 
 ### 6.9 Drawing (G7)
 
-- `x`, `y` are computed from the lane centre line plus the lateral offset. `angle` combines forward and sideways speed, so a vehicle moving sideways is drawn turned slightly that way.
+- `x`, `y` are computed from the lane centre line plus the lateral offset. `angle` combines forward and sideways speed, so a vehicle moving sideways is drawn turned slightly that way, by at most **10°** (provisional, my call).
+- **One body shape (revised 2026-10-27):** the engine checks the same turned body that is drawn, using the road-aligned box around it for following, spacing, spawning and the road edges. The footprint check in the tests uses the drawn rectangle itself, so it cannot pass a drawing the engine did not check. On connectors, bodies follow the path direction.
 - Because `x`, `y` and `angle` already carry the result, the renderers, replay format and interpolation need no new fields. Adding the raw lateral position to the vehicle record is optional, for tests and debugging.
 - Roads draw at real width with lane lines from `lanes_per_direction`.
 - **No purely cosmetic random wobble.** Every drawn position comes from the engine **(my call)**.
@@ -204,7 +218,7 @@ Each stage ends with tests passing and a short browser check.
 
 1. **Tagum mix (days).** The provisional preset, the new defaults, the editor preset button and the demo scenarios. Check that motorcycles and tricycles are easy to tell apart in 2D and 3D. No engine behaviour change and no version bump. This is the first visible difference.
 2. **Width and side by side.** Lane width and offset, the lateral position, the overlap leader rule, packing at the stop line, side-by-side spawning, and drawing at the real position and width. Vehicles keep their entry sideways position (no gap seeking yet).
-3. **Gap seeking and filtering.** The periodic sideways decision, the safety check, speed limits and anti-jitter, the turn-side preference, junction offsets and following, and the new exit-space rule with the extended P0-1 property test.
+3. **Gap seeking and filtering.** The periodic sideways decision, the safety check with the turned body, speed limits and anti-jitter, the turn-side preference, junction offsets, the fixed order and following, and the P0-1 property test extended to sideways positions (the exit-space rule itself is unchanged).
 4. **Driver variety.** The class table and per-vehicle variation on the separate random stream.
 5. **Release.** Metric additions, the RL normalisation check, the performance check, the `native-6` bump, fixtures and recorded baselines, and documentation: a new architecture decision, a progress entry, and manuscript notes describing the mixed-traffic model and its limits.
 6. **Calibration (after field data).** Fit the parameter table to Field Observer measurements (Section 9).
@@ -213,25 +227,28 @@ Each stage ends with tests passing and a short browser check.
 
 **Safety and invariants (automated):**
 
-- No footprint overlap between any two vehicles on lanes or inside the junction at any tick. Check across both networks; low, medium and high demand; Tagum mix and cars only; closures; all-way stop; several seeds.
-- No vehicle outside its road's width.
-- Fault checks (stuck vehicles, gridlock) and the vehicle conservation error stay at 0 in 1800 s medium and high runs on both networks.
-- The P0-1 property test, extended to sideways positions, passes.
+- No footprint overlap between any two vehicles on lanes or inside the junction, **checked at every tick**. Check across both networks; low, medium and high demand; Tagum mix and cars only; closures; all-way stop; several seeds.
+- No drawn body outside its road's width.
+- Fault checks (stuck vehicles, gridlock) and the vehicle conservation error stay at 0 in **1800 s** runs on both networks (every case of the acceptance report).
+- The P0-1 property test, extended to sideways positions, passes, and fails for an area-only exit rule.
 - The speed-index equivalence test still passes.
-- **Determinism:** the same seed gives an identical state fingerprint, and the arrival schedule is identical to `native-5` for the same seed.
-- **Backward check:** a cars-only scenario on one-lane-per-direction roads stays single file. With variation scale 0, its saturated discharge headway stays within ±10% of `native-5` (about 2.4 s per car). With variation on, report the value without a bound.
+- **Determinism:** the same seed gives an identical state fingerprint, including sideways positions, targets and speeds, junction entry and exit positions, and reservations. The arrival schedule is identical to `native-5` for the same seed.
+- **Backward check:** a cars-only scenario on one-lane-per-direction roads stays single file. With variation scale 0, its saturated discharge headway stays within ±10% of `native-5` (about 2.4 s per car), and several following cars are committed at once. With variation on, report the value without a bound.
 
 **Behaviour (synthetic, provisional values):**
 
-- On a two-lanes-per-direction road, a cars-only queue holds about two cars abreast, and its storage roughly doubles.
-- With the Tagum mix at a red light, the share of motorcycles in the front row is clearly higher than their share in the whole queue (filtering works).
-- In the first 10 s of green, more vehicles discharge with the Tagum mix than with cars only at the same vehicles per hour.
-- No vehicle reverses its sideways direction more than twice in any 10 s, and lateral speed limits are respected.
+- **Mechanism checks (pass/fail, small controlled scenes):**
+  - On a two-lanes-per-direction road, a cars-only queue holds about two cars abreast, and its storage roughly doubles.
+  - Filtering: with the same seeds, Tagum mix and arrivals at a red light, the front-row motorcycle share is higher with sideways decisions on than with them off.
+  - No vehicle reverses its sideways direction more than twice in any 10 s, lateral speed limits are respected, and stopped cars, tricycles, buses and trucks never move sideways.
+- **Reported, not required (revised 2026-10-27):** front-row composition and vehicles leaving in the first 10 s of green on the full networks, Tagum mix against cars only and filtering on against off. These depend on demand, turns and downstream queues, so a case with no improvement is a result to report, not a bug to tune away.
+- **Provisional values are never tuned to make a check pass.** A failing mechanism check is investigated as a possible bug; if the mechanism is correct, the result is reported as it is.
 
 **Performance:**
 
 - With the same scenario settings and a cars-only mix, a medium-demand 900 s run on the 5-junction network takes no more than **1.5×** today's time (about 11 s). This isolates the cost of the new engine logic. Report the Tagum-mix time alongside it.
 - The RL environment, at the same demand and with the Tagum mix, keeps at least **70%** of today's decisions per second.
+- Speed is timed in separate runs with the overlap and fingerprint checks off, so the checks do not distort it.
 - Use the fingerprint and benchmark scripts from the speed-up work as the harness.
 
 **Visual (owner):**
@@ -264,7 +281,7 @@ Calibration uses separate calibration and held-out periods, as the recording pro
 
 - The exact sideways decision formula, weights, grid size and decision interval, within the stated rules.
 - Data structures for lateral position and bands, and how the tick index is extended.
-- The method for junction following with offsets and for the exit-space rule, as long as the stated invariants and tests hold.
+- The method for junction following with offsets, as long as the fixed order (6.4), the stated invariants and the tests hold. The exit-space rule is fixed (6.5).
 - Performance tactics, test scaffolding and fixture updates.
 - Updating existing tests whose single-file assumptions intentionally change, especially the capacity and connector-gap tests. Their safety intent must be kept.
 
@@ -279,5 +296,6 @@ Calibration uses separate calibration and held-out periods, as the recording pro
 7. Existing metric definitions kept; one new queue-reach metric added.
 8. No cosmetic random wobble in the drawing.
 9. One version bump, `native-6`, at the end; stage 1 (the mix) ships without one.
+10. After the 2026-10-27 review: the `native-5` exit storage rule kept with per-vehicle gaps, accepting that fewer vehicles enter during spillback; a fixed order for merging and crossing in the junction; sideways movement only while moving forward, except a 0.3 m/s motorcycle shuffle; the drawn angle capped at 10° and checked as drawn.
 
 **Effort:** about 1–2 weeks of focused work for stages 1–5. Stage 6 depends on field data.
