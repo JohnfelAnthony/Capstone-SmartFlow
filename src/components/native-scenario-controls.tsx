@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { automaticMaximumRed, fixedTimeRed, MAXIMUM_RED_BOUNDS } from "@/lib/signal-plan"
 
 export function NativeSelect({ label, value, options, onChange, disabled = false }: {
   label: string; value: string; options: Array<{ value: string; label: string; disabled?: boolean }>
@@ -52,6 +53,14 @@ export function NativeScenarioControls({ value, options, onChange }: {
   function updatePlan(patch: Partial<SignalPlan>) {
     onChange({ ...value, signal_plans: { ...value.signal_plans, [junction.id]: { ...plan, ...patch } } })
   }
+  const ownRed = fixedTimeRed(plan)
+  const customMaximumRed = plan.maximum_red_seconds !== undefined
+  function setMaximumRedMode(mode: string) {
+    const next = { ...plan }
+    if (mode === "custom") next.maximum_red_seconds = Math.min(automaticMaximumRed(plan), MAXIMUM_RED_BOUNDS.max)
+    else delete next.maximum_red_seconds
+    onChange({ ...value, signal_plans: { ...value.signal_plans, [junction.id]: next } })
+  }
   function updateEvent(index: number, patch: Partial<LaneEvent>) {
     onChange({ ...value, events: events.map((event, current) => current === index ? { ...event, ...patch } : event) })
   }
@@ -89,6 +98,24 @@ export function NativeScenarioControls({ value, options, onChange }: {
         </FieldGroup>
         {!(plan.minimum_green <= plan.green_seconds && plan.green_seconds <= plan.maximum_green) &&
           <Alert variant="destructive"><AlertDescription>Minimum green must be at most fixed green, and fixed green must be at most maximum green.</AlertDescription></Alert>}
+        <FieldGroup className="grid sm:grid-cols-2">
+          <Field>
+            <NativeSelect label="Pedestrian phase" value={plan.pedestrian_phase ?? "on_call"}
+              options={[{ value: "on_call", label: "On call" }, { value: "every_cycle", label: "Every cycle" }]}
+              onChange={(pedestrian_phase) => updatePlan({ pedestrian_phase: pedestrian_phase as SignalPlan["pedestrian_phase"] })} />
+            <FieldDescription>On call skips the walk phase when nobody is waiting. Fixed-time and RL control follow the same rule.</FieldDescription>
+          </Field>
+          <Field>
+            <NativeSelect label="Maximum red" value={customMaximumRed ? "custom" : "automatic"}
+              options={[{ value: "automatic", label: `Automatic (${automaticMaximumRed(plan)} s)` }, { value: "custom", label: "Custom" }]}
+              onChange={setMaximumRedMode} />
+            <FieldDescription>A waiting approach always gets green within this time, under any controller. Automatic is 120 s, or this plan’s own red ({ownRed} s) if longer.</FieldDescription>
+          </Field>
+          {customMaximumRed && <NativeNumber label="Custom maximum red (seconds)" value={plan.maximum_red_seconds ?? 0}
+            min={MAXIMUM_RED_BOUNDS.min} max={MAXIMUM_RED_BOUNDS.max} onChange={(maximum_red_seconds) => updatePlan({ maximum_red_seconds })} />}
+        </FieldGroup>
+        {customMaximumRed && (plan.maximum_red_seconds ?? 0) < ownRed &&
+          <Alert variant="destructive"><AlertDescription>Maximum red must be at least this plan’s own fixed-time red ({ownRed} s), or the fixed-time baseline would be interrupted.</AlertDescription></Alert>}
         <Field>
           <FieldLabel>Phase order</FieldLabel>
           <ol className="flex flex-col gap-2">{plan.phase_order.map((phase, index) => <li key={phase} className="flex items-center gap-2">

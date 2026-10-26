@@ -9,6 +9,10 @@ export type SignalPlan = {
   yellow_seconds: number
   all_red_seconds: number
   offset_seconds: number
+  /** Absent means automatic: 120 s, or the plan's own fixed-time red if longer. */
+  maximum_red_seconds?: number
+  /** Absent means on_call. */
+  pedestrian_phase?: "on_call" | "every_cycle"
 }
 
 export type LaneEvent = {
