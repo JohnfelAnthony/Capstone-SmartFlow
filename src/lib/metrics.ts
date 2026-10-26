@@ -18,9 +18,14 @@ function rawMetrics(saved: Record<string, unknown>) {
   return saved.raw_metrics && typeof saved.raw_metrics === "object" ? saved.raw_metrics as Record<string, unknown> : saved
 }
 
-export function metricEngineVersion(metrics: Record<string, unknown> | null | undefined): unknown {
+/** The experiment record (engine version, network fingerprint, seed…) saved with a run's metrics. */
+export function savedExperiment(metrics: Record<string, unknown> | null | undefined): Record<string, unknown> {
   const raw = rawMetrics(metrics ?? {})
-  return raw.experiment && typeof raw.experiment === "object" ? (raw.experiment as Record<string, unknown>).engine_version : undefined
+  return raw.experiment && typeof raw.experiment === "object" ? raw.experiment as Record<string, unknown> : {}
+}
+
+export function metricEngineVersion(metrics: Record<string, unknown> | null | undefined): unknown {
+  return savedExperiment(metrics).engine_version
 }
 
 export function metricValue(metrics: Record<string, unknown> | null | undefined, key: string): number | null {

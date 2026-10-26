@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatMetric, metricCatalog, metricDefinition, metricEngineVersion, metricValue, percentChange } from "./metrics"
+import { formatMetric, metricCatalog, metricDefinition, metricEngineVersion, metricValue, percentChange, savedExperiment } from "./metrics"
 
 describe("native metric interpretation", () => {
   it("distinguishes empty averages from zero measured outcomes", () => {
@@ -26,6 +26,10 @@ describe("native metric interpretation", () => {
     expect(metricEngineVersion({ experiment: { engine_version: "native-4" } })).toBe("native-4")
     expect(metricEngineVersion({ throughput: 5 })).toBeUndefined()
     expect(metricEngineVersion(null)).toBeUndefined()
+  })
+  it("reads the saved experiment, including the network fingerprint used for baseline matching", () => {
+    expect(savedExperiment({ raw_metrics: { experiment: { network_sha256: "abc" } } }).network_sha256).toBe("abc")
+    expect(savedExperiment({ throughput: 5 })).toEqual({})
   })
   it("requires sampled queue ticks and the appropriate average populations", () => {
     expect(metricValue({ avg_queue: 0, step_count: 0 }, "avg_queue")).toBeNull()

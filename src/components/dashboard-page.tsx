@@ -27,7 +27,7 @@ import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
-import { metricCatalog, metricEngineVersion, metricValue } from "@/lib/metrics"
+import { metricCatalog, metricEngineVersion, metricValue, savedExperiment } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
@@ -271,18 +271,21 @@ export function DashboardPage({
 
   const runSeed = simulation?.seed
   const activeRunId = simulation?.active_run_id
+  const runNetwork = simulation?.state.experiment?.network_sha256
   React.useEffect(() => {
     const scenarioId = Number(selectedScenarioId)
     if (!scenarioId) return
     let cancelled = false
     listSimulationRuns({ scenarioId, status: "completed", limit: 50 }).then((response) => {
-      // Only a run from the current engine is a fair baseline; runs without an engine version predate the native engine.
+      // Only a run from the current engine on the same road network is a fair baseline; runs without an engine
+      // version predate the native engine, and both networks share one network id, so compare fingerprints.
       const isComparableBaseline = (run: SimulationRunRecord) => run.control_mode === "fixed-time" && run.seed === runSeed && run.id !== activeRunId
         && metricEngineVersion(run.metrics) === metricCatalog.engine_version
+        && typeof runNetwork === "string" && savedExperiment(run.metrics).network_sha256 === runNetwork
       if (!cancelled) setBaseline(response.runs.find(isComparableBaseline) ?? null)
     }).catch(() => { if (!cancelled) setBaseline(null) })
     return () => { cancelled = true }
-  }, [selectedScenarioId, runSeed, activeRunId])
+  }, [selectedScenarioId, runSeed, activeRunId, runNetwork])
 
   function handleScenarioChange(scenarioId: string) {
     setSelectedScenarioId(scenarioId)
