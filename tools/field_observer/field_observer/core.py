@@ -15,6 +15,8 @@ from .media import probe_video
 
 CLASSES = ("car", "motorcycle", "tricycle", "jeepney", "bus", "truck", "bicycle",
            "other", "unknown")
+# Motorized bao-bao versus pedal pedicab (the green vehicle in the owner's 2 October picture).
+TRICYCLE_SUBTYPES = ("bao_bao", "pedicab")
 EVENT_TYPES = ("vehicle_arrival", "vehicle_movement", "vehicle_discharge",
                "pedestrian_arrival", "pedestrian_start", "pedestrian_complete")
 STATUSES = ("proposed", "accepted", "corrected", "rejected", "uncertain")
@@ -213,6 +215,8 @@ def validate(take: Path) -> tuple[dict, dict, dict]:
                 require((row["reviewed_class"] in CLASSES) if vehicle else row["reviewed_class"] == "person",
                         f"{label}: invalid vehicle/person category.")
                 require(not row["vehicle_subtype"] or row["reviewed_class"] == "tricycle", f"{label}: this release supports subtype only for tricycles.")
+                require(row["vehicle_subtype"] in ("", *TRICYCLE_SUBTYPES),
+                        f"{label}: tricycle subtype must be {' or '.join(TRICYCLE_SUBTYPES)}.")
                 if accepted:
                     identity = (row["reviewed_class"], row["vehicle_subtype"], row["crossing_id"] if not vehicle else "")
                     require(episode_classes.setdefault(row["episode_id"], identity) == identity,

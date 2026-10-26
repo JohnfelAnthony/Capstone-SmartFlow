@@ -34,7 +34,7 @@ The first deliverable is one **10-minute roadside pilot, a manual reference coun
 
 Use vehicle classes `car`, `motorcycle`, `tricycle`, `jeepney`, `bus`, `truck`, `bicycle`, `other` and `unknown` in the original observation tables. Agree category examples during the pilot. Preserve jeepneys and bicycles as separate field classes even if SmartFlow needs an explicit later mapping. Special-response traffic is outside the study. If it affects a survey period, retain an observation note and flag the affected coverage; do not silently convert it to ordinary simulated demand.
 
-### Vehicle categories and the pictured Tagum passenger tricycle
+### Vehicle categories, bao-baos and pedicabs
 
 Use **seven ordinary field categories** initially. Count pedestrians in separate crossing tables; retain `other` and `unknown` observations as additional labels rather than forcing every road user into a known category.
 
@@ -42,17 +42,17 @@ Use **seven ordinary field categories** initially. Count pedestrians in separate
 | --- | --- |
 | `car` | Passenger cars, including sedans and SUVs; optional body subtypes instead of brand/model classes. Agree van/pickup boundaries in the pilot guide. |
 | `motorcycle` | Two-wheel powered motorcycles and scooters, including those carrying passengers. |
-| `tricycle` | Motorized three-wheel vehicles, specifically including the pictured green/yellow Tagum covered passenger tricycle. |
+| `tricycle` | Three-wheel passenger vehicles. Subtype `bao_bao` for the motorized bao-bao; subtype `pedicab` for the pedal pedicab, including the pictured green/yellow covered pedicab. |
 | `jeepney` | Jeepney public-transport vehicles; preserve their category rather than silently substituting car or bus. |
 | `bus` | Buses, with optional size subtype if the surveyed fleet warrants it. |
 | `truck` | Goods/freight trucks; light/heavy subtypes if consistently identifiable. |
-| `bicycle` | Pedal bicycles, distinct from two-wheel motorcycles. |
+| `bicycle` | Pedal bicycles, distinct from two-wheel motorcycles. A pedal pedicab is `tricycle`/`pedicab`, not `bicycle`. |
 
-The owner supplied an image of green/yellow covered passenger tricycles in this conversation as the body-style reference.
+The owner supplied an image of green/yellow covered passenger tricycles in this conversation as the body-style reference. On October 27 the owner confirmed that it shows a **pedal pedicab**, not a motorized tricycle.
 
-This image was supplied by the owner on October 2 as a **classification and visual reference**, not as collected intersection evidence. Use `vehicle_class=tricycle` and `vehicle_subtype=tagum_passenger_tricycle` for this body style. The subtype is not a legal-registration classification or an assertion that every Tagum tricycle has identical dimensions.
+This image was supplied by the owner on October 2 as a **classification and visual reference**, not as collected intersection evidence. Use `vehicle_class=tricycle` with `vehicle_subtype=pedicab` for this pedal vehicle, and `vehicle_subtype=bao_bao` for the motorized bao-bao. The detector cannot tell them apart (it usually labels a bao-bao `car` and a pedicab `motorcycle` or `car`), so set both in review. The earlier subtype name `tagum_passenger_tricycle` is retired, and Field Observer rejects it. The subtype is not a legal-registration classification or an assertion that every Tagum three-wheeler has identical dimensions.
 
-Count the complete motorcycle/cabin/sidecar unit as **one vehicle**. Do not count its motorcycle portion again under `motorcycle`, or its driver and seated passengers as pedestrians. A passenger who alights and crosses can subsequently produce a pedestrian crossing event. Classify by structure and visible movement; green paint alone does not establish the class.
+Count the complete three-wheel unit (bicycle or motorcycle with its cabin or sidecar) as **one vehicle**. Do not count its bicycle or motorcycle portion again under `bicycle` or `motorcycle`, or its driver and seated passengers as pedestrians. A passenger who alights and crosses can subsequently produce a pedestrian crossing event. Classify by structure and visible movement; green paint alone does not establish the class.
 
 Explicitly audit these tricycles against two-wheel motorcycles and cars. Preserve an unknown class/subtype if obstruction prevents identification. Document representative dimensions and behavior separately; this illustration does not calibrate size, speed, loading, stopping or filtering behavior.
 
@@ -138,7 +138,7 @@ Illustrative rows below are **invented examples of the format**, not collected d
 
 | Video reference | Observation | Location | Class/value | Review note |
 | --- | --- | --- | --- | --- |
-| `J01_TAKE_01.mp4`, `00:01:12.400` | Stop-line discharge toward west | `N_TO_W` | `tricycle`, subtype `tagum_passenger_tricycle` | Class corrected from detector's motorcycle label |
+| `J01_TAKE_01.mp4`, `00:01:12.400` | Stop-line discharge toward west | `N_TO_W` | `tricycle`, subtype `pedicab` | Class corrected from detector's motorcycle label |
 | `J01_TAKE_01.mp4`, `00:02:03.200` | Arrival at crossing waiting area | `CROSS_W` | pedestrian event `P014` | Arrival fully visible |
 | `J01_TAKE_01.mp4`, `00:02:19.700` | Crossing begins | `CROSS_W` | pedestrian event `P014` | Observed wait: 16.5 s |
 | `J01_TAKE_01.mp4`, `00:03:00.000` | Green begins | `HEAD_N` | green | Visible signal or same-clock observer log, method recorded |

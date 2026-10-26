@@ -59,11 +59,11 @@ Verified paths: [observation importer](../services/observed_data_import.py), [sc
 
 ## 3. Preserve observations before converting them
 
-### Motorcycles, trucks and Tagum passenger tricycles
+### Motorcycles, trucks, bao-baos and pedicabs
 
 The survey starts with seven ordinary categories: car, motorcycle, tricycle, jeepney, bus, truck and bicycle. The current engine supports `car`, `motorcycle`, `tricycle`, `bus` and `truck`. Jeepney and bicycle are additional field categories whose simulation behavior needs implementation or an explicit justified mapping. An unknown subtype does not authorize dropping a vehicle or relabeling it as car.
 
-The owner's pictured green/yellow three-wheel passenger vehicle belongs to `tricycle`, distinct from two-wheel `motorcycle`. Retain `vehicle_subtype=tagum_passenger_tricycle` in reviewed data and conversion records; use existing `vehicle_type=tricycle` in supported trip input. This is one road vehicle regardless of passenger count. Color/body style is a data subtype, not a separate demand class. No new vehicle graphics or 3D assets are requested by this plan.
+The owner's pictured green/yellow three-wheel passenger vehicle is a **pedal pedicab** (confirmed October 27), distinct from the motorized **bao-bao**. Both belong to field class `tricycle`, distinct from two-wheel `motorcycle`. Retain `vehicle_subtype=pedicab` or `bao_bao` in reviewed data and conversion records. Bao-baos use the existing `vehicle_type=tricycle` in supported trip input. Pedicabs are much slower than the engine's motorized tricycle, so mapping them needs an explicit, justified decision, such as a slower class or a documented approximation, once reviewed counts show their share. Each is one road vehicle regardless of passenger count. No new vehicle graphics or 3D assets are requested by this plan.
 
 Existing provisional dimensions and speed factors are car **4.5 m × 1.8 m / 1.0**, motorcycle **2.0 m × 0.8 m / 1.0**, tricycle **3.0 m × 1.4 m / 0.75**, bus **10.0 m × 2.5 m / 0.85**, truck **8.0 m × 2.5 m / 0.8**. These are source defaults, not measured Tagum values. Verify representative dimensions, arrival share, discharge and stopping behavior from evidence before proposing changes to physics.
 

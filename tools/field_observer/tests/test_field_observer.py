@@ -54,7 +54,7 @@ class EvidenceTests(unittest.TestCase):
     def event(self, **changes):
         row = self.row("events.csv", event_id="E1", episode_id="V1", event_type="vehicle_discharge",
                        location_id="N_STOP", time_s=.05, frame_pts=1050, approach_id="N",
-                       reviewed_class="tricycle", vehicle_subtype="tagum_passenger_tricycle",
+                       reviewed_class="tricycle", vehicle_subtype="pedicab",
                        review_status="accepted", review_method="manual_count", reviewer="reviewer")
         row.update(changes)
         return row
@@ -117,10 +117,25 @@ class EvidenceTests(unittest.TestCase):
         manifest, tables, _ = validate(self.take)
         rows = make_bins(manifest, tables, 1)
         self.assertEqual(sum(row["count"] for row in rows), 1)
-        tricycle = next(row for row in rows if row["vehicle_subtype"] == "tagum_passenger_tricycle")
+        tricycle = next(row for row in rows if row["vehicle_subtype"] == "pedicab")
         self.assertEqual(tricycle["count"], 1)
         self.assertEqual(next(row["count"] for row in rows if row["reviewed_class"] == "car"), 0)
         self.assertEqual(tricycle["end_s"], .4)  # No extrapolation to one second or 15 minutes.
+
+    def test_count_bins_keep_bao_bao_and_pedicab_apart(self):
+        self.save("coverage.csv", [self.coverage()])
+        self.save("events.csv", [self.event(), self.event(event_id="E2", episode_id="V2", time_s=.15, frame_pts=1150,
+                                                          vehicle_subtype="bao_bao")])
+        manifest, tables, _ = validate(self.take)
+        counts = {row["vehicle_subtype"]: row["count"] for row in make_bins(manifest, tables, 1) if row["reviewed_class"] == "tricycle"}
+        self.assertEqual(counts, {"": 0, "bao_bao": 1, "pedicab": 1})
+
+    def test_retired_or_unknown_tricycle_subtype_is_rejected(self):
+        self.save("coverage.csv", [self.coverage()])
+        for subtype in ("tagum_passenger_tricycle", "Pedicab"):
+            self.save("events.csv", [self.event(vehicle_subtype=subtype)])
+            with self.assertRaisesRegex(ValueError, "tricycle subtype must be bao_bao or pedicab"):
+                validate(self.take)
 
     def test_duplicate_episode_or_wrong_frame_is_rejected(self):
         self.seed()
@@ -255,7 +270,7 @@ class MediaTests(unittest.TestCase):
             event = {key: "" for key in TABLES["events.csv"]}
             event.update(context, event_id="E1", episode_id="V1", event_type="vehicle_discharge",
                          location_id="N_STOP", time_s=.04, frame_pts=1040, approach_id="N",
-                         reviewed_class="tricycle", vehicle_subtype="tagum_passenger_tricycle",
+                         reviewed_class="tricycle", vehicle_subtype="pedicab",
                          review_status="accepted", review_method="manual_count", reviewer="test",
                          note="Invented event on a synthetic blank timing fixture; no traffic detection claim.")
             write_csv(take / "draft" / "coverage.csv", TABLES["coverage.csv"], [coverage])

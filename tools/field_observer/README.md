@@ -112,7 +112,7 @@ Each event needs a unique `event_id`, a stable `episode_id`, type, location, sou
 | `pedestrian_start` | `crossing_id`; crossing starts |
 | `pedestrian_complete` | `crossing_id`; crossing completes |
 
-Vehicle classes are `car`, `motorcycle`, `tricycle`, `jeepney`, `bus`, `truck`, `bicycle`, `other`, `unknown`; pedestrian events use `person`. The pictured Tagum passenger vehicle uses `tricycle` and subtype `tagum_passenger_tricycle`. Count its complete three-wheel unit once. Do not count riders/occupants as crossing pedestrians.
+Vehicle classes are `car`, `motorcycle`, `tricycle`, `jeepney`, `bus`, `truck`, `bicycle`, `other`, `unknown`; pedestrian events use `person`. Three-wheelers use `tricycle` with subtype `bao_bao` (motorized) or `pedicab` (pedal; the green vehicle in the owner's 2 October picture). The detector has no such classes, so set them in review. Count the complete three-wheel unit once. Do not count riders/occupants as crossing pedestrians.
 
 **October 24 scope:** special-response events are outside the study taxonomy. Record their effect in recording context or coverage notes and flag affected intervals; do not relabel them as ordinary demand. Original footage and historical observation revisions remain unchanged. Drafts using the retired category fail current validation/export and need an explicit review against the revised study scope.
 

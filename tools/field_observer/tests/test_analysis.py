@@ -130,7 +130,7 @@ class PipelineTests(unittest.TestCase):
         write_csv(self.take / "draft/events.csv", TABLES["events.csv"], [event])
         with self.assertRaisesRegex(ValueError, "automatic/sample"):
             validate(self.take)
-        event.update(reviewed_class="tricycle", vehicle_subtype="tagum_passenger_tricycle",
+        event.update(reviewed_class="tricycle", vehicle_subtype="pedicab",
                      review_status="corrected", review_method="individual_review", note="Synthetic manual reclassification")
         write_csv(self.take / "draft/events.csv", TABLES["events.csv"], [event])
         coverage = {key: "" for key in TABLES["coverage.csv"]}

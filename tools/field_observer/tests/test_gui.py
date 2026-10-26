@@ -61,6 +61,9 @@ class GUITests(unittest.TestCase):
         import av
         self.assertIn('type="file"', self.html)
         self.assertIn('id="player" controls', self.html)
+        for subtype in ("bao_bao", "pedicab"):
+            self.assertIn(f'<option value="{subtype}">', self.html)
+        self.assertNotIn("tagum_passenger_tricycle", self.html)
         self.run_demo()
         run = self.service.run
         frozen = sha256(run / "proposals.csv")
@@ -80,11 +83,21 @@ class GUITests(unittest.TestCase):
             urlopen(Request(self.url + "/api/replay", headers={"Range": "bytes=999999999-"}))
         self.assertEqual(invalid.exception.code, 416)
         rows = self.service.events()["events"]
+        vehicle = next(row for row in rows if row["event_type"].startswith("vehicle_"))
+        with self.assertRaises(HTTPError) as retired:
+            self.post("/api/review", {"event_id": vehicle["event_id"], "time_s": float(vehicle["time_s"]),
+                      "reviewed_class": "tricycle", "vehicle_subtype": "tagum_passenger_tricycle",
+                      "review_status": "corrected", "reviewer": "Synthetic reviewer", "note": "Retired subtype name"})
+        self.assertEqual(retired.exception.code, 400)
+        self.assertEqual(json.loads(retired.exception.read())["error"], "Unknown tricycle subtype.")
+        subtypes = iter(("pedicab", "bao_bao"))  # the demo's two vehicle events
         for row in rows:
             pedestrian = row["event_type"].startswith("pedestrian_")
             self.post("/api/review", {"event_id": row["event_id"], "time_s": float(row["time_s"]),
-                      "reviewed_class": "person" if pedestrian else "tricycle", "vehicle_subtype": "" if pedestrian else "tagum_passenger_tricycle",
+                      "reviewed_class": "person" if pedestrian else "tricycle", "vehicle_subtype": "" if pedestrian else next(subtypes),
                       "review_status": "corrected", "reviewer": "Synthetic reviewer", "note": "Invented correction for software test"})
+        reviewed = {row["vehicle_subtype"] for row in self.service.events()["events"] if row["reviewed_class"] == "tricycle"}
+        self.assertEqual(reviewed, {"pedicab", "bao_bao"})
         self.post("/api/review", {"line_id": "VEHICLES_IN", "time_s": .4, "reviewed_class": "car",
                   "review_status": "accepted", "reviewer": "Synthetic reviewer", "note": "Invented missed event"})
         for line in self.service.config["lines"]:

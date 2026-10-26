@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .analysis import AnalysisCancelled, analyze, use_proposals
-from .core import (CLASSES, COMMON, TABLES, create_take, export_revision, identifier, load_tables,
+from .core import (CLASSES, COMMON, TABLES, TRICYCLE_SUBTYPES, create_take, export_revision, identifier, load_tables,
                    nearest_frame, number, read_json, read_take, require, sha256, write_csv, write_json)
 from .demo import DemoDetector, create_demo
 from .detector import TrafficDetector
@@ -255,7 +255,7 @@ class ObserverGUI:
             is_vehicle = row["event_type"].startswith("vehicle_")
             require(category in CLASSES if is_vehicle else category == "person", "Choose the correct vehicle/person class.")
             subtype = data.get("vehicle_subtype", "") if category == "tricycle" else ""
-            require(subtype in ("", "tagum_passenger_tricycle"), "Unknown tricycle subtype.")
+            require(subtype in ("", *TRICYCLE_SUBTYPES), "Unknown tricycle subtype.")
             require(status != "corrected" or bool(data.get("note", "").strip()), "Describe the correction in the note.")
             episode = data.get("episode_id", "").strip() or row.get("episode_id") or row["event_id"]
             identifier(episode, "episode_id")
