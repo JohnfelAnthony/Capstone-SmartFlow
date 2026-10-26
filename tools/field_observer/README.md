@@ -10,6 +10,10 @@ Use the [recording protocol](../../docs/FIELD_RECORDING_PROTOCOL.md), [complete 
 
 On this computer the environment and detector weights are already installed. Double-click **`Start Field Observer.cmd` in the SmartFlow root** (or the launcher in this tool folder). It opens the app in your default browser. Keep the helper window open; you do not need to type commands or start SmartFlow's main web application.
 
+**GPU (October 26, 2026).** The launcher uses the optional GPU environment `.venv-gpu` when it exists, and the CPU environment `.venv` otherwise. Analysis then runs on the NVIDIA GPU when PyTorch can reach it (`auto`), and on the CPU when it cannot; `run.json` records the device actually used. **`Start Field Observer (CPU).cmd`** in this folder is the fallback: it uses `.venv` and forces the CPU. Setting `FIELD_OBSERVER_DEVICE=cpu` or `cuda` overrides `auto` in either environment. On this laptop, `.venv-gpu` is a junction to `D:ield_observer_gpu`, because drive C: has little free space.
+
+Measured here on 60 frames of each 10 Sept 2026 recording (1080p): CPU **1.13–1.15 s per frame** (about 9.5 h for a 16.7-minute, 30,113-frame video) and GeForce MX350 **0.74–0.78 s per frame** (about 6.3 h). Detections were identical on both. The detector itself takes about 0.71 s of each GPU frame; the MX350 is an entry-level GPU, so a stronger NVIDIA GPU is needed for a large speed-up.
+
 1. Click **Choose File**, select the phone video, enter the survey/intersection IDs and researcher name, then click **Load video**. Choose actual field or synthetic/test source honestly. The app copies the file into its local workspace and indexes the original timestamps; the input file stays unchanged.
 2. Set the phone rotation before drawing. Click two endpoints on the frame, choose the observation and direction, and click **Add line**. Use separate lines for arrivals, discharges and pedestrian stages. Changing rotation clears existing lines.
 3. Click **Start analysis**. The local CPU detector processes the recording. The screen updates with boxes, original detected classes, track IDs and proposed counts. **Stop** cancels after the current frame/model load; interrupted runs cannot become reviewed exports.
@@ -39,6 +43,13 @@ cd tools/field_observer
 .venv/Scripts/python.exe -m field_observer --help
 .venv/Scripts/python.exe -m field_observer prepare-model
 .venv/Scripts/python.exe -m unittest discover -s tests -v
+```
+
+Optional GPU environment (needs an NVIDIA GPU; about 5 GB):
+
+```powershell
+.venv/Scripts/python.exe -m venv tools/field_observer/.venv-gpu
+tools/field_observer/.venv-gpu/Scripts/python.exe -m pip install --no-cache-dir -r tools/field_observer/requirements.txt -r tools/field_observer/requirements-cv-gpu.txt --extra-index-url https://download.pytorch.org/whl/cu126
 ```
 
 Run the remaining examples **from `tools/field_observer`**. Original videos may stay in a designated research folder. The generated take directory belongs under SmartFlow's ignored `data/generated/field_observer/` directory. Videos, environments and generated data must not be committed as application source.
@@ -156,7 +167,7 @@ Analysis produces:
 
 `use-proposals` verifies a complete run and artifact hashes, then seeds an **empty** `draft/events.csv`. It refuses existing draft events. Review the entire video, add missed events, merge fragmented track episodes where justified, exclude riders/sidewalk traffic and correct classes. For the green passenger three-wheeler use `tricycle` / `tagum_passenger_tricycle`; two-wheel motorcycles remain `motorcycle`, and trucks remain `truck`. Set `review_method=individual_review`, `review_status=accepted` or `corrected`, reviewer and correction notes. Add honest coverage rows before `check` and `export`.
 
-Never edit the raw analysis artifacts to match corrections. Keep them beside the take for comparison with each reviewed revision. A failure or Ctrl+C leaves a failed/interrupted run that cannot seed review. Use a new output directory for a retry. CPU processing can be slow; a speed estimate requires a pilot on this computer. `--device cuda` is optional only when the installed Torch build and GPU support it.
+Never edit the raw analysis artifacts to match corrections. Keep them beside the take for comparison with each reviewed revision. A failure or Ctrl+C leaves a failed/interrupted run that cannot seed review. Use a new output directory for a retry. CPU processing is slow (see the measured speeds above). `--device` defaults to `auto`; `cuda` requires a CUDA build of PyTorch, as installed in `.venv-gpu`.
 
 ## Next stages
 

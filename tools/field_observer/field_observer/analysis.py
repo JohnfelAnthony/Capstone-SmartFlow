@@ -21,7 +21,7 @@ class AnalysisCancelled(Exception):
 
 
 def analyze(take: Path, config_path: Path, destination: Path, weights: Path, *,
-            confidence: float = 0.35, device: str = "cpu", detector_factory=TrafficDetector, progress=None,
+            confidence: float = 0.35, device: str = "auto", detector_factory=TrafficDetector, progress=None,
             on_frame=None, cancelled=None) -> dict:
     require(not destination.exists(), "Analysis destination already exists; choose a new run directory.")
     manifest, indexed = read_take(take)

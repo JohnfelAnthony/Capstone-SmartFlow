@@ -39,7 +39,8 @@ def main(argv=None) -> int:
     analyze_parser.add_argument("destination", type=Path, help="New analysis directory.")
     analyze_parser.add_argument("--weights", type=Path, default=Path(".cache/models/rf-detr-small.pth"))
     analyze_parser.add_argument("--confidence", type=float, default=.35)
-    analyze_parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    analyze_parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto",
+                                help="auto uses an NVIDIA GPU when available (override with FIELD_OBSERVER_DEVICE).")
     proposals = commands.add_parser("use-proposals", help="Copy a complete analysis into an EMPTY events draft for manual review.")
     proposals.add_argument("take", type=Path)
     proposals.add_argument("analysis", type=Path)

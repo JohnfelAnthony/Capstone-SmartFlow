@@ -1,0 +1,12 @@
+# Optional NVIDIA GPU environment (.venv-gpu). Same detector stack as requirements-cv-lock.txt,
+# but PyTorch comes from the CUDA 12.6 build, which still supports older Pascal GPUs (e.g. GeForce MX350, sm_61).
+# Version-pinned, not hash-locked: the CUDA wheels come from download.pytorch.org.
+# Install: python -m pip install --no-cache-dir -r requirements.txt -r requirements-cv-gpu.txt --extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.14.1+cu126
+torchvision==0.29.1+cu126
+rfdetr==1.11.1
+supervision==0.30.6
+trackers==2.6.1
+opencv-python==5.0.0.93
+Pillow==12.3.0
+numpy==2.5.3

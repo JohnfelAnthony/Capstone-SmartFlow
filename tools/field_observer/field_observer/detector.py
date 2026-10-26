@@ -16,11 +16,28 @@ def configure_cache() -> None:
     os.environ.setdefault("TORCH_HOME", str(cache / "torch"))
 
 
+def resolve_device(requested: str = "auto") -> str:
+    """'auto' uses an NVIDIA GPU when this environment's PyTorch can reach one, else the CPU.
+    FIELD_OBSERVER_DEVICE (cpu or cuda) overrides 'auto', for example to force the CPU."""
+    require(requested in {"auto", "cpu", "cuda"}, "Device must be auto, cpu or cuda.")
+    if requested == "auto":
+        requested = os.environ.get("FIELD_OBSERVER_DEVICE", "auto").strip().lower() or "auto"
+        require(requested in {"auto", "cpu", "cuda"}, "FIELD_OBSERVER_DEVICE must be auto, cpu or cuda.")
+    if requested != "auto":
+        return requested
+    try:
+        import torch
+    except ImportError:
+        return "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 class TrafficDetector:
     def __init__(self, weights: Path, confidence: float, device: str):
         require(weights.is_file(), "Local RF-DETR Small weights are missing; run prepare-model first.")
         require(weights.name == "rf-detr-small.pth", "This adapter supports the official RF-DETR Small COCO checkpoint only.")
         require(0.1 <= confidence <= 0.9, "Confidence must be between 0.1 and 0.9.")
+        device = resolve_device(device)
         configure_cache()
         try:
             import numpy as np
