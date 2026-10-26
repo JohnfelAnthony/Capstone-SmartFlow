@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .model_contract import native_contract, validate_neural_artifact
+from .rl_reward import REWARD_VERSION
 
 import json
 import statistics
@@ -18,7 +19,6 @@ except ImportError:  # pragma: no cover - exercised when the local venv lacks th
 
 
 OBSERVATION_VERSION = "obs_v2"
-REWARD_VERSION = "reward_v2"
 ACTION_SPACE_VERSION = "action_v1"
 
 

@@ -31,11 +31,8 @@ class RLSnapshot:
     active_vehicles_by_approach: dict[str, int]
     pedestrian_waiting_count: int
     valid_action_mask: tuple[int, ...]
-    throughput: int
-    avg_wait: float
-    avg_queue: float
-    max_queue: int
-    avg_ped_delay: float
+    junction_stopped_seconds: float
+    junction_passages: int
     total_phase_switches: int
     simulation_time: float
     intersection_id: str
@@ -130,6 +127,7 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
     remaining_switch_seconds = max(float(runtime_state.get("phase_remaining", 0.0) or 0.0), 0.0)
     elapsed_phase_seconds = _phase_elapsed_seconds(engine)
 
+    junction_metrics = metrics.get("junctions", {}).get(engine.controlled_junction, {})
     snapshot_state = {
         "phase_family": phase_family,
         "remaining_switch_seconds": remaining_switch_seconds,
@@ -163,11 +161,8 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         active_vehicles_by_approach=active_vehicles_by_approach,
         pedestrian_waiting_count=pedestrian_waiting_count,
         valid_action_mask=valid_action_mask,
-        throughput=int(metrics.get("throughput", 0) or 0),
-        avg_wait=float(metrics.get("avg_wait", 0.0) or 0.0),
-        avg_queue=float(metrics.get("avg_queue", 0.0) or 0.0),
-        max_queue=int(metrics.get("max_queue", 0) or 0),
-        avg_ped_delay=float(metrics.get("avg_ped_delay", 0.0) or 0.0),
+        junction_stopped_seconds=float(junction_metrics.get("stopped_seconds", 0.0) or 0.0),
+        junction_passages=int(junction_metrics.get("vehicle_passages", 0) or 0),
         total_phase_switches=int(runtime_state.get("rl_total_phase_switches", 0) or 0),
         simulation_time=float(runtime_state.get("simulation_time", 0.0) or 0.0),
         intersection_id=str(runtime_state.get("intersection_id") or engine.network.id),
