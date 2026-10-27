@@ -72,6 +72,8 @@ def bands_overlap(lateral_a: float, width_a: float, lateral_b: float, width_b: f
 
 def body_box(length: float, width: float, yaw: float) -> tuple[float, float]:
     """Along-road length and across-road width of the road-aligned box around a body turned by yaw."""
+    if yaw == 0:
+        return length, width
     turn = abs(yaw)
     return length*math.cos(turn)+width*math.sin(turn), length*math.sin(turn)+width*math.cos(turn)
 

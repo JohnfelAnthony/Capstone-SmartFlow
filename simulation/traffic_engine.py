@@ -23,8 +23,8 @@ STEP_LENGTH = 0.1
 # A turning body sweeps across the centre line beside the opposite stop line; vehicles this close to their stop line
 # yield to committed sweeps, and a vehicle may not commit while its sweep would hit one of them.
 SWEEP_ZONE_M = 15.0
-SWEEP_SAMPLE_M = 0.5
-SWEEP_MARGIN_M = 0.15
+SWEEP_SAMPLE_M = 0.2
+SWEEP_MARGIN_M = 0.0
 ENGINE_VERSION = "native-5"
 RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
@@ -189,6 +189,7 @@ class TrafficEngine:
         self.duration_limit = 300
         self.config = validate_config(DEFAULTS, {}, self.network)
         self.runtime_policy = None
+        self._turn_angle_cache: dict[tuple[str, str], float] = {}
         # 0 turns per-driver variation off (class values only); kept across configure().
         self.driver_variation_scale = 1.0
         self._reset_state()
@@ -210,6 +211,7 @@ class TrafficEngine:
         self._spawn_occupancy = None
         # Committed vehicle -> its remaining path through the junction as drawn bodies [(path position, corners, bbox)].
         self._sweeps: dict[str, list] = {}
+        self._sweep_cache: dict[tuple, list] = {}
         self.pedestrians: dict[str, Pedestrian] = {}
         # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
         self.reservations: dict[str, set[str]] = {}
@@ -423,7 +425,7 @@ class TrafficEngine:
 
     def _box(self, vehicle: Vehicle) -> tuple[float, float]:
         """Along-road length and across-road width of the body as drawn (turned by its yaw)."""
-        return body_box(vehicle.length, vehicle.width, vehicle.yaw)
+        return (vehicle.length, vehicle.width) if vehicle.yaw == 0 else body_box(vehicle.length, vehicle.width, vehicle.yaw)
 
     def _pose(self, vehicle: Vehicle) -> tuple[float, float, float]:
         """Drawn centre x, y and body heading, including the sideways offset, on a lane or a connector."""
@@ -441,7 +443,7 @@ class TrafficEngine:
         for other in self.vehicles.values():
             if not other.connector:
                 other_length, other_width = self._box(other)
-                occupancy.setdefault(other.lane_id, []).append((other.position-other_length/2, other.lateral, other_width))
+                occupancy.setdefault(other.route[0], []).append((other.position-other_length/2, other.lateral, other_width))
         return occupancy
 
     def _entry_lateral(self, lane_id: str, vehicle_type: str) -> float | None:
@@ -452,7 +454,7 @@ class TrafficEngine:
             occupancy = self._spawn_occupancy.get(lane_id, [])
         else:
             occupancy = [(other.position-self._box(other)[0]/2, other.lateral, self._box(other)[1])
-                         for other in self.vehicles.values() if not other.connector and other.lane_id == lane_id]
+                         for other in self.vehicles.values() if not other.connector and other.route[0] == lane_id]
 
         def room(lateral):
             return min((rear for rear, other_lateral, other_width in occupancy
@@ -658,6 +660,12 @@ class TrafficEngine:
 
     def _turn_angle(self, incoming: str, outgoing: str) -> float:
         """Signed heading change in degrees, in (-180, 180]; positive for a left (counter-clockwise) turn."""
+        key = (incoming, outgoing)
+        if key not in self._turn_angle_cache:
+            self._turn_angle_cache[key] = self._measure_turn_angle(incoming, outgoing)
+        return self._turn_angle_cache[key]
+
+    def _measure_turn_angle(self, incoming: str, outgoing: str) -> float:
         entry, exit_lane = self.network.lanes[incoming], self.network.lanes[outgoing]
         (ax, ay), (bx, by) = entry.shape[-2], entry.shape[-1]
         (cx, cy), (dx, dy) = exit_lane.shape[0], exit_lane.shape[1]
@@ -707,17 +715,15 @@ class TrafficEngine:
         """Fixed order between vehicles of one approach whose paths merge or cross, so none waits for another in the junction."""
         node = self.network.lanes[vehicle.lane_id].target
         own_order = (math.inf if vehicle.stop_arrival is None else vehicle.stop_arrival, vehicle.id)
-        for other in self._candidates(("turning_off", vehicle.lane_id), ("on_lane", vehicle.lane_id)):
-            if other is vehicle or other.lane_id != vehicle.lane_id or len(other.route) < 2:
-                continue
-            conflicting = self._paths_merge(vehicle, other) or self._paths_cross(vehicle, other)
-            if not conflicting:
+        for other in self._candidates(("turning_off", vehicle.route[0]), ("on_lane", vehicle.route[0])):
+            if other is vehicle or other.route[0] != vehicle.route[0] or len(other.route) < 2:
                 continue
             # A vehicle commits while still moving and then skips the line, so committed counts as already inside.
             inside_or_committed = other.connector is not None or other.reserved_junction == node
-            if inside_or_committed and self._beside(vehicle, other):
-                return True
-            if other.connector is None and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order:
+            ahead_in_order = other.connector is None and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order
+            if not ((inside_or_committed and self._beside(vehicle, other)) or ahead_in_order):
+                continue
+            if self._paths_merge(vehicle, other) or self._paths_cross(vehicle, other):
                 return True
         return False
 
@@ -798,7 +804,7 @@ class TrafficEngine:
             vehicle.wait += STEP_LENGTH
             vehicle.stopped_for += STEP_LENGTH
             # On a connector lane_id is still the incoming lane, so junction-internal stops count for that approach.
-            self.lane_stopped_seconds[vehicle.lane_id] += STEP_LENGTH
+            self.lane_stopped_seconds[vehicle.route[0]] += STEP_LENGTH
         else:
             vehicle.stopped_for = 0.0
         return travel
@@ -806,19 +812,25 @@ class TrafficEngine:
     def _lane_obstacle(self, vehicle: Vehicle, lane) -> tuple[Vehicle | None, float, float]:
         """(leader, obstacle position, leader speed): the nearest vehicle ahead whose sideways band overlaps this one's."""
         length_self, width_self = self._box(vehicle)
-        leader = min((other for other in self._candidates(("on_lane", vehicle.lane_id)) if other.id != vehicle.id and other.connector is None
-                      and other.lane_id == vehicle.lane_id and other.position > vehicle.position
-                      and bands_overlap(vehicle.lateral, width_self, other.lateral, self._box(other)[1])),
-                     key=lambda other: other.position, default=None)
+        # One pass keeping the nearest overlapping vehicle (the first such in candidate order on ties); a band is only
+        # tested for a vehicle nearer than the current leader.
+        leader = None
+        for other in self._candidates(("on_lane", vehicle.route[0])):
+            if (other.id == vehicle.id or other.connector is not None or other.route[0] != vehicle.route[0]
+                    or other.position <= vehicle.position or (leader is not None and other.position >= leader.position)):
+                continue
+            if bands_overlap(vehicle.lateral, width_self, other.lateral, self._box(other)[1]):
+                leader = other
         obstacle = leader.position-(self._box(leader)[0]+length_self)/2 if leader else math.inf
         leader_speed = leader.speed if leader else vehicle.speed
         # A vehicle that has just turned off this lane is still ahead of followers in its band, or whose path it merges with.
-        for other in self._candidates(("turning_off", vehicle.lane_id)):
-            if other.connector is not None and other.route[0] == vehicle.lane_id and (
-                    bands_overlap(vehicle.lateral, width_self, other.lateral, other.width) or self._paths_merge(vehicle, other)):
-                connector_obstacle = lane.length+other.connector_position-(other.length+length_self)/2
-                if connector_obstacle < obstacle:
-                    obstacle, leader_speed = connector_obstacle, other.speed
+        for other in self._candidates(("turning_off", vehicle.route[0])):
+            if other.connector is None or other.route[0] != vehicle.route[0]:
+                continue
+            connector_obstacle = lane.length+other.connector_position-(other.length+length_self)/2
+            if connector_obstacle < obstacle and (bands_overlap(vehicle.lateral, width_self, other.lateral, other.width)
+                                                  or self._paths_merge(vehicle, other)):
+                obstacle, leader_speed = connector_obstacle, other.speed
         return leader, obstacle, leader_speed
 
     def _turn_side(self, incoming: str, outgoing: str) -> int:
@@ -838,7 +850,7 @@ class TrafficEngine:
         for other in self._candidates(("on_lane", lane.id), ("turning_off", lane.id), ("next_lane", lane.id)):
             if other is vehicle:
                 continue
-            if other.connector is None and other.lane_id == lane.id:
+            if other.connector is None and other.route[0] == lane.id:
                 other_length, other_width = self._box(other)
                 result.append((other.position, other.lateral, other_length, other_width))
             elif other.connector is not None and other.route[0] == lane.id:
@@ -853,17 +865,22 @@ class TrafficEngine:
         signal = self.signals[lane.target]
         return signal.mode == "signalized" and signal.stage == "green" and signal.family == lane.approach
 
-    def _lateral_room(self, vehicle: Vehicle, lane, lateral: float, neighbours=None) -> float:
+    def _rears_ahead(self, vehicle: Vehicle, neighbours) -> list[tuple[float, float, float]]:
+        """(rear, lateral, width) of neighbours ahead of the vehicle, nearest rear first."""
+        return sorted((position-other_length/2, other_lateral, other_width)
+                      for position, other_lateral, other_length, other_width in neighbours if position > vehicle.position)
+
+    def _lateral_room(self, vehicle: Vehicle, lane, lateral: float, neighbours=None, rears=None, cap=None) -> float:
         """Free distance ahead of the vehicle's front in the band at `lateral`, up to the room horizon."""
         length_self, width_self = self._box(vehicle)
         front = vehicle.position+length_self/2
-        room = ROOM_HORIZON_M
-        if not self._may_proceed_now(vehicle, lane):
-            room = min(room, lane.length-front)
-        for position, other_lateral, other_length, other_width in (self._lane_neighbours(vehicle, lane) if neighbours is None else neighbours):
-            if position > vehicle.position and bands_overlap(lateral, width_self, other_lateral, other_width):
-                room = min(room, position-other_length/2-front)
-        return max(0.0, room)
+        if cap is None:
+            cap = ROOM_HORIZON_M if self._may_proceed_now(vehicle, lane) else min(ROOM_HORIZON_M, lane.length-front)
+        if rears is None:
+            rears = self._rears_ahead(vehicle, self._lane_neighbours(vehicle, lane) if neighbours is None else neighbours)
+        # The first overlapping rear in rear order is the nearest obstacle in this band.
+        room = next((rear-front for rear, other_lateral, other_width in rears if bands_overlap(lateral, width_self, other_lateral, other_width)), cap)
+        return max(0.0, min(cap, room))
 
     def _side_clear(self, vehicle: Vehicle, lane, start: float, end: float, neighbours=None) -> bool:
         """Planning check with full clearances: nothing alongside in the band swept from start to end."""
@@ -884,12 +901,27 @@ class TrafficEngine:
                 or vehicle.reserved_junction == lane.target):
             return
         neighbours = self._lane_neighbours(vehicle, lane)
+        rears = self._rears_ahead(vehicle, neighbours)
+        front = vehicle.position+self._box(vehicle)[0]/2
+        cap = ROOM_HORIZON_M if self._may_proceed_now(vehicle, lane) else min(ROOM_HORIZON_M, lane.length-front)
         low, high = lateral_bounds(lane.width, vehicle.width)
         turn_side = self._turn_side(lane.id, vehicle.route[1]) if len(vehicle.route) > 1 else 0
         near_line = lane.length-(vehicle.position+vehicle.length/2) <= TURN_SIDE_DISTANCE_M
+        # With full room ahead, at its keeping position and no turn-side pull, no candidate can gain the threshold.
+        keep_here = keeping_position(vehicle.vehicle_type, vehicle.width, lane.width, lane.lane_count, sub_lane_of(vehicle.lateral, lane.width, lane.lane_count))
+        if not (turn_side and near_line) and (keep_here is None or keep_here == vehicle.lateral):
+            # Nothing can beat the current position when it already has all the room the line allows, or when its
+            # nearest obstacle also blocks the bands at both lane edges (and so every candidate band between them).
+            width_self = self._box(vehicle)[1]
+            nearest = next(((rear, other_lateral, other_width) for rear, other_lateral, other_width in rears
+                            if bands_overlap(vehicle.lateral, width_self, other_lateral, other_width)), None)
+            if nearest is None or nearest[0]-front >= cap:
+                return
+            if all(bands_overlap(edge, width_self, nearest[1], nearest[2]) for edge in (low, high)):
+                return
 
         def score(lateral):
-            value = self._lateral_room(vehicle, lane, lateral, neighbours)-MOVE_COST_PER_M*abs(lateral-vehicle.lateral)
+            value = self._lateral_room(vehicle, lane, lateral, rears=rears, cap=cap)-MOVE_COST_PER_M*abs(lateral-vehicle.lateral)
             keep = keeping_position(vehicle.vehicle_type, vehicle.width, lane.width, lane.lane_count, sub_lane_of(lateral, lane.width, lane.lane_count))
             if keep is not None:
                 value -= KEEPING_WEIGHT_PER_M*abs(lateral-keep)
@@ -912,8 +944,14 @@ class TrafficEngine:
         return not sweeps or not self._hits_sweep(self._lane_body(vehicle, lane, vehicle.position, lateral, yaw), sweeps)
 
     def _sweep_for(self, vehicle: Vehicle, entry_lateral: float, exit_lateral: float) -> list:
-        """The vehicle's drawn bodies along its whole connector, sampled every SWEEP_SAMPLE_M."""
-        connector = self.network.connector(vehicle.route[0], vehicle.route[1])
+        """The vehicle's drawn bodies along its whole connector, sampled every SWEEP_SAMPLE_M (cached: pure geometry)."""
+        key = (vehicle.route[0], vehicle.route[1], entry_lateral, exit_lateral, vehicle.length, vehicle.width)
+        if key not in self._sweep_cache:
+            self._sweep_cache[key] = self._build_sweep(vehicle.route[0], vehicle.route[1], entry_lateral, exit_lateral, vehicle.length, vehicle.width)
+        return self._sweep_cache[key]
+
+    def _build_sweep(self, incoming: str, outgoing: str, entry_lateral: float, exit_lateral: float, body_length: float, body_width: float) -> list:
+        connector = self.network.connector(incoming, outgoing)
         total = length(connector)
         samples, position = [], 0.0
         while True:
@@ -922,7 +960,7 @@ class TrafficEngine:
             lateral = entry_lateral+(exit_lateral-entry_lateral)*point/total
             # A small margin covers the slivers a turning body sweeps between samples.
             corners = rectangle(x+math.sin(heading)*lateral, y-math.cos(heading)*lateral, heading,
-                                vehicle.length+2*SWEEP_MARGIN_M, vehicle.width+2*SWEEP_MARGIN_M)
+                                body_length+2*SWEEP_MARGIN_M, body_width+2*SWEEP_MARGIN_M)
             xs, ys = [corner[0] for corner in corners], [corner[1] for corner in corners]
             samples.append((point, corners, (min(xs), min(ys), max(xs), max(ys))))
             if point >= total:
@@ -1061,7 +1099,7 @@ class TrafficEngine:
                 self._sweeps.pop(vehicle.id, None)
                 vehicle.stop_arrival = None
             return
-        lane = self.network.lanes[vehicle.lane_id]
+        lane = self.network.lanes[vehicle.route[0]]
         has_left_junction = vehicle.position-vehicle.length/2 >= 0
         if vehicle.reserved_junction and lane.source == vehicle.reserved_junction and has_left_junction:
             self._release(vehicle)
@@ -1078,14 +1116,16 @@ class TrafficEngine:
             has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.family == lane.approach
             may_proceed = (has_permission and self._junction_open_to(lane.target, lane.approach, signal)
                            and not self._crossing_occupied(lane.target) and outgoing not in self.closed_lanes
-                           and self._exit_has_space(outgoing, vehicle) and not self._must_wait_at_line(vehicle)
-                           and not self._sweep_blocked(vehicle, lane.target))
+                           and self._exit_has_space(outgoing, vehicle) and not self._must_wait_at_line(vehicle))
             # Commit at the last point where a comfortable stop is still possible; until then a vehicle that may
             # proceed keeps moving instead of braking for the line, and it brakes gently if permission or space goes.
             commit_distance = vehicle.speed**2/(2*COMFORTABLE_DECELERATION)+vehicle.speed*STEP_LENGTH+EXIT_SPACE_MARGIN
             must_decide = stop_position-vehicle.position <= commit_distance
             # Never commit behind an uncommitted vehicle that could still be held at the line.
             clear_ahead = leader is None or leader.reserved_junction == lane.target
+            # The sweep test is the costliest, so it runs only at the moment the vehicle would otherwise commit.
+            if may_proceed and must_decide and clear_ahead and self._sweep_blocked(vehicle, lane.target):
+                may_proceed = False
             if may_proceed and must_decide and clear_ahead:
                 self._reserve(vehicle, lane.target, lane.approach)
                 # A committed vehicle keeps its sideways position, so its recorded sweep is the path it will take.
@@ -1167,7 +1207,7 @@ class TrafficEngine:
         result = dict.fromkeys(self.network.lanes, 0)
         for vehicle in self.vehicles.values():
             if not vehicle.connector and vehicle.speed <= 0.1:
-                result[vehicle.lane_id] += 1
+                result[vehicle.route[0]] += 1
         return result
 
     def _blocked_on_green(self, vehicle: Vehicle):
@@ -1193,7 +1233,7 @@ class TrafficEngine:
         reaches = dict.fromkeys(self.network.lanes, 0.0)
         for vehicle in self.vehicles.values():
             if not vehicle.connector and vehicle.speed <= 0.1:
-                lane = self.network.lanes[vehicle.lane_id]
+                lane = self.network.lanes[vehicle.route[0]]
                 reaches[lane.id] = max(reaches[lane.id], lane.length-(vehicle.position-vehicle.length/2))
         return reaches
 
