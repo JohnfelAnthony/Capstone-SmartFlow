@@ -1188,8 +1188,21 @@ class TrafficEngine:
             return 0.0
         return stalled_seconds if any(self._blocked_on_green(vehicle) for vehicle in self.vehicles.values()) else 0.0
 
+    def _queue_reaches(self) -> dict[str, float]:
+        """Lane -> distance from its stop line to the rear of the farthest stopped vehicle (0 when none)."""
+        reaches = dict.fromkeys(self.network.lanes, 0.0)
+        for vehicle in self.vehicles.values():
+            if not vehicle.connector and vehicle.speed <= 0.1:
+                lane = self.network.lanes[vehicle.lane_id]
+                reaches[lane.id] = max(reaches[lane.id], lane.length-(vehicle.position-vehicle.length/2))
+        return reaches
+
+    def _queue_reach(self, lane_id: str) -> float:
+        return self._queue_reaches()[lane_id]
+
     def _refresh_metrics(self, record: bool = False):
         queues = self._lane_queues()
+        reaches = self._queue_reaches()
         incoming = [lane for lane in self.network.lanes.values() if lane.target in self.signals]
         if record:
             self.metric_ticks += 1
@@ -1229,10 +1242,12 @@ class TrafficEngine:
                                 "mean_speed_mps": lane_speeds[lane.id]/max(1, lane_counts[lane.id]),
                                 "exits": self.lane_exits[lane.id], "closed": lane.id in self.closed_lanes,
                                 "speed_factor": self.slow_lanes.get(lane.id, 1)} for lane in self.network.lanes.values()},
+            "max_queue_reach_m": max((reaches[lane] for node in self.signals for lane in self.network.incoming[node]), default=0.0),
             "junctions": {node: {"queue": sum(queues[lane] for lane in self.network.incoming[node]),
                                   "vehicle_passages": sum(self.lane_exits[lane] for lane in self.network.incoming[node]),
                                   "stopped_seconds": sum(self.lane_stopped_seconds[lane] for lane in self.network.incoming[node]),
                                   "stopped_seconds_by_approach": {approach: sum(self.lane_stopped_seconds[lane] for lane in self.network.incoming[node] if self.network.lanes[lane].approach == approach) for approach in APPROACHES},
+                                  "queue_reach_m": {approach: max((reaches[lane] for lane in self.network.incoming[node] if self.network.lanes[lane].approach == approach), default=0.0) for approach in APPROACHES},
                                   "phase": signal.phase, "mode": signal.mode,
                                   "waiting_pedestrians": sum(p.junction == node and not p.crossing for p in self.pedestrians.values())} for node, signal in self.signals.items()},
         })
