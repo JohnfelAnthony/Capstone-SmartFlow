@@ -22,6 +22,7 @@ class JunctionCapacityTests(unittest.TestCase):
         engine = TrafficEngine(seed=3, network=long_approach_cross())
         engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static",
                          trips=[{"time": index*0.5, "source": "w", "destination": destination, "vehicle_type": vehicle_type} for index in range(120)])
+        engine.driver_variation_scale = 0  # class values only, so the headway compares with native-5
         engine.start(600)
         # Building a long queue needs a 240 s red, longer than the maximum-red guard allows in normal operation.
         self.hold_phase(engine, "north").maximum_red = 600
@@ -54,6 +55,7 @@ class JunctionCapacityTests(unittest.TestCase):
 
     def test_next_approach_waits_until_junction_is_clear(self):
         engine = contract.NativeTrafficContractTests.engine(self, network=contract.cross_network())
+        engine.driver_variation_scale = 0
         signal = self.hold_phase(engine, "west")
         crossing = engine.add_vehicle(["wf", "er"])
         crossing.position = engine.network.lanes["wf"].length-crossing.length/2
@@ -71,6 +73,7 @@ class JunctionCapacityTests(unittest.TestCase):
 
     def test_vehicles_on_one_connector_keep_their_gap(self):
         engine = contract.NativeTrafficContractTests.engine(self, network=long_approach_cross())
+        engine.driver_variation_scale = 0
         self.hold_phase(engine, "west")
         route = engine.network.route("w", "e")
         cars = []

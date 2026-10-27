@@ -1,4 +1,6 @@
 """Synthetic scenes for the mixed-traffic tests."""
+from simulation.footprints import overlapping_pairs
+from simulation.mixed_traffic import lateral_bounds
 from simulation.road_network import RoadNetwork
 from simulation.traffic_engine import TrafficEngine
 
@@ -34,6 +36,41 @@ def hold_green(engine, node, family):
     signal = engine.signals[node]
     signal.index, signal.stage, signal.elapsed = signal.approaches.index(family), "green", 0
     signal.external, signal.maximum_green = True, 180
+
+
+def place(engine, route, vehicle_type, *, from_stop_line: float, lateral: float, speed: float = 0.0):
+    """Add a vehicle and put its front `from_stop_line` metres before the stop line at `lateral`."""
+    vehicle = engine.add_vehicle(route, vehicle_type=vehicle_type, speed=speed)
+    assert vehicle is not None, "lane start blocked"
+    vehicle.position = engine.network.lanes[route[0]].length-vehicle.length/2-from_stop_line
+    vehicle.lateral = lateral
+    return vehicle
+
+
+def front_to_stop_line(engine, vehicle):
+    return engine.network.lanes[vehicle.lane_id].length-(vehicle.position+vehicle.length/2)
+
+
+def assert_never_overlap(test, engine, ticks, *, every=1, lanes_only=False):
+    """Step `ticks` ticks; at each sample no two drawn bodies overlap and every lane body stays on its road."""
+    for tick in range(ticks+1):
+        if tick:
+            engine.step(1)
+        if tick % every:
+            continue
+        records = [record for record in engine.vehicle_records()
+                   if not (lanes_only and engine.vehicles[record["id"]].connector is not None)]
+        test.assertEqual(overlapping_pairs(records), [], f"overlap at t={engine.simulation_time}")
+        for vehicle in engine.vehicles.values():
+            if vehicle.connector is not None:
+                continue
+            lane = engine.network.lanes[vehicle.lane_id]
+            yaw = getattr(vehicle, "yaw", 0.0)
+            if yaw == 0:
+                low, high = lateral_bounds(lane.width, vehicle.width)
+            else:
+                low, high = lateral_bounds(lane.width, engine._box(vehicle)[1], edge_clearance=0)
+            test.assertTrue(low-1e-9 <= vehicle.lateral <= high+1e-9, f"{vehicle.id} off the road at t={engine.simulation_time}")
 
 
 def fill_queue(engine, route, vehicle_type, count, ticks=600):

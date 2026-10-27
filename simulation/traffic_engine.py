@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
 from .demand import Arrival, build_schedule, schedule_hash
+from .mixed_traffic import CLASS_DRIVING, DRIVER_STREAM_SALT, sample_driver
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
 STEP_LENGTH = 0.1
@@ -121,6 +122,11 @@ class Vehicle:
     requested_at: float = 0.0
     stop_arrival: float | None = None
     stopped_for: float = 0.0
+    # Per-driver values drawn at entry (simulation/mixed_traffic.py); defaults are the car class.
+    time_headway: float = 1.2
+    minimum_gap: float = 2.0
+    max_acceleration: float = 1.5
+    max_lateral_speed: float = 0.5
 
     @property
     def lane_id(self):
@@ -164,6 +170,8 @@ class TrafficEngine:
         self.duration_limit = 300
         self.config = validate_config(DEFAULTS, {}, self.network)
         self.runtime_policy = None
+        # 0 turns per-driver variation off (class values only); kept across configure().
+        self.driver_variation_scale = 1.0
         self._reset_state()
 
     def _reset_state(self, *, arrivals=None):
@@ -171,6 +179,8 @@ class TrafficEngine:
         arrivals = build_schedule(self.config, self.network, self.seed, self.duration_limit) if arrivals is None else arrivals
         self.random = random.Random(self.seed)
         self.pedestrian_random = random.Random(self.seed ^ 0x504544)
+        # Driver variety has its own stream, so arrivals and pedestrians match native-5 for the same seed.
+        self.driver_random = random.Random(self.seed ^ DRIVER_STREAM_SALT)
         self.closed_lanes = set(self.config["closed_lanes"])
         self.slow_lanes = dict(self.config["slow_lanes"])
         self.scheduled_events = copy.deepcopy(self.config["events"])
@@ -370,10 +380,11 @@ class TrafficEngine:
         speed = number(speed, "initial speed", 0, 60)
         spec = VEHICLE_TYPES[vehicle_type]
         spawn_position = spec["length"]/2
+        entry_space = spec["length"]+CLASS_DRIVING[vehicle_type].minimum_gap
         if self._spawn_rears is None:
-            blocked = any(other.lane_id == route[0] and not other.connector and other.position-other.length/2 < spec["length"]+MIN_GAP for other in self.vehicles.values())
+            blocked = any(other.lane_id == route[0] and not other.connector and other.position-other.length/2 < entry_space for other in self.vehicles.values())
         else:
-            blocked = self._spawn_rears.get(route[0], math.inf) < spec["length"]+MIN_GAP
+            blocked = self._spawn_rears.get(route[0], math.inf) < entry_space
         if route[0] in self.closed_lanes or blocked or len(self.vehicles) >= self.config["max_active_vehicles"]:
             return None
         self.vehicle_serial += 1
@@ -381,6 +392,10 @@ class TrafficEngine:
                           self.simulation_time, position=spawn_position, speed=speed,
                           vehicle_type=vehicle_type,
                           requested_at=self.simulation_time if requested_at is None else requested_at, **spec)
+        profile = sample_driver(vehicle_type, self.driver_random, self.driver_variation_scale)
+        vehicle.speed_factor = spec["speed_factor"]*profile.speed_multiplier
+        vehicle.time_headway, vehicle.minimum_gap = profile.time_headway, profile.minimum_gap
+        vehicle.max_acceleration, vehicle.max_lateral_speed = profile.max_acceleration, profile.max_lateral_speed
         self.vehicles[vehicle.id] = vehicle
         if self._spawn_rears is not None:
             self._spawn_rears[route[0]] = min(self._spawn_rears.get(route[0], math.inf), vehicle.position-vehicle.length/2)
@@ -400,7 +415,7 @@ class TrafficEngine:
             self._spawn_rears = None
 
     def _spawn_vehicles_and_pedestrians(self):
-        single_demo =self.traffic_density == "single" and not self.config["trips"] and not self.config["demand_windows"]
+        single_demo = self.traffic_density == "single" and not self.config["trips"] and not self.config["demand_windows"]
         if single_demo and not self.vehicles and self.simulation_time < self.duration_limit:
             pair = self._demand_pair()
             if pair:
@@ -419,7 +434,7 @@ class TrafficEngine:
                 break
             spec = VEHICLE_TYPES.get(arrival.vehicle_type)
             # Every route starts on one of the source's outgoing lanes; when all are closed or full, entry fails anyway.
-            entry_possible = spec is None or any(lane not in self.closed_lanes and self._spawn_rears.get(lane, math.inf) >= spec["length"]+MIN_GAP
+            entry_possible = spec is None or any(lane not in self.closed_lanes and self._spawn_rears.get(lane, math.inf) >= spec["length"]+CLASS_DRIVING[arrival.vehicle_type].minimum_gap
                                                  for lane in self.network.outgoing.get(arrival.source, []))
             if not entry_possible:
                 continue
@@ -562,6 +577,8 @@ class TrafficEngine:
         self.reservations.setdefault(node, set()).add(vehicle.id)
         self.reservation_approach[node] = approach
         vehicle.reserved_junction = node
+        # Time stuck in the junction counts from commitment, not from the red wait before it.
+        vehicle.stopped_for = 0.0
 
     def _release(self, vehicle: Vehicle):
         node = vehicle.reserved_junction
@@ -605,12 +622,12 @@ class TrafficEngine:
         return gap, leader_speed
 
     def _advance(self, vehicle: Vehicle, gap: float, leader_speed: float, desired_speed: float):
-        """IDM step; travel never closes the gap below MIN_GAP. Returns the distance moved."""
+        """IDM step with the driver's own values; travel never closes the gap below its minimum gap. Returns the distance moved."""
         gap = max(0.01, gap)
-        desired_gap = MIN_GAP + max(0.0, vehicle.speed*TIME_HEADWAY + vehicle.speed*(vehicle.speed-leader_speed)/(2*math.sqrt(1.5*COMFORTABLE_DECELERATION)))
-        acceleration = 1.5*(1-(vehicle.speed/desired_speed)**4-(desired_gap/gap)**2)
+        desired_gap = vehicle.minimum_gap + max(0.0, vehicle.speed*vehicle.time_headway + vehicle.speed*(vehicle.speed-leader_speed)/(2*math.sqrt(vehicle.max_acceleration*COMFORTABLE_DECELERATION)))
+        acceleration = vehicle.max_acceleration*(1-(vehicle.speed/desired_speed)**4-(desired_gap/gap)**2)
         next_speed = max(0.0, min(desired_speed, vehicle.speed+max(-4.5, acceleration)*STEP_LENGTH))
-        travel = min(next_speed*STEP_LENGTH, max(0.0, gap-MIN_GAP))
+        travel = min(next_speed*STEP_LENGTH, max(0.0, gap-vehicle.minimum_gap))
         vehicle.speed = travel/STEP_LENGTH
         if travel > 0:
             self.last_vehicle_movement = self.simulation_time
@@ -698,7 +715,7 @@ class TrafficEngine:
             if may_proceed and must_decide and clear_ahead:
                 self._reserve(vehicle, lane.target, lane.approach)
             elif not may_proceed and stop_position < obstacle:
-                obstacle, leader_speed = stop_position+MIN_GAP, 0.0
+                obstacle, leader_speed = stop_position+vehicle.minimum_gap, 0.0
         desired_speed = lane.speed*self.slow_lanes.get(lane.id, 1.0)*vehicle.speed_factor
         if vehicle.reserved_junction == lane.target:
             desired_speed = min(desired_speed, self._movement_speed(lane.id, vehicle.route[1])*vehicle.speed_factor)

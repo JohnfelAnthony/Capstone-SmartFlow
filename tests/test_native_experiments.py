@@ -76,7 +76,7 @@ class NativeExperimentTests(unittest.TestCase):
             for lane in self.network.lanes:
                 cars = sorted((v for v in self.engine.vehicles.values() if v.lane_id == lane and not v.connector), key=lambda v: v.position)
                 for rear, front in zip(cars, cars[1:]):
-                    self.assertGreaterEqual(front.position-rear.position-(front.length+rear.length)/2, 2-.001)
+                    self.assertGreaterEqual(front.position-rear.position-(front.length+rear.length)/2, rear.minimum_gap-.001)
             self.assertEqual(self.engine._last_metrics["vehicle_conservation_error"], 0)
             self.assertEqual(self.engine._last_metrics["pedestrian_conservation_error"], 0)
         self.assertGreater(self.engine.completed, 0)

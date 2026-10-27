@@ -83,6 +83,22 @@ class JunctionReleaseTests(unittest.TestCase):
         engine._refresh_metrics()
         self.assertEqual(engine._last_metrics["stuck_junction_vehicles"], 1)
 
+    def test_a_slow_starter_committing_after_a_long_red_is_not_counted_stuck(self):
+        # A truck needs two ticks to pass 0.1 m/s; its red wait must not count as time stuck in the junction.
+        engine = self.engine(network=contract.cross_network())
+        engine.driver_variation_scale = 0
+        hold(engine, "j", "north")
+        truck = engine.add_vehicle(["wf", "er"], vehicle_type="truck", speed=5)
+        engine.step(600)
+        self.assertGreater(truck.stopped_for, 30)
+        hold(engine, "j", "west")
+        committed = False
+        for _ in range(100):
+            engine.step()
+            committed = committed or truck.reserved_junction == "j"
+            self.assertEqual(engine._last_metrics["stuck_junction_vehicles"], 0)
+        self.assertTrue(committed)
+
     def test_two_junction_network_keeps_completing_trips_at_medium_demand(self):
         network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))
         engine = TrafficEngine(seed=101, network=network)

@@ -37,6 +37,7 @@ class NativeTrafficContractTests(unittest.TestCase):
     def engine(self, network=None, **config):
         engine = TrafficEngine(seed=7, network=network or cross_network())
         engine.configure(traffic_density="none", pedestrian_density="none", **config)
+        engine.driver_variation_scale = 0  # class values, so behaviour checks stay exact
         engine.start(300)
         return engine
 
@@ -54,7 +55,7 @@ class NativeTrafficContractTests(unittest.TestCase):
                               key=lambda vehicle: vehicle.position)
             for rear, front in zip(vehicles, vehicles[1:]):
                 gap = front.position-rear.position-(front.length+rear.length)/2
-                self.assertGreaterEqual(gap, MIN_GAP-1e-6)
+                self.assertGreaterEqual(gap, rear.minimum_gap-1e-6)
 
     def test_mixed_followers_form_a_red_queue_and_discharge_on_green(self):
         engine = self.engine()
