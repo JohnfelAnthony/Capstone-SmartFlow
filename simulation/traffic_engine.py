@@ -26,7 +26,6 @@ STEP_LENGTH = 0.1
 # yield to committed sweeps, and a vehicle may not commit while its sweep would hit one of them.
 SWEEP_ZONE_M = 15.0
 SWEEP_SAMPLE_M = 0.2
-SWEEP_MARGIN_M = 0.0
 ENGINE_VERSION = "native-5"
 RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
@@ -752,6 +751,9 @@ class TrafficEngine:
     def _beside(self, a: Vehicle, b: Vehicle) -> bool:
         return abs(self._progress(a)-self._progress(b)) < (a.length+b.length)/2+max(a.minimum_gap, b.minimum_gap)
 
+    def _crossing_order(self, vehicle: Vehicle) -> tuple:
+        return (math.inf if vehicle.stop_arrival is None else vehicle.stop_arrival, -(self._progress(vehicle)+vehicle.length/2), vehicle.id)
+
     def _must_wait_at_line(self, vehicle: Vehicle) -> bool:
         """Fixed order between vehicles of one approach whose paths merge or cross, so none waits for another in the junction."""
         node = self.network.lanes[vehicle.route[0]].target
@@ -761,10 +763,15 @@ class TrafficEngine:
                 continue
             # A vehicle commits while still moving and then skips the line, so committed counts as already inside.
             inside_or_committed = other.connector is not None or other.reserved_junction == node
-            ahead_in_order = other.connector is None and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order
-            if not ((inside_or_committed and self._beside(vehicle, other)) or ahead_in_order):
-                continue
-            if self._paths_merge(vehicle, other) or self._paths_cross(vehicle, other):
+            if self._paths_cross(vehicle, other):
+                # Crossing paths go through one at a time: once both are inside, each body can stand in the other's next
+                # step, so a gap at the line does not keep them apart. Order: first stopped at the line, then front first.
+                must_wait = inside_or_committed or self._crossing_order(other) < self._crossing_order(vehicle)
+            else:
+                ahead_in_order = other.connector is None and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order
+                must_wait = ((inside_or_committed and self._beside(vehicle, other)) or ahead_in_order) and self._paths_merge(vehicle, other)
+            # An uncommitted vehicle whose path this one stands in waits for it (_sweep_blocked), so this one goes first.
+            if must_wait and (inside_or_committed or not self._stands_in_path(vehicle, other)):
                 return True
         return False
 
@@ -838,12 +845,18 @@ class TrafficEngine:
         return 0.0
 
     def _advance(self, vehicle: Vehicle, gap: float, leader_speed: float, desired_speed: float):
-        """IDM step with the driver's own values; travel never closes the gap below its minimum gap. Returns the distance moved."""
+        """IDM step with the driver's own values; travel never closes the gap below its minimum gap. Returns the distance
+        to move, which the footprint checks may still shorten before _record_motion counts it."""
         gap = max(0.01, gap)
         desired_gap = vehicle.minimum_gap + max(0.0, vehicle.speed*vehicle.time_headway + vehicle.speed*(vehicle.speed-leader_speed)/(2*math.sqrt(vehicle.max_acceleration*COMFORTABLE_DECELERATION)))
         acceleration = vehicle.max_acceleration*(1-(vehicle.speed/desired_speed)**4-(desired_gap/gap)**2)
         next_speed = max(0.0, min(desired_speed, vehicle.speed+max(-4.5, acceleration)*STEP_LENGTH))
         travel = min(next_speed*STEP_LENGTH, max(0.0, gap-vehicle.minimum_gap))
+        vehicle.speed = travel/STEP_LENGTH
+        return travel
+
+    def _record_motion(self, vehicle: Vehicle, travel: float) -> None:
+        """Movement and stopped-time accounting for the distance the vehicle really moved this tick."""
         vehicle.speed = travel/STEP_LENGTH
         if travel > 0:
             self.last_vehicle_movement = self.simulation_time
@@ -854,26 +867,27 @@ class TrafficEngine:
             self.lane_stopped_seconds[vehicle.route[0]] += STEP_LENGTH
         else:
             vehicle.stopped_for = 0.0
-        return travel
 
     def _lane_obstacle(self, vehicle: Vehicle, lane) -> tuple[Vehicle | None, float, float]:
         """(leader, obstacle position, leader speed): the nearest vehicle ahead whose sideways band overlaps this one's."""
         length_self, width_self = self._box(vehicle)
-        # One pass keeping the nearest overlapping vehicle (the first such in candidate order on ties); a band is only
-        # tested for a vehicle nearer than the current leader.
-        leader = None
+        # One pass keeping the overlapping vehicle with the nearest rear (the first such in candidate order on ties): a
+        # short vehicle's centre can be nearer than a long one's while its rear is farther. A band is only tested for a
+        # vehicle whose rear is nearer than the current leader's.
+        leader, obstacle = None, math.inf
         position, lateral = vehicle.position, vehicle.lateral
         # With the tick index every vehicle in the bucket is on this lane, so only the full scan needs the lane test.
         index = self._tick_index
         scanning_all = index is None
         for other in (self._candidates() if scanning_all else index["on_lane"].get(vehicle.route[0], ())):
-            if other.position <= position or (leader is not None and other.position >= leader.position) or other is vehicle:
+            if other.position <= position or other is vehicle:
                 continue
-            if scanning_all and (other.connector is not None or other.route[0] != vehicle.route[0]):
+            other_length, other_width = (other.length, other.width) if other.yaw == 0 else self._box(other)
+            candidate = other.position-(other_length+length_self)/2
+            if candidate >= obstacle or scanning_all and (other.connector is not None or other.route[0] != vehicle.route[0]):
                 continue
-            if bands_overlap(lateral, width_self, other.lateral, other.width if other.yaw == 0 else self._box(other)[1]):
-                leader = other
-        obstacle = leader.position-(self._box(leader)[0]+length_self)/2 if leader else math.inf
+            if bands_overlap(lateral, width_self, other.lateral, other_width):
+                leader, obstacle = other, candidate
         leader_speed = leader.speed if leader else vehicle.speed
         # A vehicle that has just turned off this lane is still ahead of followers in its band, or whose path it merges with.
         for other in (self._candidates() if scanning_all else index["turning_off"].get(vehicle.route[0], ())):
@@ -1014,19 +1028,30 @@ class TrafficEngine:
     def _build_sweep(self, incoming: str, outgoing: str, entry_lateral: float, exit_lateral: float, body_length: float, body_width: float) -> list:
         connector = self.network.connector(incoming, outgoing)
         total = length(connector)
-        samples, position = [], 0.0
-        while True:
-            point = min(position, total)
-            x, y, heading = sample(connector, point)
+        # Samples every SWEEP_SAMPLE_M plus each vertex once per adjoining heading, so any point on the path lies
+        # within half a spacing of a sample with the same heading; growing each body by half a spacing along and by
+        # the sideways drift over half a spacing then covers every body in between exactly.
+        poses = [(index*SWEEP_SAMPLE_M, sample(connector, index*SWEEP_SAMPLE_M)[2]) for index in range(int(total/SWEEP_SAMPLE_M)+1)]
+        poses.append((total, sample(connector, total)[2]))
+        travelled, previous_heading = 0.0, None
+        for a, b in zip(connector, connector[1:]):
+            segment_length = math.dist(a, b)
+            if segment_length < 1e-8:
+                continue
+            heading = math.atan2(b[1]-a[1], b[0]-a[0])
+            if previous_heading is not None:
+                poses += [(travelled, previous_heading), (travelled, heading)]
+            travelled, previous_heading = travelled+segment_length, heading
+        drift = abs(exit_lateral-entry_lateral)/total*SWEEP_SAMPLE_M/2
+        samples = []
+        for point, heading in sorted(poses):
+            x, y, _ = sample(connector, point)
             lateral = entry_lateral+(exit_lateral-entry_lateral)*point/total
-            # A small margin covers the slivers a turning body sweeps between samples.
             corners = rectangle(x+math.sin(heading)*lateral, y-math.cos(heading)*lateral, heading,
-                                body_length+2*SWEEP_MARGIN_M, body_width+2*SWEEP_MARGIN_M)
+                                body_length+SWEEP_SAMPLE_M, body_width+2*drift)
             xs, ys = [corner[0] for corner in corners], [corner[1] for corner in corners]
             samples.append((point, corners, (min(xs), min(ys), max(xs), max(ys))))
-            if point >= total:
-                return samples
-            position += SWEEP_SAMPLE_M
+        return samples
 
     def _lane_body(self, vehicle: Vehicle, lane, position: float, lateral: float, yaw: float):
         x, y, heading = sample(lane.shape, position)
@@ -1065,21 +1090,21 @@ class TrafficEngine:
             result.append((samples, progress, self._sweep_bounds(samples)))
         return result
 
+    def _stands_in_path(self, stander: Vehicle, mover: Vehicle) -> bool:
+        """True when stander, on a lane near its stop line, is hit by the path mover would take through the junction."""
+        stander_lane = self.network.lanes[stander.route[0]]
+        if stander.connector is not None or not self._near_line(stander, stander_lane, stander.position):
+            return False
+        sweep = self._sweep_for(mover, mover.lateral, self._exit_lateral(mover))
+        return self._hits_sweep(self._lane_body(stander, stander_lane, stander.position, stander.lateral, stander.yaw),
+                                [(sweep, -math.inf, self._sweep_bounds(sweep))])
+
     def _sweep_blocked(self, vehicle: Vehicle, node: str) -> bool:
-        """True when this vehicle's path through the junction would hit a vehicle standing near another approach's line."""
-        sweep = None
-        for lane_id in self.network.incoming[node]:
-            if lane_id == vehicle.route[0]:
-                continue
-            other_lane = self.network.lanes[lane_id]
-            for other in self._candidates(("on_lane", lane_id)):
-                if other.connector is not None or other.route[0] != lane_id or not self._near_line(other, other_lane, other.position):
-                    continue
-                if sweep is None:
-                    sweep = self._sweep_for(vehicle, vehicle.lateral, self._exit_lateral(vehicle))
-                if self._hits_sweep(self._lane_body(other, other_lane, other.position, other.lateral, other.yaw), [(sweep, -math.inf, self._sweep_bounds(sweep))]):
-                    return True
-        return False
+        """True when this vehicle's path through the junction would hit a vehicle standing near a stop line, including
+        one beside it on its own approach (where a committed vehicle ahead is about to drive off, so it does not count)."""
+        return any(other is not vehicle and other.route[0] == lane_id and self._stands_in_path(other, vehicle)
+                   and not (lane_id == vehicle.route[0] and other.reserved_junction == node)
+                   for lane_id in self.network.incoming[node] for other in self._candidates(("on_lane", lane_id)))
 
     def _sweep_clear_travel(self, vehicle: Vehicle, lane, travel: float) -> float:
         """Near the stop line, the longest of travel, travel/2 ... travel/16 that keeps out of committed sweeps, else 0."""
@@ -1161,8 +1186,7 @@ class TrafficEngine:
             desired_speed = self._movement_speed(vehicle.route[0], vehicle.route[1])*vehicle.speed_factor
             travel = self._advance(vehicle, gap, leader_speed, desired_speed)
             cleared = self._clear_travel(vehicle, travel, connector_length)
-            if cleared < travel:
-                vehicle.speed = cleared/STEP_LENGTH
+            self._record_motion(vehicle, cleared)
             vehicle.connector_position += cleared
             vehicle.lateral = self._connector_lateral(vehicle, connector_length)
             if vehicle.connector_position >= connector_length:
@@ -1211,8 +1235,7 @@ class TrafficEngine:
             desired_speed = min(desired_speed, self._movement_speed(lane.id, vehicle.route[1])*vehicle.speed_factor)
         travel = self._advance(vehicle, obstacle-vehicle.position, leader_speed, desired_speed)
         cleared = self._sweep_clear_travel(vehicle, lane, travel)
-        if cleared < travel:
-            vehicle.speed = cleared/STEP_LENGTH
+        self._record_motion(vehicle, cleared)
         vehicle.position += cleared
         if vehicle.position >= lane.length:
             self.lane_exits[lane.id] += 1

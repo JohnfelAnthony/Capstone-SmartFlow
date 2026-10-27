@@ -8,7 +8,7 @@ from simulation.road_network import RoadNetwork
 from simulation.scenario_config import VEHICLE_TYPES
 from simulation.mixed_traffic import SIDE_CLEARANCE_M, lateral_bounds
 from simulation.traffic_engine import EXIT_SPACE_MARGIN, TrafficEngine
-from tests.mixed_traffic_helpers import assert_never_overlap
+from tests.mixed_traffic_helpers import assert_never_overlap, place
 from tests import test_native_traffic_contract as contract
 
 TWO_JUNCTION_NETWORK = Path(__file__).resolve().parents[1] / "data/networks/tagum_network_2j.json"
@@ -145,6 +145,47 @@ class JunctionReleaseTests(unittest.TestCase):
             committed = committed or truck.reserved_junction == "j"
             self.assertEqual(engine._last_metrics["stuck_junction_vehicles"], 0)
         self.assertTrue(committed)
+
+    def test_a_vehicle_whose_step_the_footprint_check_cancels_counts_as_stopped(self):
+        # The footprint check, not the car-following model, can be what holds a vehicle in the junction.
+        class BlockedEngine(TrafficEngine):
+            blocked = False
+
+            def _clear_travel(self, vehicle, travel, connector_length):
+                return 0.0 if self.blocked else super()._clear_travel(vehicle, travel, connector_length)
+
+        engine = BlockedEngine(seed=7, network=contract.cross_network())
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine.start(300)
+        hold(engine, "j", "west")
+        car = engine.add_vehicle(["wf", "er"], speed=5)
+        while car.connector is None:
+            engine.step()
+        engine.blocked, blocked_at = True, engine.simulation_time
+        engine.step(40)
+        self.assertGreaterEqual(car.stopped_for, 3.9)
+        self.assertLessEqual(engine.last_vehicle_movement, blocked_at)
+
+    def test_crossing_paths_from_one_approach_never_lock_inside_the_junction(self):
+        # Tagum 5j: a right turner on the kerb side and a left turner a few metres behind on the centre-line side
+        # used to enter together and block each other's next step for good.
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road2r"].target
+        for gap, speeds in ((3, (2, 5)), (6, (0, 4))):
+            with self.subTest(gap=gap, speeds=speeds):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine._decide_lateral = lambda vehicle, lane: None  # keep the crossing order
+                engine.start(600)
+                hold(engine, node, network.lanes["road2r"].approach)
+                right = place(engine, ["road2r", "road0f", "road10f", "road4r"], "motorcycle", from_stop_line=2, lateral=2.7, speed=speeds[0])
+                left = place(engine, ["road2r", "road1f"], "motorcycle", from_stop_line=2+gap, lateral=-2.05, speed=speeds[1])
+                assert_never_overlap(self, engine, 400)
+                self.assertTrue(all(vehicle.id not in engine.vehicles or engine.vehicles[vehicle.id].connector is None
+                                    for vehicle in (right, left)))
+                self.assertNotIn(left.id, engine.vehicles)
 
     def test_two_junction_network_keeps_completing_trips_at_medium_demand(self):
         network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))

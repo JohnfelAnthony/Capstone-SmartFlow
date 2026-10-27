@@ -1,17 +1,20 @@
 """Gap seeking and motorcycle filtering: sideways moves that are safe, bounded and calm."""
 import json
+import math
 import random
 import unittest
 from pathlib import Path
 
 from simulation.mixed_traffic import lateral_bounds
-from simulation.road_network import RoadNetwork, length
+from simulation.footprints import rectangle
+from simulation.road_network import RoadNetwork, length, sample
 from simulation.scenario_config import TAGUM_PROVISIONAL_MIX
 from simulation.traffic_engine import TrafficEngine
 from tests.mixed_traffic_helpers import (assert_never_overlap, front_to_stop_line, hold_green, junction_network, place,
                                          started_engine)
 
 NETWORK_2J = Path(__file__).resolve().parents[1]/"data"/"networks"/"tagum_network_2j.json"
+NETWORK_5J = Path(__file__).resolve().parents[1]/"data"/"networks"/"tagum_network.json"
 THROUGH, LEFT = ["wf", "er"], ["wf", "nr"]
 
 
@@ -154,6 +157,55 @@ class GapSeekingTests(unittest.TestCase):
                     hold_green(engine, node, engine.network.lanes["road0f"].approach)
                     assert_never_overlap(self, engine, 300)
                 self.assertTrue(bus.id not in engine.vehicles or bus.lane_id == "road5r")
+
+    def test_follower_keeps_its_gap_behind_the_nearest_rear_not_the_nearest_centre(self):
+        # A short motorcycle whose centre is nearer than a car's can still have its rear farther away.
+        engine = self.red_engine(NoFilteringEngine, lanes_tag="4")
+        car = place(engine, THROUGH, "car", from_stop_line=0, lateral=-1.0)
+        place(engine, THROUGH, "motorcycle", from_stop_line=2.0, lateral=0.5)
+        follower = place(engine, THROUGH, "motorcycle", from_stop_line=20, lateral=-0.1, speed=3)
+        assert_never_overlap(self, engine, 300)
+        car_rear, follower_front = car.position-car.length/2, follower.position+follower.length/2
+        self.assertGreaterEqual(car_rear-follower_front, follower.minimum_gap-1e-6)
+
+    def test_turning_truck_never_swings_into_a_motorcycle_waiting_beside_it(self):
+        # Tagum 5j: a right-turning truck's body swung over a motorcycle stopped beside it at the same stop line.
+        network = RoadNetwork(json.loads(NETWORK_5J.read_text(encoding="utf-8")))
+        node, route = network.lanes["road2r"].target, ["road2r", "road0f", "road10f", "road4r"]
+        for truck_first in (True, False):
+            with self.subTest(truck_first=truck_first):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine._decide_lateral = lambda vehicle, lane: None
+                engine.start(600)
+                truck = place(engine, route, "truck", from_stop_line=0, lateral=-1.6)
+                motorcycle = place(engine, route, "motorcycle", from_stop_line=0, lateral=0.6)
+                truck.stop_arrival, motorcycle.stop_arrival = (engine.simulation_time-2, engine.simulation_time-1)[::1 if truck_first else -1]
+                hold_green(engine, node, network.lanes["road2r"].approach)
+                assert_never_overlap(self, engine, 600)
+                self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.lane_id != "road2r" for vehicle in (truck, motorcycle)))
+
+    def test_a_recorded_sweep_covers_the_body_at_every_point_between_its_samples(self):
+        # Tagum 5j: between two samples a turning car's tilted body poked about 1 cm past both, into a car waiting
+        # at the reverse lane's stop line, where the heading of the connector polyline snaps at a vertex.
+        engine = TrafficEngine(seed=7, network=RoadNetwork(json.loads(NETWORK_5J.read_text(encoding="utf-8"))))
+        node = engine.network.lanes["road3r"].target
+        cases = [("road3r", "road0f", -2.3, -0.65)]
+        cases += [(incoming, outgoing, -1.0, 0.5) for incoming in engine.network.incoming[node] for outgoing in engine.network.outgoing[node]
+                  if engine.network.lanes[incoming].source != engine.network.lanes[outgoing].target]
+        for incoming, outgoing, entry, exit in cases:
+            with self.subTest(movement=(incoming, outgoing)):
+                sweep = engine._build_sweep(incoming, outgoing, entry, exit, 4.5, 1.8)
+                sweeps = [(sweep, -math.inf, engine._sweep_bounds(sweep))]
+                connector = engine.network.connector(incoming, outgoing)
+                total = length(connector)
+                for step in range(int(total/0.01)+1):
+                    point = step*0.01
+                    x, y, heading = sample(connector, point)
+                    lateral = entry+(exit-entry)*point/total
+                    for corner in rectangle(x+math.sin(heading)*lateral, y-math.cos(heading)*lateral, heading, 4.5, 1.8):
+                        self.assertTrue(engine._hits_sweep(rectangle(corner[0], corner[1], 0.0, 0.004, 0.004), sweeps), point)
 
     def front_row_motorcycle_share(self, engine_class):
         motorcycles = total = 0
