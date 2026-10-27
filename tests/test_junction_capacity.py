@@ -31,13 +31,23 @@ class JunctionCapacityTests(unittest.TestCase):
         self.assertGreater(engine._lane_queues()[west_lane], 30, "the approach must be saturated before green")
         self.hold_phase(engine, "west")
         exits, previous = [], engine.lane_exits[west_lane]
+        self.most_committed_at_once = 0
         for _ in range(int(green_seconds/0.1)):
             engine.step()
+            self.most_committed_at_once = max([self.most_committed_at_once, *map(len, engine.reservations.values())])
             if engine.lane_exits[west_lane] > previous:
                 exits.append(engine.simulation_time)
                 previous = engine.lane_exits[west_lane]
         headways = [later-earlier for earlier, later in zip(exits, exits[1:])][3:]
         return len(exits), sum(headways)/len(headways)
+
+    def test_cars_only_single_lane_discharge_stays_within_ten_percent_of_native_5(self):
+        _, headway = self.saturated_discharge("e")
+        self.assertTrue(2.19 <= headway <= 2.67, headway)  # native-5 measured 2.43 s
+
+    def test_followers_commit_while_the_leader_is_still_crossing(self):
+        self.saturated_discharge("e")
+        self.assertGreaterEqual(self.most_committed_at_once, 2)
 
     def test_through_movement_discharges_near_urban_saturation_flow(self):
         discharged, headway = self.saturated_discharge("e")

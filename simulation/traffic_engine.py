@@ -611,13 +611,16 @@ class TrafficEngine:
         return sorted(live, key=lambda vehicle: index["order"][vehicle.id])
 
     def _exit_has_space(self, lane_id: str, entering: Vehicle):
-        """Storage rule: everything on the exit lane or committed to it, plus the entrant, must fit end to end.
+        """Storage rule: everything on the exit lane or committed to it, plus the entrant, must fit end to end, each
+        counted as its length, its own minimum gap and a margin (which also covers a turned body's extra length).
         Vehicles only stop behind a leader or a stop line, so even if the lane's far end holds them all, each
-        committed vehicle can still leave the junction and release it."""
+        committed vehicle can still leave the junction and release it. This holds side by side too: every leader in
+        the chain ahead of an entrant is counted, whatever its sideways position. Accepted limitation: a road backed
+        up with vehicles side by side counts as full sooner than it really is."""
         occupying = [vehicle for vehicle in self._candidates(("on_lane", lane_id), ("next_lane", lane_id)) if vehicle is not entering and (
             (vehicle.connector is None and vehicle.lane_id == lane_id)
             or (vehicle.reserved_junction and len(vehicle.route) > 1 and vehicle.route[1] == lane_id))]
-        required_length = sum(vehicle.length+MIN_GAP+EXIT_SPACE_MARGIN for vehicle in occupying+[entering])
+        required_length = sum(vehicle.length+vehicle.minimum_gap+EXIT_SPACE_MARGIN for vehicle in occupying+[entering])
         return required_length <= self.network.lanes[lane_id].length
 
     def _reserve(self, vehicle: Vehicle, node: str, approach: str):
