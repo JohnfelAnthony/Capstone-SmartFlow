@@ -26,6 +26,13 @@ STEP_LENGTH = 0.1
 # yield to committed sweeps, and a vehicle may not commit while its sweep would hit one of them.
 SWEEP_ZONE_M = 15.0
 SWEEP_SAMPLE_M = 0.2
+# A stop line sits far enough back that no class turning from another approach sweeps over a body waiting at it;
+# bodies up to this deep are kept clear, and a line never moves back more than half its lane.
+STOP_SETBACK_DEPTH_M = 12.0
+STOP_SETBACK_STEP_M = 0.1
+# (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
+_STOP_SETBACKS: dict[tuple[str, str], float] = {}
+_JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
 ENGINE_VERSION = "native-5"
 RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
@@ -1058,6 +1065,60 @@ class TrafficEngine:
             samples.append((point, corners, (min(xs), min(ys), max(xs), max(ys))))
         return samples
 
+    def stop_line(self, lane_id: str) -> float:
+        """Path position on the lane where its vehicles stop for the junction ahead."""
+        key = (self.network.fingerprint, lane_id)
+        if key not in _STOP_SETBACKS:
+            _STOP_SETBACKS[key] = self._stop_setback(self.network.lanes[lane_id])
+        return self.network.lanes[lane_id].length-_STOP_SETBACKS[key]
+
+    def _stop_setback(self, lane) -> float:
+        """Smallest distance back from the lane end at which a body across the lane's whole width, up to
+        STOP_SETBACK_DEPTH_M deep, clears the path of every class turning from another approach at its
+        kerb-side, centre-line-side or central position."""
+        node = lane.target
+        if node not in self.network.intersections:
+            return 0.0
+        limit = lane.length/2
+
+        def zone(setback: float, depth: float = STOP_SETBACK_DEPTH_M):
+            x, y, heading = sample(lane.shape, max(0.0, lane.length-setback-depth/2))
+            return rectangle(x, y, heading, depth, lane.width)
+
+        reach = zone(0.0, limit+STOP_SETBACK_DEPTH_M)
+        low_x, high_x = min(corner[0] for corner in reach), max(corner[0] for corner in reach)
+        low_y, high_y = min(corner[1] for corner in reach), max(corner[1] for corner in reach)
+        # Only bodies still overlapping the zone are tried again one step further back.
+        bodies = [corners for incoming, corners, box in self._junction_turn_bodies(node)
+                  if incoming != lane.id and box[0] < high_x and low_x < box[2] and box[1] < high_y and low_y < box[3]]
+        setback = 0.0
+        while setback < limit:
+            area = zone(setback)
+            bodies = [body for body in bodies if rectangles_overlap(area, body)]
+            if not bodies:
+                break
+            setback += STOP_SETBACK_STEP_M
+        return min(setback, limit)
+
+    def _junction_turn_bodies(self, node: str) -> list:
+        """[(incoming lane, corners, box)] along every allowed movement through the junction, for every class at its
+        kerb-side, centre-line-side and central entry position (cached per network: pure geometry)."""
+        key = (self.network.fingerprint, node)
+        if key not in _JUNCTION_TURN_BODIES:
+            bodies = []
+            for incoming in self.network.incoming[node]:
+                for outgoing in self.network.outgoing[node]:
+                    if not self.network.turn_allowed(incoming, outgoing):
+                        continue
+                    for spec in VEHICLE_TYPES.values():
+                        entry_low, entry_high = lateral_bounds(self.network.lanes[incoming].width, spec["width"])
+                        exit_low, exit_high = lateral_bounds(self.network.lanes[outgoing].width, spec["width"])
+                        for entry in {entry_low, entry_high, min(entry_high, max(entry_low, 0.0))}:
+                            bodies += [(incoming, corners, box) for _, corners, box in self._build_sweep(
+                                incoming, outgoing, entry, min(exit_high, max(exit_low, entry)), spec["length"], spec["width"])]
+            _JUNCTION_TURN_BODIES[key] = bodies
+        return _JUNCTION_TURN_BODIES[key]
+
     def _lane_body(self, vehicle: Vehicle, lane, position: float, lateral: float, yaw: float):
         x, y, heading = sample(lane.shape, position)
         return rectangle(x+math.sin(heading)*lateral, y-math.cos(heading)*lateral, heading-yaw, vehicle.length, vehicle.width)
@@ -1238,7 +1299,7 @@ class TrafficEngine:
         if lane.target in self.signals and len(vehicle.route) > 1 and vehicle.reserved_junction != lane.target:
             signal = self.signals[lane.target]
             outgoing = vehicle.route[1]
-            stop_position = lane.length-vehicle.length/2
+            stop_position = self.stop_line(lane.id)-vehicle.length/2
             if vehicle.position >= stop_position-1 and vehicle.speed <= .1 and vehicle.stop_arrival is None:
                 vehicle.stop_arrival = self.simulation_time
             has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.family == lane.approach
@@ -1363,7 +1424,7 @@ class TrafficEngine:
         for vehicle in self.vehicles.values():
             if not vehicle.connector and vehicle.speed <= 0.1:
                 lane = self.network.lanes[vehicle.route[0]]
-                reaches[lane.id] = max(reaches[lane.id], lane.length-(vehicle.position-vehicle.length/2))
+                reaches[lane.id] = max(reaches[lane.id], self.stop_line(lane.id)-(vehicle.position-vehicle.length/2))
         return reaches
 
     def _queue_reach(self, lane_id: str) -> float:

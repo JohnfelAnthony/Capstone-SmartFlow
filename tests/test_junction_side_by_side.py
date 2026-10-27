@@ -38,9 +38,9 @@ class JunctionSideBySideTests(unittest.TestCase):
         engine = self.green_engine()
         car = place(engine, THROUGH, "car", from_stop_line=0, lateral=-0.65)
         motorcycle = place(engine, THROUGH, "motorcycle", from_stop_line=0, lateral=1.15)
-        engine.step(20)
+        engine.step(30)  # the stop line sits 4.1 m before the junction here
         self.assertTrue(car.connector is not None and motorcycle.connector is not None)
-        assert_never_overlap(self, engine, 280)
+        assert_never_overlap(self, engine, 270)
         self.assertTrue(on_exit(car, "er") and on_exit(motorcycle, "er"))
 
     def test_crossing_movements_from_one_approach_never_overlap(self):

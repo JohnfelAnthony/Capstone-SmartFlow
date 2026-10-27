@@ -122,7 +122,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
             is_motorcycle = vehicle.vehicle_type == "motorcycle"
             queue_total += 1
             queue_motorcycles += is_motorcycle
-            if lane.length-(vehicle.position+vehicle.length/2) <= FRONT_ROW_M:
+            if engine.stop_line(lane.id)-(vehicle.position+vehicle.length/2) <= FRONT_ROW_M:
                 front_row_total += 1
                 front_row_motorcycles += is_motorcycle
         approaches = {lane.approach for lane in incoming}

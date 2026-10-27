@@ -42,13 +42,13 @@ def place(engine, route, vehicle_type, *, from_stop_line: float, lateral: float,
     """Add a vehicle and put its front `from_stop_line` metres before the stop line at `lateral`."""
     vehicle = engine.add_vehicle(route, vehicle_type=vehicle_type, speed=speed)
     assert vehicle is not None, "lane start blocked"
-    vehicle.position = engine.network.lanes[route[0]].length-vehicle.length/2-from_stop_line
+    vehicle.position = engine.stop_line(route[0])-vehicle.length/2-from_stop_line
     vehicle.lateral = vehicle.lateral_target = lateral
     return vehicle
 
 
 def front_to_stop_line(engine, vehicle):
-    return engine.network.lanes[vehicle.lane_id].length-(vehicle.position+vehicle.length/2)
+    return engine.stop_line(vehicle.lane_id)-(vehicle.position+vehicle.length/2)
 
 
 def assert_never_overlap(test, engine, ticks, *, every=1, lanes_only=False):

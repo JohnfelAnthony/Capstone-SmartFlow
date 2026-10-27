@@ -225,6 +225,28 @@ class JunctionReleaseTests(unittest.TestCase):
         self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road10r" and vehicle.connector is None
                             for vehicle in (turning, alongside)))
 
+    def test_a_vehicle_waiting_at_red_never_stops_in_a_turning_bus_path(self):
+        # Tagum 2j, medium demand seed 101: a bus waiting at red stood in the path of a right-turning bus from the cross
+        # street, which waited for it while it waited for space behind that bus; with a second such pair at the other
+        # junction the link between them stopped for good.
+        network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))
+        node = network.lanes["road3r"].target
+        for waiting_type in ("bus", "car", "motorcycle"):
+            with self.subTest(waiting_type=waiting_type):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine.start(600)
+                neither = next(family for family in engine.signals[node].approaches if family not in {"south", "east"})
+                hold(engine, node, neither)
+                waiting = place(engine, ["road1r", "road2f"], waiting_type, from_stop_line=40, lateral=0.0, speed=5)
+                turning = place(engine, ["road3r", "road1f"], "bus", from_stop_line=40, lateral=0.0, speed=5)
+                assert_never_overlap(self, engine, 300)
+                self.assertEqual(waiting.speed, 0.0)
+                hold(engine, node, network.lanes["road3r"].approach)
+                assert_never_overlap(self, engine, 300)
+                self.assertTrue(turning.id not in engine.vehicles or turning.route[0] == "road1f")
+
     def test_two_junction_network_keeps_completing_trips_at_medium_demand(self):
         network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))
         engine = TrafficEngine(seed=101, network=network)

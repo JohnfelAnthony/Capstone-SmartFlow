@@ -21,7 +21,7 @@ class QueueReachTests(unittest.TestCase):
         last = place(engine, ROUTE, "car", from_stop_line=6.5, lateral=-0.65)
         engine.step(20)
         lane = engine.network.lanes["wf"]
-        self.assertAlmostEqual(engine._queue_reach("wf"), lane.length-(last.position-last.length/2))
+        self.assertAlmostEqual(engine._queue_reach("wf"), engine.stop_line("wf")-(last.position-last.length/2))
 
     def test_side_by_side_queue_reaches_less_far(self):
         layouts = {"4": [(0.0, -2.3), (0.0, 1.0), (6.5, -2.3), (6.5, 1.0)],  # two abreast on 6.6 m
