@@ -82,12 +82,10 @@
   - `state_digest(engine, seconds: float, sample_every_ticks: int = 50) -> str` — the same sampling, hashing the longitudinal tuple plus `repr(getattr(vehicle, name, None))` for `lateral`, `lateral_speed`, `lateral_target`, `lateral_cooldown_until`, `yaw`, `connector_entry_lateral` and `connector_exit_lateral`, and per sample `sorted((node, sorted(ids)) for node, ids in engine.reservations.items())` and `sorted(engine.reservation_approach.items())`. `getattr` lets it run on `native-5`. This is the same-seed determinism fingerprint.
   - CLI: `tools/mixed_traffic_report.py --out PATH [--seconds 1800] [--seeds 101,102] [--quick]`. It writes `{"engine_version": str, "cases": {"<case>@<seed>": {...}}, "benchmarks": {...}}`, running every case once per seed.
 
-- [ ] **Step 0: Create the branch and commit the design and this plan**
+- [ ] **Step 0: Create the branch.** The design and this plan are already committed on `main` (`8520c1c`, `afa4f06`).
 
 ```bash
 git switch -c feat/mixed-traffic
-git add docs/superpowers/specs/2026-10-26-mixed-traffic-design.md docs/superpowers/plans/2026-10-26-mixed-traffic.md
-git commit -m "Add the mixed-traffic design and implementation plan"
 ```
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_footprints.py`
@@ -552,7 +550,7 @@ def test_mixed_traffic_never_overlaps_on_lanes():
   - `_paths_merge(a, b) -> bool` — same `route[:2]` and `bands_overlap(_exit_lateral(a), a.width, _exit_lateral(b), b.width)`. Checking the exits is enough: clamping never moves two positions apart, so overlapping entries always give overlapping exits;
   - `_paths_cross(a, b) -> bool` — different `route[1]` and `(turn_a − turn_b)·(start_a − start_b) > 0`, where `turn = _turn_angle(route[0], route[1])` and `start` is `connector_entry_lateral` on a connector, otherwise `lateral`. A left turner starting to the right of a through vehicle crosses it;
   - `_must_wait_at_line(vehicle) -> bool` — true when another vehicle from the same incoming lane either:
-    - is on a connector, `_paths_cross` with it, and is beside it: `abs(_progress(a) − _progress(b)) < (a.length + b.length)/2 + max(a.minimum_gap, b.minimum_gap)`; or
+    - is on a connector **or has already reserved this junction** (`reserved_junction == node`, still on the lane), `_paths_cross` or `_paths_merge` with it, and is beside it: `abs(_progress(a) − _progress(b)) < (a.length + b.length)/2 + max(a.minimum_gap, b.minimum_gap)`. Counting committed vehicles matters because a vehicle commits while still moving, about 19 m before the line at 30 km/h, and then skips the stop-line check (`traffic_engine.py` commit rule). Without it, two vehicles arriving abreast on green could both commit and cross inside the junction (revised 2026-10-27); or
     - is also on the lane with `stop_arrival` set, `_paths_merge` or `_paths_cross` with it, and has `(other.stop_arrival, other.id) < (vehicle.stop_arrival, vehicle.id)`, the order `_stop_priority` already uses;
   - `_connector_lateral(vehicle, connector_length: float) -> float` — linear blend from entry to exit by `connector_position / connector_length`;
   - `_junction_pool(vehicle) -> list[Vehicle]` — `_candidates(*[("turning_off", lane) for lane in network.incoming[node]], ("on_lane", vehicle.route[1]))`, where `node` is the target of `route[0]`;
@@ -591,6 +589,10 @@ def test_no_sideways_jump_entering_a_narrower_exit():
 def test_abreast_cars_merge_into_a_narrower_exit_one_after_the_other():
     # arm_widths {"w": 6.6}; cars at -2.3 and +1.0 stopped at the w line, the -2.3 car first, both w->e, green: never overlap (every tick);
     # the +1.0 car's front crosses the stop line only after the other car's rear has; both reach the e lane within 300 ticks
+def test_abreast_vehicles_arriving_on_green_at_speed_keep_the_fixed_order():
+    # w green throughout; car at +0.65 routed w->n (left) and motorcycle at -1.15 routed w->e, both 40 m from the line at 8 m/s, abreast:
+    # never overlap (every tick); at no tick do both hold a reservation at j while beside each other; both reach their exit lanes within 300 ticks.
+    # Repeat as a merge: arm_widths {"w": 6.6}, cars at -2.3 and +1.0 at 8 m/s, both w->e
 def test_all_way_stop_admits_one_vehicle_at_a_time_from_an_abreast_front_row():
     # j all_way_stop; car and motorcycle abreast at w line, car at n line: every tick len(reservations.get("j", ())) <= 1; never overlap; all three pass within 600 ticks
 ```
