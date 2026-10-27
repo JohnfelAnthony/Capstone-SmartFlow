@@ -11,7 +11,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js"
 import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
-import { boundsForJunction, headingToThreeYaw, lanePolygon, SCENE_PALETTE, selectionKey, signalAppearance, type SceneBounds, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
+import { boundsForJunction, dashedPieces, headingToThreeYaw, lanePolygon, SCENE_PALETTE, selectionKey, signalAppearance, type SceneBounds, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { interpolateVehicle, interpolationDuration, isPresentationJump } from "@/simulation/entity-interpolation"
@@ -212,6 +212,7 @@ export function SimulationScene3D(props: SceneProps) {
         return { x: point.x - Math.sin(angle) * (lane.width / 2 - 0.13), y: point.y + Math.cos(angle) * (lane.width / 2 - 0.13) }
       })
       markingParts.push(ribbon(edge, 0.09, 0.035))
+      for (const divider of lane.dividers) for (const piece of dashedPieces(divider, 3, 3)) markingParts.push(ribbon(piece, 0.1, 0.035))
       const middle = midpoint(lane.centerline)
       const direction = { x: Math.cos(middle.heading), y: Math.sin(middle.heading) }, normal = { x: -Math.sin(middle.heading), y: Math.cos(middle.heading) }
       arrowParts.push(polygonGeometry([

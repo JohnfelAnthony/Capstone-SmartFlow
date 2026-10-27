@@ -77,6 +77,7 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
   // Curb borders are illustrative edging only: native pavement vertices stay untouched.
   for (const lane of geometry.lanes) if (lane.kind !== "connector") path(ctx, lane.polygon, transform, "#C2CDC5", "#C2CDC5", Math.max(2, transform.scale * 1.05))
   for (const lane of geometry.lanes) if (lane.kind !== "connector") path(ctx, lane.polygon, transform, lane.kind === "road" ? "#48575D" : "#C8D0C5", "rgba(232,238,228,.52)", Math.max(.6, transform.scale * .12))
+  for (const lane of geometry.lanes) for (const divider of lane.dividers) path(ctx, divider, transform, undefined, palette.markings, Math.max(1, transform.scale * .12), true)
   for (const junction of geometry.junctions) path(ctx, junction.polygon, transform, "#48575D")
   for (const group of geometry.signalGroups) path(ctx, group.stop_line, transform, undefined, palette.markings, Math.max(1, transform.scale * .25))
 }

@@ -9,6 +9,10 @@ export type SceneLane = {
   id: string
   kind: LaneKind
   width: number
+  /** Lanes across this carriageway; 1 when missing or invalid. */
+  laneCount: number
+  /** Precomputed so renderers can cache their paths. */
+  dividers: VisualPoint[][]
   length: number
   centerline: VisualPoint[]
   polygon: VisualPoint[]
@@ -97,27 +101,71 @@ export function polylineLength(points: readonly VisualPoint[]) {
   return total
 }
 
-/** Flat ends and bounded miter joins keep the road width without overshooting its ends. */
-export function lanePolygon(points: readonly VisualPoint[], width: number): VisualPoint[] {
-  if (points.length < 2) return []
+/** Left miter normal per point and the stretch that keeps a perpendicular distance across the join. */
+function miterNormals(points: readonly VisualPoint[]) {
   const directions = points.slice(1).map((point, index) => {
     const dx = point.x - points[index].x, dy = point.y - points[index].y
     const length = Math.hypot(dx, dy) || 1
     return { x: dx / length, y: dy / length }
   })
-  const left: VisualPoint[] = [], right: VisualPoint[] = []
-  points.forEach((point, index) => {
+  return points.map((_, index) => {
     const previous = directions[Math.max(0, index - 1)], next = directions[Math.min(index, directions.length - 1)]
     const normalX = -(previous.y + next.y), normalY = previous.x + next.x
     const normalLength = Math.hypot(normalX, normalY)
     const nx = normalLength > 1e-8 ? normalX / normalLength : -previous.y
     const ny = normalLength > 1e-8 ? normalY / normalLength : previous.x
-    const projection = Math.abs(nx * -previous.y + ny * previous.x)
-    const offset = Math.min(width * 1.5, width / 2 / Math.max(projection, 1e-8))
+    return { nx, ny, stretch: 1 / Math.max(Math.abs(nx * -previous.y + ny * previous.x), 1e-8) }
+  })
+}
+
+/** Flat ends and bounded miter joins keep the road width without overshooting its ends. */
+export function lanePolygon(points: readonly VisualPoint[], width: number): VisualPoint[] {
+  if (points.length < 2) return []
+  const left: VisualPoint[] = [], right: VisualPoint[] = []
+  miterNormals(points).forEach(({ nx, ny, stretch }, index) => {
+    const point = points[index]
+    const offset = Math.min(width * 1.5, width / 2 * stretch)
     left.push({ x: point.x + nx * offset, y: point.y + ny * offset })
     right.push({ x: point.x - nx * offset, y: point.y - ny * offset })
   })
   return [...left, ...right.reverse()]
+}
+
+/** Lines between the lanes of a carriageway, offset -width/2 + k·width/laneCount along lanePolygon's normal. */
+export function laneDividers(centerline: readonly VisualPoint[], width: number, laneCount: number): VisualPoint[][] {
+  if (centerline.length < 2 || laneCount < 2) return []
+  const normals = miterNormals(centerline)
+  return Array.from({ length: laneCount - 1 }, (_, index) => {
+    const distance = -width / 2 + (index + 1) * width / laneCount
+    return centerline.map((point, pointIndex) => {
+      const { nx, ny, stretch } = normals[pointIndex]
+      const offset = Math.sign(distance) * Math.min(Math.abs(distance) * 3, Math.abs(distance) * stretch)
+      return { x: point.x + nx * offset, y: point.y + ny * offset }
+    })
+  })
+}
+
+/** Dash pieces of a polyline: `dash` metres drawn, then `gap` metres skipped. */
+export function dashedPieces(points: readonly VisualPoint[], dash: number, gap: number): VisualPoint[][] {
+  const pieces: VisualPoint[][] = []
+  let current: VisualPoint[] | null = [{ ...points[0] }], remaining = dash
+  for (let index = 1; index < points.length; index++) {
+    let a = points[index - 1]
+    const b = points[index]
+    let segment = Math.hypot(b.x - a.x, b.y - a.y)
+    while (segment > 1e-9) {
+      const step = Math.min(segment, remaining)
+      const fraction = step / segment
+      const point = { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction }
+      if (current) current.push(point)
+      segment -= step; remaining -= step; a = point
+      if (remaining <= 1e-9) {
+        if (current) { pieces.push(current); current = null; remaining = gap } else { current = [{ ...point }]; remaining = dash }
+      }
+    }
+  }
+  if (current && current.length > 1) pieces.push(current)
+  return pieces
 }
 
 export function boundsOfPoints(points: readonly VisualPoint[], paddingFraction = 0): SceneBounds {
@@ -151,7 +199,11 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
     const junctionIds = junctions.filter((junction) => centerline.length > 0 && (
       distance(centerline[0], junction.center) <= junctionRadius(junction) || distance(centerline[centerline.length - 1], junction.center) <= junctionRadius(junction)
     )).map((junction) => junction.id)
-    const normalized: SceneLane = { id: lane.id, kind, width, length: polylineLength(centerline), centerline, polygon: lanePolygon(centerline, width), junctionIds }
+    const laneCount = Number.isInteger(lane.lane_count) && (lane.lane_count ?? 0) >= 1 ? lane.lane_count as number : 1
+    const normalized: SceneLane = {
+      id: lane.id, kind, width, laneCount, dividers: kind === "road" ? laneDividers(centerline, width, laneCount) : [],
+      length: polylineLength(centerline), centerline, polygon: lanePolygon(centerline, width), junctionIds,
+    }
     lanes.push(normalized)
     laneById.set(lane.id, normalized)
   }

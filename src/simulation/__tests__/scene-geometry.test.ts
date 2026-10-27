@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
+import type { VisualNetwork } from "@/api/visual-network"
 import { bentNetwork } from "./geometry-fixture"
 import {
-  boundsForJunction, centeredVehicleFootprint, forwardAtHeading, headingToThreeYaw,
+  boundsForJunction, centeredVehicleFootprint, dashedPieces, forwardAtHeading, headingToThreeYaw, laneDividers,
   normalizeSceneGeometry, normalizeVehicleClass, pickSceneEntity, pointToThree, signalAppearance, vehicleDimensions,
 } from "@/simulation/scene-geometry"
 
@@ -107,3 +108,29 @@ describe("native-coordinate analytical selection", () => {
   })
 })
 
+describe("road width markings", () => {
+  const line = [{ x: 0, y: 0 }, { x: 10, y: 0 }]
+  it("puts one divider on the centre line of a two-lane carriageway", () => {
+    expect(laneDividers(line, 6.6, 2)).toEqual([[{ x: 0, y: 0 }, { x: 10, y: 0 }]])
+  })
+  it("puts two dividers 1.65 m either side of a 9.9 m three-lane centre line", () => {
+    const ys = laneDividers(line, 9.9, 3).map((divider) => Math.abs(divider[0].y))
+    expect(ys.map((y) => y.toFixed(2))).toEqual(["1.65", "1.65"])
+  })
+  it("draws no dividers for a single lane", () => expect(laneDividers(line, 3.3, 1)).toEqual([]))
+  it("cuts a polyline into dashes", () => {
+    expect(dashedPieces([{ x: 0, y: 0 }, { x: 12, y: 0 }], 3, 3)).toEqual([[{ x: 0, y: 0 }, { x: 3, y: 0 }], [{ x: 6, y: 0 }, { x: 9, y: 0 }]])
+  })
+  it("reads the lane count, defaulting to one, and precomputes road dividers", () => {
+    for (const [count, expected] of [[2, 2], [undefined, 1], [0, 1], [1.5, 1]] as const) {
+      const network: VisualNetwork = structuredClone(bentNetwork)
+      network.roads[0].lanes[0].width = 6.6
+      network.roads[0].lanes[0].lane_count = count
+      const lane = normalizeSceneGeometry(network).laneById.get("lane-west")!
+      expect([lane.laneCount, lane.dividers.length]).toEqual([expected, expected - 1])
+    }
+  })
+  it("keeps a dash whole across a polyline corner", () => {
+    expect(dashedPieces([{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }], 3, 3)).toEqual([[{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }]])
+  })
+})
