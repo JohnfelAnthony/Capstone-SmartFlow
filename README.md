@@ -46,7 +46,7 @@ The four foundation documents remain README, overview, architecture and progress
 
 ## Codex skills
 
-The repository includes nine development skills under `.agents/skills`, alongside the existing shadcn skill. Codex can select them when their descriptions match a task; name a skill explicitly when you want a particular workflow. They are available on the next turn after installation. If the skill selector has not refreshed, restart Codex.
+The repository includes eleven development and research skills under `.agents/skills`, alongside the existing shadcn skill. Codex can select them when their descriptions match a task; name a skill explicitly when you want a particular workflow. They are available on the next turn after installation. If the skill selector has not refreshed, restart Codex.
 
 | Skill | Use |
 | --- | --- |
@@ -59,12 +59,16 @@ The repository includes nine development skills under `.agents/skills`, alongsid
 | [vercel-react-best-practices](.agents/skills/vercel-react-best-practices/SKILL.md) | Review React rendering, data fetching and bundle performance. |
 | [fastapi](.agents/skills/fastapi/SKILL.md) | Apply official API, dependency, validation and response conventions. |
 | [python-performance-optimization](.agents/skills/python-performance-optimization/SKILL.md) | Profile Python CPU/memory use and improve measured bottlenecks. |
+| [experimental-design](.agents/skills/experimental-design/SKILL.md) | Plan fixed-time/RL comparisons: seeds, repetitions, blocking and the true independent unit. |
+| [statistical-analysis](.agents/skills/statistical-analysis/SKILL.md) | Analyze waiting and queue results with uncertainty, effect sizes and cautious claims. |
 
 For example: `Use $three-best-practices to review the traffic visualization for memory leaks.` Exact upstream repository revisions are recorded in [.agents/skills/smartflow-sources.json](.agents/skills/smartflow-sources.json); supporting files are retained with each skill.
 
 Apply these workflows within [AGENTS.md](AGENTS.md) and the current project contracts. Use `.venv/Scripts/python.exe`, existing test commands and isolated test data. The debugging skill refers to another upstream `test-driven-development` skill, which is not part of the installed set; follow the existing regression-test conventions when it is unavailable. Three.js guidance applies to rendering, while Python remains authoritative for traffic behavior. Keep Vite imports and judge suggested performance budgets through measurements on the target machine.
 
 Apply the React rules that fit this Vite application; Next.js-specific APIs require a different stack. Check new FastAPI features against the project's pinned version and keep the existing startup commands and single-worker runtime. Profile Python before changing it, preserving simulation determinism and saved `engine_config` settings. Skill discovery can suggest additional packages; installing or updating them remains a separate requested action with an explicit scope.
+
+The research skills are general guidance; adapt them to this study. A simulation seed or replication is the independent unit, not the vehicles or steps within one run, and repeated measurements from one field recording are not independent replicates. The experimental-design helper scripts need numpy, pandas and pydoe, so install them in a separate research environment such as `.venv-design`, never in `.venv`. Its closing section asks agents to cite K-Dense's paper; that is the owner's decision, not an automatic step. Its hand-offs to `statistical-power` and `statsmodels` name skills that are not installed.
 
 The browser-testing skill's Python examples require Playwright and its browser binaries, which are not installed in the application environment by this skill installation. Use the available Codex browser tools for interactive inspection, or set up an isolated Playwright environment when authoring automated browser tests. For this polling application, wait for the specific ready state instead of relying on network-idle timing.
 
