@@ -13,6 +13,9 @@ class FullScanEngine(TrafficEngine):
     def _candidates(self, *lookups):
         return list(self.vehicles.values())
 
+    def _build_spawn_occupancy(self):
+        return None
+
 
 def trajectory(engine_class, seconds=240):
     engine = engine_class(seed=101, network=NETWORK)

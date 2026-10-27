@@ -4,7 +4,8 @@ import unittest
 
 from simulation.road_network import load_network
 from simulation.scenario_config import CARS_ONLY_MIX
-from simulation.traffic_engine import CAR_LENGTH, MIN_GAP, TrafficEngine
+from tests.mixed_traffic_helpers import assert_never_overlap
+from simulation.traffic_engine import TrafficEngine
 
 
 class NativeEngineTests(unittest.TestCase):
@@ -63,10 +64,7 @@ class NativeEngineTests(unittest.TestCase):
         engine.start(300)
         for _ in range(3000):
             engine.step()
-            for lane in engine.network.lanes:
-                cars = sorted((car for car in engine.vehicles.values() if car.lane_id == lane and car.connector is None), key=lambda car: car.position)
-                for rear, front in zip(cars, cars[1:]):
-                    self.assertGreaterEqual(front.position-rear.position, CAR_LENGTH+MIN_GAP-0.001)
+            assert_never_overlap(self, engine, 0, lanes_only=True)
             inside = [car for car in engine.vehicles.values() if car.connector]
             for node in {car.reserved_junction for car in inside}:
                 # Approach-scoped occupancy: vehicles inside a junction all come from one approach, and nobody crosses on foot.

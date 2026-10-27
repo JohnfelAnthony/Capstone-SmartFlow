@@ -12,7 +12,8 @@ from dataclasses import dataclass
 
 from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
 from .demand import Arrival, build_schedule, schedule_hash
-from .mixed_traffic import CLASS_DRIVING, DRIVER_STREAM_SALT, sample_driver
+from .mixed_traffic import (CLASS_DRIVING, DRIVER_STREAM_SALT, LANE_KEEPING_CLASSES, bands_overlap, body_box, candidate_laterals,
+                            keeping_position, sample_driver)
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
 STEP_LENGTH = 0.1
@@ -127,6 +128,11 @@ class Vehicle:
     minimum_gap: float = 2.0
     max_acceleration: float = 1.5
     max_lateral_speed: float = 0.5
+    # Body centre's offset from the lane centre line, positive toward the right-hand kerb (metres).
+    lateral: float = 0.0
+    lateral_speed: float = 0.0
+    # Body angle from the lane direction (radians, positive toward the kerb); 0 unless moving sideways, always 0 on connectors.
+    yaw: float = 0.0
 
     @property
     def lane_id(self):
@@ -188,7 +194,7 @@ class TrafficEngine:
         self.vehicles: dict[str, Vehicle] = {}
         # Search indexes, valid only while a tick moves vehicles or spawns demand; None means scan every vehicle.
         self._tick_index = None
-        self._spawn_rears = None
+        self._spawn_occupancy = None
         self.pedestrians: dict[str, Pedestrian] = {}
         # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
         self.reservations: dict[str, set[str]] = {}
@@ -380,12 +386,8 @@ class TrafficEngine:
         speed = number(speed, "initial speed", 0, 60)
         spec = VEHICLE_TYPES[vehicle_type]
         spawn_position = spec["length"]/2
-        entry_space = spec["length"]+CLASS_DRIVING[vehicle_type].minimum_gap
-        if self._spawn_rears is None:
-            blocked = any(other.lane_id == route[0] and not other.connector and other.position-other.length/2 < entry_space for other in self.vehicles.values())
-        else:
-            blocked = self._spawn_rears.get(route[0], math.inf) < entry_space
-        if route[0] in self.closed_lanes or blocked or len(self.vehicles) >= self.config["max_active_vehicles"]:
+        lateral = self._entry_lateral(route[0], vehicle_type)
+        if route[0] in self.closed_lanes or lateral is None or len(self.vehicles) >= self.config["max_active_vehicles"]:
             return None
         self.vehicle_serial += 1
         vehicle = Vehicle(f"car-{self.vehicle_serial}", list(route), self.network.lanes[route[-1]].target,
@@ -396,23 +398,64 @@ class TrafficEngine:
         vehicle.speed_factor = spec["speed_factor"]*profile.speed_multiplier
         vehicle.time_headway, vehicle.minimum_gap = profile.time_headway, profile.minimum_gap
         vehicle.max_acceleration, vehicle.max_lateral_speed = profile.max_acceleration, profile.max_lateral_speed
+        vehicle.lateral = lateral
         self.vehicles[vehicle.id] = vehicle
-        if self._spawn_rears is not None:
-            self._spawn_rears[route[0]] = min(self._spawn_rears.get(route[0], math.inf), vehicle.position-vehicle.length/2)
+        if self._spawn_occupancy is not None:
+            self._spawn_occupancy.setdefault(route[0], []).append((vehicle.position-vehicle.length/2, lateral, vehicle.width))
         if requested_at is None:
             self.requested_vehicles += 1
         return vehicle
 
-    def _spawn_demand(self):
-        # Rearmost vehicle per lane, so each spawn check reads one value instead of scanning every vehicle.
-        self._spawn_rears = {}
+    def _box(self, vehicle: Vehicle) -> tuple[float, float]:
+        """Along-road length and across-road width of the body as drawn (turned by its yaw)."""
+        return body_box(vehicle.length, vehicle.width, vehicle.yaw)
+
+    def _pose(self, vehicle: Vehicle) -> tuple[float, float, float]:
+        """Drawn centre x, y and body heading, including the sideways offset, on a lane or a connector."""
+        if vehicle.connector is not None:
+            x, y, path_heading = sample(vehicle.connector, vehicle.connector_position)
+            body_heading = path_heading
+        else:
+            x, y, path_heading = sample(self.network.lanes[vehicle.lane_id].shape, vehicle.position)
+            body_heading = path_heading-vehicle.yaw
+        return x+math.sin(path_heading)*vehicle.lateral, y-math.cos(path_heading)*vehicle.lateral, body_heading
+
+    def _build_spawn_occupancy(self) -> dict[str, list[tuple[float, float, float]]] | None:
+        """Lane -> (rear, lateral, width) of vehicles on lanes, so spawn checks skip a scan of every vehicle."""
+        occupancy: dict[str, list[tuple[float, float, float]]] = {}
         for other in self.vehicles.values():
             if not other.connector:
-                self._spawn_rears[other.lane_id] = min(self._spawn_rears.get(other.lane_id, math.inf), other.position-other.length/2)
+                other_length, other_width = self._box(other)
+                occupancy.setdefault(other.lane_id, []).append((other.position-other_length/2, other.lateral, other_width))
+        return occupancy
+
+    def _entry_lateral(self, lane_id: str, vehicle_type: str) -> float | None:
+        """Sideways entry position with room at the lane start, or None when every allowed position is blocked."""
+        spec, lane = VEHICLE_TYPES[vehicle_type], self.network.lanes[lane_id]
+        needed = spec["length"]+CLASS_DRIVING[vehicle_type].minimum_gap
+        if self._spawn_occupancy is not None:
+            occupancy = self._spawn_occupancy.get(lane_id, [])
+        else:
+            occupancy = [(other.position-self._box(other)[0]/2, other.lateral, self._box(other)[1])
+                         for other in self.vehicles.values() if not other.connector and other.lane_id == lane_id]
+
+        def room(lateral):
+            return min((rear for rear, other_lateral, other_width in occupancy
+                        if bands_overlap(lateral, spec["width"], other_lateral, other_width)), default=math.inf)
+        if vehicle_type in LANE_KEEPING_CLASSES:
+            positions = [keeping_position(vehicle_type, spec["width"], lane.width, lane.lane_count, sub_lane) for sub_lane in range(lane.lane_count)]
+            candidates = [positions[index] for index in sorted(range(len(positions)), key=lambda index: (-room(positions[index]), index))]
+        else:
+            # Tricycles and motorcycles take the free position nearest the kerb.
+            candidates = list(reversed(candidate_laterals(lane.width, spec["width"])))
+        return next((lateral for lateral in candidates if room(lateral) >= needed), None)
+
+    def _spawn_demand(self):
+        self._spawn_occupancy = self._build_spawn_occupancy()
         try:
             self._spawn_vehicles_and_pedestrians()
         finally:
-            self._spawn_rears = None
+            self._spawn_occupancy = None
 
     def _spawn_vehicles_and_pedestrians(self):
         single_demo = self.traffic_density == "single" and not self.config["trips"] and not self.config["demand_windows"]
@@ -434,7 +477,7 @@ class TrafficEngine:
                 break
             spec = VEHICLE_TYPES.get(arrival.vehicle_type)
             # Every route starts on one of the source's outgoing lanes; when all are closed or full, entry fails anyway.
-            entry_possible = spec is None or any(lane not in self.closed_lanes and self._spawn_rears.get(lane, math.inf) >= spec["length"]+CLASS_DRIVING[arrival.vehicle_type].minimum_gap
+            entry_possible = spec is None or any(lane not in self.closed_lanes and self._entry_lateral(lane, arrival.vehicle_type) is not None
                                                  for lane in self.network.outgoing.get(arrival.source, []))
             if not entry_possible:
                 continue
@@ -640,6 +683,24 @@ class TrafficEngine:
             vehicle.stopped_for = 0.0
         return travel
 
+    def _lane_obstacle(self, vehicle: Vehicle, lane) -> tuple[Vehicle | None, float, float]:
+        """(leader, obstacle position, leader speed): the nearest vehicle ahead whose sideways band overlaps this one's."""
+        length_self, width_self = self._box(vehicle)
+        leader = min((other for other in self._candidates(("on_lane", vehicle.lane_id)) if other.id != vehicle.id and other.connector is None
+                      and other.lane_id == vehicle.lane_id and other.position > vehicle.position
+                      and bands_overlap(vehicle.lateral, width_self, other.lateral, self._box(other)[1])),
+                     key=lambda other: other.position, default=None)
+        obstacle = leader.position-(self._box(leader)[0]+length_self)/2 if leader else math.inf
+        leader_speed = leader.speed if leader else vehicle.speed
+        # A vehicle that has just turned off this lane is still physically ahead of its followers; until junctions
+        # carry sideways offsets it counts whatever its lateral, so junction entry stays single file.
+        for other in self._candidates(("turning_off", vehicle.lane_id)):
+            if other.connector is not None and other.route[0] == vehicle.lane_id:
+                connector_obstacle = lane.length+other.connector_position-(other.length+length_self)/2
+                if connector_obstacle < obstacle:
+                    obstacle, leader_speed = connector_obstacle, other.speed
+        return leader, obstacle, leader_speed
+
     def _stop_priority(self, vehicle: Vehicle, node: str):
         if vehicle.stop_arrival is None:
             return False
@@ -687,15 +748,7 @@ class TrafficEngine:
         if vehicle.reserved_junction and lane.source == vehicle.reserved_junction and has_left_junction:
             self._release(vehicle)
         self._reroute(vehicle)
-        leader = min((other for other in self._candidates(("on_lane", vehicle.lane_id)) if other.id != vehicle.id and other.connector is None and other.lane_id == vehicle.lane_id and other.position > vehicle.position), key=lambda other: other.position, default=None)
-        obstacle = leader.position-(leader.length+vehicle.length)/2 if leader else math.inf
-        leader_speed = leader.speed if leader else vehicle.speed
-        # A vehicle that has just turned off this lane is still physically ahead of its followers.
-        for other in self._candidates(("turning_off", vehicle.lane_id)):
-            if other.connector is not None and other.route[0] == vehicle.lane_id:
-                connector_obstacle = lane.length+other.connector_position-(other.length+vehicle.length)/2
-                if connector_obstacle < obstacle:
-                    obstacle, leader_speed = connector_obstacle, other.speed
+        leader, obstacle, leader_speed = self._lane_obstacle(vehicle, lane)
         if lane.target in self.signals and len(vehicle.route) > 1 and vehicle.reserved_junction != lane.target:
             signal = self.signals[lane.target]
             outgoing = vehicle.route[1]
@@ -725,6 +778,7 @@ class TrafficEngine:
             if len(vehicle.route) > 1:
                 vehicle.connector = self.network.connector(vehicle.route[0], vehicle.route[1])
                 vehicle.connector_position = vehicle.position-lane.length
+                vehicle.lateral = 0.0
             else:
                 self.completed += 1
                 self.lifetime_completed += 1
@@ -860,9 +914,8 @@ class TrafficEngine:
     def vehicle_records(self):
         records = []
         for vehicle in self.vehicles.values():
-            lane = self.network.lanes[vehicle.lane_id]
-            x, y, heading = sample(vehicle.connector or lane.shape, vehicle.connector_position if vehicle.connector else vehicle.position)
-            records.append({"id": vehicle.id, "x": x, "y": y, "angle": (90-math.degrees(heading)) % 360, "speed": vehicle.speed, "lane_id": vehicle.lane_id, "lane_position": vehicle.position, "length": vehicle.length, "width": vehicle.width, "stopped": vehicle.speed <= 0.1, "visual_type": vehicle.vehicle_type, "wait_time": vehicle.wait})
+            x, y, heading = self._pose(vehicle)
+            records.append({"id": vehicle.id, "x": x, "y": y, "angle": (90-math.degrees(heading)) % 360, "lateral": vehicle.lateral, "speed": vehicle.speed, "lane_id": vehicle.lane_id, "lane_position": vehicle.position, "length": vehicle.length, "width": vehicle.width, "stopped": vehicle.speed <= 0.1, "visual_type": vehicle.vehicle_type, "wait_time": vehicle.wait})
         return records
 
     def _pedestrian_path_origin(self, junction):

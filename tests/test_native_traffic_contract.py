@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from simulation.road_network import RoadNetwork, length
+from tests.mixed_traffic_helpers import assert_never_overlap
 from simulation.traffic_engine import MIN_GAP, Pedestrian, Signal, TrafficEngine
 
 
@@ -50,12 +51,8 @@ class NativeTrafficContractTests(unittest.TestCase):
         return signal
 
     def assert_bumper_gaps(self, engine):
-        for lane in engine.network.lanes:
-            vehicles = sorted((v for v in engine.vehicles.values() if not v.connector and v.lane_id == lane),
-                              key=lambda vehicle: vehicle.position)
-            for rear, front in zip(vehicles, vehicles[1:]):
-                gap = front.position-rear.position-(front.length+rear.length)/2
-                self.assertGreaterEqual(gap, rear.minimum_gap-1e-6)
+        # Vehicles may stand side by side, so the check is that no two bodies on a lane overlap.
+        assert_never_overlap(self, engine, 0, lanes_only=True)
 
     def test_mixed_followers_form_a_red_queue_and_discharge_on_green(self):
         engine = self.engine()
