@@ -19,12 +19,11 @@ if str(ROOT) not in sys.path:
 
 from simulation.footprints import overlapping_pairs, state_digest  # noqa: E402
 from simulation.road_network import RoadNetwork  # noqa: E402
+from simulation.scenario_config import CARS_ONLY_MIX, TAGUM_PROVISIONAL_MIX  # noqa: E402
 from simulation.traffic_engine import ENGINE_VERSION, TrafficEngine  # noqa: E402
 
 NETWORKS = {"5j": ROOT/"data"/"networks"/"tagum_network.json", "2j": ROOT/"data"/"networks"/"tagum_network_2j.json"}
-CARS_ONLY = {"car": 1.0}
-# Provisional, estimated by eye from the 10 Sept 2026 recordings; Task 2 moves it into scenario_config.
-TAGUM = {"motorcycle": 0.55, "tricycle": 0.25, "car": 0.15, "truck": 0.03, "bus": 0.02}
+CARS_ONLY, TAGUM = CARS_ONLY_MIX, TAGUM_PROVISIONAL_MIX
 MIXES = {"cars": CARS_ONLY, "tagum": TAGUM}
 CASES = {
     "5j-medium-cars": ("5j", "medium", "cars", {}),

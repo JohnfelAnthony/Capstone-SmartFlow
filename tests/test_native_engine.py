@@ -3,6 +3,7 @@ import math
 import unittest
 
 from simulation.road_network import load_network
+from simulation.scenario_config import CARS_ONLY_MIX
 from simulation.traffic_engine import CAR_LENGTH, MIN_GAP, TrafficEngine
 
 
@@ -58,7 +59,7 @@ class NativeEngineTests(unittest.TestCase):
 
     def test_heavy_traffic_preserves_gaps_and_approach_exclusivity(self):
         engine = TrafficEngine(seed=27)
-        engine.configure(traffic_density="high", pedestrian_density="high")
+        engine.configure(traffic_density="high", pedestrian_density="high", vehicle_mix=CARS_ONLY_MIX)
         engine.start(300)
         for _ in range(3000):
             engine.step()

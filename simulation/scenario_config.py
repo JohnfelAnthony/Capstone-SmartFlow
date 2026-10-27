@@ -14,12 +14,19 @@ VEHICLE_TYPES = {
     "bus": {"length": 10.0, "width": 2.5, "speed_factor": 0.85},
     "truck": {"length": 8.0, "width": 2.5, "speed_factor": 0.8},
 }
+# Provisional: estimated by eye from the 10 Sept 2026 recordings, not counted; replace with Field Observer class shares.
+TAGUM_PROVISIONAL_MIX = {"motorcycle": 0.55, "tricycle": 0.25, "car": 0.15, "truck": 0.03, "bus": 0.02}
+CARS_ONLY_MIX = {"car": 1.0}
+VEHICLE_MIX_PRESETS = {
+    "tagum_provisional": {"label": "Tagum (provisional)", "mix": TAGUM_PROVISIONAL_MIX},
+    "cars_only": {"label": "Cars only", "mix": CARS_ONLY_MIX},
+}
 DEFAULTS = {
     "traffic_density": "single", "pedestrian_density": "none",
     "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
-    "vehicle_mix": {"car": 1.0}, "routing_mode": "adaptive", "reroute_interval": 15.0,
+    "vehicle_mix": dict(TAGUM_PROVISIONAL_MIX), "routing_mode": "adaptive", "reroute_interval": 15.0,
     "reroute_improvement": 0.15, "pedestrian_speed": 1.4, "crossing_length": 18.0,
     "pedestrian_max_wait": 90.0, "max_active_vehicles": 300, "max_pending_vehicles": 2000,
 }
