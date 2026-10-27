@@ -42,17 +42,34 @@ def distance(a: Point, b: Point) -> float:
     return math.hypot(b[0] - a[0], b[1] - a[1])
 
 
+_SEGMENT_CACHE: dict[int, tuple[list[Point], list[tuple[Point, Point, float]], float]] = {}
+
+
+def _segments(shape: list[Point]) -> tuple[list[tuple[Point, Point, float]], float]:
+    """(a, b, length) per segment and the total, computed once per shape; lane shapes and connectors never change."""
+    entry = _SEGMENT_CACHE.get(id(shape))
+    if entry is None or entry[0] is not shape:
+        # shortcut: holding the shape keeps its id from being reused; cleared wholesale if many temporary shapes appear.
+        if len(_SEGMENT_CACHE) > 20000:
+            _SEGMENT_CACHE.clear()
+        segments = [(a, b, distance(a, b)) for a, b in zip(shape, shape[1:])]
+        entry = (shape, segments, sum(segment[2] for segment in segments))
+        _SEGMENT_CACHE[id(shape)] = entry
+    return entry[1], entry[2]
+
+
 def length(shape: list[Point]) -> float:
-    return sum(distance(a, b) for a, b in zip(shape, shape[1:]))
+    return _segments(shape)[1]
 
 
 def sample(shape: list[Point], position: float) -> tuple[float, float, float]:
     remaining = max(0.0, position)
-    for index, (a, b) in enumerate(zip(shape, shape[1:])):
-        segment_length = distance(a, b)
+    segments = _segments(shape)[0]
+    last = len(shape) - 2
+    for index, (a, b, segment_length) in enumerate(segments):
         if segment_length < 1e-8:
             continue
-        if remaining <= segment_length or index == len(shape) - 2:
+        if remaining <= segment_length or index == last:
             fraction = min(1.0, remaining / segment_length)
             return a[0] + fraction * (b[0] - a[0]), a[1] + fraction * (b[1] - a[1]), math.atan2(b[1] - a[1], b[0] - a[0])
         remaining -= segment_length
