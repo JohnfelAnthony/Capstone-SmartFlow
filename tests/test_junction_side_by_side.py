@@ -1,11 +1,14 @@
 """Side-by-side vehicles pass through a junction without overlapping or waiting on each other."""
+import json
 import unittest
+from pathlib import Path
 
 from simulation.mixed_traffic import lateral_bounds
-from simulation.road_network import length
+from simulation.road_network import RoadNetwork, length
 from tests.mixed_traffic_helpers import assert_never_overlap, hold_green, junction_network, place, started_engine
 
 THROUGH, LEFT = ["wf", "er"], ["wf", "nr"]
+NETWORK_2J = Path(__file__).resolve().parents[1]/"data"/"networks"/"tagum_network_2j.json"
 
 
 def on_exit(vehicle, lane_id):
@@ -101,6 +104,22 @@ class JunctionSideBySideTests(unittest.TestCase):
                     both_committed = a.reserved_junction == "j" and b.reserved_junction == "j"
                     self.assertFalse(both_committed and beside(engine, a, b), f"both committed abreast at t={engine.simulation_time}")
                 self.assertTrue(on_exit(a, route_a[1]) and on_exit(b, route_b[1]))
+
+    def test_abreast_vehicles_on_one_turning_movement_go_single_file(self):
+        # Abreast inside a tight turn (about 8 m radius), bodies at different headings blocked each other for good.
+        network = RoadNetwork(json.loads(NETWORK_2J.read_text(encoding="utf-8")))
+        route, node = ["road3f", "road4r"], network.lanes["road3f"].target
+        for gap in (0.0, 0.5, 2.0):
+            with self.subTest(motorcycle_behind=gap):
+                engine = started_engine(network)
+                hold_green(engine, node, network.lanes["road3f"].approach)
+                tricycle = place(engine, route, "tricycle", from_stop_line=0, lateral=0.85)
+                motorcycle = place(engine, route, "motorcycle", from_stop_line=gap, lateral=-0.65)
+                for _ in range(300):
+                    assert_never_overlap(self, engine, 1)
+                    both_inside = tricycle.connector is not None and motorcycle.connector is not None
+                    self.assertFalse(both_inside and engine._beside(tricycle, motorcycle), f"abreast in the turn at t={engine.simulation_time}")
+                self.assertTrue(on_exit(tricycle, "road4r") and on_exit(motorcycle, "road4r"))
 
     def test_all_way_stop_admits_one_vehicle_at_a_time_from_an_abreast_front_row(self):
         engine = started_engine(junction_network(), signal_plans={"j": {"mode": "all_way_stop"}})

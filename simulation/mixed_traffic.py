@@ -46,6 +46,18 @@ LATERAL_GRID_M = 0.25
 # Cars, buses and trucks keep to the centre-line side of their lane portion; tricycles keep to the kerb.
 LANE_KEEPING_CLASSES = frozenset({"car", "bus", "truck"})
 KERB_KEEPING_CLASSES = frozenset({"tricycle"})
+# Sideways decisions. The turn-side weight must exceed the move cost, or a turning vehicle never gains enough to move.
+LATERAL_DECISION_TICKS = 5
+MOVE_GAIN_THRESHOLD_M = 2.0
+MOVE_COST_PER_M = 1.0
+KEEPING_WEIGHT_PER_M = 2.0
+TURN_SIDE_WEIGHT_PER_M = 2.0
+TURN_SIDE_DISTANCE_M = 30.0
+MOVE_COOLDOWN_SECONDS = 2.0
+ROOM_HORIZON_M = 50.0
+MAX_YAW_DEGREES = 10.0
+# Riders shuffle sideways with their feet when slow or stopped; other classes move sideways only while moving forward.
+MOTORCYCLE_SHUFFLE_MPS = 0.3
 
 
 def lateral_bounds(lane_width: float, vehicle_width: float, edge_clearance: float = EDGE_CLEARANCE_M) -> tuple[float, float]:

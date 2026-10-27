@@ -59,7 +59,7 @@ class JunctionReleaseTests(unittest.TestCase):
                                 if queued is None:
                                     break  # the link is already full back to j1
                                 queued.position = front-queued.length/2
-                                queued.lateral = lateral_bounds(link.width, queued.width)[0 if queued_side == "left" else 1]
+                                queued.lateral = queued.lateral_target = lateral_bounds(link.width, queued.width)[0 if queued_side == "left" else 1]
                                 front -= queued.length+queued.minimum_gap
                             entering = engine.add_vehicle(route, vehicle_type=entering_type)
                             entering.position = engine.network.lanes[route[0]].length-entering.length/2

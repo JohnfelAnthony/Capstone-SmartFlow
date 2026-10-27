@@ -43,7 +43,7 @@ def place(engine, route, vehicle_type, *, from_stop_line: float, lateral: float,
     vehicle = engine.add_vehicle(route, vehicle_type=vehicle_type, speed=speed)
     assert vehicle is not None, "lane start blocked"
     vehicle.position = engine.network.lanes[route[0]].length-vehicle.length/2-from_stop_line
-    vehicle.lateral = lateral
+    vehicle.lateral = vehicle.lateral_target = lateral
     return vehicle
 
 
