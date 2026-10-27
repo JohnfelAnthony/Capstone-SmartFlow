@@ -59,11 +59,11 @@ class SideBySideTests(unittest.TestCase):
         self.assertAlmostEqual(motorcycle.lateral, 1.15)
         self.assertIsNone(engine.add_vehicle(ROUTE, vehicle_type="car"))
 
-    def test_mixed_traffic_never_overlaps_on_lanes(self):
+    def test_mixed_traffic_never_overlaps(self):
         engine = TrafficEngine(seed=101, network=RoadNetwork(json.loads(NETWORK_2J.read_text(encoding="utf-8"))))
         engine.configure(traffic_density="medium", vehicle_mix=dict(TAGUM_PROVISIONAL_MIX))
         engine.start(300)
-        assert_never_overlap(self, engine, 3000, every=1, lanes_only=True)
+        assert_never_overlap(self, engine, 3000, every=1)
         self.assertGreater(engine.completed, 0)
 
 

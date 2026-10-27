@@ -12,8 +12,9 @@ from dataclasses import dataclass
 
 from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
 from .demand import Arrival, build_schedule, schedule_hash
-from .mixed_traffic import (CLASS_DRIVING, DRIVER_STREAM_SALT, LANE_KEEPING_CLASSES, bands_overlap, body_box, candidate_laterals,
-                            keeping_position, sample_driver)
+from .footprints import rectangle, rectangles_overlap
+from .mixed_traffic import (CLASS_DRIVING, DRIVER_STREAM_SALT, LANE_KEEPING_CLASSES, SIDE_CLEARANCE_M, bands_overlap, body_box,
+                            candidate_laterals, keeping_position, lateral_bounds, sample_driver)
 from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
 
 STEP_LENGTH = 0.1
@@ -133,6 +134,9 @@ class Vehicle:
     lateral_speed: float = 0.0
     # Body angle from the lane direction (radians, positive toward the kerb); 0 unless moving sideways, always 0 on connectors.
     yaw: float = 0.0
+    # Sideways positions where the vehicle entered its connector and will join the exit lane; it blends between them.
+    connector_entry_lateral: float = 0.0
+    connector_exit_lateral: float = 0.0
 
     @property
     def lane_id(self):
@@ -638,31 +642,119 @@ class TrafficEngine:
             return True
         return signal.mode == "signalized" and self.reservation_approach.get(node) == approach
 
-    def _movement_speed(self, incoming: str, outgoing: str):
-        """Through movements keep road speed; turns slow to the turning speed."""
+    def _turn_angle(self, incoming: str, outgoing: str) -> float:
+        """Signed heading change in degrees, in (-180, 180]; positive for a left (counter-clockwise) turn."""
         entry, exit_lane = self.network.lanes[incoming], self.network.lanes[outgoing]
         (ax, ay), (bx, by) = entry.shape[-2], entry.shape[-1]
         (cx, cy), (dx, dy) = exit_lane.shape[0], exit_lane.shape[1]
-        turn = abs((math.degrees(math.atan2(dy-cy, dx-cx)-math.atan2(by-ay, bx-ax))+180) % 360-180)
+        turn = (math.degrees(math.atan2(dy-cy, dx-cx)-math.atan2(by-ay, bx-ax))+180) % 360-180
+        return 180.0 if turn == -180 else turn
+
+    def _movement_speed(self, incoming: str, outgoing: str):
+        """Through movements keep road speed; turns slow to the turning speed."""
+        entry, exit_lane = self.network.lanes[incoming], self.network.lanes[outgoing]
+        turn = abs(self._turn_angle(incoming, outgoing))
         return min(entry.speed, exit_lane.speed) if turn <= THROUGH_ANGLE_DEGREES else TURN_SPEED_MPS
 
-    def _connector_gap(self, vehicle: Vehicle, connector_length: float):
-        """Distance to the nearest vehicle ahead on the same movement, including the exit lane's tail."""
+    def _progress(self, vehicle: Vehicle) -> float:
+        """Distance past the stop line along the vehicle's path; larger is further along."""
+        if vehicle.connector is not None:
+            return vehicle.connector_position
+        return vehicle.position-self.network.lanes[vehicle.lane_id].length
+
+    def _exit_lateral(self, vehicle: Vehicle) -> float:
+        """Where the vehicle joins its exit lane: its own sideways position, limited to that lane's width."""
+        if vehicle.connector is not None:
+            return vehicle.connector_exit_lateral
+        low, high = lateral_bounds(self.network.lanes[vehicle.route[1]].width, vehicle.width)
+        return min(high, max(low, vehicle.lateral))
+
+    def _paths_merge(self, a: Vehicle, b: Vehicle) -> bool:
+        """Same movement and joining the exit lane too close abreast; clamping never moves two positions apart."""
+        return (len(a.route) > 1 and a.route[:2] == b.route[:2]
+                and bands_overlap(self._exit_lateral(a), a.width, self._exit_lateral(b), b.width))
+
+    def _paths_cross(self, a: Vehicle, b: Vehicle) -> bool:
+        """Different exits, and the vehicle turning more to the left starts further right (or the reverse)."""
+        if len(a.route) < 2 or len(b.route) < 2 or a.route[1] == b.route[1]:
+            return False
+        start_a = a.connector_entry_lateral if a.connector is not None else a.lateral
+        start_b = b.connector_entry_lateral if b.connector is not None else b.lateral
+        return (self._turn_angle(a.route[0], a.route[1])-self._turn_angle(b.route[0], b.route[1]))*(start_a-start_b) > 0
+
+    def _beside(self, a: Vehicle, b: Vehicle) -> bool:
+        return abs(self._progress(a)-self._progress(b)) < (a.length+b.length)/2+max(a.minimum_gap, b.minimum_gap)
+
+    def _must_wait_at_line(self, vehicle: Vehicle) -> bool:
+        """Fixed order between vehicles of one approach whose paths merge or cross, so none waits for another in the junction."""
+        node = self.network.lanes[vehicle.lane_id].target
+        own_order = (math.inf if vehicle.stop_arrival is None else vehicle.stop_arrival, vehicle.id)
+        for other in self._candidates(("turning_off", vehicle.lane_id), ("on_lane", vehicle.lane_id)):
+            if other is vehicle or other.lane_id != vehicle.lane_id or len(other.route) < 2:
+                continue
+            conflicting = self._paths_merge(vehicle, other) or self._paths_cross(vehicle, other)
+            if not conflicting:
+                continue
+            # A vehicle commits while still moving and then skips the line, so committed counts as already inside.
+            inside_or_committed = other.connector is not None or other.reserved_junction == node
+            if inside_or_committed and self._beside(vehicle, other):
+                return True
+            if other.connector is None and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order:
+                return True
+        return False
+
+    def _connector_lateral(self, vehicle: Vehicle, connector_length: float, connector_position: float | None = None) -> float:
+        share = min(1.0, max(0.0, (vehicle.connector_position if connector_position is None else connector_position)/connector_length))
+        return vehicle.connector_entry_lateral+(vehicle.connector_exit_lateral-vehicle.connector_entry_lateral)*share
+
+    def _junction_pool(self, vehicle: Vehicle) -> list[Vehicle]:
+        node = self.network.lanes[vehicle.route[0]].target
+        lookups = [("turning_off", lane) for lane in self.network.incoming[node]]
+        if len(vehicle.route) > 1:
+            lookups.append(("on_lane", vehicle.route[1]))
+        return [other for other in self._candidates(*lookups) if other is not vehicle and (
+            other.connector is not None and self.network.lanes[other.route[0]].target == node
+            or other.connector is None and len(vehicle.route) > 1 and other.lane_id == vehicle.route[1])]
+
+    def _junction_gap(self, vehicle: Vehicle, connector_length: float) -> tuple[float, float]:
+        """Gap to the nearest vehicle ahead in the junction or at the start of the exit lane, and its speed."""
         gap, leader_speed = math.inf, vehicle.speed
-        lookups = [("turning_off", vehicle.route[0])] + ([("on_lane", vehicle.route[1])] if len(vehicle.route) > 1 else [])
-        for other in self._candidates(*lookups):
-            if other is vehicle:
-                continue
-            if other.connector is not None and other.route[:2] == vehicle.route[:2] and other.connector_position > vehicle.connector_position:
-                ahead = other.connector_position
-            elif other.connector is None and len(vehicle.route) > 1 and other.lane_id == vehicle.route[1]:
-                ahead = connector_length+other.position
+        x, y, heading = self._pose(vehicle)
+        for other in self._junction_pool(vehicle):
+            if other.connector is not None and other.route[:2] == vehicle.route[:2] and self._paths_merge(vehicle, other):
+                if other.connector_position <= vehicle.connector_position:
+                    continue
+                candidate = other.connector_position-(other.length+vehicle.length)/2-vehicle.connector_position
             else:
-                continue
-            candidate = ahead-(other.length+vehicle.length)/2-vehicle.connector_position
+                # Judged in this vehicle's own frame: ahead along its heading and within its sideways band.
+                other_x, other_y, _ = self._pose(other)
+                dx, dy = other_x-x, other_y-y
+                along, across = dx*math.cos(heading)+dy*math.sin(heading), dx*math.sin(heading)-dy*math.cos(heading)
+                other_length, other_width = self._box(other)
+                if along <= 0 or abs(across) >= (vehicle.width+other_width)/2+SIDE_CLEARANCE_M:
+                    continue
+                candidate = along-(vehicle.length+other_length)/2
             if candidate < gap:
                 gap, leader_speed = candidate, other.speed
         return gap, leader_speed
+
+    def _clear_travel(self, vehicle: Vehicle, travel: float, connector_length: float) -> float:
+        """Last-resort footprint check: the longest of travel, travel/2 ... travel/16 that overlaps nobody, else 0."""
+        if travel <= 0:
+            return 0.0
+        pool = self._junction_pool(vehicle)
+        bodies = []
+        for other in pool:
+            other_x, other_y, other_heading = self._pose(other)
+            bodies.append(rectangle(other_x, other_y, other_heading, other.length, other.width))
+        for step in (travel, travel/2, travel/4, travel/8, travel/16):
+            position = vehicle.connector_position+step
+            x, y, heading = sample(vehicle.connector, position)
+            lateral = self._connector_lateral(vehicle, connector_length, position)
+            body = rectangle(x+math.sin(heading)*lateral, y-math.cos(heading)*lateral, heading, vehicle.length, vehicle.width)
+            if not any(rectangles_overlap(body, other) for other in bodies):
+                return step
+        return 0.0
 
     def _advance(self, vehicle: Vehicle, gap: float, leader_speed: float, desired_speed: float):
         """IDM step with the driver's own values; travel never closes the gap below its minimum gap. Returns the distance moved."""
@@ -692,10 +784,10 @@ class TrafficEngine:
                      key=lambda other: other.position, default=None)
         obstacle = leader.position-(self._box(leader)[0]+length_self)/2 if leader else math.inf
         leader_speed = leader.speed if leader else vehicle.speed
-        # A vehicle that has just turned off this lane is still physically ahead of its followers; until junctions
-        # carry sideways offsets it counts whatever its lateral, so junction entry stays single file.
+        # A vehicle that has just turned off this lane is still ahead of followers in its band, or whose path it merges with.
         for other in self._candidates(("turning_off", vehicle.lane_id)):
-            if other.connector is not None and other.route[0] == vehicle.lane_id:
+            if other.connector is not None and other.route[0] == vehicle.lane_id and (
+                    bands_overlap(vehicle.lateral, width_self, other.lateral, other.width) or self._paths_merge(vehicle, other)):
                 connector_obstacle = lane.length+other.connector_position-(other.length+length_self)/2
                 if connector_obstacle < obstacle:
                     obstacle, leader_speed = connector_obstacle, other.speed
@@ -735,12 +827,18 @@ class TrafficEngine:
     def _move_vehicle(self, vehicle: Vehicle):
         if vehicle.connector:
             connector_length = length(vehicle.connector)
-            gap, leader_speed = self._connector_gap(vehicle, connector_length)
+            gap, leader_speed = self._junction_gap(vehicle, connector_length)
             desired_speed = self._movement_speed(vehicle.route[0], vehicle.route[1])*vehicle.speed_factor
-            vehicle.connector_position += self._advance(vehicle, gap, leader_speed, desired_speed)
+            travel = self._advance(vehicle, gap, leader_speed, desired_speed)
+            cleared = self._clear_travel(vehicle, travel, connector_length)
+            if cleared < travel:
+                vehicle.speed = cleared/STEP_LENGTH
+            vehicle.connector_position += cleared
+            vehicle.lateral = self._connector_lateral(vehicle, connector_length)
             if vehicle.connector_position >= connector_length:
                 vehicle.position = vehicle.connector_position-length(vehicle.connector)
                 vehicle.connector, vehicle.route = None, vehicle.route[1:]
+                vehicle.lateral = vehicle.connector_exit_lateral
                 vehicle.stop_arrival = None
             return
         lane = self.network.lanes[vehicle.lane_id]
@@ -758,7 +856,7 @@ class TrafficEngine:
             has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.family == lane.approach
             may_proceed = (has_permission and self._junction_open_to(lane.target, lane.approach, signal)
                            and not self._crossing_occupied(lane.target) and outgoing not in self.closed_lanes
-                           and self._exit_has_space(outgoing, vehicle))
+                           and self._exit_has_space(outgoing, vehicle) and not self._must_wait_at_line(vehicle))
             # Commit at the last point where a comfortable stop is still possible; until then a vehicle that may
             # proceed keeps moving instead of braking for the line, and it brakes gently if permission or space goes.
             commit_distance = vehicle.speed**2/(2*COMFORTABLE_DECELERATION)+vehicle.speed*STEP_LENGTH+EXIT_SPACE_MARGIN
@@ -776,9 +874,11 @@ class TrafficEngine:
         if vehicle.position >= lane.length:
             self.lane_exits[lane.id] += 1
             if len(vehicle.route) > 1:
+                # Enter at the real sideways position (no jump at the line) and blend to the exit position.
+                vehicle.connector_entry_lateral, vehicle.connector_exit_lateral = vehicle.lateral, self._exit_lateral(vehicle)
                 vehicle.connector = self.network.connector(vehicle.route[0], vehicle.route[1])
                 vehicle.connector_position = vehicle.position-lane.length
-                vehicle.lateral = 0.0
+                vehicle.lateral = self._connector_lateral(vehicle, length(vehicle.connector))
             else:
                 self.completed += 1
                 self.lifetime_completed += 1
