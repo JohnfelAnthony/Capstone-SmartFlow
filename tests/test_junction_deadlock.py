@@ -187,6 +187,44 @@ class JunctionReleaseTests(unittest.TestCase):
                                     for vehicle in (right, left)))
                 self.assertNotIn(left.id, engine.vehicles)
 
+    def test_abreast_cars_whose_paths_drift_across_never_lock_inside_the_junction(self):
+        # Tagum 5j: a left turner beside a right turner whose path drifts towards its exit position; both entered
+        # together and their bodies blocked each other's next step for good (5j-medium-cars, seed 101).
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road2r"].target
+        for left_from, right_from, speeds in ((0.5, 0, (0, 0)), (0.25, 0, (2, 2)), (0, 0.5, (0, 2))):
+            with self.subTest(left_from=left_from, right_from=right_from, speeds=speeds):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine._decide_lateral = lambda vehicle, lane: None
+                engine.start(600)
+                hold(engine, node, network.lanes["road2r"].approach)
+                left = place(engine, ["road2r", "road0f", "road10f", "road4r"], "car", from_stop_line=left_from, lateral=-0.24, speed=speeds[0])
+                right = place(engine, ["road2r", "road1f"], "car", from_stop_line=right_from, lateral=2.3, speed=speeds[1])
+                assert_never_overlap(self, engine, 600)
+                self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road2r" and vehicle.connector is None
+                                    for vehicle in (left, right)))
+
+    def test_a_vehicle_alongside_inside_the_side_clearance_is_not_held_behind_it(self):
+        # Tagum 5j all-way-stop run, seed 102: a motorcycle 0.7 m back and 2 mm beside a right-turning one stood in its
+        # path; the turning one waited for it, and it counted the turning one as the leader it follows, for good.
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road10r"].target
+        route = ["road10r"]+network.route(node, "boundary_1", previous="road10r")
+        engine = TrafficEngine(seed=7, network=network)
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine._decide_lateral = lambda vehicle, lane: None
+        engine.start(600)
+        hold(engine, node, network.lanes["road10r"].approach)
+        turning = place(engine, route, "motorcycle", from_stop_line=0, lateral=1.1)
+        alongside = place(engine, route, "motorcycle", from_stop_line=0.73, lateral=0.2978)
+        turning.stop_arrival, alongside.stop_arrival = engine.simulation_time-3, engine.simulation_time-1
+        assert_never_overlap(self, engine, 600)
+        self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road10r" and vehicle.connector is None
+                            for vehicle in (turning, alongside)))
+
     def test_two_junction_network_keeps_completing_trips_at_medium_demand(self):
         network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))
         engine = TrafficEngine(seed=101, network=network)

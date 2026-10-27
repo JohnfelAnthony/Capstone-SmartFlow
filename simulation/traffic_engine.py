@@ -219,6 +219,8 @@ class TrafficEngine:
         # Search indexes, valid only while a tick moves vehicles or spawns demand; None means scan every vehicle.
         self._tick_index = None
         self._spawn_occupancy = None
+        # (tick, {all-way-stop junction: vehicle whose turn it is}), see _stop_priority.
+        self._stop_turn: tuple[int, dict] = (-1, {})
         # Committed vehicle -> its remaining path through the junction as drawn bodies [(path position, corners, bbox)].
         self._sweeps: dict[str, list] = {}
         self._sweep_cache: dict[tuple, list] = {}
@@ -886,7 +888,10 @@ class TrafficEngine:
             candidate = other.position-(other_length+length_self)/2
             if candidate >= obstacle or scanning_all and (other.connector is not None or other.route[0] != vehicle.route[0]):
                 continue
-            if bands_overlap(lateral, width_self, other.lateral, other_width):
+            # A vehicle already alongside (lengthways overlap) is only followed if the bodies' bands really overlap: inside
+            # the side clearance it is beside this one, not ahead, and holding back for it can lock both for good.
+            alongside = candidate < position
+            if bands_overlap(lateral, width_self, other.lateral, other_width, 0.0 if alongside else SIDE_CLEARANCE_M):
                 leader, obstacle = other, candidate
         leader_speed = leader.speed if leader else vehicle.speed
         # A vehicle that has just turned off this lane is still ahead of followers in its band, or whose path it merges with.
@@ -1106,6 +1111,26 @@ class TrafficEngine:
                    and not (lane_id == vehicle.route[0] and other.reserved_junction == node)
                    for lane_id in self.network.incoming[node] for other in self._candidates(("on_lane", lane_id)))
 
+    def _meets_own_approach_path(self, vehicle: Vehicle) -> bool:
+        """True when this vehicle's path through the junction meets the rest of the recorded path of a committed vehicle
+        from its own approach bound for another exit: a path drifting sideways towards its exit can cross one that
+        started beside it, and once both are inside each body can stand in the other's next step."""
+        own = None
+        for identity, samples in self._sweeps.items():
+            other = self.vehicles.get(identity)
+            if other is None or other is vehicle or other.route[0] != vehicle.route[0] or other.route[1] == vehicle.route[1]:
+                continue
+            if own is None:
+                own = self._sweep_for(vehicle, vehicle.lateral, self._exit_lateral(vehicle))
+                own_bounds = self._sweep_bounds(own)
+            bounds = self._sweep_bounds(samples)
+            if not (bounds[0] < own_bounds[2] and own_bounds[0] < bounds[2] and bounds[1] < own_bounds[3] and own_bounds[1] < bounds[3]):
+                continue
+            progress = other.connector_position-other.length if other.connector is not None else -math.inf
+            if any(point >= progress and self._hits_sweep(corners, [(own, -math.inf, own_bounds)]) for point, corners, _ in samples):
+                return True
+        return False
+
     def _sweep_clear_travel(self, vehicle: Vehicle, lane, travel: float) -> float:
         """Near the stop line, the longest of travel, travel/2 ... travel/16 that keeps out of committed sweeps, else 0."""
         if travel <= 0 or not self._sweeps or not self._near_line(vehicle, lane, vehicle.position+travel):
@@ -1151,13 +1176,19 @@ class TrafficEngine:
     def _stop_priority(self, vehicle: Vehicle, node: str):
         if vehicle.stop_arrival is None:
             return False
-        # A blocked exit must not prevent unrelated approaches from proceeding.
-        waiting = [car for car in self.vehicles.values()
-                   if car.stop_arrival is not None and not car.connector
-                   and self.network.lanes[car.route[0]].target == node and len(car.route) > 1
-                   and car.route[1] not in self.closed_lanes and self._exit_has_space(car.route[1], car)]
-        first = min(waiting, key=lambda car: (car.stop_arrival, car.id), default=None)
-        return first is vehicle and self.simulation_time-vehicle.stop_arrival >= 1.0
+        # The turn goes to the first arrival that can go now: one held by a blocked exit or by a vehicle of its own
+        # approach must not stop every approach. Settled once per junction and tick.
+        if self._stop_turn[0] != self.ticks:
+            self._stop_turn = (self.ticks, {})
+        turns = self._stop_turn[1]
+        if node not in turns:
+            waiting = sorted((car for car in self.vehicles.values()
+                              if car.stop_arrival is not None and not car.connector
+                              and self.network.lanes[car.route[0]].target == node and len(car.route) > 1),
+                             key=lambda car: (car.stop_arrival, car.id))
+            turns[node] = next((car for car in waiting if car.route[1] not in self.closed_lanes and self._exit_has_space(car.route[1], car)
+                                and not self._must_wait_at_line(car) and not self._sweep_blocked(car, node)), None)
+        return turns[node] is vehicle and self.simulation_time-vehicle.stop_arrival >= 1.0
 
 
     def _reroute(self, vehicle: Vehicle):
@@ -1221,7 +1252,7 @@ class TrafficEngine:
             # Never commit behind an uncommitted vehicle that could still be held at the line.
             clear_ahead = leader is None or leader.reserved_junction == lane.target
             # The sweep test is the costliest, so it runs only at the moment the vehicle would otherwise commit.
-            if may_proceed and must_decide and clear_ahead and self._sweep_blocked(vehicle, lane.target):
+            if may_proceed and must_decide and clear_ahead and (self._sweep_blocked(vehicle, lane.target) or self._meets_own_approach_path(vehicle)):
                 may_proceed = False
             if may_proceed and must_decide and clear_ahead:
                 self._reserve(vehicle, lane.target, lane.approach)

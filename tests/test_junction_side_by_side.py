@@ -5,6 +5,7 @@ from pathlib import Path
 
 from simulation.mixed_traffic import lateral_bounds
 from simulation.road_network import RoadNetwork, length
+from simulation.traffic_engine import TrafficEngine
 from tests.mixed_traffic_helpers import assert_never_overlap, hold_green, junction_network, place, started_engine
 
 THROUGH, LEFT = ["wf", "er"], ["wf", "nr"]
@@ -131,6 +132,38 @@ class JunctionSideBySideTests(unittest.TestCase):
             self.assertLessEqual(len(engine.reservations.get("j", ())), 1)
         self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.connector is None and len(vehicle.route) == 1 for vehicle in vehicles))
         self.assertTrue(all(vehicle.lane_id in {"er", "sr"} or vehicle.id not in engine.vehicles for vehicle in vehicles))
+
+    def test_all_way_stop_turn_passes_over_a_first_arrival_held_by_its_own_approach(self):
+        # Tagum 5j: a truck that stopped first waits for the motorcycle standing in its turning path, which used to
+        # never get the turn, so the junction stopped for good.
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road2r"].target
+        engine = started_engine(network, signal_plans={node: {"mode": "all_way_stop"}})
+        engine._decide_lateral = lambda vehicle, lane: None
+        route = ["road2r", "road0f", "road10f", "road4r"]
+        truck = place(engine, route, "truck", from_stop_line=0, lateral=-1.95)
+        motorcycle = place(engine, route, "motorcycle", from_stop_line=0, lateral=0.2)
+        truck.stop_arrival, motorcycle.stop_arrival = engine.simulation_time-2, engine.simulation_time-1
+        assert_never_overlap(self, engine, 600)
+        self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road2r" for vehicle in (truck, motorcycle)))
+
+    def test_all_way_stop_turn_skips_a_vehicle_queued_behind_one_without_exit_space(self):
+        class FullExitEngine(TrafficEngine):
+            def _exit_has_space(self, lane_id, entering):
+                return entering is not blocked and super()._exit_has_space(lane_id, entering)
+
+        engine = FullExitEngine(seed=7, network=junction_network(arm_widths={"w": 6.6}))
+        engine.configure(traffic_density="none", pedestrian_density="none", signal_plans={"j": {"mode": "all_way_stop"}})
+        engine.driver_variation_scale = 0
+        engine.start(300)
+        # Abreast into a narrower exit, so the second waits for the first, which has no exit space.
+        blocked = place(engine, THROUGH, "car", from_stop_line=0, lateral=-2.3)
+        follower = place(engine, THROUGH, "car", from_stop_line=0, lateral=1.0)
+        crossing = place(engine, ["nf", "sr"], "car", from_stop_line=0, lateral=-0.65)
+        blocked.stop_arrival, follower.stop_arrival, crossing.stop_arrival = (engine.simulation_time-3, engine.simulation_time-2,
+                                                                                engine.simulation_time-1)
+        engine.step(100)
+        self.assertTrue(crossing.id not in engine.vehicles or crossing.lane_id == "sr")
 
 
 if __name__ == "__main__":
