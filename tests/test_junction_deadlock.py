@@ -97,6 +97,27 @@ class JunctionReleaseTests(unittest.TestCase):
                     for _, engine, entering, route, entered in self.held_queue_cases(AreaOnlyEngine)]
         self.assertTrue(any(stranded), "the end-to-end rule must be what prevents stranding")
 
+    def test_exit_storage_counts_only_the_lane_before_its_stop_line(self):
+        # Vehicles on the link queue behind its stop line, set back from the lane end at a junction (up to 4.9 m on
+        # Tagum 5j). A bus that fits the whole lane but not the part before the line stopped with its rear in j1.
+        class SetBackEngine(TrafficEngine):
+            def stop_line(self, lane_id):
+                return super().stop_line(lane_id)-(5.0 if lane_id == link.id else 0.0)
+        for link_length in (32, 34, 36):
+            with self.subTest(link_length=link_length):
+                engine = SetBackEngine(seed=7, network=two_junction_line(link_length=link_length))
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine.start(300)
+                hold(engine, "j1", "west")
+                hold(engine, "j2", "north")
+                route = engine.network.route("w", "e")
+                link = engine.network.lanes[route[1]]
+                bus = engine.add_vehicle(route, vehicle_type="bus")
+                bus.position = engine.network.lanes[route[0]].length-bus.length/2
+                engine.step(400)
+                self.assertNotEqual(bus.reserved_junction, "j1")
+
     def test_motorcycles_count_with_their_own_minimum_gap(self):
         engine = TrafficEngine(seed=7, network=two_junction_line())
         engine.configure(traffic_density="none", pedestrian_density="none")
