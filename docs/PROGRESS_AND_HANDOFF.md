@@ -120,14 +120,17 @@ RL environment speed is unchanged at 43.7 decisions/s on the 2-junction network.
 
 The engine models only one illustrative crossing per junction (across the north arm), so the other zebras are paint only. Two small overlay changes:
 - Queue counts now sit 12 m behind the stop line, and the queue tint is translucent.
-- Junction tags moved to the north-east kerb corner and are now hit-tested directly.
+- Junction tags moved to the north-east kerb corner (north-west when that would leave the map) and are now hit-tested directly.
 
 Verification:
 - 129 frontend tests in 12 suites passed (new tests cover the kerb, centre-line, crosswalk, signal-placement, walk-state and scenery-clearance geometry). `tsc -b` and ESLint on the changed files also passed.
-- On the 2-junction network, a live fixed-time run on an isolated scratch database was paused 11 times and compared with `/api/simulation/state`. There were zero mismatches for every approach head and every walk state, across green, yellow, red, all-red and pedestrian-green phases.
-- Light and dark captures at 1440 px were reviewed.
+- Live fixed-time runs on isolated scratch databases were paused repeatedly and every drawn head compared with `/api/simulation/state`:
+  - 2-junction network: 11 pauses, zero mismatches for every approach head and walk state.
+  - 5-junction network: 14 pauses, 238 head and 70 walk-state comparisons, zero mismatches.
+  - Phases covered: every approach green and yellow, all-red and pedestrian green.
+- Light and dark captures at 1440 px were reviewed on both networks, and a static repaint took about 1–2 ms.
 
-Not yet verified: the 5-junction network in the browser, narrower widths, the 3D view after this change, `PED_YELLOW` in a live run, and frame rate under load.
+Not yet verified: narrower widths, the 3D view after this change, `PED_YELLOW` in a live run (the unit test covers the mapping) and frame rate under load. The in-app browser pane was hidden, which suspends canvas repaints.
 
 **October 25 — minimal simulation map and junction column:** implemented the owner-approved [dashboard redesign plan](DASHBOARD_REDESIGN_PLAN_2026-10-25.md) (architecture decision D25). The map keeps only three corner chips, zoom controls and J-tags (2D canvas labels, 3D sprites). The control bar shows an elapsed / duration clock, and the idle setup card offers New run and Replay recording. The right column has a network map, a junction card with a labelled placeholder photo (CC BY 3.0, credited) and Signal phases / Queue info / Performance tabs, plus a Signal control card. The KPI row now shows average travel time instead of completed trips. The sidebar Randomize button was restored at the owner's request. Verification: 104 frontend tests in nine suites (the unused longest-queue helper and its five tests were removed), full lint, TypeScript, API compilation and a production build passed. A browser check on the provisional 2-junction network with an isolated scratch database covered login, the idle setup card, a live fixed-time run in 2D and 3D, phase chips and timer, J1/J2 selection from the network map, all three tabs, Signal control with no trained model, and 1600 px and 1100 px layouts. Not verified in the browser: Replay (no pre-recorded run existed in the scratch database), RL method selection and KPI deltas (no trained model). No field accuracy is implied.
 

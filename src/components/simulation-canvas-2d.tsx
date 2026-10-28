@@ -50,11 +50,11 @@ function path(ctx: CanvasRenderingContext2D, points: VisualPoint[], transform: T
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width / transform.scale; ctx.lineCap = "butt"; ctx.lineJoin = "round"; ctx.setLineDash(dashMetres ?? (dashed ? [5 / transform.scale, 5 / transform.scale] : [])); ctx.stroke(fill ? paths.closed : paths.open) }
   ctx.restore()
 }
-function label(ctx: CanvasRenderingContext2D, text: string, point: VisualPoint | undefined, transform: Transform, colors: Palette, offset = 0, highlighted = false, alignLeft = false) {
+function label(ctx: CanvasRenderingContext2D, text: string, point: VisualPoint | undefined, transform: Transform, colors: Palette, offset = 0, highlighted = false, align: "center" | "left" | "right" = "center") {
   if (!point) return
   const p = screen(point, transform)
   ctx.font = "600 11px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
-  const width = ctx.measureText(text).width + 18, height = 23, occupied = occupiedLabels.get(ctx) ?? [], left = alignLeft ? p.x : p.x - width / 2
+  const width = ctx.measureText(text).width + 18, height = 23, occupied = occupiedLabels.get(ctx) ?? [], left = align === "left" ? p.x : align === "right" ? p.x - width : p.x - width / 2
   const rect = claimMapLabel([offset, offset - 28, offset + 28].map((dy) => ({ x: left, y: p.y + dy - height / 2, width, height })), occupied, transform.width, transform.height)
   if (!rect) return
   ctx.beginPath(); ctx.roundRect(rect.x, rect.y, width, height, 7); ctx.fillStyle = highlighted ? "#1F7A5A" : colors.chip; ctx.fill(); ctx.strokeStyle = highlighted ? "#1F7A5A" : colors.chipBorder; ctx.lineWidth = 1; ctx.stroke()
@@ -327,11 +327,13 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
       for (const crosswalk of junction.crosswalks) for (const point of crosswalk.walkSignals) drawWalkSignal(ctx, point, state, flashOn, transform, colors)
     }
   }
-  // Junction tags claim label space before lane labels; they sit off the north-east kerb corner, clear of the signal heads.
+  // Junction tags claim label space before lane labels; they sit off the north-east kerb corner (north-west near
+  // the right edge), clear of the signal heads.
   if (presentation.overlays.labels) for (const junction of orderedJunctions) {
     const highlighted = junction.id === presentation.junctionId || (presentation.selection?.kind === "junction" && presentation.selection.id === junction.id)
-    const reach = Math.max(...junction.kerb.map((point) => Math.max(point.x - junction.center.x, point.y - junction.center.y)), 0) + 2
-    const rect = label(ctx, junctionTagText(junction.label), { x: junction.center.x + reach, y: junction.center.y + reach }, transform, colors, -14, highlighted, true)
+    const reach = Math.max(...junction.kerb.map((point) => Math.max(point.x - junction.center.x, point.y - junction.center.y)), 0) + 2, text = junctionTagText(junction.label)
+    const rect = label(ctx, text, { x: junction.center.x + reach, y: junction.center.y + reach }, transform, colors, -14, highlighted, "left")
+      ?? label(ctx, text, { x: junction.center.x - reach, y: junction.center.y + reach }, transform, colors, -14, highlighted, "right")
     if (rect) tags.push({ id: junction.id, rect })
   }
   for (const [text, point] of laneLabels) label(ctx, text, point, transform, colors)
