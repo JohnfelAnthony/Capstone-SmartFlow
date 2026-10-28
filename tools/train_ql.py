@@ -15,6 +15,7 @@ from simulation.ql_agent import QLearningConfig, TabularQLearningAgent
 from simulation.ql_training import QLEpisodeResult, train_tabular_q_learning
 from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES, DEFAULT_WARMUP_SECONDS, SmartFlowRLEnv
 from simulation.rl_reward import REWARD_VERSION
+from simulation.rl_state import OBSERVATION_VERSION
 from simulation.traffic_engine import RL_SERVICE_ACTIONS
 from tools.training_inputs import cumulative_training_seeds, load_training_scenario
 
@@ -99,7 +100,7 @@ def _create_model_record(
             checkpoint_path=str(output_path),
             intersection_support=[scenario["intersection_id"]],
             training_scenarios=[scenario],
-            observation_version="obs_v2",
+            observation_version=OBSERVATION_VERSION,
             reward_version=REWARD_VERSION,
             action_space_version="action_v1",
             seed_set=list(seed_set),
@@ -164,7 +165,7 @@ def _build_metadata(
         "scenario": scenario,
         "seed_set": list(seed_set),
         "action_labels": list(RL_SERVICE_ACTIONS),
-        "observation_version": "obs_v2",
+        "observation_version": OBSERVATION_VERSION,
         "reward_version": REWARD_VERSION,
         "action_space_version": "action_v1",
         "episodes": episodes,

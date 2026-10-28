@@ -9,9 +9,12 @@ APPROACH_ORDER = ("north", "east", "south", "west")
 PHASE_FAMILY_ORDER = ("NORTH", "EAST", "SOUTH", "WEST", "PEDESTRIAN")
 INTERSECTION_ORDER = ("tagum_network", "custom_network")
 
-MAX_QUEUE_COUNT = 30.0
+OBSERVATION_VERSION = "obs_v3"
+
+# Above the largest per-approach p95 in docs/reports/mixed-traffic-acceptance.json (Tagum mix).
+MAX_QUEUE_COUNT = 70.0
 MAX_WAIT_SECONDS = 120.0
-MAX_ACTIVE_VEHICLES = 30.0
+MAX_ACTIVE_VEHICLES = 70.0
 MAX_PEDESTRIAN_WAITING = 20.0
 
 QUEUE_BIN_EDGES = (0.0, 3.0, 8.0, MAX_QUEUE_COUNT)
