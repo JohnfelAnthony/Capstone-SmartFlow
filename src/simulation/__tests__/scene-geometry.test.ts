@@ -177,7 +177,7 @@ describe("street illustration geometry", () => {
   it("reads the junction's exclusive pedestrian phase for every crossing", () => {
     const frame = (phase: string, mode = "fixed_time") => ({ junction_controls: { J: { mode, phase } } })
     expect(walkSignalState("J", frame("PED_GREEN"))).toBe("walk")
-    expect(walkSignalState("J", frame("PED_YELLOW"))).toBe("clearance")
+    expect(walkSignalState("J", frame("ALL_RED"))).toBe("dont_walk")
     expect(walkSignalState("J", frame("NORTH_GREEN"))).toBe("dont_walk")
     expect(walkSignalState("J", frame("ALL_RED", "all_way_stop"))).toBe("off")
     expect(walkSignalState("J", null)).toBeNull()

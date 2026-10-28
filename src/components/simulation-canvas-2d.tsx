@@ -147,8 +147,8 @@ function drawSignalHead(ctx: CanvasRenderingContext2D, group: SceneSignalGroup, 
   }
   ctx.restore()
 }
-/** Walk / don't-walk head on a crossing's kerb end: a walking figure, a steady hand, or a flashing hand. */
-function drawWalkSignal(ctx: CanvasRenderingContext2D, point: VisualPoint, state: WalkSignal | null, flashOn: boolean, transform: Transform, colors: Palette) {
+/** Walk / don't-walk head on a crossing's kerb end: a walking figure or a steady hand; dark when unlit or unknown. */
+function drawWalkSignal(ctx: CanvasRenderingContext2D, point: VisualPoint, state: WalkSignal | null, transform: Transform, colors: Palette) {
   const p = screen(point, transform), size = Math.max(7, .8 * transform.scale)
   roundedBox(ctx, p.x - size / 2, p.y - size / 2, size, size, colors.housing, size * .22)
   ctx.save(); ctx.translate(p.x, p.y)
@@ -157,7 +157,7 @@ function drawWalkSignal(ctx: CanvasRenderingContext2D, point: VisualPoint, state
     ctx.beginPath(); ctx.arc(0, -size * .26, size * .1, 0, Math.PI * 2); ctx.fill()
     ctx.beginPath(); ctx.moveTo(0, -size * .12); ctx.lineTo(0, size * .1); ctx.lineTo(-size * .14, size * .32); ctx.moveTo(0, size * .1); ctx.lineTo(size * .14, size * .32)
     ctx.moveTo(-size * .16, size * .02); ctx.lineTo(0, -size * .07); ctx.lineTo(size * .16, size * .04); ctx.stroke()
-  } else if (state === "dont_walk" || (state === "clearance" && flashOn)) {
+  } else if (state === "dont_walk") {
     roundedBox(ctx, -size * .2, -size * .04, size * .4, size * .32, FLEET.hand, size * .08)
     for (const x of [-.2, -.1, 0, .1]) roundedBox(ctx, x * size, -size * .32, size * .085, size * .32, FLEET.hand, size * .04)
   }
@@ -320,11 +320,9 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
       const { color } = signalAppearance(group, frame)
       drawSignalHead(ctx, group, color, transform, colors); report.approaches[group.lane_id] = color
     }
-    // Simulation time drives the clearance flash, so a paused run holds still.
-    const flashOn = Math.floor((frame?.time ?? 0) * 2) % 2 === 0
     for (const junction of geometry.junctions) {
       const state = walkSignalState(junction.id, frame); report.walk[junction.id] = state
-      for (const crosswalk of junction.crosswalks) for (const point of crosswalk.walkSignals) drawWalkSignal(ctx, point, state, flashOn, transform, colors)
+      for (const crosswalk of junction.crosswalks) for (const point of crosswalk.walkSignals) drawWalkSignal(ctx, point, state, transform, colors)
     }
   }
   // Junction tags claim label space before lane labels; they sit off the north-east kerb corner (north-west near

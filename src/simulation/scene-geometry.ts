@@ -422,11 +422,14 @@ export function signalHeadPlacement(group: Pick<VisualSignalGroup, "anchor" | "h
   }
 }
 
-export type WalkSignal = "walk" | "clearance" | "dont_walk" | "off"
-/** The engine runs one exclusive pedestrian phase per junction, so every crossing there shows the same walk state. */
+export type WalkSignal = "walk" | "dont_walk" | "off"
+/**
+ * The engine runs one exclusive pedestrian phase per junction, so every crossing there shows the same walk state.
+ * Its walk phase ends straight in all-red (no pedestrian yellow), so there is no flashing clearance to show.
+ */
 export function walkSignalState(junctionId: string, frame: { junction_controls?: Record<string, { mode: string; phase?: string }> } | null): WalkSignal | null {
   const control = frame?.junction_controls?.[junctionId]
   if (!control) return null
   if (control.mode === "all_way_stop") return "off"
-  return control.phase === "PED_GREEN" ? "walk" : control.phase === "PED_YELLOW" ? "clearance" : "dont_walk"
+  return control.phase === "PED_GREEN" ? "walk" : "dont_walk"
 }
