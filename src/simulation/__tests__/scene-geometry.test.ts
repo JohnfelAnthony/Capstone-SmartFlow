@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 import type { VisualNetwork } from "@/api/visual-network"
-import { bentNetwork } from "./geometry-fixture"
+import { bentNetwork, crossNetwork } from "./geometry-fixture"
 import {
   boundsForJunction, centeredVehicleFootprint, dashedPieces, forwardAtHeading, headingToThreeYaw, laneDividers,
-  normalizeSceneGeometry, normalizeVehicleClass, pickSceneEntity, pointToThree, signalAppearance, vehicleDimensions,
+  normalizeSceneGeometry, normalizeVehicleClass, pickSceneEntity, pointToThree, signalAppearance, signalHeadPlacement, vehicleDimensions, walkSignalState,
 } from "@/simulation/scene-geometry"
 
 describe("canonical native display geometry", () => {
@@ -132,5 +132,54 @@ describe("road width markings", () => {
   })
   it("keeps a dash whole across a polyline corner", () => {
     expect(dashedPieces([{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }], 3, 3)).toEqual([[{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }]])
+  })
+})
+
+describe("street illustration geometry", () => {
+  const geometry = normalizeSceneGeometry(crossNetwork())
+  const junction = geometry.junctions[0]
+  it("draws a centre line where opposing carriageways meet and none on a one-way kerb", () => {
+    expect(geometry.lanes.every((lane) => lane.centreLine !== null)).toBe(true)
+    expect(geometry.laneById.get("north-in")!.centreLine!.every((point) => Math.abs(point.x) < 1e-9)).toBe(true)
+    expect(normalizeSceneGeometry(bentNetwork).lanes[0].centreLine).toBeNull()
+  })
+  it("rounds each kerb corner between approaches toward the junction centre", () => {
+    const corner = junction.kerb.filter((point) => point.x > 3.31 && point.y > 3.31)
+    expect(corner.length).toBe(7)
+    for (const point of corner) {
+      expect(point.x + point.y).toBeLessThan(12.3)
+      expect(Math.hypot(point.x - 9, point.y - 9)).toBeGreaterThan(5.6)
+    }
+    expect(junction.kerb.some((point) => Math.hypot(point.x - 3.3, point.y - 9) < 1e-9)).toBe(true)
+  })
+  it("paints a zebra on every carriageway end, inside the junction and before the conflict area", () => {
+    expect(junction.crosswalks.map((crosswalk) => crosswalk.laneId).sort()).toEqual(geometry.lanes.map((lane) => lane.id).sort())
+    const north = junction.crosswalks.filter((crosswalk) => crosswalk.laneId.startsWith("north")).flatMap((crosswalk) => crosswalk.stripes)
+    expect(north).toHaveLength(6)
+    for (const point of north.flat()) {
+      expect(point.y).toBeGreaterThanOrEqual(9 - 3.6 - 1e-9)
+      expect(point.y).toBeLessThanOrEqual(9 - 0.6 + 1e-9)
+      expect(Math.abs(point.x)).toBeLessThanOrEqual(3.3)
+    }
+    expect(north.map((stripe) => Math.min(...stripe.map((point) => point.x))).sort((a, b) => a - b).map((x) => x.toFixed(2))).toEqual(["-2.75", "-1.75", "-0.75", "0.25", "1.25", "2.25"])
+  })
+  it("stands walk signals on the kerb ends of each crossing", () => {
+    const north = junction.crosswalks.filter((crosswalk) => crosswalk.laneId.startsWith("north")).flatMap((crosswalk) => crosswalk.walkSignals)
+    expect(north.map((point) => [point.x.toFixed(2), point.y.toFixed(2)]).sort()).toEqual([["-4.40", "6.90"], ["4.40", "6.90"]])
+  })
+  it("hangs each approach's head just past its stop line, facing the oncoming vehicles", () => {
+    const group = geometry.signalGroups.find((candidate) => candidate.lane_id === "north-in")!
+    const placement = signalHeadPlacement(group)
+    expect(placement.head.x).toBeCloseTo(-1.65); expect(placement.head.y).toBeCloseTo(8.1)
+    expect(placement.facing.x).toBeCloseTo(0); expect(placement.facing.y).toBeCloseTo(1)
+    expect(placement.pole.x).toBeCloseTo(-4.4); expect(placement.pole.y).toBeCloseTo(9.3)
+  })
+  it("reads the junction's exclusive pedestrian phase for every crossing", () => {
+    const frame = (phase: string, mode = "fixed_time") => ({ junction_controls: { J: { mode, phase } } })
+    expect(walkSignalState("J", frame("PED_GREEN"))).toBe("walk")
+    expect(walkSignalState("J", frame("PED_YELLOW"))).toBe("clearance")
+    expect(walkSignalState("J", frame("NORTH_GREEN"))).toBe("dont_walk")
+    expect(walkSignalState("J", frame("ALL_RED", "all_way_stop"))).toBe("off")
+    expect(walkSignalState("J", null)).toBeNull()
   })
 })

@@ -13,16 +13,23 @@ export type SceneLane = {
   laneCount: number
   /** Precomputed so renderers can cache their paths. */
   dividers: VisualPoint[][]
+  /** Left edge where an opposing carriageway meets this one; null when that edge is a kerb. */
+  centreLine: VisualPoint[] | null
   length: number
   centerline: VisualPoint[]
   polygon: VisualPoint[]
   junctionIds: string[]
 }
+/** Painted zebra on one carriageway end inside a junction; walk signals stand on its kerb ends. */
+export type SceneCrosswalk = { laneId: string; stripes: VisualPoint[][]; walkSignals: VisualPoint[] }
 export type SceneJunction = {
   id: string
   label: string
   center: VisualPoint
   polygon: VisualPoint[]
+  /** Drawn pavement outline: the polygon with rounded kerb corners between approaches. Picking keeps `polygon`. */
+  kerb: VisualPoint[]
+  crosswalks: SceneCrosswalk[]
 }
 export type SceneSignalGroup = VisualSignalGroup & { junctionId: string | null }
 export type SceneGeometry = {
@@ -131,18 +138,20 @@ export function lanePolygon(points: readonly VisualPoint[], width: number): Visu
   return [...left, ...right.reverse()]
 }
 
+/** The polyline moved `distance` metres along lanePolygon's left normal (negative: right), with bounded miter joins. */
+export function offsetLine(points: readonly VisualPoint[], distance: number): VisualPoint[] {
+  const normals = miterNormals(points)
+  return points.map((point, index) => {
+    const { nx, ny, stretch } = normals[index]
+    const offset = Math.sign(distance) * Math.min(Math.abs(distance) * 3, Math.abs(distance) * stretch)
+    return { x: point.x + nx * offset, y: point.y + ny * offset }
+  })
+}
+
 /** Lines between the lanes of a carriageway, offset -width/2 + k·width/laneCount along lanePolygon's normal. */
 export function laneDividers(centerline: readonly VisualPoint[], width: number, laneCount: number): VisualPoint[][] {
   if (centerline.length < 2 || laneCount < 2) return []
-  const normals = miterNormals(centerline)
-  return Array.from({ length: laneCount - 1 }, (_, index) => {
-    const distance = -width / 2 + (index + 1) * width / laneCount
-    return centerline.map((point, pointIndex) => {
-      const { nx, ny, stretch } = normals[pointIndex]
-      const offset = Math.sign(distance) * Math.min(Math.abs(distance) * 3, Math.abs(distance) * stretch)
-      return { x: point.x + nx * offset, y: point.y + ny * offset }
-    })
-  })
+  return Array.from({ length: laneCount - 1 }, (_, index) => offsetLine(centerline, -width / 2 + (index + 1) * width / laneCount))
 }
 
 /** Dash pieces of a polyline: `dash` metres drawn, then `gap` metres skipped. */
@@ -179,13 +188,76 @@ export function boundsOfPoints(points: readonly VisualPoint[], paddingFraction =
 }
 
 function distance(a: VisualPoint, b: VisualPoint) { return Math.hypot(a.x - b.x, a.y - b.y) }
-function junctionRadius(junction: SceneJunction) {
+type JunctionOutline = Pick<SceneJunction, "center" | "polygon">
+function junctionRadius(junction: JunctionOutline) {
   return Math.max(15, ...junction.polygon.map((point) => distance(point, junction.center))) + 8
+}
+function unit(dx: number, dy: number) { const length = Math.hypot(dx, dy) || 1; return { x: dx / length, y: dy / length } }
+function cross(a: VisualPoint, b: VisualPoint) { return a.x * b.y - a.y * b.x }
+
+/** Painted markings and street furniture, in metres. Illustrative: the engine models none of them. */
+const ZEBRA = { start: 0.6, end: 3.6, stripe: 0.5, period: 1, kerbMargin: 0.15 }
+const WALK_SIGNAL_SETBACK = 1.1
+
+type LaneEnd = { lane: SceneLane; point: VisualPoint; travel: VisualPoint; inward: VisualPoint }
+/** The carriageway end at a junction, its direction of travel, and the direction into the junction. */
+function laneEndAt(lane: SceneLane, junction: JunctionOutline): LaneEnd {
+  const points = lane.centerline, last = points.length - 1
+  const entering = distance(points[last], junction.center) <= distance(points[0], junction.center)
+  const travel = entering ? unit(points[last].x - points[last - 1].x, points[last].y - points[last - 1].y) : unit(points[1].x - points[0].x, points[1].y - points[0].y)
+  return { lane, point: entering ? points[last] : points[0], travel, inward: entering ? travel : { x: -travel.x, y: -travel.y } }
+}
+
+/** Kerb corners of every carriageway end, joined around the junction; corners between approaches become rounded kerbs. */
+export function junctionKerbOutline(junction: JunctionOutline, ends: readonly LaneEnd[]): VisualPoint[] {
+  const corners = ends.flatMap(({ lane, point, inward }) => [1, -1].map((side) => ({
+    x: point.x - inward.y * side * lane.width / 2, y: point.y + inward.x * side * lane.width / 2, outward: { x: -inward.x, y: -inward.y },
+  }))).sort((a, b) => Math.atan2(a.y - junction.center.y, a.x - junction.center.x) - Math.atan2(b.y - junction.center.y, b.x - junction.center.x))
+  if (corners.length < 3) return clonePoints(junction.polygon)
+  const outline: VisualPoint[] = []
+  corners.forEach((a, index) => {
+    const b = corners[(index + 1) % corners.length]
+    outline.push({ x: a.x, y: a.y })
+    const sameApproach = a.outward.x * b.outward.x + a.outward.y * b.outward.y > Math.cos(25 * Math.PI / 180)
+    const turn = cross(a.outward, b.outward)
+    if (sameApproach || distance(a, b) < 0.3 || Math.abs(turn) < 1e-6) return
+    // Both kerb lines, extended back into the junction, meet at the corner the rounded kerb bends around.
+    const gap = { x: b.x - a.x, y: b.y - a.y }, alongA = cross(gap, b.outward) / turn, alongB = cross(gap, a.outward) / turn
+    const meetsInside = alongA < 0 && alongB < 0 && alongA > -25 && alongB > -25
+    if (!meetsInside) return
+    const control = { x: a.x + a.outward.x * alongA, y: a.y + a.outward.y * alongA }
+    for (let step = 1; step < 8; step++) {
+      const t = step / 8, u = 1 - t
+      outline.push({ x: u * u * a.x + 2 * u * t * control.x + t * t * b.x, y: u * u * a.y + 2 * u * t * control.y + t * t * b.y })
+    }
+  })
+  return outline
+}
+
+/** Zebra stripes 0.6–3.6 m inside the junction, so vehicles stop before them; stripes share a junction-wide grid. */
+function crosswalkAt(end: LaneEnd, junction: JunctionOutline): SceneCrosswalk {
+  const { lane, point, travel, inward } = end, across = { x: -inward.y, y: inward.x }
+  const offset = (point.x - junction.center.x) * across.x + (point.y - junction.center.y) * across.y
+  const at = (lateral: number, depth: number) => ({ x: point.x + across.x * (lateral - offset) + inward.x * depth, y: point.y + across.y * (lateral - offset) + inward.y * depth })
+  const low = offset - lane.width / 2 + ZEBRA.kerbMargin, high = offset + lane.width / 2 - ZEBRA.kerbMargin, phase = (ZEBRA.period - ZEBRA.stripe) / 2
+  const stripes: VisualPoint[][] = []
+  for (let start = Math.ceil((low - phase) / ZEBRA.period) * ZEBRA.period + phase; start + ZEBRA.stripe <= high + 1e-9; start += ZEBRA.period) {
+    stripes.push([at(start, ZEBRA.start), at(start + ZEBRA.stripe, ZEBRA.start), at(start + ZEBRA.stripe, ZEBRA.end), at(start, ZEBRA.end)])
+  }
+  // Right-hand traffic: the right edge is a kerb; the left edge is one too only without an opposing carriageway.
+  const right = { x: travel.y, y: -travel.x }, reach = lane.width / 2 + WALK_SIGNAL_SETBACK, depth = (ZEBRA.start + ZEBRA.end) / 2
+  const walkSignals = (lane.centreLine ? [1] : [1, -1]).map((side) => ({ x: point.x + right.x * reach * side + inward.x * depth, y: point.y + right.y * reach * side + inward.y * depth }))
+  return { laneId: lane.id, stripes, walkSignals }
+}
+
+function middleOf(points: readonly VisualPoint[]) {
+  const index = Math.max(0, Math.floor((points.length - 2) / 2))
+  return { x: (points[index].x + points[index + 1].x) / 2, y: (points[index].y + points[index + 1].y) / 2 }
 }
 
 export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
   const metadata = network as VisualNetwork & { network_id?: string; junctions?: Array<{ id: string; label?: string; name?: string }> }
-  const junctions = network.signals.map((signal, index) => {
+  const outlines = network.signals.map((signal, index) => {
     const node = metadata.junctions?.find((junction) => junction.id === signal.id)
     return { id: signal.id, label: node?.label || node?.name || `Junction ${index + 1}`, center: { x: signal.x, y: signal.y }, polygon: clonePoints(signal.shape) }
   })
@@ -196,17 +268,29 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
     if (laneById.has(lane.id)) throw new Error(`Duplicate visual lane ID: ${lane.id}`)
     const centerline = clonePoints(lane.shape)
     const width = Number.isFinite(lane.width) && lane.width > 0 ? lane.width : 3.3
-    const junctionIds = junctions.filter((junction) => centerline.length > 0 && (
+    const junctionIds = outlines.filter((junction) => centerline.length > 0 && (
       distance(centerline[0], junction.center) <= junctionRadius(junction) || distance(centerline[centerline.length - 1], junction.center) <= junctionRadius(junction)
     )).map((junction) => junction.id)
     const laneCount = Number.isInteger(lane.lane_count) && (lane.lane_count ?? 0) >= 1 ? lane.lane_count as number : 1
     const normalized: SceneLane = {
-      id: lane.id, kind, width, laneCount, dividers: kind === "road" ? laneDividers(centerline, width, laneCount) : [],
+      id: lane.id, kind, width, laneCount, dividers: kind === "road" ? laneDividers(centerline, width, laneCount) : [], centreLine: null,
       length: polylineLength(centerline), centerline, polygon: lanePolygon(centerline, width), junctionIds,
     }
     lanes.push(normalized)
     laneById.set(lane.id, normalized)
   }
+  const roads = lanes.filter((lane) => lane.kind === "road" && lane.centerline.length > 1)
+  const leftEdges = new Map(roads.map((lane) => [lane, lane.polygon.slice(0, lane.centerline.length)]))
+  for (const lane of roads) {
+    const middle = middleOf(leftEdges.get(lane)!)
+    const opposed = roads.some((other) => other !== lane && distanceToPolyline(middle, leftEdges.get(other)!) < 0.3)
+    lane.centreLine = opposed ? leftEdges.get(lane)! : null
+  }
+  const junctions: SceneJunction[] = outlines.map((outline) => {
+    const reach = Math.max(...outline.polygon.map((point) => distance(point, outline.center)), 0) + 1
+    const ends = roads.filter((lane) => lane.junctionIds.includes(outline.id)).map((lane) => laneEndAt(lane, outline)).filter((end) => distance(end.point, outline.center) <= reach)
+    return { ...outline, kerb: junctionKerbOutline(outline, ends), crosswalks: ends.map((end) => crosswalkAt(end, outline)) }
+  })
   const signalGroups = network.signal_groups.map((group) => {
     const lane = laneById.get(group.lane_id)
     const candidates = junctions.filter((junction) => lane?.junctionIds.includes(junction.id))
@@ -320,4 +404,29 @@ export function signalAppearance(group: VisualSignalGroup & { junctionId?: strin
   }
   const color = resolved ?? "off"
   return { color, lit: color !== "off", available: resolved !== null, label: resolved === null ? "Signal unavailable" : color === "off" ? "Unlit" : color[0].toUpperCase() + color.slice(1) }
+}
+
+/**
+ * Mast-arm signal for one approach: the pole stands on the right-hand kerb at the stop line and the head hangs
+ * just past it, centred over the carriageway. Its lenses face `facing`, back toward the oncoming vehicles.
+ */
+export function signalHeadPlacement(group: Pick<VisualSignalGroup, "anchor" | "heading" | "width">) {
+  const radians = group.heading * Math.PI / 180
+  const forward = { x: Math.cos(radians), y: Math.sin(radians) }, right = { x: forward.y, y: -forward.x }
+  const kerb = group.width / 2 + WALK_SIGNAL_SETBACK
+  return {
+    head: { x: group.anchor.x + forward.x * 0.9, y: group.anchor.y + forward.y * 0.9 },
+    pole: { x: group.anchor.x + right.x * kerb - forward.x * 0.3, y: group.anchor.y + right.y * kerb - forward.y * 0.3 },
+    facing: { x: -forward.x, y: -forward.y },
+    right,
+  }
+}
+
+export type WalkSignal = "walk" | "clearance" | "dont_walk" | "off"
+/** The engine runs one exclusive pedestrian phase per junction, so every crossing there shows the same walk state. */
+export function walkSignalState(junctionId: string, frame: { junction_controls?: Record<string, { mode: string; phase?: string }> } | null): WalkSignal | null {
+  const control = frame?.junction_controls?.[junctionId]
+  if (!control) return null
+  if (control.mode === "all_way_stop") return "off"
+  return control.phase === "PED_GREEN" ? "walk" : control.phase === "PED_YELLOW" ? "clearance" : "dont_walk"
 }

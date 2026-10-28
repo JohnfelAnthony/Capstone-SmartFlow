@@ -110,7 +110,7 @@ function Workspace({ geometry, frame, controlledJunction, mode, runKey, seekRevi
           <Button variant="outline" size="icon-sm" onClick={() => void fullscreen()} aria-label={expanded ? "Exit fullscreen" : "Enter fullscreen"} title={expanded ? "Exit fullscreen" : "Expand"}>{expanded ? <MinimizeIcon /> : <MaximizeIcon />}</Button>
         </div>
       </div>
-      <p className="sf-sim-credit">Illustrative geometry · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
+      <p className="sf-sim-credit">Illustrative geometry and scenery ·<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
     </div>
     <aside className="sf-sim-side" aria-label="Junction information">
       <NetworkMapCard geometry={geometry} junctionId={junctionId} onFocus={focus} />

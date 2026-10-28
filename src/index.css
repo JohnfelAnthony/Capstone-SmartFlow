@@ -281,6 +281,11 @@
   inset: 0;
   z-index: 1;
   overflow: hidden;
+  background: #C8CCCE;
+}
+
+.dark .sf-canvas2d-shell {
+  background: #252A31;
 }
 
 .sf-canvas2d {
@@ -1863,6 +1868,9 @@
 .sf-canvas2d-scale span { width:var(--map-scale-width,64px); text-align:center; font-variant-numeric:tabular-nums; }
 .sf-canvas2d-gesture-hint { position:absolute; bottom:17px; left:50%; transform:translateX(-50%); max-width:calc(100% - 370px); text-align:center; color:#587065; font-size:10px; pointer-events:none; white-space:nowrap; padding:4px 8px; background:rgba(248,250,247,.85); border-radius:5px; }
 .sf-canvas2d-shell[data-navigating=true] .sf-canvas2d-gesture-hint { visibility:hidden; }
+.dark .sf-canvas2d-scale { color:#C9D3CE; text-shadow:0 1px 0 #1D2126; }
+.dark .sf-canvas2d-scale i { border-color:#9AA8A1; }
+.dark .sf-canvas2d-gesture-hint { color:#B7C2BC; background:rgba(29,33,38,.85); }
 .sf-canvas2d-tooltip { position:absolute; z-index:3; max-width:240px; padding:7px 10px; border:1px solid var(--border); border-radius:7px; background:var(--card); color:var(--card-foreground); box-shadow:0 4px 16px #233b3226; pointer-events:none; font-size:11px; line-height:1.5; }
 .sf-scene-workspace .sf-canvas2d:focus-visible { outline:2px solid var(--primary); outline-offset:-3px; }
 .sf-scene-expanded,.sf-scene-workspace:fullscreen { position:fixed; inset:0; z-index:50; height:100dvh; border-radius:0; overflow:auto; }
