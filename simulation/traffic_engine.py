@@ -1019,14 +1019,20 @@ class TrafficEngine:
         if best != vehicle.lateral and scores[best] >= current+MOVE_GAIN_THRESHOLD_M and self._side_clear(vehicle, lane, vehicle.lateral, best, neighbours):
             vehicle.lateral_target = best
 
-    def _turned_step_fits(self, vehicle: Vehicle, lane, lateral: float, yaw: float, neighbours, sweeps=()) -> bool:
-        """The body turned by yaw at lateral stays on the road, touches no neighbour alongside it and enters no sweep."""
+    def _turned_step_fits(self, vehicle: Vehicle, lane, lateral: float, yaw: float, neighbours, sweeps=(), followers=()) -> bool:
+        """The body turned by yaw at lateral stays on the road, touches no neighbour alongside it, does not become the
+        leader of a committed follower and enters no sweep."""
         along, across = body_box(vehicle.length, vehicle.width, yaw)
         low, high = lateral_bounds(lane.width, across, edge_clearance=0)
         if not low-1e-9 <= lateral <= high+1e-9:
             return False
         if any(abs(position-vehicle.position) < (along+other_length)/2 and bands_overlap(lateral, across, other_lateral, other_width, clearance=0)
                for position, other_lateral, other_length, other_width in neighbours):
+            return False
+        # A committed vehicle commits behind no uncommitted one; edging in front of it would leave it waiting behind a
+        # vehicle that may itself wait for the committed one's path.
+        if any(vehicle.position-(along+other_length)/2 >= position and bands_overlap(lateral, across, other_lateral, other_width)
+               for position, other_lateral, other_length, other_width in followers):
             return False
         return not sweeps or not self._hits_sweep(self._lane_body(vehicle, lane, vehicle.position, lateral, yaw), sweeps)
 
@@ -1213,6 +1219,9 @@ class TrafficEngine:
         full = min(self._lateral_speed_limit(vehicle)*STEP_LENGTH, abs(remaining))
         neighbours = self._lane_neighbours(vehicle, lane)
         sweeps = self._committed_sweeps(vehicle, lane) if self._sweeps and self._near_line(vehicle, lane, vehicle.position) else ()
+        followers = [(other.position, other.lateral, other.length, other.width) for other in self._candidates(("on_lane", lane.id))
+                     if other.reserved_junction == lane.target and other.connector is None and other.route[0] == lane.id
+                     and other.position < vehicle.position]
         for fraction in (1, .5, .25, .125):
             step = math.copysign(full*fraction, remaining)
             if full <= 0:
@@ -1220,7 +1229,7 @@ class TrafficEngine:
             lateral = vehicle.lateral+step
             full_yaw = math.copysign(min(math.atan2(abs(step)/STEP_LENGTH, vehicle.speed), math.radians(MAX_YAW_DEGREES)), step)
             # At the road edge the full turn would swing a corner off the road; a smaller turn (drawn as checked) may fit.
-            yaw = next((yaw for yaw in (full_yaw, full_yaw/2, full_yaw/4, 0.0) if self._turned_step_fits(vehicle, lane, lateral, yaw, neighbours, sweeps)), None)
+            yaw = next((yaw for yaw in (full_yaw, full_yaw/2, full_yaw/4, 0.0) if self._turned_step_fits(vehicle, lane, lateral, yaw, neighbours, sweeps, followers)), None)
             if yaw is None:
                 continue
             vehicle.lateral, vehicle.lateral_speed, vehicle.yaw = lateral, step/STEP_LENGTH, yaw

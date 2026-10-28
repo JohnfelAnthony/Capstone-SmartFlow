@@ -8,7 +8,7 @@ from simulation.road_network import RoadNetwork
 from simulation.scenario_config import VEHICLE_TYPES
 from simulation.mixed_traffic import SIDE_CLEARANCE_M, lateral_bounds
 from simulation.traffic_engine import EXIT_SPACE_MARGIN, TrafficEngine
-from tests.mixed_traffic_helpers import assert_never_overlap, place
+from tests.mixed_traffic_helpers import assert_never_overlap, hold_green, junction_network, place
 from tests import test_native_traffic_contract as contract
 
 TWO_JUNCTION_NETWORK = Path(__file__).resolve().parents[1] / "data/networks/tagum_network_2j.json"
@@ -224,6 +224,31 @@ class JunctionReleaseTests(unittest.TestCase):
         assert_never_overlap(self, engine, 600)
         self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road10r" and vehicle.connector is None
                             for vehicle in (turning, alongside)))
+
+    def test_no_vehicle_moves_sideways_in_front_of_a_committed_vehicle(self):
+        # Tagum 2j medium seed 101 and 5j closure seed 102: a motorcycle edged sideways in front of one that had just
+        # committed and stopped at the line; its path met the committed one's, so each waited for the other for good.
+        class FullExitEngine(TrafficEngine):
+            def _exit_has_space(self, lane_id, entering):
+                return entering is not cutting and super()._exit_has_space(lane_id, entering)
+
+        engine = FullExitEngine(seed=7, network=junction_network())
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine._decide_lateral = lambda vehicle, lane: None
+        engine.start(600)
+        hold_green(engine, "j", "west")
+        cutting = place(engine, ["wf", "nr"], "motorcycle", from_stop_line=0, lateral=-1.15)
+        committed = place(engine, ["wf", "er"], "motorcycle", from_stop_line=30, lateral=0.15, speed=5)
+        while committed.reserved_junction is None:
+            engine.step(1)
+        cutting.lateral_target = committed.lateral
+        for _ in range(300):
+            engine.step(1)
+            if committed.connector is None and committed.route[0] == "wf":
+                leader = engine._lane_obstacle(committed, engine.network.lanes["wf"])[0]
+                self.assertTrue(leader is None or leader.reserved_junction == "j", f"uncommitted leader at t={engine.simulation_time}")
+        self.assertTrue(committed.id not in engine.vehicles or committed.route[0] == "er")
 
     def test_a_vehicle_waiting_at_red_never_stops_in_a_turning_bus_path(self):
         # Tagum 2j, medium demand seed 101: a bus waiting at red stood in the path of a right-turning bus from the cross
