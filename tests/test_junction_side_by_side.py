@@ -147,6 +147,21 @@ class JunctionSideBySideTests(unittest.TestCase):
         assert_never_overlap(self, engine, 600)
         self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road2r" for vehicle in (truck, motorcycle)))
 
+    def test_no_vehicle_moves_up_into_the_tail_swing_of_a_committed_vehicle_from_its_own_approach(self):
+        # Tagum 5j: a turning bus drifts towards its exit while its rear is still beside the queue; a tricycle that crept
+        # up to the line beside that rear was hit by it.
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        lane = network.lanes["road3r"]
+        for start in (2, 4, 6):
+            with self.subTest(tricycle_from_stop_line=start):
+                engine = started_engine(network)
+                hold_green(engine, lane.target, lane.approach)
+                engine._decide_lateral = lambda vehicle, lane: None
+                bus = place(engine, ["road3r", "road0f", "road10f", "road4r"], "bus", from_stop_line=0, lateral=1.17)
+                tricycle = place(engine, ["road3r", "road1f"], "tricycle", from_stop_line=start, lateral=-1.42, speed=1)
+                assert_never_overlap(self, engine, 600)
+                self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road3r" for vehicle in (bus, tricycle)))
+
     def test_all_way_stop_turn_skips_a_vehicle_queued_behind_one_without_exit_space(self):
         class FullExitEngine(TrafficEngine):
             def _exit_has_space(self, lane_id, entering):

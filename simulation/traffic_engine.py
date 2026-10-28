@@ -1152,13 +1152,22 @@ class TrafficEngine:
         return lane.target in self.signals and lane.length-(position+vehicle.length/2) <= SWEEP_ZONE_M
 
     def _committed_sweeps(self, vehicle: Vehicle, lane) -> list:
-        """Remaining sweeps of vehicles from other approaches committed to (or inside) the junction ahead."""
+        """Remaining sweeps of vehicles committed to (or inside) the junction ahead: from other approaches, and from this
+        one when ahead of the vehicle, whose rear can still swing across the queue while it drifts towards its exit."""
         result = []
         for identity, samples in self._sweeps.items():
             other = self.vehicles.get(identity)
-            if other is None or other.route[0] == lane.id or self.network.lanes[other.route[0]].target != lane.target:
+            if other is None or other is vehicle or self.network.lanes[other.route[0]].target != lane.target:
                 continue
-            progress = other.connector_position-other.length if other.connector is not None else -math.inf
+            own_approach = other.route[0] == lane.id
+            # Fronts, not centres: a long vehicle beside a short one can be ahead with its centre behind.
+            if own_approach and self._progress(other)+other.length/2 <= self._progress(vehicle)+vehicle.length/2:
+                continue
+            if other.connector is None:
+                progress = -math.inf
+            else:
+                # Only its own body onwards: what lies behind it on this approach is the queue it has just left.
+                progress = other.connector_position if own_approach else other.connector_position-other.length
             result.append((samples, progress, self._sweep_bounds(samples)))
         return result
 
