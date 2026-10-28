@@ -1187,6 +1187,12 @@ class TrafficEngine:
             other = self.vehicles.get(identity)
             if other is None or other is vehicle or other.route[0] != vehicle.route[0] or other.route[1] == vehicle.route[1]:
                 continue
+            # Single file behind it in its band, this vehicle follows it along the shared start of their paths instead
+            # of starting beside it; holding back until that start is clear would halve the discharge.
+            single_file = (self._progress(other)-other.length/2 >= self._progress(vehicle)+vehicle.length/2
+                           and bands_overlap(vehicle.lateral, vehicle.width, other.lateral, other.width))
+            if single_file:
+                continue
             if own is None:
                 own = self._sweep_for(vehicle, vehicle.lateral, self._exit_lateral(vehicle))
                 own_bounds = self._sweep_bounds(own)

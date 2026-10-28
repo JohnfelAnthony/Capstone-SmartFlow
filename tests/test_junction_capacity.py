@@ -4,6 +4,7 @@ import unittest
 from simulation.road_network import RoadNetwork
 from simulation.traffic_engine import MIN_GAP, TrafficEngine
 from tests import test_native_traffic_contract as contract
+from tests.mixed_traffic_helpers import hold_green, junction_network, place, started_engine
 
 
 def long_approach_cross(length=400, speed=8.33):
@@ -16,6 +17,26 @@ def long_approach_cross(length=400, speed=8.33):
 
 class JunctionCapacityTests(unittest.TestCase):
     hold_phase = contract.NativeTrafficContractTests.hold_phase
+
+    def test_a_follower_bound_for_another_exit_enters_as_soon_as_one_bound_for_the_same_exit(self):
+        # The check for paths drifting across held a single-file follower until its committed leader, bound for another
+        # exit, was well clear of the shared start of their paths, halving discharge (cars-only 5j: 149 vs 204 trips).
+        def entry_headway(leader_exit, follower_exit):
+            engine = started_engine(junction_network())
+            hold_green(engine, "j", "west")
+            leader = place(engine, ["wf", leader_exit], "car", from_stop_line=0, lateral=0.0)
+            follower = place(engine, ["wf", follower_exit], "car", from_stop_line=leader.length+leader.minimum_gap, lateral=0.0)
+            entered = {}
+            for _ in range(300):
+                engine.step(1)
+                for vehicle in (leader, follower):
+                    if vehicle.id not in entered and (vehicle.id not in engine.vehicles or vehicle.route[0] != "wf" or vehicle.connector is not None):
+                        entered[vehicle.id] = engine.simulation_time
+            return entered[follower.id]-entered[leader.id]
+
+        for leader_exit, follower_exit in (("nr", "er"), ("sr", "er"), ("er", "nr")):
+            with self.subTest(leader=leader_exit, follower=follower_exit):
+                self.assertLessEqual(entry_headway(leader_exit, follower_exit), entry_headway(follower_exit, follower_exit)+0.2)
 
     def saturated_discharge(self, destination, vehicle_type="car", green_seconds=60):
         """Queue the west approach on red, give it one green, return (vehicles discharged, steady headway s)."""
