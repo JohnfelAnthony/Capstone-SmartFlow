@@ -15,7 +15,7 @@ from functools import lru_cache
 from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
 from .demand import Arrival, build_schedule, schedule_hash
 from .footprints import rectangle, rectangles_overlap
-from .mixed_traffic import (CLASS_DRIVING, DRIVER_STREAM_SALT, KEEPING_WEIGHT_PER_M, LANE_KEEPING_CLASSES, LATERAL_DECISION_TICKS,
+from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, KEEPING_WEIGHT_PER_M, LANE_KEEPING_CLASSES, LATERAL_DECISION_TICKS,
                             MAX_YAW_DEGREES, MOTORCYCLE_SHUFFLE_MPS, MOVE_COOLDOWN_SECONDS, MOVE_COST_PER_M, MOVE_GAIN_THRESHOLD_M,
                             ROOM_HORIZON_M, SIDE_CLEARANCE_M, TURN_SIDE_DISTANCE_M, TURN_SIDE_WEIGHT_PER_M, bands_overlap, body_box,
                             candidate_laterals, keeping_position, lateral_bounds, sample_driver, sub_lane_of)
@@ -1020,13 +1020,13 @@ class TrafficEngine:
             vehicle.lateral_target = best
 
     def _turned_step_fits(self, vehicle: Vehicle, lane, lateral: float, yaw: float, neighbours, sweeps=(), followers=()) -> bool:
-        """The body turned by yaw at lateral stays on the road, touches no neighbour alongside it, does not become the
+        """The body turned by yaw at lateral stays on the road, keeps ALONGSIDE_GAP_M from every neighbour alongside it, does not become the
         leader of a committed follower and enters no sweep."""
         along, across = body_box(vehicle.length, vehicle.width, yaw)
         low, high = lateral_bounds(lane.width, across, edge_clearance=0)
         if not low-1e-9 <= lateral <= high+1e-9:
             return False
-        if any(abs(position-vehicle.position) < (along+other_length)/2 and bands_overlap(lateral, across, other_lateral, other_width, clearance=0)
+        if any(abs(position-vehicle.position) < (along+other_length)/2 and bands_overlap(lateral, across, other_lateral, other_width, clearance=ALONGSIDE_GAP_M)
                for position, other_lateral, other_length, other_width in neighbours):
             return False
         # A committed vehicle commits behind no uncommitted one; edging in front of it would leave it waiting behind a

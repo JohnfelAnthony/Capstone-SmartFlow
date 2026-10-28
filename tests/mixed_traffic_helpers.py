@@ -7,14 +7,15 @@ from simulation.traffic_engine import TrafficEngine
 ARMS = {"w": (-1, 0), "e": (1, 0), "n": (0, 1), "s": (0, -1)}
 
 
-def junction_network(width_per_direction_m=None, lanes_tag="2", arm_length=150.0, arm_widths: dict[str, float] | None = None) -> RoadNetwork:
-    """A cross: boundary arms w, e, n, s as two-way roads into junction j, at 8.33 m/s."""
+def junction_network(width_per_direction_m=None, lanes_tag="2", arm_length=150.0, arm_widths: dict[str, float] | None = None,
+                     arm_shapes: dict[str, list] | None = None) -> RoadNetwork:
+    """A cross: boundary arms w, e, n, s as two-way roads into junction j, at 8.33 m/s (straight unless arm_shapes)."""
     nodes = [{"id": "j", "x": 0.0, "y": 0.0}]
     roads = []
     for arm, (dx, dy) in ARMS.items():
         nodes.append({"id": arm, "x": dx*arm_length, "y": dy*arm_length, "boundary": True})
         road = {"id": arm, "source": arm, "target": "j", "oneway": False, "speed_mps": 8.33,
-                "shape": [[dx*arm_length, dy*arm_length], [0.0, 0.0]], "osm_tags": {"lanes": lanes_tag}}
+                "shape": (arm_shapes or {}).get(arm, [[dx*arm_length, dy*arm_length], [0.0, 0.0]]), "osm_tags": {"lanes": lanes_tag}}
         width = (arm_widths or {}).get(arm, width_per_direction_m)
         if width is not None:
             road["width_per_direction_m"] = width

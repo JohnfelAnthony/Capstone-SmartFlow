@@ -186,6 +186,24 @@ class GapSeekingTests(unittest.TestCase):
                 assert_never_overlap(self, engine, 600)
                 self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.lane_id != "road2r" for vehicle in (truck, motorcycle)))
 
+    def test_a_sideways_move_stops_short_of_a_neighbour_where_the_lane_bends(self):
+        # Tagum 5j: a motorcycle ended a sideways move flush against the one beside it; where road2r bends (0.016
+        # degrees at 80.94 m) the two drawn bodies straddling the bend overlapped. Here the west arm bends 0.1 degrees
+        # between the centres of a bus and a motorcycle waiting abreast at the line.
+        network = junction_network(arm_widths={"w": 6.6}, arm_shapes={"w": [[-150.0, 0.0], [-12.0, 0.0], [0.0, 0.02]]})
+        for start in (0.45, 0.2):
+            with self.subTest(motorcycle_from=start):
+                engine = NoFilteringEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine.start(600)
+                hold_green(engine, "j", "north")
+                place(engine, THROUGH, "bus", from_stop_line=0, lateral=-1.95)
+                motorcycle = place(engine, THROUGH, "motorcycle", from_stop_line=0, lateral=start)
+                motorcycle.lateral_target = -2.0
+                assert_never_overlap(self, engine, 100)
+                self.assertLess(motorcycle.lateral, 0)
+
     def test_a_recorded_sweep_covers_the_body_at_every_point_between_its_samples(self):
         # Tagum 5j: between two samples a turning car's tilted body poked about 1 cm past both, into a car waiting
         # at the reverse lane's stop line, where the heading of the connector polyline snaps at a vertex.

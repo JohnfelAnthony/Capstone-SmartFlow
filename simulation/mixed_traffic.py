@@ -41,6 +41,9 @@ HEADWAY_MULTIPLIER_RANGE = (0.7, 1.4)
 
 
 SIDE_CLEARANCE_M = 0.3
+# Least gap a sideways move leaves beside a neighbour: bands are lane coordinates, and where a lane bends two bodies
+# straddling the bend point slightly apart, so flush bands overlap as drawn (covers ~0.3 degrees over a 10 m body).
+ALONGSIDE_GAP_M = 0.05
 EDGE_CLEARANCE_M = 0.1
 LATERAL_GRID_M = 0.25
 # Cars, buses and trucks keep to the centre-line side of their lane portion; tricycles keep to the kerb.
