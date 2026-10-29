@@ -20,6 +20,13 @@ Updated: **2026-10-28** (Asia/Singapore). Scope: `SmartFlow` only. Documentation
 - **Browser check** (isolated 2-junction database, high-density Tagum mix): in 3D and 2D, motorcycles stand beside buses, cars and tricycles and gather at the stop line; each direction's lane is drawn with its divider; no overlap seen. The 2D view still draws stop lines at the lane end rather than at the set-back position.
 - **Verification:** backend suite 259 tests (one training-worker test timed out under a parallel suite and passes alone); `npx vitest run` 117 passed; `npx tsc -b` and eslint on the branch's frontend files clean.
 
+**October 28 — Field Observer: subtype/class mismatch and README:** fixes from an outside review of the October 27 change.
+- **Silent loss fixed:** saving Pedicab or Bao-bao while *Reviewed class* was not `tricycle` reported success but stored no subtype. The review endpoint now rejects that with the visible error "A tricycle subtype requires the tricycle class." In the form, choosing a subtype sets the class to `tricycle`, and choosing another class clears the subtype. Export validation already rejected the mismatch.
+- **README:** the GUI and CSV steps still named the retired `tagum_passenger_tricycle`; they now name `tricycle` with `bao_bao` or `pedicab`.
+- **Event table:** the reviewed-class column shows the subtype, for example `tricycle · pedicab`.
+- **Verification:** Field Observer suite, 38 passed (CPU environment); the new mismatch check and README check failed before the change. Browser check on the scripted demo in an isolated data folder. Synthetic data only; nothing here measures detector accuracy.
+- **Still open:** correcting all events of one vehicle at once, separate reviewed counters and corrected playback labels, thumbnails and class filters, automatic pedicab/bao-bao recognition, and how pedal pedicabs map into the simulation's motorized classes.
+
 **October 27 — Field Observer: bao-bao and pedicab review options:** the owner confirmed that the green/yellow vehicle in the 2 October reference picture is a **pedal pedicab**, not a motorized tricycle, and that the motorized three-wheelers are **bao-baos**.
 - **Why manual:** the detector knows only person, bicycle, car, motorcycle, bus and truck, so it labels most bao-baos `car` and pedicabs `motorcycle` or `car`. Reviewers set the class by hand.
 - **Change:** the review form's tricycle subtype now offers `bao_bao` (motorized) and `pedicab` (pedal), and exports count them separately. Both values are defined once in `TRICYCLE_SUBTYPES` (`tools/field_observer/field_observer/core.py`).

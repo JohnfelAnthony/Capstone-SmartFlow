@@ -90,6 +90,13 @@ class GUITests(unittest.TestCase):
                       "review_status": "corrected", "reviewer": "Synthetic reviewer", "note": "Retired subtype name"})
         self.assertEqual(retired.exception.code, 400)
         self.assertEqual(json.loads(retired.exception.read())["error"], "Unknown tricycle subtype.")
+        with self.assertRaises(HTTPError) as mismatch:
+            self.post("/api/review", {"event_id": vehicle["event_id"], "time_s": float(vehicle["time_s"]),
+                      "reviewed_class": "unknown", "vehicle_subtype": "pedicab",
+                      "review_status": "accepted", "reviewer": "Synthetic reviewer"})
+        self.assertEqual(mismatch.exception.code, 400)
+        self.assertEqual(json.loads(mismatch.exception.read())["error"], "A tricycle subtype requires the tricycle class.")
+        self.assertIn(vehicle, self.service.events()["events"])  # rejected save leaves the event unchanged
         subtypes = iter(("pedicab", "bao_bao"))  # the demo's two vehicle events
         for row in rows:
             pedestrian = row["event_type"].startswith("pedestrian_")

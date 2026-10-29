@@ -254,8 +254,9 @@ class ObserverGUI:
             category = data.get("reviewed_class")
             is_vehicle = row["event_type"].startswith("vehicle_")
             require(category in CLASSES if is_vehicle else category == "person", "Choose the correct vehicle/person class.")
-            subtype = data.get("vehicle_subtype", "") if category == "tricycle" else ""
+            subtype = data.get("vehicle_subtype", "")
             require(subtype in ("", *TRICYCLE_SUBTYPES), "Unknown tricycle subtype.")
+            require(not subtype or category == "tricycle", "A tricycle subtype requires the tricycle class.")
             require(status != "corrected" or bool(data.get("note", "").strip()), "Describe the correction in the note.")
             episode = data.get("episode_id", "").strip() or row.get("episode_id") or row["event_id"]
             identifier(episode, "episode_id")
