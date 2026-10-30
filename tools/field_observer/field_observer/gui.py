@@ -391,7 +391,7 @@ def make_server(root: Path, port=0):
                     self.file_response(service.revision.parent / (service.revision.name + ".zip"), "application/zip", "field-observations.zip")
                 else:
                     self.json_response({"error": "Not found"}, 404)
-            except (BrokenPipeError, ConnectionResetError):
+            except ConnectionError:
                 pass
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.json_response({"error": str(exc)}, 400)
@@ -472,7 +472,7 @@ def make_server(root: Path, port=0):
                     else:
                         raise ValueError("Unknown action.")
                 self.json_response({"ok": True})
-            except (BrokenPipeError, ConnectionResetError):
+            except ConnectionError:
                 pass
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.json_response({"error": str(exc)}, 400)

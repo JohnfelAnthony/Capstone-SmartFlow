@@ -7,6 +7,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -132,6 +133,18 @@ class GUITests(unittest.TestCase):
                 self.post("/api/demo", {}, headers)
             self.assertEqual(error.exception.code, 400)
         self.assertIsNone(self.service.project)
+
+    def test_browser_cancelled_response_is_ignored_quietly(self):
+        # Windows raises ConnectionAbortedError when a video seek cancels a download.
+        handler = self.server.RequestHandlerClass
+        errors = []
+        with patch.object(handler, "json_response", side_effect=ConnectionAbortedError(10053, "aborted")), \
+             patch.object(self.server, "handle_error", side_effect=lambda *args: errors.append(args)):
+            with self.assertRaises(OSError):
+                urlopen(self.url + "/api/state", timeout=10)
+            with self.assertRaises(OSError):
+                self.post("/api/demo", {})
+        self.assertEqual(errors, [])
 
     def test_uploaded_invalid_media_has_clear_error_and_never_becomes_observed_counts(self):
         metadata = dict(name="broken.mp4", survey_id="S1", intersection_id="J1", collector="Tester", source_kind="synthetic")

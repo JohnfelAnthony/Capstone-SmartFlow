@@ -3,9 +3,11 @@
 > **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
 
 
-Updated: **2026-10-28** (Asia/Singapore). Scope: `SmartFlow` only. Documentation-review dates and application-verification dates are separate.
+Updated: **2026-10-30** (Asia/Singapore). Scope: `SmartFlow` only. Documentation-review dates and application-verification dates are separate.
 
 **Current status pointer:** the integrated native prototype includes canonical saved scenarios, timed disruptions/routing, selected-junction QL/DQL/PPO training and inference, recording/replay, reports, baseline-fit comparisons and shared 2D/3D presentation. October 24 adds consistent result interpretation and clearer research guidance, described next. The September 23 interruption was repaired; the October 21 adviser report and older backend/browser/standalone records retain their dates and scopes. Final site mapping, independent field audit and faithful conversion, baseline fidelity/calibration, independent validation, final comparative research and public hosting are not established by software checks.
+
+**October 30 — Field Observer: quiet cancelled downloads on Windows:** seeking in a playback video cancels the browser's current download, which Windows reports as `ConnectionAbortedError` (WinError 10053). The GUI server ignored only the Linux/macOS forms of a closed connection, so each seek printed a traceback in the server window; playback was unaffected. Both request handlers now ignore any `ConnectionError`. Verification: Field Observer suite, 39 passed (CPU environment); the new check failed before the change.
 
 **October 28 — Field Observer: subtype/class mismatch and README:** fixes from an outside review of the October 27 change.
 - **Silent loss fixed:** saving Pedicab or Bao-bao while *Reviewed class* was not `tricycle` reported success but stored no subtype. The review endpoint now rejects that with the visible error "A tricycle subtype requires the tricycle class." In the form, choosing a subtype sets the class to `tricycle`, and choosing another class clears the subtype. Export validation already rejected the mismatch.
