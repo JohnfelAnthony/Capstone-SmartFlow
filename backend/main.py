@@ -67,6 +67,7 @@ from backend.schemas import (
     SimulationConfigureRequest,
     SimulationRunListResponse,
     SimulationRunRecord,
+    SignalDesignRequest,
     SimulationStartRequest,
     SimulationSpeedRequest,
     SimulationStateResponse,
@@ -1990,6 +1991,29 @@ def native_configuration_options(network_id: str | None = None, user: dict = Dep
         return configuration_options(network_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/signal-design")
+def design_signal_plan(payload: SignalDesignRequest, user: dict = Depends(require_current_user)) -> dict:
+    """A provisional fixed-time plan from approach counts; the result is validated like any saved plan."""
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from dataclasses import asdict
+    from simulation.network_registry import load_registered_network
+    from simulation.scenario_config import DEFAULTS, validate_config
+    from simulation.signal_design import flows_from_counts, plan_from_result, saturation_from_network, webster_plan
+    try:
+        network = load_registered_network(payload.network_id)
+        junction = payload.junction or network.intersections[0]
+        saturation = saturation_from_network(network, junction)
+        base = payload.base_plan
+        limits = {key: base[key] for key in ("minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds") if key in base}
+        result = webster_plan(payload.phase_order, flows_from_counts(payload.approach_counts), saturation,
+                              pedestrian_green_seconds=payload.pedestrian_green_seconds, **limits)
+        plan = plan_from_result(result, base)
+        validate_config(DEFAULTS, {"signal_plans": {junction: plan}}, network)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"network_id": network.id, "junction": junction, "plan": plan, "result": asdict(result)}
 
 
 @app.get("/api/networks")

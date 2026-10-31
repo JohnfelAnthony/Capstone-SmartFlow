@@ -6,7 +6,7 @@ describe("controlLabel", () => {
     expect(controlLabel("no-signal")).toBe("No signal (first come, first served)")
   })
   it("keeps fixed-time and playback distinct", () => {
-    expect(controlLabel("fixed-time")).toBe("Fixed-time")
+    expect(controlLabel("fixed-time")).toBe("Traditional signal (fixed-time)")
     expect(controlLabel("playback")).toBe("Playback")
   })
   it("names RL by algorithm, with or without a model id", () => {

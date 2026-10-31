@@ -13,7 +13,7 @@ export function isRlControl(mode: string | null | undefined): boolean {
 export function controlLabel(mode: string | null | undefined): string {
   const value = String(mode || "unknown")
   if (value === "no-signal") return NO_SIGNAL_LABEL
-  if (value === "fixed-time") return "Fixed-time"
+  if (value === "fixed-time") return "Traditional signal (fixed-time)"
   if (value === "playback") return "Playback"
   if (isRlControl(value)) return `SmartFlow RL (${algorithmOf(value).toUpperCase()})`
   return value.replaceAll("-", " ")

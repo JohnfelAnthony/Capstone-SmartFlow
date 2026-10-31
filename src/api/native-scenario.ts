@@ -3,7 +3,10 @@ import type { VehicleMixPreset } from "@/lib/vehicle-mix"
 
 export type SignalPlan = {
   mode: "signalized" | "all_way_stop" | "first_come"
-  phase_order: string[]
+  /** Each item is an approach, "pedestrian", or a group of approaches that share a green. */
+  phase_order: (string | string[])[]
+  /** One green per phase_order item; absent means every phase uses green_seconds. */
+  phase_greens?: number[]
   green_seconds: number
   minimum_green: number
   maximum_green: number

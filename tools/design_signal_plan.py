@@ -32,7 +32,7 @@ def main(argv=None):
         result = webster_plan(phases, flows_from_counts(counts), saturation)
         output = {"network_id": network.id, "network_sha256": network.fingerprint, "junction": junction,
                   "result": asdict(result), "plan": plan_from_result(result, {}),
-                  "status": "provisional; grouped phase support and field validation are incomplete"}
+                  "status": "provisional; PCU factors and saturation flows are placeholders until the team cites sources"}
         print(json.dumps(output, indent=2, allow_nan=False))
     except (ValueError, KeyError, OSError, TypeError) as exc:
         print(f"Signal design: {exc}", file=sys.stderr)

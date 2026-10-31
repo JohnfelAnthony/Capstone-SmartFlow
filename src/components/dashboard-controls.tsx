@@ -27,7 +27,7 @@ const durationOptions = [
 const speedOptions = [0.25, 0.5, 1, 2, 4].map((value) => ({ value: String(value), label: `${value}×` }))
 const METHODS = [
   { value: "no-signal", label: "No signal", description: "Today" },
-  { value: "fixed-time", label: "Fixed-time", description: "Saved plan" },
+  { value: "fixed-time", label: "Traditional", description: "Fixed-time plan" },
   { value: "ql", label: "QL", description: "Tabular" },
   { value: "dql", label: "DQL", description: "Deep Q-Learning" },
   { value: "ppo", label: "PPO", description: "Policy gradient" },

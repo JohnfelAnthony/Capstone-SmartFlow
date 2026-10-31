@@ -485,7 +485,7 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId, onOpenResearch,
               onChange={(controlMode) => setFilters({ ...filters, controlMode })}
               options={[
                 { label: "All Control Modes", value: "all" },
-                { label: "Fixed-Time", value: "fixed-time" },
+                { label: controlLabel("fixed-time"), value: "fixed-time" },
                 { label: controlLabel("no-signal"), value: "no-signal" },
                 ...[...new Set(runs.map((run) => run.control_mode))].filter((mode) => !["fixed-time", "no-signal", "playback"].includes(mode))
                   .map((mode) => ({ label: formatMode(mode), value: mode })),
