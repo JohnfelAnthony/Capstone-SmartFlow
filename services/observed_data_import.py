@@ -66,7 +66,7 @@ def _bin(row: dict, row_number: int) -> tuple[float, float]:
 def import_observations(*, kind: str, csv_text: str, source_description: str, source_kind: str = "synthetic",
                         collected_on: str, engine_config: dict | None = None,
                         collection_start: str | None = None, collection_end: str | None = None,
-                        network_id: str | None = None) -> dict:
+                        network_id: str | None = None, provenance: dict | None = None) -> dict:
     """Validate every row and the complete scenario before retaining source bytes."""
     description = source_description.strip() if isinstance(source_description, str) else ""
     if not description or len(description) > 500:
@@ -157,6 +157,7 @@ def import_observations(*, kind: str, csv_text: str, source_description: str, so
         "row_count": len(rows), "arrival_count": len(trips) + len(pedestrian_trips),
         "source_path": str(IMPORT_DIRECTORY / f"{digest}.csv"),
         **normalized_observation_identity(kind, csv_text), **period,
+        **({"provenance": provenance} if provenance is not None else {}),
     }
     candidate = dict(engine_config or {})
     if kind == "pedestrian_counts":
