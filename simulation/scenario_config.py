@@ -159,8 +159,8 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             raise ValueError("Unknown signal junction")
         if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds", "maximum_red_seconds", "pedestrian_phase"}:
             raise ValueError("Unknown signal plan field")
-        if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop"}:
-            raise ValueError("Signal mode must be signalized or all_way_stop")
+        if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop", "first_come"}:
+            raise ValueError("Signal mode must be signalized, all_way_stop or first_come")
         if plan.get("pedestrian_phase", DEFAULT_PEDESTRIAN_PHASE) not in PEDESTRIAN_PHASE_RULES:
             raise ValueError("pedestrian_phase must be on_call or every_cycle")
         available = {network.lanes[lane].approach for lane in network.incoming[node]} | {"pedestrian"}

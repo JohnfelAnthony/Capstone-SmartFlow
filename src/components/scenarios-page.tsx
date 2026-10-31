@@ -31,7 +31,7 @@ import {
 } from "@/api/scenarios"
 import { configureSimulation, generateTimeline, startSimulation } from "@/api/simulation"
 import { listRLModels, type RLModelRecord } from "@/api/rl"
-import { downloadObservationTemplate, getNativeScenarioOptions, importObservationCsv, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions } from "@/api/native-scenario"
+import { downloadObservationTemplate, getNativeScenarioOptions, importObservationCsv, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
 import { NativeNumber, NativeScenarioControls, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -273,6 +273,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
   const [editingScenarioId, setEditingScenarioId] = React.useState<number | null>(null)
   const [draft, setDraft] = React.useState<ScenarioDraft>(emptyScenarioDraft)
   const [nativeOptions, setNativeOptions] = React.useState<NativeScenarioOptions | null>(null)
+  const [networks, setNetworks] = React.useState<NetworkSummary[]>([])
   const [formError, setFormError] = React.useState("")
   const [importKind, setImportKind] = React.useState<"trips" | "od_counts" | "turn_counts" | "pedestrian_counts">("trips")
   const [importSourceKind, setImportSourceKind] = React.useState<"synthetic" | "observed">("synthetic")
@@ -290,7 +291,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
 
   React.useEffect(() => {
     let mounted = true
-    getNativeScenarioOptions().then((options) => { if (mounted) setNativeOptions(options) })
+    Promise.all([getNativeScenarioOptions(), listNetworks()]).then(([options, available]) => { if (mounted) { setNativeOptions(options); setNetworks(available) } })
       .catch((error) => { if (mounted) setNotice(error instanceof Error ? error.message : "Unable to load network choices.") })
     return () => { mounted = false }
   }, [])
@@ -383,14 +384,39 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     }
     setIsResolving(true)
     try {
-      const result = await resolveNativeScenario(scenario.id)
+      const [result, options] = await Promise.all([resolveNativeScenario(scenario.id), getNativeScenarioOptions(scenario.intersectionId)])
       if (request !== editRequest.current) return
+      setNativeOptions(options)
       setDraft((current) => ({ ...current, engineConfig: result.engine_config,
         trafficDensity: normalizeDensity(String(result.engine_config.traffic_density)),
         pedestrianDensity: String(result.engine_config.pedestrian_density) }))
       setEditConfigReady(true)
     } catch (error) {
       if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load native settings.")
+    } finally {
+      if (request === editRequest.current) setIsResolving(false)
+    }
+  }
+
+  async function changeNetwork(networkId: string) {
+    if (networkId === draft.intersectionId) return
+    const request = ++editRequest.current
+    setIsResolving(true)
+    setEditConfigReady(false)
+    setFormError("")
+    try {
+      const options = await getNativeScenarioOptions(networkId)
+      if (request !== editRequest.current) return
+      setNativeOptions(options)
+      setDraft((current) => ({ ...current, intersectionId: options.network_id,
+        engineConfig: structuredClone(options.defaults),
+        trafficDensity: normalizeDensity(String(options.defaults.traffic_density)),
+        pedestrianDensity: String(options.defaults.pedestrian_density) }))
+      setImportFile(null)
+      setImportNotice("")
+      setEditConfigReady(true)
+    } catch (error) {
+      if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load that network.")
     } finally {
       if (request === editRequest.current) setIsResolving(false)
     }
@@ -429,7 +455,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     setIsDownloadingTemplate(true)
     setFormError("")
     try {
-      const result = await downloadObservationTemplate(importKind, example)
+      const result = await downloadObservationTemplate(importKind, example, draft.intersectionId)
       if (example) {
         setImportSourceKind("synthetic")
         setImportDescription(`Synthetic ${importKind} example for ${result.network_id}; no field observations`)
@@ -453,7 +479,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     try {
       const response = await importObservationCsv({
         kind: importKind, source_kind: importSourceKind, csv_text: await importFile.text(),
-        source_description: importDescription, collected_on: importDate, engine_config: draft.engineConfig,
+        source_description: importDescription, collected_on: importDate, engine_config: draft.engineConfig, network_id: draft.intersectionId,
         collection_start: importSourceKind === "observed" ? importCollectionStart || undefined : undefined,
         collection_end: importSourceKind === "observed" ? importCollectionEnd || undefined : undefined,
       })
@@ -761,7 +787,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
                 <textarea id="scenario-description" className="scenario-textarea" maxLength={2000} value={draft.description}
                   onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
               </Field>
-              <p className="text-sm text-muted-foreground">{nativeOptions?.network_name ?? "Loading road network..."}. This network is provisional; demand is synthetic unless identified otherwise.</p>
+              <NativeSelect label="Study network" value={draft.intersectionId} options={networks.map((network) => ({ value: network.id, label: network.id === "tagum_network" ? `Provisional ${network.junctions}-junction network` : network.name }))} disabled={isResolving || isSaving} onChange={(value) => void changeNetwork(value)} />
+              <p className="text-sm text-muted-foreground">Changing the network resets the draft's lane, signal and demand settings to that network's defaults. Site geometry is provisional; demand is synthetic unless identified otherwise.</p>
               <FieldGroup className="grid sm:grid-cols-2">
                 <NativeSelect label="Traffic density" value={draft.trafficDensity.toLowerCase()}
                   options={["None", "Single", "Low", "Medium", "High", "Very High"].map((label) => ({ label, value: label.toLowerCase() }))}

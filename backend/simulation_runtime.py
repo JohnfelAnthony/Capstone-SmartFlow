@@ -70,11 +70,17 @@ class SimulationRuntime:
             if self._engine is not None and self._engine.status in {"running", "paused"}:
                 raise SimulationRuntimeError("Stop or reset the current run before changing scenario settings.")
             candidate_seed = self._seed if payload.seed is None else int(payload.seed)
-            candidate = TrafficEngine(seed=candidate_seed)
+            scenario = self._scenario_from_request(payload.scenario_id)
+            if scenario:
+                from simulation.network_registry import load_registered_network
+                candidate = TrafficEngine(seed=candidate_seed, network=load_registered_network(scenario.get("network_id")))
+            elif isinstance(self._engine, TrafficEngine):
+                candidate = TrafficEngine(seed=candidate_seed, network=self._engine.network)
+            else:
+                candidate = TrafficEngine(seed=candidate_seed)
             if isinstance(self._engine, TrafficEngine) and payload.scenario_id is None:
                 candidate.configure(**self._engine.config)
                 candidate.current_scenario_name = self._engine.current_scenario_name
-            scenario = self._scenario_from_request(payload.scenario_id)
             if scenario:
                 candidate.configure_from_scenario(self._engine_scenario_payload(scenario))
             overrides = self._configure_overrides(payload)

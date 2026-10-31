@@ -51,7 +51,7 @@ def resolve_legacy_scenario(scenario: dict, network=None) -> tuple[dict, list[st
     return {'network_id': network.id, 'engine_config': copy.deepcopy(engine.config)}, warnings
 
 
-def migration_report(rows, network=None) -> dict:
+def migration_report(rows, network=None, registry_path=None) -> dict:
     network = network or load_network()
     results = []
     for row in rows:
@@ -59,7 +59,10 @@ def migration_report(rows, network=None) -> dict:
         try:
             if original.get('network_id'):
                 from simulation.traffic_engine import TrafficEngine
-                engine = TrafficEngine(network=network)
+                from simulation.network_registry import load_registered_network
+                registry_args = {'registry_path': registry_path} if registry_path is not None else {}
+                scenario_network = network if original['network_id'] == network.id else load_registered_network(original['network_id'], **registry_args)
+                engine = TrafficEngine(network=scenario_network)
                 engine.configure_from_scenario(original)
                 resolved = {'network_id': original['network_id'], 'engine_config': engine.config}
                 status, warnings = 'unchanged', []
@@ -68,17 +71,17 @@ def migration_report(rows, network=None) -> dict:
                 status = 'ready'
             results.append({'id': original.get('id'), 'status': status, 'source': original,
                             'resolved': resolved, 'warnings': warnings, 'error': None})
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError, OSError) as exc:
             results.append({'id': original.get('id'), 'status': 'blocked', 'source': original,
                             'resolved': None, 'warnings': [], 'error': str(exc)})
     return {'migration_version': MIGRATION_VERSION, 'network_id': network.id,
             'network_sha256': network.fingerprint, 'scenarios': results}
 
 
-def migrate_connection(conn, *, apply=False, network=None) -> dict:
+def migrate_connection(conn, *, apply=False, network=None, registry_path=None) -> dict:
     """Caller owns the transaction. Dry runs perform SELECT only."""
     rows = [dict(row) for row in conn.execute('SELECT * FROM scenarios ORDER BY id')]
-    report = migration_report(rows, network)
+    report = migration_report(rows, network, registry_path=registry_path)
     if apply:
         columns = {row['name'] for row in conn.execute('PRAGMA table_info(scenarios)')}
         if 'network_id' not in columns:
@@ -102,11 +105,13 @@ def native_snapshot(scenario: dict) -> dict:
         # Produce the specific error where possible; otherwise require the upgrade.
         resolve_legacy_scenario(scenario)
         raise ValueError('Scenario needs native migration before execution.')
+    from simulation.network_registry import load_registered_network
     from simulation.traffic_engine import TrafficEngine
-    engine = TrafficEngine()
+    engine = TrafficEngine(network=load_registered_network(scenario['network_id']))
     engine.configure_from_scenario(scenario)
     return {'id': scenario.get('id'), 'name': scenario.get('name', ''),
             'intersection_id': scenario['network_id'],
+            'network_id': scenario['network_id'], 'network_sha256': engine.network.fingerprint,
             'engine_config': copy.deepcopy(engine.config)}
 
 

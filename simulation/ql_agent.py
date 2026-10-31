@@ -129,13 +129,16 @@ class TabularQLearningAgent:
 
     def to_artifact(self, *, metadata: dict | None = None) -> dict:
         from .model_contract import native_contract
+        from .network_registry import load_registered_network
+        scenario = (metadata or {}).get("scenario", {})
+        network = load_registered_network(scenario.get("network_id")) if isinstance(scenario, dict) and scenario.get("network_id") else None
         return {
             "algorithm": "ql",
             "artifact_type": "tabular_q_table",
             "action_count": self.action_count,
             "config": asdict(self.config),
             "epsilon": round(float(self.epsilon), 8),
-            "metadata": {**(metadata or {}), "native_contract": native_contract()},
+            "metadata": {**(metadata or {}), "native_contract": native_contract(network)},
             "q_table": [
                 {
                     "state": list(state),
@@ -170,10 +173,10 @@ class TabularQLearningAgent:
         return output_path
 
     @classmethod
-    def load(cls, path: str | Path) -> "TabularQLearningAgent":
+    def load(cls, path: str | Path, network=None) -> "TabularQLearningAgent":
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         from .model_contract import validate_metadata
-        validate_metadata(payload.get("metadata", {}))
+        validate_metadata(payload.get("metadata", {}), network)
         return cls.from_artifact(payload)
 
     @property
