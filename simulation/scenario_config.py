@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -64,6 +65,49 @@ def number(value, label, minimum=0.0, maximum=86400.0):
     return result
 
 
+# Per-site physical calibration (design 0.15). Absent means these defaults; the engine resolves it per instance and
+# never edits shared constants. The first two apply only to first-come junctions; the turn speed and class factors
+# apply to every condition so the three conditions share one frozen physical model.
+SITE_CALIBRATION_DEFAULTS = {"first_come_approach_speed_mps": 4.0, "approach_zone_m": 30.0, "turn_speed_mps": 5.0}
+SITE_CALIBRATION_BOUNDS = {"first_come_approach_speed_mps": (0.1, 30.0), "approach_zone_m": (5.0, 200.0), "turn_speed_mps": (0.5, 30.0)}
+CLASS_SPEED_FACTOR_BOUNDS = (0.1, 2.0)
+SITE_CALIBRATION_FIELDS = {"schema_version", "network_id", "class_speed_factors", *SITE_CALIBRATION_DEFAULTS}
+
+
+def default_class_speed_factors() -> dict:
+    return {name: spec["speed_factor"] for name, spec in VEHICLE_TYPES.items()}
+
+
+def resolve_site_calibration(value, network_id: str) -> dict:
+    """The complete, validated calibration for one site; defaults fill an absent object."""
+    if value is None:
+        return {"schema_version": 1, "network_id": network_id, **SITE_CALIBRATION_DEFAULTS, "class_speed_factors": default_class_speed_factors()}
+    if not isinstance(value, dict):
+        raise ValueError("site_calibration must be an object")
+    unknown = value.keys() - SITE_CALIBRATION_FIELDS
+    if unknown:
+        raise ValueError(f"Unknown site_calibration fields: {', '.join(sorted(unknown))}")
+    if value.get("schema_version") != 1:
+        raise ValueError("site_calibration schema_version must be 1")
+    if value.get("network_id") != network_id:
+        raise ValueError(f"site_calibration was made for another site ({value.get('network_id')!r}), not '{network_id}'")
+    resolved = {"schema_version": 1, "network_id": network_id}
+    for name, (low, high) in SITE_CALIBRATION_BOUNDS.items():
+        if name not in value:
+            raise ValueError(f"site_calibration needs {name}")
+        resolved[name] = number(value[name], name, low, high)
+    factors = value.get("class_speed_factors")
+    if not isinstance(factors, dict) or set(factors) != set(VEHICLE_TYPES):
+        raise ValueError(f"class_speed_factors must give all five classes: {', '.join(VEHICLE_TYPES)}")
+    resolved["class_speed_factors"] = {name: number(factors[name], f"class_speed_factors {name}", *CLASS_SPEED_FACTOR_BOUNDS) for name in VEHICLE_TYPES}
+    return resolved
+
+
+def site_calibration_sha256(resolved: dict) -> str:
+    """Hash of the resolved values, so a default and the same values saved explicitly are one identity."""
+    return hashlib.sha256(json.dumps(resolved, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
 def object_config(value, label):
     """Decode persisted JSON without treating null/false/arrays as empty settings."""
     if isinstance(value, str):
@@ -98,7 +142,7 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Engine settings must be an object with named fields")
     result = normalize_vehicle_scope(current)
     settings = normalize_vehicle_scope(settings)
-    unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id"})
+    unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id", "site_calibration"})
     if unknown:
         raise ValueError(f"Unknown engine settings: {', '.join(sorted(unknown))}")
     result.update(copy.deepcopy(settings))
@@ -115,6 +159,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Signal plans must be objects")
     if any(not isinstance(lane, str) for lane in result["closed_lanes"]):
         raise ValueError("Closed lanes must contain lane IDs")
+    if result.get("site_calibration") is None:
+        result.pop("site_calibration", None)
+    else:
+        result["site_calibration"] = resolve_site_calibration(result["site_calibration"], network.id)
     requested = result.pop("intersection_id", network.id)
     if not isinstance(requested, str) or requested != network.id:
         raise ValueError("Unknown road network")

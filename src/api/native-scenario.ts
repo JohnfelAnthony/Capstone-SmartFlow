@@ -24,6 +24,16 @@ export type LaneEvent = {
   label?: string
 }
 
+/** Per-site physical calibration (design 0.15). Absent means the engine defaults; the complete object is kept through save and edit. */
+export type SiteCalibration = {
+  schema_version: 1
+  network_id: string
+  first_come_approach_speed_mps: number
+  approach_zone_m: number
+  turn_speed_mps: number
+  class_speed_factors: Record<"car" | "motorcycle" | "tricycle" | "bus" | "truck", number>
+}
+
 export type NativeScenarioConfig = {
   traffic_density?: string
   pedestrian_density?: string
@@ -38,6 +48,7 @@ export type NativeScenarioConfig = {
   reroute_improvement?: number
   demand_source?: { kind: "synthetic" | "observed"; description?: string }
   vehicle_mix?: Record<string, number>
+  site_calibration?: SiteCalibration
   [setting: string]: unknown
 }
 

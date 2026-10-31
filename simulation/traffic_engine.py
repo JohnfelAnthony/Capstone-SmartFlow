@@ -12,7 +12,8 @@ import random
 from dataclasses import dataclass
 from functools import lru_cache
 
-from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
+from .scenario_config import (DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, SITE_CALIBRATION_DEFAULTS, VEHICLE_TYPES, effective_maximum_red,
+                              fixed_red_seconds, number, object_config, resolve_site_calibration, site_calibration_sha256, validate_config)
 from .demand import Arrival, build_schedule, schedule_hash
 from .footprints import rectangle, rectangles_overlap
 from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, KEEPING_WEIGHT_PER_M, LANE_KEEPING_CLASSES, LATERAL_DECISION_TICKS,
@@ -45,7 +46,7 @@ STUCK_IN_JUNCTION_SECONDS = 30.0
 GRIDLOCK_SECONDS = 60.0
 # Turning speed through a junction and the straight-ahead tolerance; both are calibration parameters.
 # shortcut: fixed constants until field discharge headways exist, then move them into the scenario config.
-TURN_SPEED_MPS = 5.0
+TURN_SPEED_MPS = SITE_CALIBRATION_DEFAULTS["turn_speed_mps"]
 THROUGH_ANGLE_DEGREES = 30.0
 COMFORTABLE_DECELERATION = 2.0
 TIME_HEADWAY = 1.2
@@ -173,8 +174,9 @@ class Pedestrian:
 
 SPAWN_OCCUPANCY_PENDING = object()
 TAN_MAX_YAW = math.tan(math.radians(MAX_YAW_DEGREES))
-APPROACH_ZONE_M = 30.0  # Provisional: calibrate from reviewed site observations.
-FIRST_COME_APPROACH_SPEED_MPS = 4.0  # Provisional: calibrate from unimpeded site observations.
+# Provisional defaults; a site overrides them through engine_config.site_calibration, never by editing these.
+APPROACH_ZONE_M = SITE_CALIBRATION_DEFAULTS["approach_zone_m"]
+FIRST_COME_APPROACH_SPEED_MPS = SITE_CALIBRATION_DEFAULTS["first_come_approach_speed_mps"]
 
 
 @lru_cache(maxsize=8192)
@@ -215,6 +217,7 @@ class TrafficEngine:
         self.controller_provenance_label = self.control_mode_label = "Fixed-Time (Python)"
         self.duration_limit = 300
         self.config = validate_config(DEFAULTS, {}, self.network)
+        self.site_calibration = resolve_site_calibration(None, self.network.id)
         self.runtime_policy = None
         self._turn_angle_cache: dict[tuple[str, str], float] = {}
         # 0 turns per-driver variation off (class values only); kept across configure().
@@ -327,6 +330,7 @@ class TrafficEngine:
         candidate = validate_config(self.config, settings, self.network)
         arrivals = build_schedule(candidate, self.network, self.seed, self.duration_limit)
         self.config = candidate
+        self.site_calibration = resolve_site_calibration(candidate.get("site_calibration"), self.network.id)
         for key in ("traffic_density", "pedestrian_density", "green_seconds", "controlled_junction"):
             setattr(self, key, candidate[key])
         self._reset_state(arrivals=arrivals)
@@ -450,7 +454,7 @@ class TrafficEngine:
                           vehicle_type=vehicle_type,
                           requested_at=self.simulation_time if requested_at is None else requested_at, **spec)
         profile = sample_driver(vehicle_type, self.driver_random, self.driver_variation_scale)
-        vehicle.speed_factor = spec["speed_factor"]*profile.speed_multiplier
+        vehicle.speed_factor = self.site_calibration["class_speed_factors"][vehicle_type]*profile.speed_multiplier
         vehicle.time_headway, vehicle.minimum_gap = profile.time_headway, profile.minimum_gap
         vehicle.max_acceleration, vehicle.max_lateral_speed = profile.max_acceleration, profile.max_lateral_speed
         vehicle.lateral = vehicle.lateral_target = lateral
@@ -744,7 +748,7 @@ class TrafficEngine:
         """Through movements keep road speed; turns slow to the turning speed."""
         entry, exit_lane = self.network.lanes[incoming], self.network.lanes[outgoing]
         turn = abs(self._turn_angle(incoming, outgoing))
-        return min(entry.speed, exit_lane.speed) if turn <= THROUGH_ANGLE_DEGREES else TURN_SPEED_MPS
+        return min(entry.speed, exit_lane.speed) if turn <= THROUGH_ANGLE_DEGREES else self.site_calibration["turn_speed_mps"]
 
     def _progress(self, vehicle: Vehicle) -> float:
         """Distance past the stop line along the vehicle's path; larger is further along."""
@@ -1434,7 +1438,7 @@ class TrafficEngine:
         desired_speed = lane.speed*self.slow_lanes.get(lane.id, 1.0)*vehicle.speed_factor
         if (lane.target in self.signals and self.signals[lane.target].mode == "first_come"
                 and vehicle.reserved_junction != lane.target and vehicle.approach_arrival is not None):
-            desired_speed = min(desired_speed, FIRST_COME_APPROACH_SPEED_MPS)
+            desired_speed = min(desired_speed, self.site_calibration["first_come_approach_speed_mps"])
         if vehicle.reserved_junction == lane.target:
             desired_speed = min(desired_speed, self._movement_speed(lane.id, vehicle.route[1])*vehicle.speed_factor)
         travel = self._advance(vehicle, obstacle-vehicle.position, leader_speed, desired_speed)
@@ -1489,7 +1493,7 @@ class TrafficEngine:
                 if (vehicle.connector is None and len(vehicle.route) > 1 and vehicle.reserved_junction is None
                         and lane.target in self.signals and self.signals[lane.target].mode == "first_come"
                         and vehicle.approach_arrival is None
-                        and self.stop_line(lane.id) - (vehicle.position + vehicle.length/2) <= APPROACH_ZONE_M):
+                        and self.stop_line(lane.id) - (vehicle.position + vehicle.length/2) <= self.site_calibration["approach_zone_m"]):
                     vehicle.approach_arrival = self.simulation_time
             # Front vehicles move first; followers are capped against the updated leader.
             self._build_tick_index()
@@ -1795,6 +1799,7 @@ class TrafficEngine:
                 "duration_seconds": self.duration_limit, "step_length": STEP_LENGTH,
                 "measurement_start": self.measurement_start, "controller": self.controller_provenance,
                 "demand_sha256": self.demand_fingerprint, "config": copy.deepcopy(self.config),
+                "site_calibration_sha256": site_calibration_sha256(self.site_calibration),
                 "policy": copy.deepcopy(getattr(self.runtime_policy, "artifact_metadata", None)),
                 "control": {"decision_interval": self.rl_decision_interval if self.rl_control_enabled else None,
                             "minimum_green_hold": self.rl_minimum_green_hold if self.rl_control_enabled else None,
