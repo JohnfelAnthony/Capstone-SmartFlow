@@ -1,0 +1,318 @@
+{
+  "id": "tagum_site_a",
+  "version": 1,
+  "name": "Site A — Capitol Circumferential Rd × Dalisay Gante Rd",
+  "source": {
+    "provider": "OpenStreetMap",
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "bbox": [
+      7.457695,
+      125.798543,
+      7.46578,
+      125.806697
+    ],
+    "downloaded_at": "2026-10-31T07:13:35.991106+00:00",
+    "query": "[out:json][timeout:35];way[\"highway\"~\"^(trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street)$\"](7.457695,125.798543,7.465780,125.806697);(._;>;);out body;",
+    "origin": {
+      "lat": 7.4617375,
+      "lon": 125.8026196
+    },
+    "projection": "local equirectangular, metres; study area only",
+    "assumptions": [
+      "Lane counts from OSM lanes tags; carriageway widths need field measurement",
+      "30 km/h study speed; not a verified posted limit",
+      "Driveways, service roads and minor side streets along approaches are not modelled",
+      "No traffic signal exists today; signal plans are proposals",
+      "Approach length 250 m per leg unless field queue reach needs more",
+      "Synthetic demand until Field Observer counts are imported"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "tagum_site_a_j",
+      "x": 0,
+      "y": 0,
+      "lat": 7.4617375,
+      "lon": 125.8026196,
+      "boundary": false
+    },
+    {
+      "id": "boundary_0",
+      "x": 3.3293317303241743,
+      "y": -134.49835502324288,
+      "boundary": true
+    },
+    {
+      "id": "boundary_1",
+      "x": 8.469436515992943,
+      "y": 214.37773260178344,
+      "boundary": true
+    },
+    {
+      "id": "boundary_2",
+      "x": -249.57889216765372,
+      "y": 14.168628851301683,
+      "boundary": true
+    },
+    {
+      "id": "boundary_3",
+      "x": 249.93917327948043,
+      "y": 0.6840036257571019,
+      "boundary": true
+    }
+  ],
+  "roads": [
+    {
+      "id": "road0",
+      "source": "tagum_site_a_j",
+      "target": "boundary_0",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.662,
+          -20.783
+        ],
+        [
+          5.32,
+          -71.534
+        ],
+        [
+          3.329,
+          -134.498
+        ]
+      ],
+      "oneway": false,
+      "name": "Dalisay Gante Road",
+      "osm_way_id": 180968793,
+      "osm_node_ids": [
+        1204232054,
+        1402951601,
+        8084054732,
+        1217544595
+      ],
+      "osm_tags": {
+        "alt_name": "Dalisay Gante Avenue",
+        "highway": "secondary",
+        "lane_markings": "no",
+        "lanes": "4",
+        "name": "Dalisay Gante Road",
+        "old_name": "Doña Regina Dalisay Avenue",
+        "short_name": "Gante Road",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road1",
+      "source": "tagum_site_a_j",
+      "target": "boundary_1",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          6.214,
+          67.282
+        ],
+        [
+          6.932,
+          114.025
+        ],
+        [
+          8.035,
+          185.826
+        ],
+        [
+          8.466,
+          214.146
+        ],
+        [
+          8.469,
+          214.378
+        ]
+      ],
+      "oneway": false,
+      "name": "Dalisay Gante Road",
+      "osm_way_id": 1225836056,
+      "osm_node_ids": [
+        1204232054,
+        1402951602,
+        6883729067,
+        14273132698,
+        14273132700,
+        1387566832
+      ],
+      "osm_tags": {
+        "alt_name": "Dalisay Gante Avenue",
+        "highway": "secondary",
+        "lane_markings": "no",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Dalisay Gante Road",
+        "old_name": "Doña Regina Dalisay Avenue",
+        "short_name": "Gante Road",
+        "source:maxspeed": "PH:urban",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road2",
+      "source": "tagum_site_a_j",
+      "target": "boundary_2",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -48.279,
+          1.514
+        ],
+        [
+          -178.458,
+          9.707
+        ],
+        [
+          -225.722,
+          12.668
+        ],
+        [
+          -249.579,
+          14.169
+        ]
+      ],
+      "oneway": false,
+      "name": "Capitol Circumferential Road",
+      "osm_way_id": 1225667612,
+      "osm_node_ids": [
+        1204232054,
+        7116314099,
+        7116314126,
+        1387566813,
+        7883137505,
+        1282385603
+      ],
+      "osm_tags": {
+        "designation": "national_secondary_road",
+        "highway": "secondary",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Capitol Circumferential Road",
+        "oneway": "no",
+        "ref": "908",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road3",
+      "source": "tagum_site_a_j",
+      "target": "boundary_3",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          60.498,
+          -2.137
+        ],
+        [
+          129.782,
+          -0.968
+        ],
+        [
+          222.752,
+          0.59
+        ],
+        [
+          249.939,
+          0.684
+        ]
+      ],
+      "oneway": false,
+      "name": "Capitol Circumferential Road",
+      "osm_way_id": 841643191,
+      "osm_node_ids": [
+        1204232054,
+        8084054726,
+        8083312417,
+        8084050714,
+        8084050703,
+        7022866601,
+        11366390846,
+        1204194058,
+        1282385602,
+        1909958925,
+        11366390845,
+        5626002031,
+        1204193047,
+        11366390844,
+        14245700347,
+        14245700353,
+        11366390843,
+        7022873285,
+        14245700350,
+        1204194646,
+        1914143894,
+        1282385600,
+        1914143895,
+        1204193629,
+        8083226760,
+        11366390842,
+        11366390841,
+        8137260641,
+        8137260646,
+        7022868508,
+        11366390840,
+        1204194413,
+        1909958956,
+        7879012462,
+        8442719187,
+        1217579813,
+        8442719188,
+        1527897655,
+        7879040814,
+        1204193320,
+        8083740710,
+        6831771345,
+        1204193983,
+        11366390847,
+        6612848154,
+        7128019344,
+        11366390848,
+        8083868426,
+        11366390849,
+        14273163705,
+        1204194077,
+        14273163702,
+        11366390851,
+        1282336126,
+        11366390850,
+        7330733251
+      ],
+      "osm_tags": {
+        "cycleway:both": "lane",
+        "cycleway:lane": "advisory",
+        "designation": "national_secondary_road",
+        "highway": "secondary",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Capitol Circumferential Road",
+        "ref": "908",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    }
+  ]
+}

@@ -1,0 +1,519 @@
+{
+  "id": "tagum_site_b",
+  "version": 1,
+  "name": "Site B — National Highway × Sobrecarey St / Dao St",
+  "source": {
+    "provider": "OpenStreetMap",
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "bbox": [
+      7.434222,
+      125.798481,
+      7.442307,
+      125.806634
+    ],
+    "downloaded_at": "2026-10-31T07:13:33.802365+00:00",
+    "query": "[out:json][timeout:35];way[\"highway\"~\"^(trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street)$\"](7.434222,125.798481,7.442307,125.806634);(._;>;);out body;",
+    "origin": {
+      "lat": 7.4382646,
+      "lon": 125.8025576
+    },
+    "projection": "local equirectangular, metres; study area only",
+    "assumptions": [
+      "Lane counts from OSM lanes tags; carriageway widths need field measurement",
+      "30 km/h study speed; not a verified posted limit",
+      "Driveways, service roads and minor side streets along approaches are not modelled",
+      "No traffic signal exists today; signal plans are proposals",
+      "Approach length 250 m per leg unless field queue reach needs more",
+      "Synthetic demand until Field Observer counts are imported",
+      "Median crossing modelled as one movement; pending field check"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "tagum_site_b_j",
+      "x": 0,
+      "y": 0,
+      "lat": 7.4382646,
+      "lon": 125.8025576,
+      "boundary": false
+    },
+    {
+      "id": "boundary_0",
+      "x": 211.35123262526943,
+      "y": -128.30407354954573,
+      "boundary": true
+    },
+    {
+      "id": "boundary_1",
+      "x": 112.39786503637905,
+      "y": 135.85152014779757,
+      "boundary": true
+    },
+    {
+      "id": "boundary_2",
+      "x": -149.00442413093003,
+      "y": -199.84377676351264,
+      "boundary": true
+    },
+    {
+      "id": "boundary_3",
+      "x": -4.24377430619649,
+      "y": 249.85813225414466,
+      "boundary": true
+    },
+    {
+      "id": "boundary_4",
+      "x": 105.57531371446139,
+      "y": 141.18692742254692,
+      "boundary": true
+    },
+    {
+      "id": "boundary_5",
+      "x": -156.09591634699248,
+      "y": -194.65753967842096,
+      "boundary": true
+    }
+  ],
+  "roads": [
+    {
+      "id": "road0",
+      "source": "tagum_site_b_j",
+      "target": "boundary_0",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          21.238,
+          -8.082
+        ],
+        [
+          42.707,
+          -25.036
+        ],
+        [
+          69.839,
+          -46.454
+        ],
+        [
+          73.736,
+          -49.537
+        ],
+        [
+          123.927,
+          -88.032
+        ],
+        [
+          141.611,
+          -100.255
+        ],
+        [
+          156.943,
+          -108.915
+        ],
+        [
+          169.372,
+          -115.339
+        ],
+        [
+          185.51,
+          -121.773
+        ],
+        [
+          201.184,
+          -126.037
+        ],
+        [
+          211.351,
+          -128.304
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        376307655,
+        1282359346,
+        13926712031,
+        13368396937,
+        1217597311,
+        1217597450,
+        10672313060,
+        13368346131,
+        1217597337,
+        1217597234,
+        10672313061,
+        13368346133,
+        1217597399,
+        1400710199,
+        13926712036,
+        10672313059,
+        1217597348,
+        13926712035,
+        1217597251,
+        10672313058,
+        13926712034,
+        1217597289,
+        1217597411,
+        13926712033,
+        1217597297,
+        1400710251,
+        1217597470,
+        13926712032,
+        1217597366,
+        1217597256
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road1",
+      "source": "tagum_site_b_j",
+      "target": "boundary_1",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          23.931,
+          23.188
+        ],
+        [
+          100.162,
+          120.237
+        ],
+        [
+          107.502,
+          129.599
+        ],
+        [
+          112.398,
+          135.852
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654495,
+      "osm_node_ids": [
+        376307655,
+        13188247938,
+        10654284247,
+        1217597437,
+        1115349256
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road2",
+      "source": "boundary_2",
+      "target": "tagum_site_b_j",
+      "shape": [
+        [
+          -149.004,
+          -199.844
+        ],
+        [
+          -109.92,
+          -149.414
+        ],
+        [
+          -41.824,
+          -62.862
+        ],
+        [
+          -37.354,
+          -57.185
+        ],
+        [
+          -5.232,
+          -14.55
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 678794201,
+      "osm_node_ids": [
+        1298045148,
+        13370437020,
+        1402935125,
+        349713207,
+        13370446089,
+        1400710201,
+        1402935115,
+        1400710226,
+        13370446086,
+        13188247942,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road3",
+      "source": "tagum_site_b_j",
+      "target": "boundary_3",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -2.164,
+          29.678
+        ],
+        [
+          -3.466,
+          47.133
+        ],
+        [
+          -3.974,
+          61.259
+        ],
+        [
+          -3.908,
+          84.581
+        ],
+        [
+          -3.598,
+          96.57
+        ],
+        [
+          -4.195,
+          231.601
+        ],
+        [
+          -4.244,
+          249.858
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        10654283970,
+        1527881952,
+        1217597489,
+        10654283971,
+        13368396935,
+        1402935126,
+        1402917759,
+        13368406191,
+        13368406186,
+        1402917762,
+        13368406185,
+        13368406183,
+        1402917769,
+        13368440607,
+        1304820545,
+        1217544585,
+        1304820512,
+        7467057869,
+        7467057874,
+        7467057871,
+        1217580078,
+        1217544603,
+        13368440604,
+        376306851,
+        13368440603,
+        13368258591,
+        1217544593,
+        13368479203,
+        13369855247
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road4",
+      "source": "boundary_4",
+      "target": "tagum_site_b_j",
+      "shape": [
+        [
+          105.575,
+          141.187
+        ],
+        [
+          100.603,
+          134.82
+        ],
+        [
+          93.252,
+          125.458
+        ],
+        [
+          17.242,
+          28.587
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654452,
+      "osm_node_ids": [
+        2918139396,
+        2918139395,
+        10654284248,
+        13188247937,
+        10654283970
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road5",
+      "source": "tagum_site_b_j",
+      "target": "boundary_5",
+      "shape": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -12.032,
+          -9.128
+        ],
+        [
+          -44.86,
+          -51.998
+        ],
+        [
+          -49.054,
+          -57.475
+        ],
+        [
+          -118.187,
+          -145.696
+        ],
+        [
+          -156.096,
+          -194.658
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 288252870,
+      "osm_node_ids": [
+        10654283970,
+        13188247941,
+        13370446087,
+        8107640302,
+        2918139394,
+        13370446088,
+        7041424675,
+        9153862744,
+        2918139393,
+        13370437021,
+        7983628096
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    }
+  ]
+}

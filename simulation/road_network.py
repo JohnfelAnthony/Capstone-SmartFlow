@@ -7,8 +7,9 @@ import hashlib
 import json
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
+from itertools import combinations
 from pathlib import Path
 
 NETWORK_ID = "tagum_network"
@@ -18,6 +19,29 @@ Point = tuple[float, float]
 LANE_WIDTH_M = 3.3
 JUNCTION_CLEARANCE_M = 9.0
 STOP_LINE_SETBACK_M = 1.5
+
+
+def assign_approach_names(headings: dict[str, float]) -> dict[str, str]:
+    """Assign distinct compass names while preserving the circular order of legs."""
+    names = ("west", "south", "east", "north")
+    if len(headings) > 4:
+        raise ValueError("At most four approaches are supported")
+    if any(not math.isfinite(heading) for heading in headings.values()):
+        raise ValueError("Approach headings must be finite")
+    rounded = {lane: names[round(heading / (math.pi / 2)) % 4] for lane, heading in headings.items()}
+    if len(set(rounded.values())) == len(rounded):
+        return rounded
+    ordered = sorted(headings, key=lambda lane: (headings[lane] % (2 * math.pi), lane))
+    candidates = []
+    for slots in combinations(range(4), len(ordered)):
+        for rotation in range(4):
+            indices = [(slot + rotation) % 4 for slot in slots]
+            error = sum(abs(math.atan2(math.sin(headings[lane] - index * math.pi / 2),
+                                       math.cos(headings[lane] - index * math.pi / 2)))
+                        for lane, index in zip(ordered, indices))
+            candidates.append((error, tuple(indices)))
+    chosen = min(candidates)[1]
+    return {lane: names[index] for lane, index in zip(ordered, chosen)}
 
 
 def lanes_per_direction(road: dict) -> int:
@@ -186,6 +210,14 @@ class RoadNetwork:
                 self.lanes[lane_id] = lane
                 self.outgoing[source].append(lane_id)
                 self.incoming[target].append(lane_id)
+        for node_id in self.intersections:
+            incoming = self.incoming[node_id]
+            if len(incoming) > 4:
+                raise ValueError(f"Junction {node_id} has {len(incoming)} approaches; SmartFlow supports at most four")
+            headings = {lane_id: sample(self.lanes[lane_id].shape, self.lanes[lane_id].length)[2]
+                        for lane_id in incoming}
+            for lane_id, approach in assign_approach_names(headings).items():
+                self.lanes[lane_id] = replace(self.lanes[lane_id], approach=approach)
         if not self.lanes or not self.intersections:
             raise ValueError("Network needs roads and intersections")
         self.boundaries = [node_id for node_id in self.nodes if self.nodes[node_id].get("boundary")]
