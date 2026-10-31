@@ -34,6 +34,7 @@ STOP_SETBACK_STEP_M = 0.1
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
 ENGINE_VERSION = "native-6"
+NO_SIGNAL_LABEL = "No signal (first come, first served)"
 RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
 CAR_LENGTH = 4.5
@@ -1707,7 +1708,7 @@ class TrafficEngine:
         self.disable_rl_control()
         self.no_signal_control = True
         self.controller_type, self.controller_provenance = "no_signal", "no-signal"
-        self.control_mode_label = self.controller_provenance_label = "No signal (first come, first served)"
+        self.control_mode_label = self.controller_provenance_label = NO_SIGNAL_LABEL
         for signal in self.signals.values():
             signal.mode = "first_come"
 

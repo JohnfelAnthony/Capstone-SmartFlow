@@ -27,6 +27,7 @@ import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
+import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { metricCatalog, metricEngineVersion, metricValue, savedExperiment } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
@@ -367,7 +368,7 @@ export function DashboardPage({
   const isIdle = !["running", "paused"].includes(simulation?.status ?? "") && simulation?.control_mode !== "playback"
   const laneStreets = React.useMemo(() => Object.fromEntries((nativeOptions?.lanes ?? []).map((lane) => [lane.id, lane.road_name])), [nativeOptions])
   const selectedModel = models.find((model) => `${model.algorithm.toLowerCase()}:${model.id}` === controlMode)
-  const controllerLabel = selectedModel ? `${selectedModel.algorithm} model #${selectedModel.id}` : "Fixed-time plan"
+  const controllerLabel = selectedModel ? `${selectedModel.algorithm} model #${selectedModel.id}` : controlMode === "no-signal" ? NO_SIGNAL_LABEL : "Fixed-time plan"
 
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">

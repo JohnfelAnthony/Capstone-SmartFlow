@@ -80,3 +80,11 @@ def test_no_signal_recording_persists_its_controller(tmp_path, monkeypatch):
     assert run["control_mode"] == "no-signal"
     manifest = json.loads((tmp_path / "run.manifest.json").read_text(encoding="utf-8"))
     assert manifest["experiment"]["control"]["junction_control"] == "first_come"
+    from simulation.timeline_engine import TimelinePlaybackEngine
+    from simulation.traffic_engine import NO_SIGNAL_LABEL
+    playback = TimelinePlaybackEngine(run_id, str(tmp_path / "run.jsonl.gz"))
+    assert playback.status != "error", playback.last_error
+    assert (playback.source_controller_provenance, playback.source_controller_label) == ("no-signal", NO_SIGNAL_LABEL)
+    frame = playback.to_dict()
+    assert {item["state"] for item in frame["traffic_lights"].values()} == {"n"}
+    assert {item["controller"] for item in frame["junction_controls"].values()} == {"no-signal"}

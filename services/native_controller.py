@@ -13,7 +13,7 @@ def apply_controller(engine, control_mode: str | None):
         return "fixed-time"
     algorithm, separator, model_id = mode.partition(":")
     if algorithm not in {"ql", "dql", "ppo"} or not separator or not model_id.isdigit():
-        raise ValueError("Use fixed-time or ql:<model_id>, dql:<model_id>, ppo:<model_id> with a registered native policy")
+        raise ValueError("Use no-signal, fixed-time or ql:<model_id>, dql:<model_id>, ppo:<model_id> with a registered native policy")
     record = database.get_rl_model_by_id(int(model_id))
     if not record or str(record["algorithm"]).lower() != algorithm or not record.get("checkpoint_path"):
         raise ValueError("Registered model not found or algorithm mismatch")
