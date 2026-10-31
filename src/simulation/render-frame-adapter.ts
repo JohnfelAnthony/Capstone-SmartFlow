@@ -94,7 +94,7 @@ export function mergeRenderFrame(simulation: SimulationStatePayload | null, fram
 }
 
 export function timingLabel(control: RenderFrame["junction_controls"][string] | undefined): string {
-  if (!control?.timing_kind || control.timing_kind === "none" || control.remaining_seconds == null) return control?.mode === "all_way_stop" ? "All-way stop · no timer" : "Timing unavailable"
+  if (!control?.timing_kind || control.timing_kind === "none" || control.remaining_seconds == null) return control?.mode === "first_come" ? "No signal · no timer" : control?.mode === "all_way_stop" ? "All-way stop · no timer" : "Timing unavailable"
   if (control.timing_kind === "minimum_hold" && control.remaining_seconds <= 0) return "Minimum hold satisfied"
   const label={fixed_stage:"Scheduled green remaining",minimum_hold:"Minimum hold remaining",clearance:"Clearance timer"}[control.timing_kind]
   return `${label}: ${control.remaining_seconds.toFixed(1)} s`

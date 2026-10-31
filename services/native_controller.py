@@ -4,7 +4,11 @@ import database
 
 def apply_controller(engine, control_mode: str | None):
     mode = str(control_mode or "fixed-time").strip().lower().replace("_", "-")
+    if mode == "no-signal":
+        engine.enable_no_signal_control()
+        return "no-signal"
     if mode in {"fixed-time", "fixed"}:
+        engine.disable_no_signal_control()
         engine.disable_rl_control()
         return "fixed-time"
     algorithm, separator, model_id = mode.partition(":")
@@ -14,8 +18,9 @@ def apply_controller(engine, control_mode: str | None):
     if not record or str(record["algorithm"]).lower() != algorithm or not record.get("checkpoint_path"):
         raise ValueError("Registered model not found or algorithm mismatch")
     from simulation.rl_policy_runtime import load_runtime_policy
-    policy = load_runtime_policy(algorithm, record["checkpoint_path"])
+    policy = load_runtime_policy(algorithm, record["checkpoint_path"], network=engine.network)
     policy.artifact_metadata["model_id"] = int(model_id)
+    engine.disable_no_signal_control()
     engine.set_runtime_policy(policy,
         decision_interval=policy.artifact_metadata["decision_interval_seconds"],
         minimum_green_hold=policy.artifact_metadata["minimum_green_hold_seconds"])

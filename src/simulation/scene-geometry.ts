@@ -296,6 +296,11 @@ type SignalFrame = {
   ew_state?: string
 }
 
+export function hasSignalHead(group: VisualSignalGroup & { junctionId?: string | null }, frame: SignalFrame | null): boolean {
+  return frame?.traffic_lights?.[group.signal_id]?.state !== "n" &&
+    !(group.junctionId && frame?.junction_controls?.[group.junctionId]?.mode === "first_come")
+}
+
 function canonicalSignalColor(state: string | undefined): SignalColor | null {
   const value = state?.toLowerCase()
   if (value === "g" || value === "green") return "green"

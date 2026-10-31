@@ -84,3 +84,12 @@ def fill_queue(engine, route, vehicle_type, count, ticks=600):
         engine.step(1)
     engine.step(ticks)
     return added
+
+
+def busy_engine(network, *, seed=7, density="high", **config):
+    """Seeded background demand with the provisional Tagum mix and light pedestrians, started for 1,800 s."""
+    from simulation.scenario_config import TAGUM_PROVISIONAL_MIX
+    engine = TrafficEngine(seed=seed, network=network)
+    engine.configure(traffic_density=density, pedestrian_density="low", vehicle_mix=TAGUM_PROVISIONAL_MIX, **config)
+    engine.start(1800)
+    return engine

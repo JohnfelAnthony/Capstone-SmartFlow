@@ -3,7 +3,7 @@ import { LocateFixed, Minus, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
-import { boundsForJunction, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
+import { boundsForJunction, hasSignalHead, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
@@ -84,6 +84,7 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
 function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, frame: RenderFrame | null, presentation: PresentationState, transform: Transform, hover: Selection | null) {
   occupiedLabels.set(ctx, [])
   if (presentation.overlays.signals) for (const group of geometry.signalGroups) {
+    if (!hasSignalHead(group, frame)) continue
     const appearance = signalAppearance(group, frame), anchor = screen(group.anchor, transform), heading = group.heading * Math.PI / 180
     const x = anchor.x - Math.sin(heading) * (group.width / 2 * transform.scale + 7), y = anchor.y - Math.cos(heading) * (group.width / 2 * transform.scale + 7)
     ctx.fillStyle = "#293238"; ctx.fillRect(x - 4, y - 10, 8, 20)
