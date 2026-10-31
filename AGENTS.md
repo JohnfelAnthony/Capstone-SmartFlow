@@ -19,7 +19,7 @@ The latest source and fresh verification establish current software behavior. Ol
 - The active engine is `simulation/traffic_engine.py`; do not substitute similarly named legacy engines or reconnect SUMO/TraCI.
 - `engine_config` is the native scenario contract. Preserve complete saved settings through editing, running, training and evaluation.
 - RL currently controls one selected junction; routing is separate. Final study intersections and field calibration are not established. Label synthetic evidence honestly.
-- Supported simulation classes are car, motorcycle, tricycle, bus and truck, plus separate pedestrian support. The retired emergency feature must not be restored through legacy settings; `native-5` / `native-local-22-v2` models require the current observation/reward contract. Preserve old artifacts as history rather than relabeling them.
+- Supported simulation classes are car, motorcycle, tricycle, bus and truck, plus separate pedestrian support. The retired emergency feature must not be restored through legacy settings; `native-6` / `native-local-22-v3` models require the current observation/reward contract. Preserve old artifacts as history rather than relabeling them.
 - This application currently uses process-local live/training runtimes. Do not assume multiple API workers share that state.
 
 ## Work and verification conventions

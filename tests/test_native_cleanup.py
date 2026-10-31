@@ -13,7 +13,9 @@ import database
 from backend.main import app
 from backend.simulation_runtime import simulation_runtime
 from simulation.model_contract import native_contract
-from simulation.rl_state import APPROACH_ORDER, extract_rl_snapshot
+from simulation import dql_training, ppo_training
+from simulation.rl_reward import REWARD_VERSION
+from simulation.rl_state import APPROACH_ORDER, MAX_ACTIVE_VEHICLES, MAX_QUEUE_COUNT, OBSERVATION_VERSION, extract_rl_snapshot
 from simulation.traffic_engine import TrafficEngine
 from simulation.timeline_engine import TimelinePlaybackEngine
 from services import backup_bundle
@@ -94,13 +96,21 @@ class NativeCleanupTests(unittest.TestCase):
             snapshot = extract_rl_snapshot(engine)
         index = APPROACH_ORDER.index(approach)
         self.assertEqual(len(snapshot.observation),22)
-        self.assertEqual(snapshot.observation[7+index],.1)
+        self.assertEqual(snapshot.observation[7+index],.042857)
         self.assertEqual(snapshot.observation[11+index],.5)
-        self.assertEqual(snapshot.observation[15+index],.066667)
+        self.assertEqual(snapshot.observation[15+index],.028571)
         self.assertEqual(snapshot.observation[19],.05)
-        self.assertEqual(native_contract()['engine'],'native-5')
-        self.assertEqual(native_contract()['observation'],'native-local-22-v2')
+        self.assertEqual(native_contract()['engine'],'native-6')
+        self.assertEqual(native_contract()['observation'],'native-local-22-v3')
         self.assertEqual(native_contract()['actions'],'protected-service-5-v1')
+
+    def test_observation_scales_cover_tagum_queues(self):
+        report = json.loads((Path(__file__).resolve().parents[1]/'docs/reports/mixed-traffic-acceptance.json').read_text(encoding='utf-8'))
+        largest = max(max(case['queue_count_p95'], case['active_count_p95']) for name, case in report['cases'].items() if 'tagum' in name)
+        self.assertGreaterEqual(MAX_QUEUE_COUNT, largest)
+        self.assertGreaterEqual(MAX_ACTIVE_VEHICLES, largest)
+        self.assertEqual((OBSERVATION_VERSION, REWARD_VERSION), ('obs_v3', 'reward_v4'))
+        self.assertEqual({dql_training.OBSERVATION_VERSION, ppo_training.OBSERVATION_VERSION}, {OBSERVATION_VERSION})
 
     def test_restore_compacts_deep_import_paths_without_changing_source_bytes(self):
         source_dir = Path(self.directory.name).joinpath(*(['deep-import-source-folder'] * 3))

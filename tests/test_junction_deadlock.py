@@ -1,23 +1,28 @@
 """Junction reservations must always be released (engine fix plan P0-1)."""
 import json
+import math
 import unittest
 from pathlib import Path
 
 from simulation.road_network import RoadNetwork
 from simulation.scenario_config import VEHICLE_TYPES
-from simulation.traffic_engine import MIN_GAP, TrafficEngine
+from simulation.mixed_traffic import SIDE_CLEARANCE_M, lateral_bounds
+from simulation.traffic_engine import EXIT_SPACE_MARGIN, TrafficEngine
+from tests.mixed_traffic_helpers import assert_never_overlap, hold_green, junction_network, place
 from tests import test_native_traffic_contract as contract
 
 TWO_JUNCTION_NETWORK = Path(__file__).resolve().parents[1] / "data/networks/tagum_network_2j.json"
 
 
-def two_junction_line(link_length=60):
+def two_junction_line(link_length=60, link_width=None):
     """w -> j1 -> j2 -> e, one-way, so a red at j2 can hold a queue on the j1-j2 link."""
     coordinates = {"w": (-150, 0), "j1": (0, 0), "j2": (link_length, 0), "e": (link_length+150, 0),
                    "n1": (0, 150), "n2": (link_length, 150)}
     nodes = [{"id": name, "x": x, "y": y, "boundary": not name.startswith("j")} for name, (x, y) in coordinates.items()]
     roads = [{"id": road, "source": start, "target": end, "shape": [coordinates[start], coordinates[end]], "oneway": True, "speed_mps": 8.33}
              for road, start, end in (("in", "w", "j1"), ("link", "j1", "j2"), ("out", "j2", "e"), ("n1", "n1", "j1"), ("n2", "n2", "j2"))]
+    if link_width is not None:
+        next(road for road in roads if road["id"] == "link")["width_per_direction_m"] = link_width
     return RoadNetwork({"id": "two-junction-line", "nodes": nodes, "roads": roads, "source": {"kind": "synthetic"}})
 
 
@@ -32,42 +37,105 @@ class JunctionReleaseTests(unittest.TestCase):
     engine = contract.NativeTrafficContractTests.engine
     hold_phase = contract.NativeTrafficContractTests.hold_phase
 
+    def held_queue_cases(self, engine_class=TrafficEngine):
+        """Every class pair, queue length, link width and queue side, with the link held by a red at j2 like
+        spillback towards j1. Yields (engine, entering vehicle, route, entered j1) after 400 ticks."""
+        for link_width in (None, 6.6):
+            for queued_side in ("left", "kerb"):
+                for entering_type in VEHICLE_TYPES:
+                    for queued_type in VEHICLE_TYPES:
+                        for queued_count in range(0, 12):
+                            engine = engine_class(seed=7, network=two_junction_line(link_width=link_width))
+                            engine.configure(traffic_density="none", pedestrian_density="none")
+                            engine.driver_variation_scale = 0
+                            engine.start(300)
+                            hold(engine, "j1", "west")
+                            hold(engine, "j2", "north")
+                            route = engine.network.route("w", "e")
+                            link = engine.network.lanes[route[1]]
+                            front = link.length
+                            for _ in range(queued_count):
+                                queued = engine.add_vehicle(route[1:], vehicle_type=queued_type)
+                                if queued is None:
+                                    break  # the link is already full back to j1
+                                queued.position = front-queued.length/2
+                                queued.lateral = queued.lateral_target = lateral_bounds(link.width, queued.width)[0 if queued_side == "left" else 1]
+                                front -= queued.length+queued.minimum_gap
+                            entering = engine.add_vehicle(route, vehicle_type=entering_type)
+                            entering.position = engine.network.lanes[route[0]].length-entering.length/2
+                            entered = False
+                            for _ in range(400):
+                                engine.step()
+                                entered = entered or entering.reserved_junction == "j1"
+                            yield (link_width, queued_side, entering_type, queued_type, queued_count), engine, entering, route, entered
+
     def test_any_admitted_vehicle_clears_and_releases_behind_a_held_queue(self):
-        """For every class pair and queue length on the link: the vehicle never enters, or it enters and releases.
-        The queue is held by a red at the next junction, like spillback towards the first one."""
+        """For every case: the vehicle never enters, or it enters and releases."""
         outcomes = set()
-        for entering_type in VEHICLE_TYPES:
-            for queued_type in VEHICLE_TYPES:
-                for queued_count in range(0, 12):
-                    with self.subTest(entering=entering_type, queued=queued_type, count=queued_count):
-                        engine = TrafficEngine(seed=7, network=two_junction_line())
-                        engine.configure(traffic_density="none", pedestrian_density="none")
-                        engine.start(300)
-                        hold(engine, "j1", "west")
-                        hold(engine, "j2", "north")
-                        route = engine.network.route("w", "e")
-                        link = engine.network.lanes[route[1]]
-                        front = link.length
-                        for _ in range(queued_count):
-                            queued = engine.add_vehicle(route[1:], vehicle_type=queued_type)
-                            if queued is None:
-                                break  # the link is already full back to j1
-                            queued.position = front-queued.length/2
-                            front -= queued.length+MIN_GAP
-                        entering = engine.add_vehicle(route, vehicle_type=entering_type)
-                        entering.position = engine.network.lanes[route[0]].length-entering.length/2
-                        entered = False
-                        for _ in range(400):
-                            engine.step()
-                            entered = entered or entering.reserved_junction == "j1"
-                        outcomes.add(entered)
-                        if entered:
-                            self.assertEqual(entering.lane_id, route[1])
-                            self.assertNotEqual(entering.reserved_junction, "j1")
-                            self.assertNotIn("j1", engine.reservations)
-                        else:
-                            self.assertEqual(entering.lane_id, route[0])
+        for case, engine, entering, route, entered in self.held_queue_cases():
+            with self.subTest(case=case):
+                outcomes.add(entered)
+                if entered:
+                    self.assertEqual(entering.lane_id, route[1])
+                    self.assertNotEqual(entering.reserved_junction, "j1")
+                    self.assertNotIn("j1", engine.reservations)
+                else:
+                    self.assertEqual(entering.lane_id, route[0])
         self.assertEqual(outcomes, {True, False}, "both admitted and refused cases must be exercised")
+
+    def test_area_only_rule_would_strand_a_vehicle(self):
+        class AreaOnlyEngine(TrafficEngine):
+            def _exit_has_space(self, lane_id, entering):
+                # Footprint area only, no end-to-end check: the same occupying vehicles as the real rule, plus the entrant.
+                occupying = [vehicle for vehicle in self.vehicles.values() if vehicle is not entering and (
+                    (vehicle.connector is None and vehicle.lane_id == lane_id)
+                    or (vehicle.reserved_junction and len(vehicle.route) > 1 and vehicle.route[1] == lane_id))]
+                lane = self.network.lanes[lane_id]
+                area = sum((vehicle.length+vehicle.minimum_gap)*(vehicle.width+SIDE_CLEARANCE_M) for vehicle in occupying+[entering])
+                return area <= 0.8*lane.length*lane.width
+        stranded = [entered and entering.reserved_junction == "j1"
+                    for _, engine, entering, route, entered in self.held_queue_cases(AreaOnlyEngine)]
+        self.assertTrue(any(stranded), "the end-to-end rule must be what prevents stranding")
+
+    def test_exit_storage_counts_only_the_lane_before_its_stop_line(self):
+        # Vehicles on the link queue behind its stop line, set back from the lane end at a junction (up to 4.9 m on
+        # Tagum 5j). A bus that fits the whole lane but not the part before the line stopped with its rear in j1.
+        class SetBackEngine(TrafficEngine):
+            def stop_line(self, lane_id):
+                return super().stop_line(lane_id)-(5.0 if lane_id == link.id else 0.0)
+        for link_length in (32, 34, 36):
+            with self.subTest(link_length=link_length):
+                engine = SetBackEngine(seed=7, network=two_junction_line(link_length=link_length))
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine.start(300)
+                hold(engine, "j1", "west")
+                hold(engine, "j2", "north")
+                route = engine.network.route("w", "e")
+                link = engine.network.lanes[route[1]]
+                bus = engine.add_vehicle(route, vehicle_type="bus")
+                bus.position = engine.network.lanes[route[0]].length-bus.length/2
+                engine.step(400)
+                self.assertNotEqual(bus.reserved_junction, "j1")
+
+    def test_motorcycles_count_with_their_own_minimum_gap(self):
+        engine = TrafficEngine(seed=7, network=two_junction_line())
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine.start(300)
+        hold(engine, "j1", "west")
+        hold(engine, "j2", "north")
+        route = engine.network.route("w", "e")
+        link = engine.network.lanes[route[1]]
+        most = 0
+        for tick in range(1200):
+            if tick % 20 == 0:
+                engine.add_vehicle(route, vehicle_type="motorcycle", speed=5)
+            assert_never_overlap(self, engine, 1)
+            on_or_committed = sum(1 for vehicle in engine.vehicles.values() if (vehicle.connector is None and vehicle.lane_id == link.id)
+                                  or (vehicle.reserved_junction == "j1" and len(vehicle.route) > 1 and vehicle.route[1] == link.id))
+            most = max(most, on_or_committed)
+        self.assertEqual(most, math.floor(link.length/(2.0+1.0+EXIT_SPACE_MARGIN)))
 
     def test_watchdog_metrics_flag_blocked_green_but_not_red_waits(self):
         engine = self.engine(network=contract.cross_network())
@@ -82,6 +150,148 @@ class JunctionReleaseTests(unittest.TestCase):
         waiting.reserved_junction, waiting.stopped_for = "j", 31.0
         engine._refresh_metrics()
         self.assertEqual(engine._last_metrics["stuck_junction_vehicles"], 1)
+
+    def test_a_slow_starter_committing_after_a_long_red_is_not_counted_stuck(self):
+        # A truck needs two ticks to pass 0.1 m/s; its red wait must not count as time stuck in the junction.
+        engine = self.engine(network=contract.cross_network())
+        engine.driver_variation_scale = 0
+        hold(engine, "j", "north")
+        truck = engine.add_vehicle(["wf", "er"], vehicle_type="truck", speed=5)
+        engine.step(600)
+        self.assertGreater(truck.stopped_for, 30)
+        hold(engine, "j", "west")
+        committed = False
+        for _ in range(100):
+            engine.step()
+            committed = committed or truck.reserved_junction == "j"
+            self.assertEqual(engine._last_metrics["stuck_junction_vehicles"], 0)
+        self.assertTrue(committed)
+
+    def test_a_vehicle_whose_step_the_footprint_check_cancels_counts_as_stopped(self):
+        # The footprint check, not the car-following model, can be what holds a vehicle in the junction.
+        class BlockedEngine(TrafficEngine):
+            blocked = False
+
+            def _clear_travel(self, vehicle, travel, connector_length):
+                return 0.0 if self.blocked else super()._clear_travel(vehicle, travel, connector_length)
+
+        engine = BlockedEngine(seed=7, network=contract.cross_network())
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine.start(300)
+        hold(engine, "j", "west")
+        car = engine.add_vehicle(["wf", "er"], speed=5)
+        while car.connector is None:
+            engine.step()
+        engine.blocked, blocked_at = True, engine.simulation_time
+        engine.step(40)
+        self.assertGreaterEqual(car.stopped_for, 3.9)
+        self.assertLessEqual(engine.last_vehicle_movement, blocked_at)
+
+    def test_crossing_paths_from_one_approach_never_lock_inside_the_junction(self):
+        # Tagum 5j: a right turner on the kerb side and a left turner a few metres behind on the centre-line side
+        # used to enter together and block each other's next step for good.
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road2r"].target
+        for gap, speeds in ((3, (2, 5)), (6, (0, 4))):
+            with self.subTest(gap=gap, speeds=speeds):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine._decide_lateral = lambda vehicle, lane: None  # keep the crossing order
+                engine.start(600)
+                hold(engine, node, network.lanes["road2r"].approach)
+                right = place(engine, ["road2r", "road0f", "road10f", "road4r"], "motorcycle", from_stop_line=2, lateral=2.7, speed=speeds[0])
+                left = place(engine, ["road2r", "road1f"], "motorcycle", from_stop_line=2+gap, lateral=-2.05, speed=speeds[1])
+                assert_never_overlap(self, engine, 400)
+                self.assertTrue(all(vehicle.id not in engine.vehicles or engine.vehicles[vehicle.id].connector is None
+                                    for vehicle in (right, left)))
+                self.assertNotIn(left.id, engine.vehicles)
+
+    def test_abreast_cars_whose_paths_drift_across_never_lock_inside_the_junction(self):
+        # Tagum 5j: a left turner beside a right turner whose path drifts towards its exit position; both entered
+        # together and their bodies blocked each other's next step for good (5j-medium-cars, seed 101).
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road2r"].target
+        for left_from, right_from, speeds in ((0.5, 0, (0, 0)), (0.25, 0, (2, 2)), (0, 0.5, (0, 2))):
+            with self.subTest(left_from=left_from, right_from=right_from, speeds=speeds):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine._decide_lateral = lambda vehicle, lane: None
+                engine.start(600)
+                hold(engine, node, network.lanes["road2r"].approach)
+                left = place(engine, ["road2r", "road0f", "road10f", "road4r"], "car", from_stop_line=left_from, lateral=-0.24, speed=speeds[0])
+                right = place(engine, ["road2r", "road1f"], "car", from_stop_line=right_from, lateral=2.3, speed=speeds[1])
+                assert_never_overlap(self, engine, 600)
+                self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road2r" and vehicle.connector is None
+                                    for vehicle in (left, right)))
+
+    def test_a_vehicle_alongside_inside_the_side_clearance_is_not_held_behind_it(self):
+        # Tagum 5j all-way-stop run, seed 102: a motorcycle 0.7 m back and 2 mm beside a right-turning one stood in its
+        # path; the turning one waited for it, and it counted the turning one as the leader it follows, for good.
+        network = RoadNetwork(json.loads((Path(__file__).resolve().parents[1]/"data/networks/tagum_network.json").read_text(encoding="utf-8")))
+        node = network.lanes["road10r"].target
+        route = ["road10r"]+network.route(node, "boundary_1", previous="road10r")
+        engine = TrafficEngine(seed=7, network=network)
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine._decide_lateral = lambda vehicle, lane: None
+        engine.start(600)
+        hold(engine, node, network.lanes["road10r"].approach)
+        turning = place(engine, route, "motorcycle", from_stop_line=0, lateral=1.1)
+        alongside = place(engine, route, "motorcycle", from_stop_line=0.73, lateral=0.2978)
+        turning.stop_arrival, alongside.stop_arrival = engine.simulation_time-3, engine.simulation_time-1
+        assert_never_overlap(self, engine, 600)
+        self.assertTrue(all(vehicle.id not in engine.vehicles or vehicle.route[0] != "road10r" and vehicle.connector is None
+                            for vehicle in (turning, alongside)))
+
+    def test_no_vehicle_moves_sideways_in_front_of_a_committed_vehicle(self):
+        # Tagum 2j medium seed 101 and 5j closure seed 102: a motorcycle edged sideways in front of one that had just
+        # committed and stopped at the line; its path met the committed one's, so each waited for the other for good.
+        class FullExitEngine(TrafficEngine):
+            def _exit_has_space(self, lane_id, entering):
+                return entering is not cutting and super()._exit_has_space(lane_id, entering)
+
+        engine = FullExitEngine(seed=7, network=junction_network())
+        engine.configure(traffic_density="none", pedestrian_density="none")
+        engine.driver_variation_scale = 0
+        engine._decide_lateral = lambda vehicle, lane: None
+        engine.start(600)
+        hold_green(engine, "j", "west")
+        cutting = place(engine, ["wf", "nr"], "motorcycle", from_stop_line=0, lateral=-1.15)
+        committed = place(engine, ["wf", "er"], "motorcycle", from_stop_line=30, lateral=0.15, speed=5)
+        while committed.reserved_junction is None:
+            engine.step(1)
+        cutting.lateral_target = committed.lateral
+        for _ in range(300):
+            engine.step(1)
+            if committed.connector is None and committed.route[0] == "wf":
+                leader = engine._lane_obstacle(committed, engine.network.lanes["wf"])[0]
+                self.assertTrue(leader is None or leader.reserved_junction == "j", f"uncommitted leader at t={engine.simulation_time}")
+        self.assertTrue(committed.id not in engine.vehicles or committed.route[0] == "er")
+
+    def test_a_vehicle_waiting_at_red_never_stops_in_a_turning_bus_path(self):
+        # Tagum 2j, medium demand seed 101: a bus waiting at red stood in the path of a right-turning bus from the cross
+        # street, which waited for it while it waited for space behind that bus; with a second such pair at the other
+        # junction the link between them stopped for good.
+        network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))
+        node = network.lanes["road3r"].target
+        for waiting_type in ("bus", "car", "motorcycle"):
+            with self.subTest(waiting_type=waiting_type):
+                engine = TrafficEngine(seed=7, network=network)
+                engine.configure(traffic_density="none", pedestrian_density="none")
+                engine.driver_variation_scale = 0
+                engine.start(600)
+                neither = next(family for family in engine.signals[node].approaches if family not in {"south", "east"})
+                hold(engine, node, neither)
+                waiting = place(engine, ["road1r", "road2f"], waiting_type, from_stop_line=40, lateral=0.0, speed=5)
+                turning = place(engine, ["road3r", "road1f"], "bus", from_stop_line=40, lateral=0.0, speed=5)
+                assert_never_overlap(self, engine, 300)
+                self.assertEqual(waiting.speed, 0.0)
+                hold(engine, node, network.lanes["road3r"].approach)
+                assert_never_overlap(self, engine, 300)
+                self.assertTrue(turning.id not in engine.vehicles or turning.route[0] == "road1f")
 
     def test_two_junction_network_keeps_completing_trips_at_medium_demand(self):
         network = RoadNetwork(json.loads(TWO_JUNCTION_NETWORK.read_text(encoding="utf-8")))

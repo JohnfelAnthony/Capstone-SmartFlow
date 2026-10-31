@@ -4,6 +4,7 @@ import unittest
 from simulation.road_network import RoadNetwork
 from simulation.traffic_engine import MIN_GAP, TrafficEngine
 from tests import test_native_traffic_contract as contract
+from tests.mixed_traffic_helpers import hold_green, junction_network, place, started_engine
 
 
 def long_approach_cross(length=400, speed=8.33):
@@ -17,11 +18,32 @@ def long_approach_cross(length=400, speed=8.33):
 class JunctionCapacityTests(unittest.TestCase):
     hold_phase = contract.NativeTrafficContractTests.hold_phase
 
+    def test_a_follower_bound_for_another_exit_enters_as_soon_as_one_bound_for_the_same_exit(self):
+        # The check for paths drifting across held a single-file follower until its committed leader, bound for another
+        # exit, was well clear of the shared start of their paths, halving discharge (cars-only 5j: 149 vs 204 trips).
+        def entry_headway(leader_exit, follower_exit):
+            engine = started_engine(junction_network())
+            hold_green(engine, "j", "west")
+            leader = place(engine, ["wf", leader_exit], "car", from_stop_line=0, lateral=0.0)
+            follower = place(engine, ["wf", follower_exit], "car", from_stop_line=leader.length+leader.minimum_gap, lateral=0.0)
+            entered = {}
+            for _ in range(300):
+                engine.step(1)
+                for vehicle in (leader, follower):
+                    if vehicle.id not in entered and (vehicle.id not in engine.vehicles or vehicle.route[0] != "wf" or vehicle.connector is not None):
+                        entered[vehicle.id] = engine.simulation_time
+            return entered[follower.id]-entered[leader.id]
+
+        for leader_exit, follower_exit in (("nr", "er"), ("sr", "er"), ("er", "nr")):
+            with self.subTest(leader=leader_exit, follower=follower_exit):
+                self.assertLessEqual(entry_headway(leader_exit, follower_exit), entry_headway(follower_exit, follower_exit)+0.2)
+
     def saturated_discharge(self, destination, vehicle_type="car", green_seconds=60):
         """Queue the west approach on red, give it one green, return (vehicles discharged, steady headway s)."""
         engine = TrafficEngine(seed=3, network=long_approach_cross())
         engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static",
                          trips=[{"time": index*0.5, "source": "w", "destination": destination, "vehicle_type": vehicle_type} for index in range(120)])
+        engine.driver_variation_scale = 0  # class values only, so the headway compares with native-5
         engine.start(600)
         # Building a long queue needs a 240 s red, longer than the maximum-red guard allows in normal operation.
         self.hold_phase(engine, "north").maximum_red = 600
@@ -30,13 +52,23 @@ class JunctionCapacityTests(unittest.TestCase):
         self.assertGreater(engine._lane_queues()[west_lane], 30, "the approach must be saturated before green")
         self.hold_phase(engine, "west")
         exits, previous = [], engine.lane_exits[west_lane]
+        self.most_committed_at_once = 0
         for _ in range(int(green_seconds/0.1)):
             engine.step()
+            self.most_committed_at_once = max([self.most_committed_at_once, *map(len, engine.reservations.values())])
             if engine.lane_exits[west_lane] > previous:
                 exits.append(engine.simulation_time)
                 previous = engine.lane_exits[west_lane]
         headways = [later-earlier for earlier, later in zip(exits, exits[1:])][3:]
         return len(exits), sum(headways)/len(headways)
+
+    def test_cars_only_single_lane_discharge_stays_within_ten_percent_of_native_5(self):
+        _, headway = self.saturated_discharge("e")
+        self.assertTrue(2.19 <= headway <= 2.67, headway)  # native-5 measured 2.43 s
+
+    def test_followers_commit_while_the_leader_is_still_crossing(self):
+        self.saturated_discharge("e")
+        self.assertGreaterEqual(self.most_committed_at_once, 2)
 
     def test_through_movement_discharges_near_urban_saturation_flow(self):
         discharged, headway = self.saturated_discharge("e")
@@ -54,6 +86,7 @@ class JunctionCapacityTests(unittest.TestCase):
 
     def test_next_approach_waits_until_junction_is_clear(self):
         engine = contract.NativeTrafficContractTests.engine(self, network=contract.cross_network())
+        engine.driver_variation_scale = 0
         signal = self.hold_phase(engine, "west")
         crossing = engine.add_vehicle(["wf", "er"])
         crossing.position = engine.network.lanes["wf"].length-crossing.length/2
@@ -71,6 +104,7 @@ class JunctionCapacityTests(unittest.TestCase):
 
     def test_vehicles_on_one_connector_keep_their_gap(self):
         engine = contract.NativeTrafficContractTests.engine(self, network=long_approach_cross())
+        engine.driver_variation_scale = 0
         self.hold_phase(engine, "west")
         route = engine.network.route("w", "e")
         cars = []

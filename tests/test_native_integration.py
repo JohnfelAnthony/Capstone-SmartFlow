@@ -20,6 +20,7 @@ from services import timeline_generator
 from simulation.model_contract import native_contract
 from simulation.ql_agent import TabularQLearningAgent
 from simulation.rl_env import SmartFlowRLEnv
+from simulation.scenario_config import DEFAULTS
 from simulation.rl_policy_runtime import load_runtime_policy
 
 
@@ -160,7 +161,7 @@ class NativeIntegrationTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/scenarios/{scenario_id}").json()["name"], "Renamed")
         cleared = self.client.put(f"/api/scenarios/{scenario_id}", json={"name": "Cleared", "engine_config": {}})
         self.assertEqual(cleared.status_code, 200, cleared.text)
-        self.assertEqual(cleared.json()["engine_config"]["vehicle_mix"], {"car": 1.0})
+        self.assertEqual(cleared.json()["engine_config"]["vehicle_mix"], DEFAULTS["vehicle_mix"])
         self.assertEqual(cleared.json()["engine_config"]["green_seconds"], 14.0)
 
     def test_bad_playback_does_not_interrupt_an_active_run(self):

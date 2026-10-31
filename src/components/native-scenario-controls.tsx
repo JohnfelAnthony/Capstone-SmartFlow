@@ -9,6 +9,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet 
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { automaticMaximumRed, fixedTimeRed, MAXIMUM_RED_BOUNDS } from "@/lib/signal-plan"
+import { matchingMixPreset, mixShares } from "@/lib/vehicle-mix"
 
 export function NativeSelect({ label, value, options, onChange, disabled = false }: {
   label: string; value: string; options: Array<{ value: string; label: string; disabled?: boolean }>
@@ -132,6 +133,18 @@ export function NativeScenarioControls({ value, options, onChange }: {
           <Badge variant="outline">{value.signal_plans?.[item.id]?.mode === "all_way_stop" ? "All-way stop" : item.id === selected ? "RL candidate / fixed-time baseline" : "Fixed-time"}</Badge>
         </div>)}
       </div>
+    </FieldSet>
+
+    <FieldSet>
+      <FieldLegend>Vehicle mix</FieldLegend>
+      <NativeSelect label="Vehicle mix" value={matchingMixPreset(value.vehicle_mix, options.vehicle_mix_presets) ?? "custom"}
+        options={[...Object.entries(options.vehicle_mix_presets).map(([key, preset]) => ({ value: key, label: preset.label })),
+          { value: "custom", label: "Custom (saved)", disabled: true }]}
+        onChange={(key) => onChange({ ...value, vehicle_mix: { ...options.vehicle_mix_presets[key].mix } })} />
+      {value.vehicle_mix && <FieldDescription>
+        {mixShares(value.vehicle_mix).map(({ type, percent }) => `${type[0].toUpperCase()}${type.slice(1)} ${Math.round(percent)}%`).join(" · ")}.
+        {" "}Tagum shares are a provisional estimate, not a count.
+      </FieldDescription>}
     </FieldSet>
 
     <FieldSet>

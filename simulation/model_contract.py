@@ -9,7 +9,7 @@ from functools import lru_cache
 
 def native_contract() -> dict:
     from .traffic_engine import ENGINE_VERSION
-    return {"engine": ENGINE_VERSION, "observation": "native-local-22-v2", "actions": "protected-service-5-v1", "network_sha256": load_network().fingerprint}
+    return {"engine": ENGINE_VERSION, "observation": "native-local-22-v3", "actions": "protected-service-5-v1", "network_sha256": load_network().fingerprint}
 
 
 def validate_metadata(metadata: dict) -> None:

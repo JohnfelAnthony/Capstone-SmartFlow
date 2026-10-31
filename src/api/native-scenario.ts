@@ -1,4 +1,5 @@
 import { API_BASE_URL, apiRequest } from "@/api/client"
+import type { VehicleMixPreset } from "@/lib/vehicle-mix"
 
 export type SignalPlan = {
   mode: "signalized" | "all_way_stop"
@@ -36,6 +37,7 @@ export type NativeScenarioConfig = {
   reroute_interval?: number
   reroute_improvement?: number
   demand_source?: { kind: "synthetic" | "observed"; description?: string }
+  vehicle_mix?: Record<string, number>
   [setting: string]: unknown
 }
 
@@ -47,6 +49,7 @@ export type NativeScenarioOptions = {
   junctions: Array<{ id: string; label: string; approaches: string[]; default_plan: SignalPlan }>
   boundaries: Array<{ id: string; label: string }>
   lanes: Array<{ id: string; label: string; road_name: string; source: string; target: string; speed_mps: number }>
+  vehicle_mix_presets: Record<string, VehicleMixPreset>
 }
 
 export function getNativeScenarioOptions() {

@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 
 from .rl_state import APPROACH_ORDER, MAX_PEDESTRIAN_WAITING, MAX_QUEUE_COUNT, RLSnapshot, _clamp, _normalize
 
-REWARD_VERSION = "reward_v3"
+REWARD_VERSION = "reward_v4"
 # One lane is green at a time; the engine discharges a saturated lane at about one vehicle per 2.0-2.4 s.
 SATURATION_HEADWAY_SECONDS = 2.0
 
@@ -23,7 +23,7 @@ class RewardBreakdown:
 
 
 def calculate_reward(previous_snapshot: RLSnapshot, current_snapshot: RLSnapshot) -> RewardBreakdown:
-    """reward_v3: only the controlled junction, only what happened since the previous decision."""
+    """reward_v4 (reward_v3 at the obs_v3 queue scale): only the controlled junction, only what happened since the previous decision."""
     interval = current_snapshot.simulation_time - previous_snapshot.simulation_time
     stopped_seconds = max(0.0, current_snapshot.junction_stopped_seconds - previous_snapshot.junction_stopped_seconds)
     passages = max(0, current_snapshot.junction_passages - previous_snapshot.junction_passages)

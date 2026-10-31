@@ -1,5 +1,5 @@
 {
-  "version": "native-metric-interpretation-3",
+  "version": "native-metric-interpretation-4",
   "scope": "Native network; per-junction telemetry is separate from whole-network summaries.",
   "window": "Metrics have different windows. Read each definition: measurement reset affects stopped waits/completions/queues, while demand accounting remains cumulative since run start.",
   "unsupported": {
@@ -53,6 +53,19 @@
       "zero": "Zero is a recorded zero count or duration, not evidence of missing coverage.",
       "unavailable": "Missing/non-finite values are unavailable. Averages also require recorded nonempty population counts; sampled queues require at least one recorded metric tick.",
       "requires_elapsed": false
+    },
+    {
+      "key": "max_queue_reach_m",
+      "label": "Longest current queue reach",
+      "unit": "metres",
+      "aliases": [],
+      "population": "Incoming lanes of all modeled junctions.",
+      "definition": "Distance from a stop line to the rear of the farthest stopped vehicle (speed at most 0.1 m/s) on that incoming lane at the latest tick; the largest value over incoming lanes. Side-by-side queues reach less far than single-file queues of the same vehicles. Connector vehicles are excluded.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "requires_elapsed": false,
+      "zero": "Zero means no stopped vehicle on any incoming lane at the latest tick.",
+      "unavailable": "Missing or non-finite values are unavailable."
     },
     {
       "key": "throughput",
@@ -498,5 +511,5 @@
       "requires_elapsed": false
     }
   ],
-  "engine_version": "native-5"
+  "engine_version": "native-6"
 }

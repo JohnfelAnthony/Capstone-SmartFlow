@@ -9,6 +9,7 @@ from simulation.road_network import RoadNetwork, load_network
 from simulation.scenario_config import read_trip_csv
 from simulation.traffic_engine import TrafficEngine, Pedestrian, STEP_LENGTH
 from tools.run_native_experiment import run_experiment
+from tests.mixed_traffic_helpers import assert_never_overlap
 
 
 class NativeExperimentTests(unittest.TestCase):
@@ -73,10 +74,7 @@ class NativeExperimentTests(unittest.TestCase):
         self.engine.start(180)
         for _ in range(1800):
             self.engine.step()
-            for lane in self.network.lanes:
-                cars = sorted((v for v in self.engine.vehicles.values() if v.lane_id == lane and not v.connector), key=lambda v: v.position)
-                for rear, front in zip(cars, cars[1:]):
-                    self.assertGreaterEqual(front.position-rear.position-(front.length+rear.length)/2, 2-.001)
+            assert_never_overlap(self, self.engine, 0, lanes_only=True)
             self.assertEqual(self.engine._last_metrics["vehicle_conservation_error"], 0)
             self.assertEqual(self.engine._last_metrics["pedestrian_conservation_error"], 0)
         self.assertGreater(self.engine.completed, 0)

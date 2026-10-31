@@ -13,6 +13,9 @@ class FullScanEngine(TrafficEngine):
     def _candidates(self, *lookups):
         return list(self.vehicles.values())
 
+    def _build_spawn_occupancy(self):
+        return None
+
 
 def trajectory(engine_class, seconds=240):
     engine = engine_class(seed=101, network=NETWORK)
@@ -33,6 +36,19 @@ class SearchIndexTests(unittest.TestCase):
         self.assertGreater(completed, 0)
         self.assertEqual(completed, full_scan_completed)
         self.assertEqual(indexed, full_scan)
+
+    def test_metrics_built_on_read_still_describe_the_end_of_the_last_tick(self):
+        engine = TrafficEngine(seed=101, network=NETWORK)
+        engine.configure(traffic_density="high", pedestrian_density="none")
+        engine.start(120)
+        engine.step(300)
+        count, lane = len(engine.vehicles), next(iter(NETWORK.lanes))
+        engine.close_lane(lane)
+        engine.add_vehicle(next(vehicle.route for vehicle in engine.vehicles.values() if len(vehicle.route) > 1))
+        self.assertEqual(engine._last_metrics["active_vehicle_count"], count)
+        self.assertFalse(engine._last_metrics["lanes"][lane]["closed"])
+        engine.step(1)
+        self.assertTrue(engine._last_metrics["lanes"][lane]["closed"])
 
 
 if __name__ == "__main__":
