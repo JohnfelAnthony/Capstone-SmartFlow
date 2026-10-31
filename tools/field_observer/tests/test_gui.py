@@ -71,6 +71,34 @@ class GUITests(unittest.TestCase):
             self.post("/api/queue", {"time_s": 1, "approach_id": "N", "queue_count": -1,
                                      "visibility": "complete", "reviewer": "Tester"})
 
+    PAIR = {"movement_a": "N->S", "movement_b": "E->W", "priority_time_a_s": 1.0, "priority_time_b_s": 3.0, "entry_time_a_s": 1.5,
+            "entry_time_b_s": 3.5, "readiness_of_earlier": "ready", "blocked_reason": "", "visibility": "complete", "reviewer": "Tester", "note": "Synthetic"}
+
+    def test_priority_pairs_are_validated_saved_and_exported_with_a_hash(self):
+        import csv
+        self.run_demo()
+        self.post("/api/priority_pair", self.PAIR)
+        self.post("/api/priority_pair", {**self.PAIR, "readiness_of_earlier": "unknown", "visibility": "partial", "entry_time_b_s": None})
+        for bad in ({"readiness_of_earlier": "blocked"}, {"readiness_of_earlier": "maybe"}, {"movement_a": "N,S"}, {"reviewer": " "},
+                    {"priority_time_a_s": -1}, {"visibility": "clear"}, {"entry_time_a_s": None}):
+            with self.assertRaises(HTTPError, msg=bad):
+                self.post("/api/priority_pair", {**self.PAIR, **bad})
+        with open(self.service.take / "priority_pairs.csv", newline="", encoding="utf-8") as handle:
+            saved = list(csv.DictReader(handle))
+        self.assertEqual(len(saved), 2)
+        self.assertEqual((saved[1]["readiness_of_earlier"], saved[1]["entry_time_b_s"], saved[1]["visibility"]), ("unknown", "", "partial"))
+        self.assertTrue(all(row["pair_id"] for row in saved))
+        for line in self.service.config["lines"]:
+            self.post("/api/coverage", {"line_id": line["id"], "start_s": 0, "end_s": self.service.manifest["media"]["decoded_duration_s"],
+                                        "visibility": "complete", "full_pass": True, "reviewer": "Tester"})
+        self.post("/api/export", {"reviewer": "Tester", "note": "Software test only"})
+        self.wait_job("complete")
+        revision = self.service.revision
+        with open(revision / "priority_review.csv", newline="", encoding="utf-8") as handle:
+            exported = list(csv.DictReader(handle))
+        self.assertEqual([row["pair_id"] for row in exported], [row["pair_id"] for row in saved])
+        self.assertEqual(read_json(revision / "manifest.json")["artifact_sha256"]["priority_review.csv"], sha256(revision / "priority_review.csv"))
+
     def test_review_records_a_configured_exit(self):
         self.demo()
         config = copy.deepcopy(self.service.config)

@@ -448,6 +448,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
+    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site without the validation gate; the artifact is marked as not study evidence")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")

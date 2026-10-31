@@ -24,7 +24,8 @@ def load_training_scenario(args, fallback: dict) -> dict:
         actual = snapshot.get("network_id") or snapshot.get("intersection_id")
         if requested and requested != actual:
             raise ValueError(f"Requested network '{requested}' differs from scenario network '{actual}'")
-        return snapshot
+        from services.study_gate import gate_study_scenario
+        return gate_study_scenario(snapshot, smoke=getattr(args, "synthetic_smoke_test", False))
     if args.scenario_file is not None:
         scenario = json.loads(args.scenario_file.read_text(encoding="utf-8"))
         if not isinstance(scenario, dict):

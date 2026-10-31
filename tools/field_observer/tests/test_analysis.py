@@ -68,6 +68,15 @@ class CrossingTests(unittest.TestCase):
                 validate_config(config(**update), manifest)
 
 
+    def test_line_roles_are_optional_checked_and_kept_with_the_line(self):
+        manifest = {"source_sha256": "test", "take_id": "T1", "media": {"width": 64, "height": 48}}
+        validate_config(config(lines=[line(role="arrival"), line(id="P_IN", location_id="P_IN", role="priority", event="vehicle_discharge")]), manifest)
+        for bad in (line(role="somewhere"), line(role="arrival", event="vehicle_discharge"), line(role="priority", event="vehicle_arrival"),
+                    line(role="stopline", event="pedestrian_start")):
+            with self.assertRaises(ValueError):
+                validate_config(config(lines=[bad]), manifest)
+
+
 class SyntheticDetector:
     provenance = {"model": "synthetic scripted boxes", "field_accuracy_verified": False}
 

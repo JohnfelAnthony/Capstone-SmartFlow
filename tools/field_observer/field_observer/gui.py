@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .analysis import AnalysisCancelled, analyze, use_proposals
-from .core import (CLASSES, COMMON, TABLES, TRICYCLE_SUBTYPES, create_take, export_revision, identifier, load_tables,
+from .core import (CLASSES, COMMON, PRIORITY_PAIR_COLUMNS, TABLES, TRICYCLE_SUBTYPES, create_take, export_revision, identifier, load_tables,
                    nearest_frame, number, read_json, read_take, require, sha256, write_csv, write_json)
 from .demo import DemoDetector, create_demo
 from .detector import TrafficDetector
@@ -325,6 +325,43 @@ class ObserverGUI:
             self.save_draft("queue_samples.csv", [*load_tables(self.take)["queue_samples.csv"], row])
             self.update(message="Queue sample saved as a manual observation.")
 
+    def priority_pair(self, data):
+        """One reviewed pair of vehicles from different approaches, for the arrival-order check (not for demand)."""
+        with self.lock:
+            self.idle()
+            require(self.run is not None and self.config is not None and
+                    read_json(self.run / "run.json")["status"] == "complete", "Finish analysis first.")
+            movements = [data.get(key, "") for key in ("movement_a", "movement_b")]
+            require(all(isinstance(item, str) and re.fullmatch(r"[A-Za-z0-9_.-]+->[A-Za-z0-9_.-]+", item) for item in movements),
+                    "Enter each movement as origin->destination, for example west->east.")
+            reviewer = data.get("reviewer", "").strip()
+            require(bool(reviewer), "Enter a reviewer.")
+            visibility = data.get("visibility")
+            require(visibility in ("complete", "partial", "unseen"), "Choose pair visibility.")
+            readiness = data.get("readiness_of_earlier")
+            require(readiness in ("ready", "blocked", "unknown"), "Choose whether the earlier vehicle was ready, blocked or unknown.")
+            reason = (data.get("blocked_reason") or "").strip()
+            require(readiness != "blocked" or bool(reason), "Say what blocked the earlier vehicle.")
+            times = {}
+            for key in ("priority_time_a_s", "priority_time_b_s", "entry_time_a_s", "entry_time_b_s"):
+                value = data.get(key)
+                if value in (None, ""):
+                    require(key.startswith("entry_") and visibility != "complete", f"{key} is required unless the pair is not fully visible.")
+                    times[key] = ""
+                else:
+                    times[key] = number(value, key)
+                    require(times[key] >= 0, f"{key} must not be negative.")
+            path = self.take / "priority_pairs.csv"
+            existing = []
+            if path.exists():
+                with path.open(newline="", encoding="utf-8") as stream:
+                    existing = list(csv.DictReader(stream))
+            row = {"pair_id": "PP" + uuid.uuid4().hex[:12], "movement_a": movements[0], "movement_b": movements[1], **times,
+                   "readiness_of_earlier": readiness, "blocked_reason": reason, "visibility": visibility, "reviewer": reviewer,
+                   "note": (data.get("note") or "").strip()}
+            write_csv(path, PRIORITY_PAIR_COLUMNS, [*existing, row])
+            self.update(message="Priority pair saved as a manual observation.")
+
 
 class GUIHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
@@ -490,6 +527,8 @@ def make_server(root: Path, port=0):
                         service.coverage(data)
                     elif route.path == "/api/queue":
                         service.queue_sample(data)
+                    elif route.path == "/api/priority_pair":
+                        service.priority_pair(data)
                     elif route.path == "/api/export":
                         with service.lock:
                             service.idle()

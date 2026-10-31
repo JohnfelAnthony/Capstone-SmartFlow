@@ -47,7 +47,7 @@ def test_ql_artifact_round_trip_preserves_site_contract(tmp_path):
         load_runtime_policy("ql", artifact, network=site_b)
 
 
-def test_two_episode_ql_training_preserves_site_identity(tmp_path):
+def test_two_episode_synthetic_smoke_ql_training_preserves_site_identity(tmp_path):
     import json
     import subprocess
     import sys
@@ -60,14 +60,14 @@ def test_two_episode_ql_training_preserves_site_identity(tmp_path):
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run([sys.executable, "tools/train_ql.py", "--scenario-file", str(scenario),
                              "--episodes", "2", "--warmup-seconds", "0", "--evaluation-seconds", "5",
-                             "--max-steps-per-episode", "1", "--checkpoint-every", "0", "--skip-db", "--output", str(output)],
+                             "--max-steps-per-episode", "1", "--checkpoint-every", "0", "--skip-db", "--synthetic-smoke-test", "--output", str(output)],
                             cwd=root, capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr + result.stdout
     artifact = json.loads(output.read_text(encoding="utf-8"))
     assert artifact["metadata"]["native_contract"]["network_sha256"] == site.fingerprint
 
 
-def test_site_training_is_blocked_until_validation_gate_exists(monkeypatch):
+def test_site_training_through_the_api_needs_an_open_validation_gate(monkeypatch):
     import database
     from services.training_settings import prepare_settings
     site = load_registered_network("tagum_site_a")
