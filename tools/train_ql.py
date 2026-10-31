@@ -62,7 +62,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
     parser.add_argument("--max-steps-per-episode", type=int, default=None)
-    parser.add_argument("--intersection-id", default="tagum_network")
+    parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
     parser.add_argument("--scenario-name", default="SMARTFLOW QL Training Scenario")
@@ -137,10 +137,10 @@ def _save_db_checkpoint(
         print(f"Warning: QL DB checkpoint failed: {exc}")
 
 
-def _load_resume_artifact(path: Path) -> tuple[TabularQLearningAgent, list[dict]]:
+def _load_resume_artifact(path: Path, network=None) -> tuple[TabularQLearningAgent, list[dict]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     from simulation.model_contract import validate_metadata
-    validate_metadata(payload.get("metadata", {}))
+    validate_metadata(payload.get("metadata", {}), network)
     agent = TabularQLearningAgent.from_artifact(payload)
     metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
     previous_episodes = list(metadata.get("episodes", []) or [])
@@ -189,7 +189,7 @@ def main() -> int:
 
     scenario = {
         "name": args.scenario_name,
-        "intersection_id": args.intersection_id,
+        "intersection_id": args.intersection_id or "tagum_network",
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
     }
@@ -206,7 +206,8 @@ def main() -> int:
     )
     previous_episodes: list[dict] = []
     if args.resume_model:
-        agent, previous_episodes = _load_resume_artifact(args.resume_model)
+        from simulation.network_registry import load_registered_network
+        agent, previous_episodes = _load_resume_artifact(args.resume_model, load_registered_network(scenario.get("network_id")))
         if agent.action_count != len(RL_SERVICE_ACTIONS):
             raise SystemExit(
                 f"Resume model action count {agent.action_count} does not match current action count {len(RL_SERVICE_ACTIONS)}."

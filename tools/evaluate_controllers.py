@@ -246,8 +246,12 @@ def _run_controller_once(
         if abs(value/STEP_LENGTH-round(value/STEP_LENGTH)) > 1e-7:
             raise ValueError("Evaluation durations must be multiples of 0.1 seconds")
     total_duration_seconds = float(warmup_seconds) + float(duration_seconds)
-    engine = TrafficEngine(seed=seed)
-    engine.configure_from_scenario(scenario)
+    if scenario.get("network_id"):
+        from simulation.network_registry import engine_for_scenario
+        engine = engine_for_scenario(scenario, seed=seed)
+    else:
+        engine = TrafficEngine(seed=seed)
+        engine.configure_from_scenario(scenario)
     _configure_engine_for_controller(
         engine,
         controller,
@@ -435,7 +439,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-seconds", type=float, default=DEFAULT_WARMUP_SECONDS)
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
-    parser.add_argument("--intersection-id", default="tagum_network")
+    parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
@@ -455,11 +459,13 @@ def main() -> int:
 
     scenario = {
         "name": args.scenario_name,
-        "intersection_id": args.intersection_id,
+        "intersection_id": args.intersection_id or "tagum_network",
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
     }
     scenario = load_training_scenario(args, scenario)
+    from simulation.network_registry import load_registered_network
+    scenario_network = load_registered_network(scenario.get("network_id"))
 
     model_paths = {
         "ql": args.ql_model or _latest_model_path("ql"),
@@ -474,14 +480,14 @@ def main() -> int:
         model_path = model_paths[controller]
         if model_path is None:
             raise SystemExit(f"No {controller.upper()} model found. Pass --{controller}-model or train {controller.upper()} first.")
-        metadata = artifact_metadata(controller, model_path)
+        metadata = artifact_metadata(controller, model_path, scenario_network)
         trained_scenario = metadata.get("scenario")
         if not isinstance(trained_scenario, dict):
             if has_observed_inputs(scenario):
                 raise ValueError("Model lacks its training snapshot for held-out observed evaluation.")
         else:
             validate_observed_holdout(trained_scenario, scenario)
-        policies[controller] = load_runtime_policy(controller, model_path)
+        policies[controller] = load_runtime_policy(controller, model_path, network=scenario_network)
         model_ids[controller] = _find_rl_model_id_by_path(model_path)
 
     scenario_id = args.scenario_id or _find_or_create_scenario(scenario)

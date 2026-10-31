@@ -114,6 +114,12 @@ def _files_for_references(references: set[str]) -> dict[str, Path]:
     if not network.is_file():
         raise ValueError(f"Configured network source is missing: {network}")
     files[_member(network)] = network
+    from simulation.network_registry import REGISTRY_PATH, registered_networks
+    if REGISTRY_PATH.exists():
+        for entry in registered_networks()[1:]:
+            site = (REGISTRY_PATH.parent / entry['file']).resolve()
+            files[_member(site)] = site
+        files[_member(REGISTRY_PATH)] = REGISTRY_PATH
     return files
 
 
@@ -135,6 +141,9 @@ def create_bundle(created_by: int) -> str:
                     "references": mapping, "files": {member: {"sha256": _digest(path), "size": path.stat().st_size}
                                                          for member, path in sorted(files.items())},
                     "database_sha256": _digest(snapshot)}
+        from simulation.network_registry import REGISTRY_PATH
+        if REGISTRY_PATH.exists():
+            manifest['network_registry'] = _member(REGISTRY_PATH)
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
             bundle.write(snapshot, "smartflow.db")
             for member, path in sorted(files.items()):
@@ -266,10 +275,14 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
             if network_member not in manifest["files"]:
                 raise ValueError("Configured network is missing from the backup bundle")
             from services.scenario_migration import migrate_connection
+            registry_member = manifest.get('network_registry')
+            if registry_member is not None and registry_member not in manifest['files']:
+                raise ValueError('Network registry is missing from the backup bundle')
+            restored_registry = restored_members[registry_member] if registry_member else staged / 'missing-registry.json'
             with closing(sqlite3.connect(snapshot)) as conn, conn:
                 conn.row_factory = sqlite3.Row
                 conn.execute('BEGIN IMMEDIATE')
-                report = migrate_connection(conn, apply=True, network=road_network.load_network(restored_members[network_member]))
+                report = migrate_connection(conn, apply=True, network=road_network.load_network(restored_members[network_member]), registry_path=restored_registry)
             (staged / 'scenario_migration_report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
             (staged / 'restore_layout.json').write_text(json.dumps({
                 member: path.relative_to(staged).as_posix() for member, path in restored_members.items()
@@ -277,6 +290,7 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
             (staged / "restore_environment.json").write_text(json.dumps({
                 "SMARTFLOW_DB_PATH": str(snapshot),
                 "SMARTFLOW_NETWORK_PATH": str(restored_members[network_member]),
+                **({"SMARTFLOW_NETWORK_REGISTRY_PATH": str(restored_registry)} if registry_member else {}),
                 "note": "Start a separate SmartFlow API process with these environment variables and its own secret key."
             }, indent=2), encoding="utf-8")
         return staged

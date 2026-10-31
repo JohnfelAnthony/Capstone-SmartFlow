@@ -962,10 +962,12 @@ def get_scenario(scenario_id: int, user: dict = Depends(require_current_user)) -
 
 
 def scenario_write_values(payload: ScenarioWriteRequest) -> dict:
+    native = database.validated_native_scenario(payload.network_id, payload.engine_config)
+    native.pop("network_sha256", None)  # database writes the fingerprint after validation
     return {
         "name": payload.name.strip(),
         "description": payload.description or "",
-        **database.validated_native_scenario(payload.network_id, payload.engine_config),
+        **native,
     }
 
 
@@ -975,10 +977,9 @@ def resolved_native_scenario(scenario_id: int, user: dict = Depends(require_curr
     scenario = database.get_scenario_by_id(scenario_id)
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found.")
-    from simulation.traffic_engine import TrafficEngine
-    engine = TrafficEngine()
     try:
-        engine.configure_from_scenario(scenario)
+        from simulation.network_registry import engine_for_scenario
+        engine = engine_for_scenario(scenario)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"engine_config": engine.config}
@@ -1172,7 +1173,7 @@ def compare_timeline_meta(run: SimulationRunRecord, manifest: dict) -> CompareTi
     timeline = manifest.get("timeline", {}) if isinstance(manifest, dict) else {}
     scenario = manifest.get("scenario", {}) if isinstance(manifest, dict) else {}
     return CompareTimelineMeta(
-        intersection_id=scenario.get("network_id"),
+        intersection_id=scenario.get("network_id") or scenario.get("intersection_id"),
         requested_duration_seconds=compare_float(timeline.get("requested_duration_seconds") or run.duration_seconds),
         actual_duration_seconds=compare_float(timeline.get("actual_duration_seconds") or run.duration_seconds),
         step_length_seconds=compare_float(timeline.get("step_length_seconds")),
@@ -1423,13 +1424,17 @@ def create_scenario(payload: ScenarioWriteRequest, user: dict = Depends(require_
 
 
 @app.get("/api/scenarios/observations/template")
-def get_observation_template(kind: str, example: bool = False, format: str = "json", user: dict = Depends(require_current_user)):
+def get_observation_template(kind: str, example: bool = False, format: str = "json", network_id: str | None = None, user: dict = Depends(require_current_user)):
     require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
     from services.observation_templates import observation_template
     try:
         if format not in {"json", "csv"}:
             raise ValueError("Template format must be json or csv.")
-        template = observation_template(kind, example=example)
+        if network_id:
+            from simulation.network_registry import load_registered_network
+            template = observation_template(kind, example=example, network=load_registered_network(network_id))
+        else:
+            template = observation_template(kind, example=example)
         if format == "csv":
             return Response(template["csv_text"], media_type="text/csv",
                             headers={"Content-Disposition": f'attachment; filename="{template["filename"]}"'})
@@ -1977,11 +1982,22 @@ async def simulation_websocket(
 
 
 @app.get("/api/simulation/options")
-def native_configuration_options(user: dict = Depends(require_current_user)) -> dict:
+def native_configuration_options(network_id: str | None = None, user: dict = Depends(require_current_user)) -> dict:
     require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
                                   ("dashboard", "view"), ("rl-training", "view")])
     from services.native_scenario_service import configuration_options
-    return configuration_options()
+    try:
+        return configuration_options(network_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/networks")
+def networks(user: dict = Depends(require_current_user)) -> list[dict]:
+    require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
+                                  ("dashboard", "view"), ("rl-training", "view")])
+    from simulation.network_registry import registered_networks
+    return registered_networks()
 
 
 @app.get("/api/visual-network")

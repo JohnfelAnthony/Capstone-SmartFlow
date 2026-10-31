@@ -34,8 +34,11 @@ def _rows(csv_text: str, kind: str) -> list[dict[str, str]]:
         raise ValueError("CSV must contain data and be at most 1 MB")
     reader = csv.DictReader(io.StringIO(csv_text.lstrip("\ufeff"), newline=""))
     headers = reader.fieldnames or []
-    if set(headers) != set(SCHEMAS[kind]) or len(headers) != len(SCHEMAS[kind]):
-        raise ValueError(f"CSV columns for {kind} must be: {', '.join(sorted(SCHEMAS[kind]))}")
+    required = set(SCHEMAS[kind])
+    optional = {"vehicle_type"} if kind in {"od_counts", "turn_counts"} else set()
+    if not required.issubset(headers) or set(headers) - required - optional or len(headers) != len(set(headers)):
+        extra = "; optional: vehicle_type" if optional else ""
+        raise ValueError(f"CSV columns for {kind} must be: {', '.join(sorted(required))}{extra}")
     rows = list(reader)
     if not rows or len(rows) > MAX_ROWS:
         raise ValueError(f"CSV must contain 1–{MAX_ROWS} data rows")
@@ -62,7 +65,8 @@ def _bin(row: dict, row_number: int) -> tuple[float, float]:
 
 def import_observations(*, kind: str, csv_text: str, source_description: str, source_kind: str = "synthetic",
                         collected_on: str, engine_config: dict | None = None,
-                        collection_start: str | None = None, collection_end: str | None = None) -> dict:
+                        collection_start: str | None = None, collection_end: str | None = None,
+                        network_id: str | None = None) -> dict:
     """Validate every row and the complete scenario before retaining source bytes."""
     description = source_description.strip() if isinstance(source_description, str) else ""
     if not description or len(description) > 500:
@@ -76,7 +80,8 @@ def import_observations(*, kind: str, csv_text: str, source_description: str, so
     if observed_date > date.today():
         raise ValueError("Collection date cannot be in the future")
     period = collection_period(collection_start, collection_end, collected_on)
-    network = load_network()
+    from simulation.network_registry import load_registered_network
+    network = load_network() if network_id is None else load_registered_network(network_id)
     rows = _rows(csv_text, kind)
     if period:
         from datetime import datetime
@@ -97,6 +102,9 @@ def import_observations(*, kind: str, csv_text: str, source_description: str, so
             else:
                 start, end = _bin(row, row_number)
                 count = _count(row["count"], row_number)
+                vehicle_type = row.get("vehicle_type", "car").strip().lower()
+                if kind != "pedestrian_counts" and vehicle_type not in VEHICLE_TYPES:
+                    raise ValueError("vehicle_type is not supported")
                 if kind == "turn_counts":
                     source, destination = row["source"].strip(), row["destination"].strip()
                     junction = row["junction"].strip()
@@ -118,7 +126,7 @@ def import_observations(*, kind: str, csv_text: str, source_description: str, so
                         pedestrian_trips.append({"time": arrival_time, "junction": row["junction"].strip()})
                     else:
                         trips.append({"time": arrival_time, "source": row["source"].strip(),
-                                      "destination": row["destination"].strip(), "vehicle_type": "car"})
+                                      "destination": row["destination"].strip(), "vehicle_type": vehicle_type})
             if len(trips) + len(pedestrian_trips) > MAX_ARRIVALS:
                 raise ValueError(f"import exceeds {MAX_ARRIVALS} arrivals")
             # Include the CSV row in connectivity and ID errors.
@@ -130,7 +138,7 @@ def import_observations(*, kind: str, csv_text: str, source_description: str, so
                 probe_pedestrians = [{"time": start, "junction": row["junction"].strip()}]
             else:
                 probe_trips = [{"time": start, "source": row["source"].strip(),
-                                "destination": row["destination"].strip(), "vehicle_type": "car"}]
+                                "destination": row["destination"].strip(), "vehicle_type": vehicle_type}]
                 probe_pedestrians = []
             candidate_row = {"traffic_density": "none", "pedestrian_density": "none",
                              "trips": probe_trips, "pedestrian_trips": probe_pedestrians}
