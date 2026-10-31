@@ -36,7 +36,8 @@ from simulation.traffic_engine import TrafficEngine
 
 
 DEFAULT_SEEDS = (11, 22, 33, 44, 55)
-SUPPORTED_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
+SUPPORTED_CONTROLLERS = ("fixed-time", "no-signal", "ql", "dql", "ppo")
+DEFAULT_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
 
 
 def _utc_now_iso() -> str:
@@ -63,7 +64,7 @@ def _parse_controller_set(raw_controllers: str) -> tuple[str, ...]:
     unsupported = sorted(set(controllers) - set(SUPPORTED_CONTROLLERS))
     if unsupported:
         raise argparse.ArgumentTypeError(f"unsupported controller(s): {', '.join(unsupported)}")
-    return controllers or SUPPORTED_CONTROLLERS
+    return controllers or DEFAULT_CONTROLLERS
 
 
 def _latest_model_path(controller: str) -> Path | None:
@@ -154,12 +155,17 @@ def _configure_engine_for_controller(
     decision_interval_seconds: float,
     minimum_green_hold_seconds: float,
 ):
+    if controller == "no-signal":
+        engine.enable_no_signal_control()
+        return
     if controller == "fixed-time":
+        engine.disable_no_signal_control()
         engine.disable_rl_control()
         return
     if controller in {"ql", "dql", "ppo"}:
         if controller not in policies:
             raise ValueError(f"{controller.upper()} controller requires a runtime policy.")
+        engine.disable_no_signal_control()
         engine.set_runtime_policy(
             policies[controller],
             decision_interval=decision_interval_seconds,
@@ -433,7 +439,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate SMARTFLOW controllers using the fixed comparison protocol."
     )
-    parser.add_argument("--controllers", type=_parse_controller_set, default=SUPPORTED_CONTROLLERS)
+    parser.add_argument("--controllers", type=_parse_controller_set, default=DEFAULT_CONTROLLERS)
     parser.add_argument("--seeds", type=_parse_seed_set, default=DEFAULT_SEEDS)
     parser.add_argument("--duration-seconds", type=float, default=DEFAULT_EPISODE_SECONDS)
     parser.add_argument("--warmup-seconds", type=float, default=DEFAULT_WARMUP_SECONDS)

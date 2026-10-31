@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { controlLabel } from "@/lib/control-labels"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const blankDraft: FitDraft = {
@@ -67,7 +68,8 @@ export function CalibrationValidationPage({ initialRecordId, canEdit, canExport,
 
   React.useEffect(() => {
     let mounted = true
-    Promise.all([listFitRecords(), listRuns({ status: "completed", controlMode: "fixed-time", limit: 1000 }),
+    Promise.all([listFitRecords(), Promise.all(["no-signal", "fixed-time"].map((controlMode) => listRuns({ status: "completed", controlMode, limit: 1000 })))
+        .then((lists) => ({ runs: lists.flatMap((list) => list.runs).sort((a, b) => b.id - a.id) })),
       initialRecordId ? getFitRecord(initialRecordId) : Promise.resolve(null)])
       .then(([history, baselines, opened]) => {
         if (!mounted) return
@@ -121,7 +123,7 @@ export function CalibrationValidationPage({ initialRecordId, canEdit, canExport,
 
   return <main className="flex min-w-0 flex-col gap-6 p-4 lg:p-6">
     <div><h1 className="text-2xl font-semibold">Calibration &amp; Validation</h1>
-      <p className="text-muted-foreground">Compare fixed-time baselines with measured references, document tuning, and check an independent period.</p></div>
+      <p className="text-muted-foreground">Compare simulated runs of the measured condition with measured references, document tuning, and check an independent period.</p></div>
     <Alert><FlaskConicalIcon /><AlertTitle>Evidence before optimization</AlertTitle><AlertDescription>
       Calibration records support parameter review. Validation keeps the calibrated settings and tolerances, using a separate source and period.
       A numerical fit does not establish field accuracy. Synthetic references remain labeled as software fixtures.
@@ -133,7 +135,7 @@ export function CalibrationValidationPage({ initialRecordId, canEdit, canExport,
       <TabsContent value="new" className="mt-4">
         {!canEdit && <Alert className="mb-4"><AlertDescription>Viewing only. Scenario edit permission is required to save a research record.</AlertDescription></Alert>}
         {!runs.length ? <Empty><EmptyHeader><EmptyMedia variant="icon"><FlaskConicalIcon /></EmptyMedia><EmptyTitle>Record a baseline first</EmptyTitle>
-          <EmptyDescription>Complete a fixed-time recording in Scenarios. It will provide saved metrics and reproducible settings for comparison.</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={onOpenScenarios}>Open Scenarios</Button></EmptyContent></Empty> :
+          <EmptyDescription>Complete a no-signal recording (or a fixed-time one where the site has a signal) in Scenarios. It will provide saved metrics and reproducible settings for comparison.</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={onOpenScenarios}>Open Scenarios</Button></EmptyContent></Empty> :
           <form onSubmit={save} className="flex flex-col gap-6">
             <Card><CardHeader><CardTitle>1. Reference and purpose</CardTitle><CardDescription>Use a stable study-site identifier and cite the recording or reviewed observation sheet.</CardDescription></CardHeader>
               <CardContent><FieldGroup className="grid md:grid-cols-2">
@@ -147,8 +149,8 @@ export function CalibrationValidationPage({ initialRecordId, canEdit, canExport,
                 <TextField label="Collection start" value={draft.collection_start} onChange={(collection_start) => update({ collection_start })} required maxLength={80} placeholder="2026-10-04T07:00:00+08:00" description="ISO timestamp with UTC offset. This marks t=0, before any warmup." />
                 <TextField label="Collection end" value={draft.collection_end} onChange={(collection_end) => update({ collection_end })} required maxLength={80} placeholder="2026-10-04T08:00:00+08:00" description="The recording must cover warmup and the measured period." />
               </FieldGroup></CardContent></Card>
-            <Card><CardHeader><CardTitle>2. Fixed-time baseline</CardTitle><CardDescription>Values come from the saved run. Edit scenario settings and record another baseline to test a parameter change.</CardDescription></CardHeader>
-              <CardContent className="flex flex-col gap-4"><FieldGroup><NativeSelect label="Completed baseline run" value={String(draft.run_id || "")} options={[{ value: "", label: "Choose a completed fixed-time run" }, ...runs.map((run) => ({ value: String(run.id), label: `Run #${run.id} · scenario #${run.scenario_id ?? "—"} · ${run.start_time}` }))]} onChange={(value) => selectRun(Number(value))} /></FieldGroup>
+            <Card><CardHeader><CardTitle>2. Simulated run of the measured condition</CardTitle><CardDescription>For a site without a traffic light, choose its no-signal run. Values come from the saved run. Edit scenario settings and record another run to test a parameter change.</CardDescription></CardHeader>
+              <CardContent className="flex flex-col gap-4"><FieldGroup><NativeSelect label="Completed baseline run" value={String(draft.run_id || "")} options={[{ value: "", label: "Choose a completed no-signal or fixed-time run" }, ...runs.map((run) => ({ value: String(run.id), label: `Run #${run.id} · ${controlLabel(run.control_mode)} · scenario #${run.scenario_id ?? "—"} · ${run.start_time}` }))]} onChange={(value) => selectRun(Number(value))} /></FieldGroup>
                 {selectedRun && <><dl className="grid grid-cols-2 gap-3 md:grid-cols-4"><dt>Measurement start</dt><dd>{numberText(runMetrics.measurement_start)} s</dd><dt>Measured duration</dt><dd>{numberText(runMetrics.measurement_seconds)} s</dd><dt>Pending vehicles</dt><dd>{numberText(runMetrics.pending_demand)}</dd><dt>Unfinished vehicles</dt><dd>{numberText(runMetrics.unfinished_vehicles)}</dd></dl>
                   <FieldDescription>Count, wait, queue and travel-time metrics use different populations. Match the definition below; a local stop-line count is not network throughput.</FieldDescription></>}
                 <Button variant="outline" type="button" onClick={onOpenScenarios}>Open scenario library</Button>

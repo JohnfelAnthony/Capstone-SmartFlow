@@ -152,8 +152,8 @@ def baseline_snapshot(run_id: int):
     run = database.get_run_by_id(run_id)
     if not run:
         raise ValueError("Selected run does not exist.")
-    if run["status"] != "completed" or run["control_mode"] != "fixed-time":
-        raise ValueError("Choose a completed fixed-time baseline run.")
+    if run["status"] != "completed" or run["control_mode"] not in {"no-signal", "fixed-time"}:
+        raise ValueError("Choose a completed no-signal or fixed-time run.")
     saved = database.get_run_metrics(run_id)
     try:
         metrics = json.loads((saved or {}).get("raw_metrics_json") or "{}")
@@ -162,6 +162,9 @@ def baseline_snapshot(run_id: int):
     experiment = metrics.get("experiment", {})
     if experiment.get("engine_version") != ENGINE_VERSION or not experiment.get("network_sha256") or not experiment.get("config"):
         raise ValueError("Run lacks current native engine/network provenance; record a new baseline.")
+    expected_junction_control = "first_come" if run["control_mode"] == "no-signal" else None
+    if (experiment.get("control") or {}).get("junction_control") != expected_junction_control:
+        raise ValueError(f"Run lacks {run['control_mode']} provenance in its saved settings; record it again.")
     if not all(math.isfinite(float(metrics.get(key, -1))) and float(metrics.get(key, -1)) >= 0 for key in ("measurement_start", "measurement_seconds")):
         raise ValueError("Run lacks a valid measurement window.")
     if metrics.get("vehicle_conservation_error", 0) or metrics.get("pedestrian_conservation_error", 0):
