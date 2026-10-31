@@ -1,0 +1,56 @@
+{
+  "network_id": "tagum_site_b",
+  "network_sha256": "9ef5015599ed880d53d45a89b3655a757e0ad0d1e74842947e5cc93d57f9b803",
+  "boundaries": [
+    {
+      "boundary": "boundary_0",
+      "road_name": "Dao Street",
+      "road_id": "road0",
+      "length_m": 250.0
+    },
+    {
+      "boundary": "boundary_1",
+      "road_name": "Davao-Agusan National Highway",
+      "road_id": "road1",
+      "length_m": 176.57
+    },
+    {
+      "boundary": "boundary_2",
+      "road_name": "Davao-Agusan National Highway",
+      "road_id": "road2",
+      "length_m": 250.0
+    },
+    {
+      "boundary": "boundary_3",
+      "road_name": "Sobrecarey Street",
+      "road_id": "road3",
+      "length_m": 250.0
+    },
+    {
+      "boundary": "boundary_4",
+      "road_name": "Davao-Agusan National Highway",
+      "road_id": "road4",
+      "length_m": 176.5
+    },
+    {
+      "boundary": "boundary_5",
+      "road_name": "Davao-Agusan National Highway",
+      "road_id": "road5",
+      "length_m": 250.0
+    }
+  ],
+  "locations": {},
+  "lead_out_s": null,
+  "upstream_speed_mps_by_class": {},
+  "movement_conflicts": {},
+  "initialization": null,
+  "priority_review": null,
+  "class_map": {
+    "car": "car",
+    "motorcycle": "motorcycle",
+    "tricycle": "tricycle",
+    "tricycle/bao_bao": "tricycle",
+    "bus": "bus",
+    "truck": "truck"
+  }
+}

@@ -57,6 +57,36 @@ class GUITests(unittest.TestCase):
         self.post("/api/analyze", {"config": self.service.config, "confidence": .35})
         self.wait_job("complete")
 
+    def test_queue_samples_capture_visibility_and_frame(self):
+        self.run_demo()
+        self.post("/api/queue", {"time_s": 1.0, "approach_id": "N", "queue_count": 7,
+                                 "visibility": "complete", "reviewer": "Tester"})
+        self.post("/api/queue", {"time_s": 1.5, "approach_id": "N", "queue_count": None,
+                                 "visibility": "unknown", "reviewer": "Tester"})
+        rows = load_tables(self.service.take)["queue_samples.csv"]
+        self.assertEqual([(r["queue_count"], r["visibility"]) for r in rows], [("7", "complete"), ("", "unknown")])
+        self.assertTrue(all(r["frame_pts"] and r["review_status"] == "accepted" for r in rows))
+        with self.assertRaises(HTTPError):
+            self.post("/api/queue", {"time_s": 1, "approach_id": "N", "queue_count": -1,
+                                     "visibility": "complete", "reviewer": "Tester"})
+
+    def test_review_records_a_configured_exit(self):
+        self.demo()
+        config = copy.deepcopy(self.service.config)
+        exit_line = copy.deepcopy(config["lines"][0])
+        exit_line.update(id="EXIT_EAST", event_type="vehicle_discharge", location_id="E_EXIT", approach_id="E")
+        config["lines"].append(exit_line)
+        self.post("/api/analyze", {"config": config, "confidence": .35})
+        self.wait_job("complete")
+        event = next(row for row in self.service.events()["events"] if row["event_type"] == "vehicle_arrival")
+        review = {"event_id": event["event_id"], "reviewed_class": "car", "review_status": "accepted",
+                  "reviewer": "Tester", "exit_id": "EXIT_EAST"}
+        self.post("/api/review", review)
+        saved = next(row for row in self.service.events()["events"] if row["event_id"] == event["event_id"])
+        self.assertEqual(saved["exit_id"], "EXIT_EAST")
+        with self.assertRaises(HTTPError):
+            self.post("/api/review", {**review, "exit_id": "INVALID"})
+
     def test_gui_demo_boxes_counts_playback_review_and_export_roundtrip(self):
         import av
         self.assertIn('type="file"', self.html)
@@ -114,6 +144,9 @@ class GUITests(unittest.TestCase):
         self.post("/api/export", {"reviewer": "Synthetic reviewer", "note": "Software test only"})
         self.wait_job("complete")
         self.assertTrue(self.service.revision)
+        self.assertEqual(read_json(self.service.revision / "lines.json"), self.service.config)
+        revision_manifest = read_json(self.service.revision / "manifest.json")
+        self.assertEqual(revision_manifest["artifact_sha256"]["lines.json"], sha256(self.service.revision / "lines.json"))
         quality = read_json(self.service.revision / "quality_report.json")
         self.assertEqual(quality["accepted_event_count"], 4)
         self.assertEqual(quality["source_kind"], "synthetic")
@@ -125,6 +158,15 @@ class GUITests(unittest.TestCase):
         reopened.open_project(self.service.project.name)
         self.assertEqual(reopened.status, "complete")
         self.assertEqual(len(reopened.events()["events"]), 4)
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from field_observer.__main__ import main
+        with redirect_stdout(StringIO()):
+            result = main(["export", str(self.service.take), "--reviewer", "Tester", "--note", "CLI test",
+                           "--analysis", str(run)])
+        self.assertEqual(result, 0)
+        cli_revision = self.service.take / "revisions" / "r000002"
+        self.assertEqual(read_json(cli_revision / "lines.json"), self.service.config)
 
     def test_cross_site_and_missing_token_requests_cannot_mutate(self):
         for headers in ({"X-Observer-Token": "bad"}, {"Origin": "https://example.com"}):
