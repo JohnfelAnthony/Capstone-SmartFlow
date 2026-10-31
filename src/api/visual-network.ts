@@ -9,6 +9,8 @@ export type VisualLane = {
   id: string
   index: number
   width: number
+  /** Lanes across a road direction (native engine); absent means one. */
+  lane_count?: number
   allow: string
   disallow: string
   source_length: number

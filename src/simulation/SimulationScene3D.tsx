@@ -2,7 +2,7 @@ import * as React from "react"
 import {
   AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, CircleGeometry, Color, CylinderGeometry,
   DirectionalLight, DoubleSide, DynamicDrawUsage, Group, InstancedMesh, Line,
-  LineDashedMaterial, LineLoop, LineBasicMaterial, Mesh, MeshBasicMaterial,
+  LineDashedMaterial, LineLoop, LineBasicMaterial, Matrix4, Mesh, MeshBasicMaterial,
   MeshStandardMaterial, Object3D, PCFSoftShadowMap, PerspectiveCamera, Raycaster,
   Scene, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, Vector2, Vector3,
   WebGLRenderer, type Material,
@@ -11,7 +11,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js"
 import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
-import { boundsForJunction, headingToThreeYaw, lanePolygon, SCENE_PALETTE, selectionKey, signalAppearance, type SceneBounds, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
+import { boundsForJunction, dashedPieces, hasSignalHead, headingToThreeYaw, lanePolygon, SCENE_PALETTE, selectionKey, signalAppearance, type SceneBounds, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { interpolateVehicle, interpolationDuration, isPresentationJump } from "@/simulation/entity-interpolation"
@@ -212,6 +212,7 @@ export function SimulationScene3D(props: SceneProps) {
         return { x: point.x - Math.sin(angle) * (lane.width / 2 - 0.13), y: point.y + Math.cos(angle) * (lane.width / 2 - 0.13) }
       })
       markingParts.push(ribbon(edge, 0.09, 0.035))
+      for (const divider of lane.dividers) for (const piece of dashedPieces(divider, 3, 3)) markingParts.push(ribbon(piece, 0.1, 0.035))
       const middle = midpoint(lane.centerline)
       const direction = { x: Math.cos(middle.heading), y: Math.sin(middle.heading) }, normal = { x: -Math.sin(middle.heading), y: Math.cos(middle.heading) }
       arrowParts.push(polygonGeometry([
@@ -226,8 +227,9 @@ export function SimulationScene3D(props: SceneProps) {
       pavement.userData.selection = { kind: "junction", id: junction.id }
       staticPickables.push(pavement)
     }
-    const signalLamps: Array<{ signal: SceneGeometry["signalGroups"][number]; lamps: Record<"red" | "yellow" | "green", number> }> = []
-    const poleParts: BufferGeometry[] = []
+    const signalLamps: Array<{ signal: SceneGeometry["signalGroups"][number]; lamps: Record<"red" | "yellow" | "green", number>; matrices: Matrix4[]; visible: boolean }> = []
+    const poleParts = new Map<string, BufferGeometry[]>()
+    const signalPoles = new Map<string, Group>()
     const lampGeometry = addGeometry(new SphereGeometry(0.16, 8, 6))
     const lampSurface = addMaterial(new MeshBasicMaterial({ color: 0xffffff }))
     const lampInstances = new InstancedMesh(lampGeometry, lampSurface, Math.max(1, geometry.signalGroups.length * 3))
@@ -241,20 +243,30 @@ export function SimulationScene3D(props: SceneProps) {
       markingParts.push(ribbon(signal.stop_line, 0.25, 0.06))
       const angle = signal.heading * Math.PI / 180
       const x = signal.anchor.x - Math.sin(angle) * (signal.width / 2 + 0.55), z = -signal.anchor.y - Math.cos(angle) * (signal.width / 2 + 0.55)
-      poleParts.push(new CylinderGeometry(0.08, 0.08, 2.9, 6).translate(x, 1.45, z))
-      poleParts.push(new BoxGeometry(0.5, 1.18, 0.4).translate(x, 3.12, z))
+      const junctionKey = signal.junctionId ?? ""
+      const parts = poleParts.get(junctionKey) ?? []
+      parts.push(new CylinderGeometry(0.08, 0.08, 2.9, 6).translate(x, 1.45, z))
+      parts.push(new BoxGeometry(0.5, 1.18, 0.4).translate(x, 3.12, z))
+      poleParts.set(junctionKey, parts)
       const lamps = {} as Record<"red" | "yellow" | "green", number>
+      const matrices: Matrix4[] = []
       for (const [color, height] of [["red", 3.48], ["yellow", 3.12], ["green", 2.76]] as const) {
         lampTransform.position.set(x + 0.08, height, z + 0.17)
         lampTransform.updateMatrix()
         lampInstances.setMatrixAt(lampIndex, lampTransform.matrix)
+        matrices.push(lampTransform.matrix.clone())
         lampInstances.setColorAt(lampIndex, lampColor)
         lampJunctions.push(signal.junctionId)
         lamps[color] = lampIndex++
       }
-      signalLamps.push({ signal, lamps })
+      signalLamps.push({ signal, lamps, matrices, visible: true })
     }
-    merge(poleParts, poleSurface, signalGroup)
+    for (const [junctionKey, parts] of poleParts) {
+      const group = new Group()
+      signalGroup.add(group)
+      signalPoles.set(junctionKey, group)
+      merge(parts, poleSurface, group)
+    }
     merge(markingParts, markingsSurface)
     merge(arrowParts, markingsSurface, arrows)
     const floor = mesh(new BoxGeometry(Math.max(200, extent + 160), 0.08, Math.max(200, extent + 160)), surface(SCENE_PALETTE.ground))
@@ -554,6 +566,9 @@ export function SimulationScene3D(props: SceneProps) {
       for (const [id, tag] of junctionTags) { tag.visible = presentation.overlays.labels; tag.material.opacity = id === taggedJunction ? 1 : .55 }
       context.visible = presentation.overlays.context
       signalGroup.visible = presentation.overlays.signals
+      for (const [junctionKey, pole] of signalPoles) {
+        pole.visible = geometry.signalGroups.some(group => (group.junctionId ?? "") === junctionKey && hasSignalHead(group, next))
+      }
       updateRestrictions(next)
       for (const [id, appearance] of laneSurfaces) {
         const metric = next?.lane_metrics?.[id], closed = next?.visual.closed_lanes.includes(id), slow = (next?.visual.slow_lanes[id] ?? 1) < 1
@@ -561,8 +576,16 @@ export function SimulationScene3D(props: SceneProps) {
         const queueColor = count >= 10 ? 0xa67161 : count >= 5 ? 0xa49164 : count >= 1 ? 0x667a79 : SCENE_PALETTE.pavement
         appearance.color.set(closed ? SCENE_PALETTE.closed : slow ? SCENE_PALETTE.slow : presentation.overlays.heatmap && metric ? queueColor : SCENE_PALETTE.pavement)
       }
-      for (const { signal, lamps } of signalLamps) {
+      for (const item of signalLamps) {
+        const { signal, lamps } = item, visible = hasSignalHead(signal, next)
         const state = signalAppearance(signal, next)
+        if (item.visible !== visible) {
+          for (const [index, color] of (["red", "yellow", "green"] as const).entries()) {
+            lampInstances.setMatrixAt(lamps[color], visible ? item.matrices[index] : new Matrix4().makeScale(0, 0, 0))
+          }
+          item.visible = visible
+          lampInstances.instanceMatrix.needsUpdate = true
+        }
         for (const color of ["red", "yellow", "green"] as const) {
           const lit = state.lit && state.color === color
           lampColor.set(lit ? SCENE_PALETTE[color] : SCENE_PALETTE.off)

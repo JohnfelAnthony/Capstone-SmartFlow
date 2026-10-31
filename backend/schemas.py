@@ -163,6 +163,7 @@ class RLModelRecord(BaseModel):
     compatible: bool = False
     compatibility_message: str = ""
     controlled_junction: str | None = None
+    network_id: str | None = None
     decision_interval_seconds: float = 5
     minimum_green_hold_seconds: float = 10
     training_status: str | None = None
@@ -297,6 +298,7 @@ class ObservationImportRequest(BaseModel):
     collection_start: str | None = None
     collection_end: str | None = None
     engine_config: dict[str, Any] = Field(default_factory=dict)
+    network_id: str | None = None
 
 
 class ObservationImportResponse(BaseModel):

@@ -9,11 +9,11 @@
       "description": "Demonstration inputs, not observed Tagum counts"
     },
     "vehicle_mix": {
-      "car": 65,
-      "motorcycle": 15,
-      "tricycle": 10,
-      "bus": 5,
-      "truck": 5
+      "motorcycle": 0.55,
+      "tricycle": 0.25,
+      "car": 0.15,
+      "truck": 0.03,
+      "bus": 0.02
     },
     "demand_windows": [
       {

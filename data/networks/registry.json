@@ -1,0 +1,6 @@
+{
+  "networks": [
+    {"id": "tagum_site_a", "file": "tagum_site_a.json"},
+    {"id": "tagum_site_b", "file": "tagum_site_b.json"}
+  ]
+}

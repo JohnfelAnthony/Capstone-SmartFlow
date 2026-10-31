@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS scenarios (
     road_constraint TEXT DEFAULT 'None',
     intersection_id TEXT,
     network_id TEXT,
+    network_sha256 TEXT,
     engine_config TEXT DEFAULT '{}',
     lane_closure_config TEXT DEFAULT '{}',
     construction_config TEXT DEFAULT '{}',
@@ -387,6 +388,8 @@ def _migrate_scenarios():
             conn.execute("ALTER TABLE scenarios ADD COLUMN engine_config TEXT DEFAULT '{}'")
         if columns and "intersection_id" not in columns:
             conn.execute("ALTER TABLE scenarios ADD COLUMN intersection_id TEXT")
+        if columns and "network_sha256" not in columns:
+            conn.execute("ALTER TABLE scenarios ADD COLUMN network_sha256 TEXT")
         from services.scenario_migration import migrate_connection
         migrate_connection(conn, apply=True)
 
@@ -839,13 +842,14 @@ def count_active_admins():
 def validated_native_scenario(network_id=None, engine_config=None):
     from simulation.traffic_engine import TrafficEngine
     from simulation.scenario_config import object_config
-    engine = TrafficEngine()
-    requested = engine.network.id if network_id is None else network_id
+    from simulation.network_registry import load_registered_network
+    engine = TrafficEngine(network=load_registered_network(network_id))
+    requested = engine.network.id if network_id in (None, 'tagum_network') else network_id
     settings = object_config({} if engine_config is None else engine_config, 'engine_config')
     engine.configure_from_scenario({'network_id': requested, 'engine_config': settings})
     serialized = json.dumps(engine.config)
     _validate_json_object('engine_config', serialized)
-    return {'network_id': requested, 'engine_config': serialized}
+    return {'network_id': requested, 'network_sha256': engine.network.fingerprint, 'engine_config': serialized}
 
 
 def create_scenario(name, network_id=None, description='', engine_config=None,
@@ -853,9 +857,9 @@ def create_scenario(name, network_id=None, description='', engine_config=None,
     native = validated_native_scenario(network_id, engine_config)
     with get_db() as conn:
         cursor = conn.execute(
-            """INSERT INTO scenarios (name, description, network_id, engine_config,
-               created_by, is_official, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (name, description, native['network_id'], native['engine_config'], created_by, is_official, is_archived))
+            """INSERT INTO scenarios (name, description, network_id, network_sha256, engine_config,
+               created_by, is_official, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, description, native['network_id'], native['network_sha256'], native['engine_config'], created_by, is_official, is_archived))
         return cursor.lastrowid
 
 
@@ -891,6 +895,9 @@ def update_scenario(scenario_id, **kwargs):
         existing = get_scenario_by_id(scenario_id)
         if not existing:
             raise ValueError('Scenario not found.')
+        if kwargs.get('network_id', existing.get('network_id')) == existing.get('network_id'):
+            from simulation.network_registry import engine_for_scenario
+            engine_for_scenario(existing)
         kwargs.update(validated_native_scenario(kwargs.get('network_id', existing.get('network_id')),
                                                kwargs.get('engine_config', existing.get('engine_config'))))
 

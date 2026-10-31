@@ -254,6 +254,12 @@ class ObserverGUI:
             category = data.get("reviewed_class")
             is_vehicle = row["event_type"].startswith("vehicle_")
             require(category in CLASSES if is_vehicle else category == "person", "Choose the correct vehicle/person class.")
+            if "exit_id" in data:
+                exit_id = data.get("exit_id") or ""
+                require(not exit_id or (is_vehicle and any(line["id"] == exit_id and line["event_type"] == "vehicle_discharge"
+                                                          for line in self.config["lines"])),
+                        "Choose a configured vehicle exit line.")
+                row["exit_id"] = exit_id
             subtype = data.get("vehicle_subtype", "")
             require(subtype in ("", *TRICYCLE_SUBTYPES), "Unknown tricycle subtype.")
             require(not subtype or category == "tricycle", "A tricycle subtype requires the tricycle class.")
@@ -290,6 +296,34 @@ class ObserverGUI:
                        start_s=start, end_s=end, visibility=visibility, review_method="manual_count", reviewer=data["reviewer"], note=data.get("note", ""))
             self.save_draft("coverage.csv", [*rows, row])
             self.update(message="Coverage saved. Export will check all accepted events against it.")
+
+    def queue_sample(self, data):
+        with self.lock:
+            self.idle()
+            require(self.run is not None and self.config is not None and
+                    read_json(self.run / "run.json")["status"] == "complete", "Finish analysis first.")
+            approach = data.get("approach_id", "")
+            require(any(line.get("approach_id") == approach and approach for line in self.config["lines"]),
+                    "Choose a configured vehicle approach.")
+            reviewer = data.get("reviewer", "").strip()
+            require(bool(reviewer), "Enter a reviewer.")
+            visibility = data.get("visibility")
+            require(visibility in ("complete", "lower_bound", "unknown"), "Choose queue visibility.")
+            count = data.get("queue_count")
+            if visibility == "unknown":
+                require(count in (None, ""), "An unknown queue must be left blank.")
+                count = ""
+            else:
+                require(isinstance(count, int) and not isinstance(count, bool) and count >= 0,
+                        "Queue count must be a nonnegative whole number.")
+            timing = nearest_frame(self.take, number(data.get("time_s"), "sample time"))
+            row = {key: "" for key in TABLES["queue_samples.csv"]}
+            row.update({key: self.manifest[key] for key in COMMON}, sample_id="Q" + uuid.uuid4().hex[:12],
+                       time_s=timing["time_s"], frame_pts=timing["frame_pts"], approach_id=approach,
+                       queue_count=count, visibility=visibility, review_status="accepted", reviewer=reviewer,
+                       note=data.get("note", "").strip())
+            self.save_draft("queue_samples.csv", [*load_tables(self.take)["queue_samples.csv"], row])
+            self.update(message="Queue sample saved as a manual observation.")
 
 
 class GUIHTTPServer(ThreadingHTTPServer):
@@ -454,6 +488,8 @@ def make_server(root: Path, port=0):
                         service.review(data)
                     elif route.path == "/api/coverage":
                         service.coverage(data)
+                    elif route.path == "/api/queue":
+                        service.queue_sample(data)
                     elif route.path == "/api/export":
                         with service.lock:
                             service.idle()
@@ -461,7 +497,12 @@ def make_server(root: Path, port=0):
                             service.update(status="exporting", message="Checking observations and saving a provisional revision...")
                         def export_job():
                             try:
-                                revision = export_revision(service.take, data.get("reviewer", ""), data.get("note", ""))
+                                lines_path = service.run / "lines.json"
+                                run_record = read_json(service.run / "run.json")
+                                require(sha256(lines_path) == run_record.get("artifact_sha256", {}).get("lines.json"),
+                                        "The analysis counting lines have changed; preserve the original evidence.")
+                                revision = export_revision(service.take, data.get("reviewer", ""), data.get("note", ""),
+                                                           lines=read_json(lines_path))
                                 with zipfile.ZipFile(revision.parent / (revision.name + ".zip"), "w", zipfile.ZIP_DEFLATED) as archive:
                                     for item in revision.iterdir():
                                         archive.write(item, item.name)

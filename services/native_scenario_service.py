@@ -1,6 +1,7 @@
 """Network-derived choices for native scenario controls; no hard-coded study IDs."""
 import copy
 
+from simulation.scenario_config import VEHICLE_MIX_PRESETS
 from simulation.traffic_engine import TrafficEngine
 
 
@@ -16,8 +17,9 @@ def network_display_labels(network):
     return road_names, node_labels
 
 
-def configuration_options():
-    engine = TrafficEngine()
+def configuration_options(network_id: str | None = None):
+    from simulation.network_registry import load_registered_network
+    engine = TrafficEngine(network=load_registered_network(network_id))
     network = engine.network
     road_names, node_labels = network_display_labels(network)
     junctions = []
@@ -40,4 +42,5 @@ def configuration_options():
                    "road_name": road_names[lane.id[:-1]], "speed_mps": lane.speed,
                    "label": f"{road_names[lane.id[:-1]]}: {node_labels[lane.source]} to {node_labels[lane.target]} ({lane.id})"}
                   for lane in network.lanes.values()],
+        "vehicle_mix_presets": copy.deepcopy(VEHICLE_MIX_PRESETS),
     }

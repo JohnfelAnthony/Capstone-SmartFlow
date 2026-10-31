@@ -7,31 +7,93 @@ import hashlib
 import json
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
+from itertools import combinations
 from pathlib import Path
 
 NETWORK_ID = "tagum_network"
 NETWORK_PATH = Path(os.environ.get("SMARTFLOW_NETWORK_PATH") or
                     Path(__file__).resolve().parents[1] / "data/networks/tagum_network.json")
 Point = tuple[float, float]
+LANE_WIDTH_M = 3.3
+JUNCTION_CLEARANCE_M = 9.0
+STOP_LINE_SETBACK_M = 1.5
+
+
+def assign_approach_names(headings: dict[str, float]) -> dict[str, str]:
+    """Assign distinct compass names while preserving the circular order of legs."""
+    names = ("west", "south", "east", "north")
+    if len(headings) > 4:
+        raise ValueError("At most four approaches are supported")
+    if any(not math.isfinite(heading) for heading in headings.values()):
+        raise ValueError("Approach headings must be finite")
+    rounded = {lane: names[round(heading / (math.pi / 2)) % 4] for lane, heading in headings.items()}
+    if len(set(rounded.values())) == len(rounded):
+        return rounded
+    ordered = sorted(headings, key=lambda lane: (headings[lane] % (2 * math.pi), lane))
+    candidates = []
+    for slots in combinations(range(4), len(ordered)):
+        for rotation in range(4):
+            indices = [(slot + rotation) % 4 for slot in slots]
+            error = sum(abs(math.atan2(math.sin(headings[lane] - index * math.pi / 2),
+                                       math.cos(headings[lane] - index * math.pi / 2)))
+                        for lane, index in zip(ordered, indices))
+            candidates.append((error, tuple(indices)))
+    chosen = min(candidates)[1]
+    return {lane: names[index] for lane, index in zip(ordered, chosen)}
+
+
+def lanes_per_direction(road: dict) -> int:
+    """Lanes per travel direction from the OSM lanes tag; anything unusual means one."""
+    tag = str((road.get("osm_tags") or {}).get("lanes", "")).split(";")[0].strip()
+    if not tag.isdigit() or int(tag) < 1:
+        return 1
+    return int(tag) if road.get("oneway") else max(1, int(tag) // 2)
+
+
+def width_per_direction(road: dict) -> float:
+    """Carriageway width per direction: a field-checked width when given, else lanes times 3.3 m."""
+    if "width_per_direction_m" not in road:
+        return lanes_per_direction(road) * LANE_WIDTH_M
+    width = road["width_per_direction_m"]
+    if isinstance(width, bool) or not isinstance(width, (int, float)) or not math.isfinite(width) or not 2.5 <= width <= 15.0:
+        raise ValueError("width_per_direction_m must be between 2.5 and 15 metres")
+    return float(width)
 
 
 def distance(a: Point, b: Point) -> float:
     return math.hypot(b[0] - a[0], b[1] - a[1])
 
 
+_SEGMENT_CACHE: dict[int, tuple[list[Point], list[tuple[Point, Point, float]], float]] = {}
+
+
+def _segments(shape: list[Point]) -> tuple[list[tuple[Point, Point, float]], float]:
+    """(a, b, length) per segment and the total, computed once per shape; lane shapes and connectors never change."""
+    entry = _SEGMENT_CACHE.get(id(shape))
+    if entry is None or entry[0] is not shape:
+        # shortcut: holding the shape keeps its id from being reused; cleared wholesale if many temporary shapes appear.
+        if len(_SEGMENT_CACHE) > 20000:
+            _SEGMENT_CACHE.clear()
+        segments = [(a, b, distance(a, b)) for a, b in zip(shape, shape[1:])]
+        entry = (shape, segments, sum(segment[2] for segment in segments))
+        _SEGMENT_CACHE[id(shape)] = entry
+    return entry[1], entry[2]
+
+
 def length(shape: list[Point]) -> float:
-    return sum(distance(a, b) for a, b in zip(shape, shape[1:]))
+    return _segments(shape)[1]
 
 
 def sample(shape: list[Point], position: float) -> tuple[float, float, float]:
     remaining = max(0.0, position)
-    for index, (a, b) in enumerate(zip(shape, shape[1:])):
-        segment_length = distance(a, b)
+    segments = _segments(shape)[0]
+    last = len(shape) - 2
+    for index, (a, b, segment_length) in enumerate(segments):
         if segment_length < 1e-8:
             continue
-        if remaining <= segment_length or index == len(shape) - 2:
+        if remaining <= segment_length or index == last:
             fraction = min(1.0, remaining / segment_length)
             return a[0] + fraction * (b[0] - a[0]), a[1] + fraction * (b[1] - a[1]), math.atan2(b[1] - a[1], b[0] - a[0])
         remaining -= segment_length
@@ -84,6 +146,8 @@ class Lane:
     length: float
     speed: float
     approach: str
+    lane_count: int = 1
+    width: float = LANE_WIDTH_M
 
 
 class RoadNetwork:
@@ -106,6 +170,13 @@ class RoadNetwork:
         self.lanes: dict[str, Lane] = {}
         self.outgoing: dict[str, list[str]] = {node: [] for node in self.nodes}
         self.incoming: dict[str, list[str]] = {node: [] for node in self.nodes}
+        # Wide crossing roads push stop lines back so they stay outside the other road's pavement.
+        widest_at: dict[str, float] = {}
+        for road in payload["roads"]:
+            total_width = width_per_direction(road) * (1 if road.get("oneway") else 2)
+            for node_id in (road.get("source"), road.get("target")):
+                widest_at[node_id] = max(widest_at.get(node_id, 0.0), total_width)
+        clearance = {node_id: max(JUNCTION_CLEARANCE_M, widest/2 + STOP_LINE_SETBACK_M) for node_id, widest in widest_at.items()}
         for road in payload["roads"]:
             if road.get("source") not in self.nodes or road.get("target") not in self.nodes or road["source"] == road["target"]:
                 raise ValueError("Road endpoints must reference distinct nodes")
@@ -125,18 +196,28 @@ class RoadNetwork:
                     shape.reverse()
                     source, target = target, source
                 total = length(shape)
-                start = 0 if self.nodes[source].get("boundary") else 9
-                end = total if self.nodes[target].get("boundary") else total - 9
+                start = 0 if self.nodes[source].get("boundary") else clearance[source]
+                end = total if self.nodes[target].get("boundary") else total - clearance[target]
                 if end - start < 8:
                     raise ValueError(f"Road {road['id']} too short for junction clearance")
-                lane_shape = offset(clip(shape, start, end), 1.65 if not road.get("oneway") else 0)
+                width = width_per_direction(road)
+                lane_shape = offset(clip(shape, start, end), width / 2 if not road.get("oneway") else 0)
                 heading = sample(lane_shape, length(lane_shape))[2]
                 approach = ("west", "south", "east", "north")[round(heading / (math.pi / 2)) % 4]
                 lane_id = f"{road['id']}{'r' if reverse else 'f'}"
-                lane = Lane(lane_id, source, target, lane_shape, length(lane_shape), road.get("speed_mps", 8.33), approach)
+                lane = Lane(lane_id, source, target, lane_shape, length(lane_shape), road.get("speed_mps", 8.33), approach,
+                            lanes_per_direction(road), width)
                 self.lanes[lane_id] = lane
                 self.outgoing[source].append(lane_id)
                 self.incoming[target].append(lane_id)
+        for node_id in self.intersections:
+            incoming = self.incoming[node_id]
+            if len(incoming) > 4:
+                raise ValueError(f"Junction {node_id} has {len(incoming)} approaches; SmartFlow supports at most four")
+            headings = {lane_id: sample(self.lanes[lane_id].shape, self.lanes[lane_id].length)[2]
+                        for lane_id in incoming}
+            for lane_id, approach in assign_approach_names(headings).items():
+                self.lanes[lane_id] = replace(self.lanes[lane_id], approach=approach)
         if not self.lanes or not self.intersections:
             raise ValueError("Network needs roads and intersections")
         self.boundaries = [node_id for node_id in self.nodes if self.nodes[node_id].get("boundary")]
@@ -200,10 +281,11 @@ class RoadNetwork:
         point_dict = lambda p: {"x": p[0], "y": p[1]}
         for index, lane in enumerate(self.lanes.values()):
             shape = [point_dict(point) for point in lane.shape]
-            roads.append({"index": index, "function": "normal", "toward_intersection": True, "away_from_intersection": True, "shape": shape, "lanes": [{"id": lane.id, "index": 0, "width": 3.3, "allow": "passenger", "disallow": "", "source_length": lane.length, "clip_start_position": 0, "clip_end_position": lane.length, "shape": shape}]})
+            roads.append({"index": index, "function": "normal", "toward_intersection": True, "away_from_intersection": True, "shape": shape, "lanes": [{"id": lane.id, "index": 0, "width": lane.width, "lane_count": lane.lane_count, "allow": "passenger", "disallow": "", "source_length": lane.length, "clip_start_position": 0, "clip_end_position": lane.length, "shape": shape}]})
             if lane.target in self.intersections:
                 x, y, heading = sample(lane.shape, lane.length)
-                signal_groups.append({"id": lane.id, "signal_id": lane.id, "lane_id": lane.id, "from_edge_id": lane.id, "kind": "vehicle", "width": 3.3, "heading": math.degrees(heading), "anchor": {"x": x, "y": y}, "stop_line": [point_dict((x + math.sin(heading)*1.65, y-math.cos(heading)*1.65)), point_dict((x-math.sin(heading)*1.65, y+math.cos(heading)*1.65))], "link_indices": [0], "via_lane_ids": []})
+                half = lane.width / 2
+                signal_groups.append({"id": lane.id, "signal_id": lane.id, "lane_id": lane.id, "from_edge_id": lane.id, "kind": "vehicle", "width": lane.width, "heading": math.degrees(heading), "anchor": {"x": x, "y": y}, "stop_line": [point_dict((x + math.sin(heading)*half, y-math.cos(heading)*half)), point_dict((x-math.sin(heading)*half, y+math.cos(heading)*half))], "link_indices": [0], "via_lane_ids": []})
         for node_id in self.intersections:
             node = self.nodes[node_id]
             for incoming in self.incoming[node_id]:
@@ -223,7 +305,8 @@ class RoadNetwork:
             for lane_id in self.incoming[node_id]+self.outgoing[node_id]:
                 lane = self.lanes[lane_id]
                 x, y, heading = sample(lane.shape, lane.length if lane.target == node_id else 0)
-                corners.extend((x + sign*math.sin(heading)*1.7, y-sign*math.cos(heading)*1.7) for sign in (-1, 1))
+                corner = lane.width / 2 + 0.05
+                corners.extend((x + sign*math.sin(heading)*corner, y-sign*math.cos(heading)*corner) for sign in (-1, 1))
             polygon = [point_dict(point) for point in convex_hull(corners)]
             signals.append({"id": node_id, "kind": "traffic_light", "x": node["x"], "y": node["y"], "shape": polygon})
         return {"version": 2, "network_id": self.id, "source_net": "OpenStreetMap cached study network", "scope": {"mode": "connected-network"}, "bounds": {"min_x": min(p[0] for p in points)-20, "max_x": max(p[0] for p in points)+20, "min_y": min(p[1] for p in points)-20, "max_y": max(p[1] for p in points)+20}, "roads": roads, "internal_lanes": internal_lanes, "crossings": [], "walking_areas": [], "signals": signals, "signal_groups": signal_groups, "polygons": [], "source": self.payload["source"], "junctions": [self.nodes[node_id] for node_id in self.intersections]}

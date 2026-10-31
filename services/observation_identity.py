@@ -16,6 +16,8 @@ def normalized_observation_identity(kind: str, csv_text: str) -> dict:
         normalized = {key: float(value.strip()) if key in numeric_columns else
                       value.strip().lower() if key == "vehicle_type" else value.strip()
                       for key, value in row.items()}
+        if kind in {"od_counts", "turn_counts"}:
+            normalized.setdefault("vehicle_type", "car")
         records.append(hashlib.sha256(json.dumps(normalized, sort_keys=True).encode()).hexdigest())
     ordered = sorted(records)
     digest = hashlib.sha256(json.dumps([kind, ordered]).encode()).hexdigest()

@@ -38,7 +38,7 @@ export function NetworkMapCard({ geometry, junctionId, onFocus }: { geometry: Sc
   return <Card size="sm">
     <CardHeader>
       <CardTitle>Network map</CardTitle>
-      <CardDescription>{geometry.junctions.length} signalized junctions · click one to select it</CardDescription>
+      <CardDescription>{geometry.junctions.length} junctions · click one to select it</CardDescription>
     </CardHeader>
     <CardContent>
       <svg viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`} className="sf-network-map" aria-label="Network map">
@@ -109,6 +109,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
 
 function SignalPhases({ control }: { control: RenderFrame["junction_controls"][string] | undefined }) {
   if (!control) return <p className="sf-junction-note">Start a simulation to see the signal phases.</p>
+  if (control.mode === "first_come") return <p className="sf-junction-note">No signal — first come, first served.</p>
   if (control.mode === "all_way_stop") return <p className="sf-junction-note">All-way stop: this junction has no signal phases.</p>
   const current = phaseService(control.phase)
   const stageLength = (control.elapsed_seconds ?? 0) + (control.remaining_seconds ?? 0)
@@ -150,7 +151,7 @@ function QueueInfo({ frame, geometry, junctionId, approaches, approachName, lane
     const name = laneStreets[lane.id] ?? laneDisplayLabel(geometry, lane.id)
     return closed ? [`${name}: closed to new entry`] : factor !== undefined && factor < 1 ? [`${name}: ${Math.round(factor * 100)}% speed`] : []
   }) : []
-  if (!approaches.length) return <p className="sf-junction-note">No signalized approaches.</p>
+  if (!approaches.length) return <p className="sf-junction-note">No approaches available.</p>
   return <div className="flex flex-col gap-3">
     <p className="sf-junction-note">Waiting vehicles per approach</p>
     {queues.map(({ laneId, queue }) =>

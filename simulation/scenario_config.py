@@ -14,12 +14,19 @@ VEHICLE_TYPES = {
     "bus": {"length": 10.0, "width": 2.5, "speed_factor": 0.85},
     "truck": {"length": 8.0, "width": 2.5, "speed_factor": 0.8},
 }
+# Provisional: estimated by eye from the 10 Sept 2026 recordings, not counted; replace with Field Observer class shares.
+TAGUM_PROVISIONAL_MIX = {"motorcycle": 0.55, "tricycle": 0.25, "car": 0.15, "truck": 0.03, "bus": 0.02}
+CARS_ONLY_MIX = {"car": 1.0}
+VEHICLE_MIX_PRESETS = {
+    "tagum_provisional": {"label": "Tagum (provisional)", "mix": TAGUM_PROVISIONAL_MIX},
+    "cars_only": {"label": "Cars only", "mix": CARS_ONLY_MIX},
+}
 DEFAULTS = {
     "traffic_density": "single", "pedestrian_density": "none",
     "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
-    "vehicle_mix": {"car": 1.0}, "routing_mode": "adaptive", "reroute_interval": 15.0,
+    "vehicle_mix": dict(TAGUM_PROVISIONAL_MIX), "routing_mode": "adaptive", "reroute_interval": 15.0,
     "reroute_improvement": 0.15, "pedestrian_speed": 1.4, "crossing_length": 18.0,
     "pedestrian_max_wait": 90.0, "max_active_vehicles": 300, "max_pending_vehicles": 2000,
 }
@@ -152,8 +159,8 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             raise ValueError("Unknown signal junction")
         if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds", "maximum_red_seconds", "pedestrian_phase"}:
             raise ValueError("Unknown signal plan field")
-        if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop"}:
-            raise ValueError("Signal mode must be signalized or all_way_stop")
+        if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop", "first_come"}:
+            raise ValueError("Signal mode must be signalized, all_way_stop or first_come")
         if plan.get("pedestrian_phase", DEFAULT_PEDESTRIAN_PHASE) not in PEDESTRIAN_PHASE_RULES:
             raise ValueError("pedestrian_phase must be on_call or every_cycle")
         available = {network.lanes[lane].approach for lane in network.incoming[node]} | {"pedestrian"}

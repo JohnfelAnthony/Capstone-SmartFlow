@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .model_contract import native_contract, validate_neural_artifact
 from .rl_reward import REWARD_VERSION
+from .rl_state import OBSERVATION_VERSION
 
 import json
 import statistics
@@ -18,7 +19,6 @@ except ImportError:  # pragma: no cover - exercised when the local venv lacks th
     BaseCallback = None
 
 
-OBSERVATION_VERSION = "obs_v2"
 ACTION_SPACE_VERSION = "action_v1"
 
 
@@ -157,6 +157,8 @@ def train_ppo(
 ) -> tuple[Path, Path]:
     require_ppo_dependencies()
     env = env_factory()
+    from .network_registry import load_registered_network
+    network = load_registered_network(scenario.get("network_id") if isinstance(scenario := getattr(env, "scenario", None), dict) else None)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     progress_events: list[PPOProgressEvent] = []
@@ -184,7 +186,7 @@ def train_ppo(
             "reward_version": REWARD_VERSION,
             "action_space_version": ACTION_SPACE_VERSION,
             **(metadata or {}),
-            "native_contract": native_contract(),
+            "native_contract": native_contract(network),
         }
 
     def save_artifact(model, path: Path, *, status: str) -> tuple[Path, Path]:
@@ -217,7 +219,7 @@ def train_ppo(
 
     try:
         if resume_model_path:
-            validate_neural_artifact(resume_model_path)
+            validate_neural_artifact(resume_model_path, network)
             model = PPO.load(str(resume_model_path), env=env)
         else:
             model = build_ppo_model(env, config)

@@ -56,8 +56,8 @@ class QLRuntimePolicy:
         self.agent.epsilon = 0.0
 
     @classmethod
-    def load(cls, model_path: str | Path) -> "QLRuntimePolicy":
-        return cls(TabularQLearningAgent.load(model_path))
+    def load(cls, model_path: str | Path, network=None) -> "QLRuntimePolicy":
+        return cls(TabularQLearningAgent.load(model_path, network=network))
 
     def predict(self, observation=None, info: dict | None = None) -> PolicyPrediction:
         info = info or {}
@@ -134,13 +134,13 @@ class DQLRuntimePolicy:
         self.model = model
 
     @classmethod
-    def load(cls, model_path: str | Path) -> "DQLRuntimePolicy":
+    def load(cls, model_path: str | Path, network=None) -> "DQLRuntimePolicy":
         if DQN is None:
             raise RuntimeError(
                 "DQL runtime requires stable-baselines3 and torch. "
                 "Install the locked requirements first: .venv\\Scripts\\python.exe -m pip install -r requirements.txt"
             )
-        validate_neural_artifact(model_path)
+        validate_neural_artifact(model_path, network)
         return cls(DQN.load(str(model_path)))
 
     def predict(self, observation=None, info: dict | None = None) -> PolicyPrediction:
@@ -164,13 +164,13 @@ class PPORuntimePolicy:
         self.model = model
 
     @classmethod
-    def load(cls, model_path: str | Path) -> "PPORuntimePolicy":
+    def load(cls, model_path: str | Path, network=None) -> "PPORuntimePolicy":
         if PPO is None:
             raise RuntimeError(
                 "PPO runtime requires stable-baselines3 and torch. "
                 "Install the locked requirements first: .venv\\Scripts\\python.exe -m pip install -r requirements.txt"
             )
-        validate_neural_artifact(model_path)
+        validate_neural_artifact(model_path, network)
         return cls(PPO.load(str(model_path)))
 
     def predict(self, observation=None, info: dict | None = None) -> PolicyPrediction:
@@ -186,7 +186,7 @@ class PPORuntimePolicy:
         )
 
 
-def load_runtime_policy(controller_provenance: str, model_path: str | Path | None = None) -> RuntimePolicy:
+def load_runtime_policy(controller_provenance: str, model_path: str | Path | None = None, network=None) -> RuntimePolicy:
     normalized_provenance = str(controller_provenance or "").strip().lower().replace("_", "-")
     loaders = {"ql": QLRuntimePolicy, "dql": DQLRuntimePolicy, "ppo": PPORuntimePolicy}
     if normalized_provenance not in loaders:
@@ -194,12 +194,12 @@ def load_runtime_policy(controller_provenance: str, model_path: str | Path | Non
     if model_path is None:
         raise ValueError("model_path is required for an RL runtime policy")
     path = Path(model_path)
-    policy = loaders[normalized_provenance].load(path)
+    policy = loaders[normalized_provenance].load(path, network=network)
     with path.open("rb") as stream:
         model_hash = hashlib.file_digest(stream, "sha256").hexdigest()
     policy.artifact_metadata = {"algorithm": normalized_provenance, "filename": path.name, "sha256": model_hash}
-    metadata = artifact_metadata(normalized_provenance, path)
-    policy.artifact_metadata.update(training_junction=training_junction(metadata),
+    metadata = artifact_metadata(normalized_provenance, path, network)
+    policy.artifact_metadata.update(native_contract=metadata["native_contract"], training_junction=training_junction(metadata, network),
         decision_interval_seconds=metadata.get("decision_interval_seconds", 5),
         minimum_green_hold_seconds=metadata.get("minimum_green_hold_seconds", 10))
     if normalized_provenance != "ql":

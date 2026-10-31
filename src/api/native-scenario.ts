@@ -1,7 +1,8 @@
 import { API_BASE_URL, apiRequest } from "@/api/client"
+import type { VehicleMixPreset } from "@/lib/vehicle-mix"
 
 export type SignalPlan = {
-  mode: "signalized" | "all_way_stop"
+  mode: "signalized" | "all_way_stop" | "first_come"
   phase_order: string[]
   green_seconds: number
   minimum_green: number
@@ -36,6 +37,7 @@ export type NativeScenarioConfig = {
   reroute_interval?: number
   reroute_improvement?: number
   demand_source?: { kind: "synthetic" | "observed"; description?: string }
+  vehicle_mix?: Record<string, number>
   [setting: string]: unknown
 }
 
@@ -47,17 +49,26 @@ export type NativeScenarioOptions = {
   junctions: Array<{ id: string; label: string; approaches: string[]; default_plan: SignalPlan }>
   boundaries: Array<{ id: string; label: string }>
   lanes: Array<{ id: string; label: string; road_name: string; source: string; target: string; speed_mps: number }>
+  vehicle_mix_presets: Record<string, VehicleMixPreset>
 }
 
-export function getNativeScenarioOptions() {
-  return apiRequest<NativeScenarioOptions>("/api/simulation/options")
+export type NetworkSummary = { id: string; name: string; sha256: string; junctions: number }
+
+export function listNetworks() {
+  return apiRequest<NetworkSummary[]>("/api/networks")
 }
 
-export async function downloadObservationTemplate(kind: string, example: boolean) {
+export function getNativeScenarioOptions(networkId?: string) {
+  const query = networkId ? `?network_id=${encodeURIComponent(networkId)}` : ""
+  return apiRequest<NativeScenarioOptions>(`/api/simulation/options${query}`)
+}
+
+export async function downloadObservationTemplate(kind: string, example: boolean, networkId?: string) {
+  const network = networkId ? `&network_id=${encodeURIComponent(networkId)}` : ""
   const result = await apiRequest<{ filename: string; csv_text: string; network_id: string; network_sha256: string }>(
-    `/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}`)
+    `/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}${network}`)
   const link = document.createElement("a")
-  link.href = `${API_BASE_URL}/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}&format=csv`
+  link.href = `${API_BASE_URL}/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}&format=csv${network}`
   link.download = result.filename
   document.body.appendChild(link)
   try {
@@ -81,6 +92,7 @@ export function importObservationCsv(payload: {
   collection_start?: string
   collection_end?: string
   engine_config: NativeScenarioConfig
+  network_id?: string
 }) {
   return apiRequest<{ engine_config: NativeScenarioConfig; summary: { row_count: number; arrival_count: number; sha256: string; conversion: string } }>(
     "/api/scenarios/observations/import", { method: "POST", body: payload })
