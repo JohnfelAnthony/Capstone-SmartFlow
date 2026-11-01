@@ -42,7 +42,7 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/auth/login", json={
             "username": "admin", "password": "OperationsAdmin42!"}).status_code, 200)
         simulation_runtime.reset()
-        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
+        self.scenario = database.get_scenario_by_id(database.create_scenario("Single car", engine_config={"traffic_density": "single", "pedestrian_density": "none"}))
 
     def tearDown(self):
         simulation_runtime.reset()

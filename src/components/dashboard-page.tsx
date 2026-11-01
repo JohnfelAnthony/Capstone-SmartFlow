@@ -362,7 +362,9 @@ export function DashboardPage({
   const hasConfiguredScenario = simulation?.selected_scenario_id != null && typeof simulation.state.dashboard?.current_scenario_name === "string"
   const scenarioTitle = hasConfiguredScenario ? String(simulation.state.dashboard?.current_scenario_name) : selectedScenario?.name ?? "No scenario selected"
   const statusLine = [scenarioTitle, streamNotice ?? notice, ownershipNote, streamEnabled && streamStatus !== "open" ? `Live stream ${streamStatus}; positions may be delayed.` : ""].filter(Boolean).join(" · ")
-  const intersectionId = renderFrame?.intersection_id ??
+  // Before a scenario is loaded the idle engine sits on the default test network; show the chosen scenario's site instead.
+  const previewNetworkId = !hasConfiguredScenario ? selectedScenario?.network_id ?? null : null
+  const intersectionId = previewNetworkId ?? renderFrame?.intersection_id ??
     (typeof simulation?.state.scenario?.intersection_id === "string" ? simulation.state.scenario.intersection_id : null)
   const frozenConfig = simulation?.state.experiment?.config
   const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null

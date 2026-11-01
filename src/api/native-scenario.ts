@@ -1,4 +1,4 @@
-import { API_BASE_URL, apiRequest } from "@/api/client"
+import { apiRequest } from "@/api/client"
 import type { VehicleMixPreset } from "@/lib/vehicle-mix"
 
 export type SignalPlan = {
@@ -51,6 +51,7 @@ export type NativeScenarioConfig = {
   reroute_improvement?: number
   demand_source?: { kind: "synthetic" | "observed"; description?: string }
   vehicle_mix?: Record<string, number>
+  demand_windows?: unknown[]
   site_calibration?: SiteCalibration
   [setting: string]: unknown
 }
@@ -77,37 +78,11 @@ export function getNativeScenarioOptions(networkId?: string) {
   return apiRequest<NativeScenarioOptions>(`/api/simulation/options${query}`)
 }
 
-export async function downloadObservationTemplate(kind: string, example: boolean, networkId?: string) {
-  const network = networkId ? `&network_id=${encodeURIComponent(networkId)}` : ""
-  const result = await apiRequest<{ filename: string; csv_text: string; network_id: string; network_sha256: string }>(
-    `/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}${network}`)
-  const link = document.createElement("a")
-  link.href = `${API_BASE_URL}/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}&format=csv${network}`
-  link.download = result.filename
-  document.body.appendChild(link)
-  try {
-    link.click()
-  } finally {
-    link.remove()
-  }
-  return result
-}
-
 export function resolveNativeScenario(scenarioId: number) {
   return apiRequest<{ engine_config: NativeScenarioConfig }>(`/api/scenarios/${scenarioId}/native-config`)
 }
 
-export function importObservationCsv(payload: {
-  kind: "trips" | "od_counts" | "turn_counts" | "pedestrian_counts"
-  source_kind: "synthetic" | "observed"
-  csv_text: string
-  source_description: string
-  collected_on: string
-  collection_start?: string
-  collection_end?: string
-  engine_config: NativeScenarioConfig
-  network_id?: string
-}) {
-  return apiRequest<{ engine_config: NativeScenarioConfig; summary: { row_count: number; arrival_count: number; sha256: string; conversion: string } }>(
-    "/api/scenarios/observations/import", { method: "POST", body: payload })
+export function importMovementCounts(payload: { csv_text: string; network_id: string; engine_config: NativeScenarioConfig }) {
+  return apiRequest<{ engine_config: NativeScenarioConfig; rows: number; vehicles_per_hour: number }>(
+    "/api/scenarios/movement-counts", { method: "POST", body: payload })
 }

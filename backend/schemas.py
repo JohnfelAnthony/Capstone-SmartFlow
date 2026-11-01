@@ -301,6 +301,12 @@ class ObservationImportRequest(BaseModel):
     network_id: str | None = None
 
 
+class MovementCountsRequest(BaseModel):
+    csv_text: str
+    network_id: str
+    engine_config: dict[str, Any] = Field(default_factory=dict)
+
+
 class ObservationImportResponse(BaseModel):
     engine_config: dict[str, Any]
     summary: dict[str, Any]

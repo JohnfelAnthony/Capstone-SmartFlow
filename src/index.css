@@ -916,24 +916,6 @@
   grid-column: 1 / -1;
 }
 
-.scenario-textarea {
-  min-height: 92px;
-  width: 100%;
-  resize: vertical;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-lg);
-  background: transparent;
-  padding: 10px;
-  color: var(--foreground);
-  font-size: 14px;
-  outline: none;
-}
-
-.scenario-textarea:focus {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring), transparent 70%);
-}
-
 .scenario-disruption-card svg {
   color: var(--primary);
 }
@@ -1953,8 +1935,7 @@
 .random-theme .scenario-meta-item,
 .random-theme .scenario-disruption-summary,
 .random-theme .scenario-json-preview,
-.random-theme .scenario-json-input,
-.random-theme .scenario-textarea {
+.random-theme .scenario-json-input {
   border-color: var(--border);
   background: var(--random-dashboard-card);
   color: var(--random-dashboard-primary);

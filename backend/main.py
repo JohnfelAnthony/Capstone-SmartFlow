@@ -45,6 +45,7 @@ from backend.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    MovementCountsRequest,
     ObservationImportRequest,
     ObservationImportResponse,
     Permission,
@@ -1455,6 +1456,16 @@ def import_scenario_observations(payload: ObservationImportRequest, user: dict =
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return ObservationImportResponse(**result)
+
+
+@app.post("/api/scenarios/movement-counts")
+def import_movement_counts(payload: MovementCountsRequest, user: dict = Depends(require_current_user)) -> dict:
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from services.movement_counts import import_movement_counts as convert
+    try:
+        return convert(**payload.model_dump())
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
 
 
 @app.put("/api/scenarios/{scenario_id}", response_model=Scenario)

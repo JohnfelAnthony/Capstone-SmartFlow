@@ -567,28 +567,17 @@ def seed_data():
                 settings
             )
 
-        from simulation.road_network import NETWORK_ID, load_network
+        from simulation.network_registry import registered_networks
 
-        active_network = load_network()
-        network_label = "Tagum" if active_network.id == NETWORK_ID else active_network.payload.get("name", active_network.id)
-        junction_count = len(active_network.intersections)
-        network_description = (
-            f"{junction_count} connected OSM junction{'s' if junction_count != 1 else ''}; one car; synthetic study signals."
-            if active_network.id == NETWORK_ID else "Configured network; one car; synthetic study signals."
-        )
-        official_scenarios = [
-            (f"{network_label} — Single Car Demo", network_description,
-             {'traffic_density': 'single', 'pedestrian_density': 'none'}),
-            (f"{network_label} — Network Traffic", 'Synthetic traffic for engine experiments; not measured counts.',
-             {'traffic_density': 'medium', 'pedestrian_density': 'low'}),
-        ]
-        for name, description, settings in official_scenarios:
-            native = validated_native_scenario(active_network.id, settings)
+        # Scenarios are made on the study sites only; the default network stays a test network.
+        for site in registered_networks()[1:]:
+            name = f"{site['name']} — Medium traffic"
+            native = validated_native_scenario(site['id'], {'traffic_density': 'medium', 'pedestrian_density': 'low'})
             conn.execute(
                 """INSERT INTO scenarios (name, description, network_id, engine_config, is_official)
                    SELECT ?, ?, ?, ?, 1 WHERE NOT EXISTS (
                        SELECT 1 FROM scenarios WHERE name = ? AND network_id = ? AND is_official = 1
-                   )""", (name, description, native['network_id'], native['engine_config'], name, active_network.id))
+                   )""", (name, 'Synthetic medium traffic; not measured counts.', native['network_id'], native['engine_config'], name, site['id']))
 
         # Seed permissions if empty
         cursor = conn.execute("SELECT COUNT(*) FROM permissions")

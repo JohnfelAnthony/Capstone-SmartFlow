@@ -272,8 +272,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         if source not in network.boundaries or target not in network.boundaries or not network.route(source, target):
             raise ValueError("Demand needs distinct, connected boundary source/destination IDs")
     for window in result["demand_windows"]:
-        if window.keys() - {"start", "end", "vehicles_per_hour", "od", "label"}:
+        if window.keys() - {"start", "end", "vehicles_per_hour", "od", "label", "vehicle_type"}:
             raise ValueError("Unknown demand window field")
+        if "vehicle_type" in window and window["vehicle_type"] not in VEHICLE_TYPES:
+            raise ValueError("Unknown demand window vehicle type")
         window["start"] = number(window.get("start"), "window start")
         window["end"] = number(window.get("end"), "window end")
         if window["end"] <= window["start"]:
