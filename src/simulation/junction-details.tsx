@@ -30,33 +30,6 @@ const queueBand = (queue: number) => queue >= 10 ? "High" : queue >= 5 ? "Modera
 const readable = (text: string | null | undefined) => text ? text.replaceAll("_", " ").toLowerCase().replace(/^\w/, letter => letter.toUpperCase()) : "Unavailable"
 const seconds = (value: number | undefined) => value === undefined ? "—" : `${Math.round(value)} s`
 
-export function NetworkMapCard({ geometry, junctionId, onFocus }: { geometry: SceneGeometry; junctionId: string | null; onFocus: (id: string) => void }) {
-  const bounds = geometry.bounds
-  const width = bounds.max_x - bounds.min_x, height = bounds.max_y - bounds.min_y
-  const span = Math.max(width, height), padding = span * .08
-  const point = (position: { x: number; y: number }) => `${position.x - bounds.min_x},${bounds.max_y - position.y}`
-  return <Card size="sm">
-    <CardHeader>
-      <CardTitle>Network map</CardTitle>
-      <CardDescription>{geometry.junctions.length} junctions · click one to select it</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <svg viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`} className="sf-network-map" aria-label="Network map">
-        {geometry.lanes.filter(lane => lane.kind === "road").map(lane => <polyline key={lane.id} points={lane.centerline.map(point).join(" ")} fill="none" className="sf-network-map-road" strokeWidth={Math.max(lane.width, span * .012)} />)}
-        {geometry.junctions.map(junction => {
-          const active = junction.id === junctionId
-          return <g key={junction.id} role="button" tabIndex={0} aria-label={`Select ${junction.label}`} aria-pressed={active} className="sf-network-map-junction" data-active={active}
-            onClick={() => onFocus(junction.id)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onFocus(junction.id) } }}>
-            <title>{junction.label}</title>
-            <circle cx={junction.center.x - bounds.min_x} cy={bounds.max_y - junction.center.y} r={span * .06} />
-            <text x={junction.center.x - bounds.min_x} y={bounds.max_y - junction.center.y} textAnchor="middle" dominantBaseline="central" fontSize={span * .06}>{junctionShortLabel(geometry, junction.id)}</text>
-          </g>
-        })}
-      </svg>
-    </CardContent>
-  </Card>
-}
-
 function JunctionPhoto({ shortLabel }: { shortLabel: string }) {
   const sources = React.useMemo(() => [`/assets/junctions/${shortLabel}.jpg`, PLACEHOLDER_PHOTO], [shortLabel])
   const [sourceIndex, setSourceIndex] = React.useState(0)

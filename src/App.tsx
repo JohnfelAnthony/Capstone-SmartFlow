@@ -23,13 +23,14 @@ const RLTrainingPage = React.lazy(() => import("@/components/rl-training-page").
 const RunsReportsPage = React.lazy(() => import("@/components/runs-reports-page").then(module => ({ default: module.RunsReportsPage })))
 const ScenariosPage = React.lazy(() => import("@/components/scenarios-page").then(module => ({ default: module.ScenariosPage })))
 const SettingsPage = React.lazy(() => import("@/components/settings-page").then(module => ({ default: module.SettingsPage })))
-import { SiteHeader } from "@/components/site-header"
+import { SiteHeader, type DashboardView } from "@/components/site-header"
 const UserManagementPage = React.lazy(() => import("@/components/user-management-page").then(module => ({ default: module.UserManagementPage })))
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 export default function App() {
   const [activePage, setActivePage] = React.useState("Login")
+  const [dashboardView, setDashboardView] = React.useState<DashboardView>("simulation")
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null)
   const [isSessionLoading, setIsSessionLoading] = React.useState(true)
   const pageTitleByPage: Record<string, string> = {
@@ -146,6 +147,8 @@ export default function App() {
         <SidebarInset className="min-w-0">
           <SiteHeader
             title={pageTitle}
+            dashboardView={dashboardView}
+            onDashboardViewChange={activePage === "Dashboard" ? setDashboardView : undefined}
           />
           <div className="flex min-h-0 flex-1 flex-col">
             <React.Suspense fallback={<p role="status" className="p-6">Loading page…</p>}>
@@ -183,6 +186,7 @@ export default function App() {
                 currentUserId={currentUser!.id}
                 isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunSimulation={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "simulation" && permission.action === "run")}
+                view={dashboardView}
               />
             )}
             </React.Suspense>

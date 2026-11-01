@@ -21,14 +21,14 @@ import {
 } from "@/api/simulation"
 import { SetupCard, SignalControlCard, SimControlBar } from "@/components/dashboard-controls"
 import { DashboardKpis } from "@/components/dashboard-kpis"
-import { DashboardTrends, type TrendPoint } from "@/components/dashboard-trends"
+import type { DashboardView } from "@/components/site-header"
 import { SimulationVisualization } from "@/simulation/simulation-visualization"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
 import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { pickReferenceRun, type ReferenceRun } from "@/lib/reference-run"
-import { metricCatalog, metricEngineVersion, metricValue } from "@/lib/metrics"
+import { metricCatalog, metricEngineVersion } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
@@ -37,16 +37,8 @@ function compactNumber(value: number, digits = 0) {
   })
 }
 
-function buildChartPoint(simulation: SimulationStatePayload): TrendPoint & { bucket: number } {
-  const time = Math.max(0, Math.floor(Number(simulation.state.time ?? 0)))
-  const metrics = simulation.state.metrics
-  return {
-    bucket: time,
-    timeLabel: `${time}s`,
-    avgWait: metricValue(metrics, "avg_wait"),
-    avgQueue: metricValue(metrics, "avg_queue"),
-  }
-}
+// Both study sites sit inside this box (Site A 7.4617 N, Site B 7.4383 N).
+const TAGUM_MAP_URL = "https://www.openstreetmap.org/export/embed.html?bbox=125.785%2C7.428%2C125.825%2C7.472&layer=mapnik"
 
 function apiMessage(error: unknown) {
   if (error instanceof ApiError || error instanceof Error) return error.message
@@ -57,10 +49,12 @@ export function DashboardPage({
   currentUserId,
   isAdmin,
   canRunSimulation,
+  view = "simulation",
 }: {
   currentUserId: number
   isAdmin: boolean
   canRunSimulation: boolean
+  view?: DashboardView
 }) {
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = React.useState("")
@@ -80,13 +74,11 @@ export function DashboardPage({
   const showPerformance = new URLSearchParams(window.location.search).has("perf")
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
-  const [chartHistory, setChartHistory] = React.useState<TrendPoint[]>([])
   const [reference, setReference] = React.useState<ReferenceRun | null>(null)
   const [notice, setNotice] = React.useState("Loading simulation workspace...")
   const [isBusy, setIsBusy] = React.useState(false)
   const lastStateRefreshAt = React.useRef(0)
   const stateRefreshInFlight = React.useRef(false)
-  const lastChartBucket = React.useRef<number | null>(null)
 
   const canConfigure = Boolean(selectedScenarioId)
   const canOperate = canRunSimulation && (simulation?.owner_user_id == null || simulation.owner_user_id === currentUserId)
@@ -258,14 +250,6 @@ export function DashboardPage({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [applySimulationSnapshot, latestFrame, streamStatus])
 
-  React.useEffect(() => {
-    if (!simulation) return
-    const nextPoint = buildChartPoint(simulation)
-    if (lastChartBucket.current === nextPoint.bucket) return
-    lastChartBucket.current = nextPoint.bucket
-    setChartHistory((current) => [...current, { timeLabel: nextPoint.timeLabel, avgWait: nextPoint.avgWait, avgQueue: nextPoint.avgQueue }].slice(-240))
-  }, [simulation])
-
   const activeRunId = simulation?.active_run_id ?? null
   const currentExperiment = simulation?.state.experiment
   // Recompute only when the run's identity changes, not on every streamed frame.
@@ -364,6 +348,7 @@ export function DashboardPage({
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
       <DashboardKpis metrics={simulation?.state.metrics} reference={reference} isReferenceRun={simulation?.control_mode === "no-signal"} />
+      {view === "map" ? <iframe title="Map of Tagum City" src={TAGUM_MAP_URL} loading="lazy" className="h-[min(72vh,680px)] w-full rounded-xl border" /> :
       <SimulationVisualization frame={renderFrame} networkId={intersectionId}
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
         runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
@@ -377,9 +362,8 @@ export function DashboardPage({
           onRecordedRunChange={setSelectedRecordedRunId} onLoadRecording={handleLoadRecording}
           onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null}
         sidePanel={<SignalControlCard simulation={simulation} models={models} controlMode={controlMode} scenarioConfig={scenarioConfig} nativeOptions={nativeOptions}
-          isLocked={isBusy || !canOperate} onControlModeChange={setControlMode} />} />
+          isLocked={isBusy || !canOperate} onControlModeChange={setControlMode} />} />}
       <p className="text-xs text-muted-foreground" role="status">{statusLine}</p>
-      <DashboardTrends history={chartHistory} />
       <section className="sr-only" aria-label="Live road and controller state">
         <h2>Road and junction state at {compactNumber(renderFrame?.time ?? 0, 1)}s</h2>
         <p>Shared session: {simulation?.owner_name ? `${simulation.owner_name} controls ${simulation.run_mode}${simulation.active_run_id ? ` run #${simulation.active_run_id}` : " configuration"}` : "available"}. Speed {simulation?.speed_multiplier ?? 1}×.</p>

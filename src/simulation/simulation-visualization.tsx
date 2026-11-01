@@ -13,7 +13,7 @@ import type { RenderFrame } from "@/simulation/frame-types"
 import { normalizeSceneGeometry, selectionKey, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
 import { createPresentationState, presentationReducer, type OverlaySettings } from "@/simulation/presentation-state"
 import { phaseService } from "@/simulation/scene-summary"
-import { JunctionCard, NetworkMapCard } from "@/simulation/junction-details"
+import { JunctionCard } from "@/simulation/junction-details"
 
 type PerformanceSample = { fps: number; p95FrameMs: number }
 const OVERLAY_LABELS: Record<keyof OverlaySettings, string> = { signals: "Signals", labels: "Junction tags", queues: "Queue counts", heatmap: "Queue colours", arrows: "Flow direction", connectors: "Turn paths", context: "Buildings and trees" }
@@ -31,7 +31,6 @@ function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision =
   const host = React.useRef<HTMLDivElement | null>(null)
   const previous = React.useRef({ runKey, seekRevision, time: frame?.time ?? 0, status: frame?.status, controlledJunction })
   const select = React.useCallback((selection: Selection | null) => dispatch({ type: "select", selection }), [])
-  const focus = React.useCallback((id: string) => { dispatch({ type: "focus", focus: "junction", junctionId: id }); dispatch({ type: "select", selection: { kind: "junction", id } }) }, [])
   React.useEffect(() => {
     const old = previous.current
     const newRun = runKey !== old.runKey, rewound = (frame?.time ?? 0) < old.time
@@ -96,7 +95,6 @@ function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision =
       <p className="sf-sim-credit">Illustrative geometry and scenery ·<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
     </div>
     <aside className="sf-sim-side" aria-label="Junction information">
-      <NetworkMapCard geometry={geometry} junctionId={junctionId} onFocus={focus} />
       <JunctionCard frame={frame} geometry={geometry} junctionId={junctionId} laneStreets={laneStreets} />
       {sidePanel}
     </aside>

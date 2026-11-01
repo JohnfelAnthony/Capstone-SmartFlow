@@ -1826,14 +1826,6 @@
 .sf-sim-bar-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
 .sf-sim-credit { padding:0 12px 8px; font-size:10px; color:var(--muted-foreground); text-align:right; }
 .sf-sim-credit a { text-decoration:underline; }
-.sf-network-map { width:100%; height:150px; border-radius:8px; background:color-mix(in srgb, var(--muted) 70%, transparent); }
-.sf-network-map-road { stroke:color-mix(in srgb, var(--muted-foreground) 55%, transparent); stroke-linecap:round; }
-.sf-network-map-junction { cursor:pointer; outline:none; }
-.sf-network-map-junction circle { fill:var(--card); stroke:var(--muted-foreground); stroke-width:1.5px; vector-effect:non-scaling-stroke; }
-.sf-network-map-junction text { fill:var(--foreground); font-weight:700; pointer-events:none; }
-.sf-network-map-junction[data-active="true"] circle { fill:var(--primary); stroke:var(--primary); }
-.sf-network-map-junction[data-active="true"] text { fill:var(--primary-foreground); }
-.sf-network-map-junction:focus-visible circle { stroke:var(--ring); stroke-width:3px; }
 .sf-junction-badge { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px; background:color-mix(in srgb, var(--primary) 15%, transparent); color:var(--primary); font-weight:700; }
 .sf-junction-photo { position:relative; margin:0; overflow:hidden; border-radius:8px; aspect-ratio:16 / 9; background:var(--muted); }
 .sf-junction-photo img { width:100%; height:100%; object-fit:cover; display:block; }
