@@ -12,7 +12,9 @@ import random
 from dataclasses import dataclass
 from functools import lru_cache
 
-from .scenario_config import DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, VEHICLE_TYPES, effective_maximum_red, fixed_red_seconds, number, object_config, validate_config
+from .scenario_config import (DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, SITE_CALIBRATION_DEFAULTS, VEHICLE_TYPES, effective_maximum_red,
+                              fixed_red_seconds, number, object_config, phase_key, resolve_site_calibration, site_calibration_sha256,
+                              validate_config, walk_red_seconds)
 from .demand import Arrival, build_schedule, schedule_hash
 from .footprints import rectangle, rectangles_overlap
 from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, KEEPING_WEIGHT_PER_M, LANE_KEEPING_CLASSES, LATERAL_DECISION_TICKS,
@@ -33,8 +35,10 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-5"
-RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
+ENGINE_VERSION = "native-7"
+NO_SIGNAL_LABEL = "No signal (first come, first served)"
+# Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
+RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
 CAR_LENGTH = 4.5
 MIN_GAP = 2.0
@@ -44,10 +48,16 @@ STUCK_IN_JUNCTION_SECONDS = 30.0
 GRIDLOCK_SECONDS = 60.0
 # Turning speed through a junction and the straight-ahead tolerance; both are calibration parameters.
 # shortcut: fixed constants until field discharge headways exist, then move them into the scenario config.
-TURN_SPEED_MPS = 5.0
+TURN_SPEED_MPS = SITE_CALIBRATION_DEFAULTS["turn_speed_mps"]
 THROUGH_ANGLE_DEGREES = 30.0
 COMFORTABLE_DECELERATION = 2.0
 TIME_HEADWAY = 1.2
+
+
+def phase_slots(signal) -> list[str | None]:
+    """The four vehicle phase keys in plan order (None where the plan has fewer), then "pedestrian" (or None)."""
+    vehicle = [key for key in signal.approaches if key != "pedestrian"][:4]
+    return [*vehicle, *[None]*(4-len(vehicle)), "pedestrian" if "pedestrian" in signal.approaches else None]
 
 
 def phase_family_from_name(phase: str) -> str:
@@ -77,10 +87,32 @@ class Signal:
     pedestrian_phase: str = "every_cycle"
     # Under every_cycle, the longest RL may leave the walk phase unserved: the plan's own fixed-time red.
     walk_interval: float = math.inf
+    # One green per phase_order item; None means every phase uses green_seconds.
+    phase_greens: list[float] | None = None
 
     @property
     def family(self):
         return self.approaches[self.index]
+
+    @property
+    def current_green(self):
+        return self.phase_greens[self.index] if self.phase_greens else self.green_seconds
+
+    def serves(self, approach: str) -> bool:
+        """True when the current phase gives this approach (or "pedestrian") its green; a group serves every member."""
+        family = self.approaches[self.index]
+        return approach == family or ("+" in family and approach in family.split("+"))
+
+    def key_for(self, approach: str) -> str | None:
+        """The phase key that serves an approach, or None when the plan has none."""
+        keys = self.__dict__.get("_key_by_approach")
+        if keys is None:  # the phase list never changes after construction
+            keys = self.__dict__["_key_by_approach"] = {name: key for key in self.approaches for name in key.split("+")}
+        return keys.get(approach)
+
+    def share_a_phase(self, first: str | None, second: str | None) -> bool:
+        return first is not None and second is not None and (first == second or any(
+            "+" in key and first in key.split("+") and second in key.split("+") for key in self.approaches))
 
     @property
     def phase(self):
@@ -88,7 +120,7 @@ class Signal:
 
     @property
     def remaining(self):
-        duration = self.minimum_green if self.external and self.stage == "green" else self.green_seconds if self.stage == "green" else self.yellow_seconds if self.stage == "yellow" else self.all_red_seconds
+        duration = self.minimum_green if self.external and self.stage == "green" else self.current_green if self.stage == "green" else self.yellow_seconds if self.stage == "yellow" else self.all_red_seconds
         return max(0.0, duration-self.elapsed)
 
     def request(self, family: str):
@@ -101,11 +133,11 @@ class Signal:
 
     def step(self, dt: float, crossing_occupied: bool, pedestrians_waiting: bool = False):
         self.elapsed = round(self.elapsed + dt, 6)
-        if self.mode == "all_way_stop":
+        if self.mode in {"all_way_stop", "first_come"}:
             return
         if self.stage == "green":
             can_switch = self.elapsed >= self.minimum_green and self.pending is not None
-            timed_switch = (not self.external and self.elapsed >= self.green_seconds) or self.elapsed >= self.maximum_green
+            timed_switch = (not self.external and self.elapsed >= self.current_green) or self.elapsed >= self.maximum_green
             if (can_switch or timed_switch) and not (self.family == "pedestrian" and crossing_occupied):
                 self.stage = "red" if self.family == "pedestrian" else "yellow"
                 self.elapsed = 0
@@ -138,6 +170,7 @@ class Vehicle:
     speed_factor: float = 1.0
     requested_at: float = 0.0
     stop_arrival: float | None = None
+    approach_arrival: float | None = None
     stopped_for: float = 0.0
     # Per-driver values drawn at entry (simulation/mixed_traffic.py); defaults are the car class.
     time_headway: float = 1.2
@@ -171,11 +204,19 @@ class Pedestrian:
 
 SPAWN_OCCUPANCY_PENDING = object()
 TAN_MAX_YAW = math.tan(math.radians(MAX_YAW_DEGREES))
+# Provisional defaults; a site overrides them through engine_config.site_calibration, never by editing these.
+APPROACH_ZONE_M = SITE_CALIBRATION_DEFAULTS["approach_zone_m"]
+FIRST_COME_APPROACH_SPEED_MPS = SITE_CALIBRATION_DEFAULTS["first_come_approach_speed_mps"]
 
 
 @lru_cache(maxsize=8192)
 def vehicle_serial(identity: str) -> int:
     return int(identity.rsplit("-", 1)[-1])
+
+
+def _boxes_overlap(first: tuple, second: tuple) -> bool:
+    """Strict overlap of two (min_x, min_y, max_x, max_y) boxes."""
+    return first[0] < second[2] and second[0] < first[2] and first[1] < second[3] and second[1] < first[3]
 
 
 class TrafficEngine:
@@ -198,6 +239,7 @@ class TrafficEngine:
         self.green_seconds = 14.0
         self.current_scenario_name = "Tagum five-junction demonstration"
         self.rl_control_enabled = False
+        self.no_signal_control = False
         self.rl_decision_interval = 5.0
         self.rl_minimum_green_hold = 10.0
         self.controller_type = "fixed_time"
@@ -205,6 +247,7 @@ class TrafficEngine:
         self.controller_provenance_label = self.control_mode_label = "Fixed-Time (Python)"
         self.duration_limit = 300
         self.config = validate_config(DEFAULTS, {}, self.network)
+        self.site_calibration = resolve_site_calibration(None, self.network.id)
         self.runtime_policy = None
         self._turn_angle_cache: dict[tuple[str, str], float] = {}
         # 0 turns per-driver variation off (class values only); kept across configure().
@@ -232,6 +275,7 @@ class TrafficEngine:
         self._sweeps: dict[str, list] = {}
         self._sweep_cache: dict[tuple, list] = {}
         self._sweep_bounds_cache: dict[int, tuple[list, tuple[float, float, float, float]]] = {}
+        self._conflict_point_cache: dict[tuple[int, int], tuple[list, list, float | None]] = {}
         self.pedestrians: dict[str, Pedestrian] = {}
         # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
         self.reservations: dict[str, set[str]] = {}
@@ -241,16 +285,18 @@ class TrafficEngine:
         for node in self.network.intersections:
             available = [a for a in APPROACHES if any(self.network.lanes[lane].approach == a for lane in self.network.incoming[node])] + ["pedestrian"]
             plan = self.config["signal_plans"].get(node, {})
-            order, green = plan.get("phase_order", available), plan.get("green_seconds", self.green_seconds)
+            plan_order, green = plan.get("phase_order", available), plan.get("green_seconds", self.green_seconds)
+            order = [phase_key(item) for item in plan_order]
             signal = Signal(order,
                             green_seconds=green,
                             minimum_green=(self.rl_minimum_green_hold if self.rl_control_enabled and node == self.controlled_junction
                                            else plan.get("minimum_green", min(self.green_seconds, 10.0))),
                             maximum_green=plan.get("maximum_green", max(60, self.green_seconds)),
                             yellow_seconds=plan.get("yellow_seconds", 3), all_red_seconds=plan.get("all_red_seconds", 1),
-                            mode=plan.get("mode", "signalized"), maximum_red=effective_maximum_red(plan, order, green),
+                            mode="first_come" if self.no_signal_control else plan.get("mode", "signalized"), maximum_red=effective_maximum_red(plan, plan_order, green),
+                            phase_greens=plan.get("phase_greens"),
                             pedestrian_phase=plan.get("pedestrian_phase", DEFAULT_PEDESTRIAN_PHASE),
-                            walk_interval=fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1)))
+                            walk_interval=walk_red_seconds(plan_order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1), plan.get("phase_greens")))
             # Offset is a phase-clock shift; there are no road users during initialization.
             for _ in range(round(plan.get("offset_seconds", 0)/STEP_LENGTH)):
                 signal.step(STEP_LENGTH, False)
@@ -316,6 +362,7 @@ class TrafficEngine:
         candidate = validate_config(self.config, settings, self.network)
         arrivals = build_schedule(candidate, self.network, self.seed, self.duration_limit)
         self.config = candidate
+        self.site_calibration = resolve_site_calibration(candidate.get("site_calibration"), self.network.id)
         for key in ("traffic_density", "pedestrian_density", "green_seconds", "controlled_junction"):
             setattr(self, key, candidate[key])
         self._reset_state(arrivals=arrivals)
@@ -327,6 +374,9 @@ class TrafficEngine:
             raise ValueError("Scenario must be an object")
         from .scenario_config import normalize_vehicle_scope
         scenario = normalize_vehicle_scope(scenario)
+        saved_network_hash = scenario.get("network_sha256")
+        if saved_network_hash and saved_network_hash != self.network.fingerprint:
+            raise ValueError(f"Scenario settings do not match network '{self.network.id}'; the network changed since this scenario was saved — migrate the scenario.")
         if 'network_id' in scenario:
             if scenario['network_id'] != self.network.id:
                 raise ValueError('Scenario network is unresolved or differs from the configured network; migrate it before execution.')
@@ -436,7 +486,7 @@ class TrafficEngine:
                           vehicle_type=vehicle_type,
                           requested_at=self.simulation_time if requested_at is None else requested_at, **spec)
         profile = sample_driver(vehicle_type, self.driver_random, self.driver_variation_scale)
-        vehicle.speed_factor = spec["speed_factor"]*profile.speed_multiplier
+        vehicle.speed_factor = self.site_calibration["class_speed_factors"][vehicle_type]*profile.speed_multiplier
         vehicle.time_headway, vehicle.minimum_gap = profile.time_headway, profile.minimum_gap
         vehicle.max_acceleration, vehicle.max_lateral_speed = profile.max_acceleration, profile.max_lateral_speed
         vehicle.lateral = vehicle.lateral_target = lateral
@@ -563,7 +613,8 @@ class TrafficEngine:
             if signal.mode != "signalized" or signal.stage != "green":
                 continue
             self.last_served[node][signal.family] = self.simulation_time
-            demanded = {self.network.lanes[v.route[0]].approach for v in self.vehicles.values() if not v.connector and self.network.lanes[v.route[0]].target == node}
+            waiting_approaches = {self.network.lanes[v.route[0]].approach for v in self.vehicles.values() if not v.connector and self.network.lanes[v.route[0]].target == node}
+            demanded = {signal.key_for(approach) for approach in waiting_approaches} - {None}
             oldest = min(demanded, key=lambda a: (self.last_served[node][a], a), default=None)
             overdue_approach = oldest is not None and self.simulation_time-self.last_served[node][oldest] >= signal.maximum_red
             overdue_pedestrians = any(p.junction == node and not p.crossing and p.wait >= self.config["pedestrian_max_wait"] for p in self.pedestrians.values())
@@ -595,9 +646,20 @@ class TrafficEngine:
         self._settle_metrics()
         if not callable(getattr(policy, "predict", None)):
             raise ValueError("Policy needs predict(observation, info)")
-        from .model_contract import native_contract
-        if self.network.fingerprint != native_contract()["network_sha256"]:
-            raise ValueError("Saved policies currently support only the versioned default study network")
+        from .model_contract import native_contract, validate_metadata
+        policy_metadata = getattr(policy, "artifact_metadata", {})
+        if "native_contract" in policy_metadata:
+            validate_metadata(policy_metadata, self.network)
+        elif self.network.fingerprint != native_contract()["network_sha256"]:
+            raise ValueError("This model was not trained for the current Python engine and road network. Train a new model; artifacts from earlier engine or observation versions cannot be reused.")
+        if "native_contract" in policy_metadata:
+            from .model_contract import phase_plan
+            trained_plan, current_plan = policy_metadata.get("phase_plan"), phase_plan(self)
+            if not trained_plan:
+                raise ValueError("Selected model records no signal phase plan, and what its actions mean depends on the phase order. Train a new model.")
+            if trained_plan != current_plan:
+                raise ValueError(f"Selected model was trained for phases {trained_plan.get('phase_keys')} at junction {trained_plan.get('junction')}; "
+                                 f"this scenario uses {current_plan['phase_keys']} at {current_plan['junction']}. Train a model for this phase plan.")
         training_node = getattr(policy, "artifact_metadata", {}).get("training_junction")
         if training_node and training_node != self.controlled_junction:
             raise ValueError("Selected model was trained for a different controlled junction")
@@ -616,7 +678,7 @@ class TrafficEngine:
             signal = self.signals[pedestrian.junction]
             if not pedestrian.crossing:
                 # Do not start a crossing that cannot finish in this pedestrian green.
-                if ((signal.family == "pedestrian" and signal.stage == "green" and signal.elapsed <= 0.5) or signal.mode == "all_way_stop") and pedestrian.junction not in self.reservations:
+                if ((signal.family == "pedestrian" and signal.stage == "green" and signal.elapsed <= 0.5) or signal.mode in {"all_way_stop", "first_come"}) and pedestrian.junction not in self.reservations:
                     pedestrian.crossing = True
                 else:
                     pedestrian.wait += STEP_LENGTH
@@ -673,9 +735,9 @@ class TrafficEngine:
         return sorted(pool.values(), key=lambda vehicle: index["order"][vehicle.id])
 
     def _exit_has_space(self, lane_id: str, entering: Vehicle):
-        """Storage rule: everything on the exit lane or committed to it, plus the entrant, must fit end to end, each
-        counted as its length, its own minimum gap and a margin (which also covers a turned body's extra length).
-        Vehicles only stop behind a leader or a stop line, so even if the lane's far end holds them all, each
+        """Storage rule: everything on the exit lane or committed to it, plus the entrant, must fit end to end before
+        the lane's stop line, each counted as its length, its own minimum gap and a margin (which also covers a turned
+        body's extra length). Vehicles only stop behind a leader or a stop line, so even if the line holds them all, each
         committed vehicle can still leave the junction and release it. This holds side by side too: every leader in
         the chain ahead of an entrant is counted, whatever its sideways position. Accepted limitation: a road backed
         up with vehicles side by side counts as full sooner than it really is."""
@@ -683,7 +745,7 @@ class TrafficEngine:
             (vehicle.connector is None and vehicle.route[0] == lane_id)
             or (vehicle.reserved_junction and len(vehicle.route) > 1 and vehicle.route[1] == lane_id))]
         required_length = sum(vehicle.length+vehicle.minimum_gap+EXIT_SPACE_MARGIN for vehicle in occupying+[entering])
-        return required_length <= self.network.lanes[lane_id].length
+        return required_length <= self.stop_line(lane_id)
 
     def _reserve(self, vehicle: Vehicle, node: str, approach: str):
         self.reservations.setdefault(node, set()).add(vehicle.id)
@@ -705,7 +767,10 @@ class TrafficEngine:
         """Signalized junctions admit more vehicles only from the approach already inside; stop control admits one."""
         if node not in self.reservations:
             return True
-        return signal.mode == "signalized" and self.reservation_approach.get(node) == approach
+        if signal.mode == "first_come":
+            return True
+        occupant = self.reservation_approach.get(node)
+        return signal.mode == "signalized" and (occupant == approach or signal.share_a_phase(occupant, approach))
 
     def _turn_angle(self, incoming: str, outgoing: str) -> float:
         """Signed heading change in degrees, in (-180, 180]; positive for a left (counter-clockwise) turn."""
@@ -725,7 +790,7 @@ class TrafficEngine:
         """Through movements keep road speed; turns slow to the turning speed."""
         entry, exit_lane = self.network.lanes[incoming], self.network.lanes[outgoing]
         turn = abs(self._turn_angle(incoming, outgoing))
-        return min(entry.speed, exit_lane.speed) if turn <= THROUGH_ANGLE_DEGREES else TURN_SPEED_MPS
+        return min(entry.speed, exit_lane.speed) if turn <= THROUGH_ANGLE_DEGREES else self.site_calibration["turn_speed_mps"]
 
     def _progress(self, vehicle: Vehicle) -> float:
         """Distance past the stop line along the vehicle's path; larger is further along."""
@@ -818,7 +883,12 @@ class TrafficEngine:
                 candidate = other.connector_position-(other.length+vehicle.length)/2-vehicle.connector_position
             else:
                 # Judged in this vehicle's own frame: ahead along its heading and within its sideways band.
-                other_x, other_y, _ = self._pose(other)
+                other_x, other_y, other_heading = self._pose(other)
+                # An oncoming vehicle is never a leader to follow; entry checks keep crossing paths apart and the
+                # footprint check stops any real contact, so treating it as one only parks both face to face.
+                is_oncoming = math.cos(other_heading-heading) < -0.5
+                if is_oncoming:
+                    continue
                 dx, dy = other_x-x, other_y-y
                 along, across = dx*math.cos(heading)+dy*math.sin(heading), dx*math.sin(heading)-dy*math.cos(heading)
                 other_length, other_width = self._box(other)
@@ -946,7 +1016,7 @@ class TrafficEngine:
         if lane.target not in self.signals or len(vehicle.route) < 2 or vehicle.reserved_junction == lane.target:
             return True
         signal = self.signals[lane.target]
-        return signal.mode == "signalized" and signal.stage == "green" and signal.family == lane.approach
+        return signal.mode == "first_come" or (signal.mode == "signalized" and signal.stage == "green" and signal.serves(lane.approach))
 
     def _rears_ahead(self, vehicle: Vehicle, neighbours) -> list[tuple[float, float, float]]:
         """(rear, lateral, width) of neighbours ahead of the vehicle, nearest rear first."""
@@ -1213,6 +1283,62 @@ class TrafficEngine:
                 return True
         return False
 
+    def _sweeps_intersect(self, first: Vehicle, second: Vehicle, *, remaining: bool = False) -> bool:
+        own = self._sweep_for(first, first.lateral, self._exit_lateral(first))
+        other = self._sweeps.get(second.id) if remaining else None
+        if other is None:
+            other = self._sweep_for(second, second.lateral, self._exit_lateral(second))
+        progress = second.connector_position-second.length if remaining and second.connector is not None else -math.inf
+        last_conflict = self._last_conflict_point(own, other)
+        return last_conflict is not None and last_conflict >= progress
+
+    def _last_conflict_point(self, own: list, other: list) -> float | None:
+        """Furthest sample of `other` that some body of `own` touches, else None (cached: both sweeps are fixed geometry)."""
+        key = (id(own), id(other))
+        entry = self._conflict_point_cache.get(key)
+        if entry is None or entry[0] is not own or entry[1] is not other:
+            own_bounds = self._sweep_bounds(own)
+            # Samples are in path order, so the first touched one from the far end is the furthest.
+            last_conflict = next((point for point, corners, box in reversed(other)
+                                  if _boxes_overlap(box, own_bounds)
+                                  and any(_boxes_overlap(box, own_box) and rectangles_overlap(own_corners, corners)
+                                          for _, own_corners, own_box in own)), None)
+            entry = (own, other, last_conflict)
+            self._conflict_point_cache[key] = entry
+        return entry[2]
+
+    def _meets_committed_path(self, vehicle: Vehicle) -> bool:
+        node = self.network.lanes[vehicle.route[0]].target
+        if self._meets_own_approach_path(vehicle):
+            return True
+        for identity in self.reservations.get(node, set()):
+            other = self.vehicles.get(identity)
+            if other is None or other is vehicle or other.route[0] == vehicle.route[0] or len(other.route) < 2:
+                continue
+            if self._sweeps_intersect(vehicle, other, remaining=True):
+                return True
+        return False
+
+    def _first_come_permission(self, vehicle: Vehicle, node: str) -> bool:
+        if vehicle.approach_arrival is None:
+            return True
+        order = (vehicle.approach_arrival, vehicle.id)
+        for other in self.vehicles.values():
+            if other is vehicle or other.connector is not None or other.reserved_junction or len(other.route) < 2:
+                continue
+            lane = self.network.lanes[other.route[0]]
+            if lane.target != node or lane.approach == self.network.lanes[vehicle.route[0]].approach or other.approach_arrival is None:
+                continue
+            if (other.approach_arrival, other.id) >= order or not self._sweeps_intersect(vehicle, other):
+                continue
+            # Skip only an earlier vehicle that cannot go for a lasting reason. Traffic already inside the junction
+            # clears, so yielding past an earlier vehicle held by it would starve a side road under steady flow.
+            if (other.route[1] in self.closed_lanes or not self._exit_has_space(other.route[1], other)
+                    or self._must_wait_at_line(other) or self._sweep_blocked(other, node)):
+                continue
+            return False
+        return True
+
     def _sweep_clear_travel(self, vehicle: Vehicle, lane, travel: float) -> float:
         """Near the stop line, the longest of travel, travel/2 ... travel/16 that keeps out of committed sweeps, else 0."""
         if travel <= 0 or not self._sweeps or not self._near_line(vehicle, lane, vehicle.position+travel):
@@ -1311,6 +1437,7 @@ class TrafficEngine:
                 vehicle.lateral = vehicle.lateral_target = vehicle.connector_exit_lateral
                 self._sweeps.pop(vehicle.id, None)
                 vehicle.stop_arrival = None
+                vehicle.approach_arrival = None
             return
         lane = self.network.lanes[vehicle.route[0]]
         has_left_junction = vehicle.position-vehicle.length/2 >= 0
@@ -1326,7 +1453,10 @@ class TrafficEngine:
             stop_position = self.stop_line(lane.id)-vehicle.length/2
             if vehicle.position >= stop_position-1 and vehicle.speed <= .1 and vehicle.stop_arrival is None:
                 vehicle.stop_arrival = self.simulation_time
-            has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.family == lane.approach
+            if signal.mode == "first_come":
+                has_permission = self._first_come_permission(vehicle, lane.target)
+            else:
+                has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.serves(lane.approach)
             may_proceed = (has_permission and self._junction_open_to(lane.target, lane.approach, signal)
                            and not self._crossing_occupied(lane.target) and outgoing not in self.closed_lanes
                            and self._exit_has_space(outgoing, vehicle) and not self._must_wait_at_line(vehicle))
@@ -1337,7 +1467,9 @@ class TrafficEngine:
             # Never commit behind an uncommitted vehicle that could still be held at the line.
             clear_ahead = leader is None or leader.reserved_junction == lane.target
             # The sweep test is the costliest, so it runs only at the moment the vehicle would otherwise commit.
-            if may_proceed and must_decide and clear_ahead and (self._sweep_blocked(vehicle, lane.target) or self._meets_own_approach_path(vehicle)):
+            if may_proceed and must_decide and clear_ahead and (self._sweep_blocked(vehicle, lane.target) or (
+                    # Approaches sharing a green (and a first-come junction) also keep apart from each other's committed paths.
+                    self._meets_committed_path if signal.mode == "first_come" or "+" in signal.family else self._meets_own_approach_path)(vehicle)):
                 may_proceed = False
             if may_proceed and must_decide and clear_ahead:
                 self._reserve(vehicle, lane.target, lane.approach)
@@ -1347,6 +1479,9 @@ class TrafficEngine:
             elif not may_proceed and stop_position < obstacle:
                 obstacle, leader_speed = stop_position+vehicle.minimum_gap, 0.0
         desired_speed = lane.speed*self.slow_lanes.get(lane.id, 1.0)*vehicle.speed_factor
+        if (lane.target in self.signals and self.signals[lane.target].mode == "first_come"
+                and vehicle.reserved_junction != lane.target and vehicle.approach_arrival is not None):
+            desired_speed = min(desired_speed, self.site_calibration["first_come_approach_speed_mps"])
         if vehicle.reserved_junction == lane.target:
             desired_speed = min(desired_speed, self._movement_speed(lane.id, vehicle.route[1])*vehicle.speed_factor)
         travel = self._advance(vehicle, obstacle-vehicle.position, leader_speed, desired_speed)
@@ -1396,6 +1531,14 @@ class TrafficEngine:
             for node, signal in self.signals.items():
                 signal.step(STEP_LENGTH, self._crossing_occupied(node), self._pedestrians_waiting(node))
             self._step_pedestrians()
+            has_first_come = any(signal.mode == "first_come" for signal in self.signals.values())
+            for vehicle in (self.vehicles.values() if has_first_come else ()):
+                lane = self.network.lanes[vehicle.route[0]]
+                if (vehicle.connector is None and len(vehicle.route) > 1 and vehicle.reserved_junction is None
+                        and lane.target in self.signals and self.signals[lane.target].mode == "first_come"
+                        and vehicle.approach_arrival is None
+                        and self.stop_line(lane.id) - (vehicle.position + vehicle.length/2) <= self.site_calibration["approach_zone_m"]):
+                    vehicle.approach_arrival = self.simulation_time
             # Front vehicles move first; followers are capped against the updated leader.
             self._build_tick_index()
             try:
@@ -1426,13 +1569,17 @@ class TrafficEngine:
 
     def _blocked_on_green(self, vehicle: Vehicle):
         """Stopped at its stop line while its own approach may go: it waits only for downstream space."""
-        if vehicle.connector or vehicle.stop_arrival is None or len(vehicle.route) < 2:
+        if vehicle.connector or len(vehicle.route) < 2:
             return False
         lane = self.network.lanes[vehicle.route[0]]
         signal = self.signals.get(lane.target)
         if signal is None:
             return False
-        has_green = signal.mode == "signalized" and signal.stage == "green" and signal.family == lane.approach
+        if signal.mode == "first_come":
+            return vehicle.speed <= 0.1 and self._near_line(vehicle, lane, vehicle.position)
+        if vehicle.stop_arrival is None:
+            return False
+        has_green = signal.mode == "signalized" and signal.stage == "green" and signal.serves(lane.approach)
         return has_green or signal.mode == "all_way_stop"
 
     def _gridlock_seconds(self):
@@ -1569,7 +1716,7 @@ class TrafficEngine:
         for lane in self.network.lanes.values():
             if lane.target in self.signals:
                 signal = self.signals[lane.target]
-                lights[lane.id] = {"state": "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.family == lane.approach else "y" if signal.stage == "yellow" and signal.family == lane.approach else "r", "phase": signal.phase}
+                lights[lane.id] = {"state": "n" if signal.mode == "first_come" else "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.serves(lane.approach) else "y" if signal.stage == "yellow" and signal.serves(lane.approach) else "r", "phase": signal.phase}
         return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
 
     get_state = to_dict
@@ -1578,7 +1725,7 @@ class TrafficEngine:
         self._settle_metrics()
         decision_interval = number(decision_interval, "decision interval", .1, 60)
         minimum_green_hold = number(minimum_green_hold, "minimum green hold", 5, 60)
-        if self.config["signal_plans"].get(self.controlled_junction, {}).get("mode") == "all_way_stop":
+        if self.no_signal_control or self.config["signal_plans"].get(self.controlled_junction, {}).get("mode", "signalized") != "signalized":
             raise ValueError("RL signal control requires a signalized controlled junction")
         plan = self.config["signal_plans"].get(self.controlled_junction, {})
         effective_minimum = max(plan.get("minimum_green", 0), minimum_green_hold)
@@ -1605,8 +1752,24 @@ class TrafficEngine:
         for node, signal in self.signals.items():
             signal.minimum_green = self.config["signal_plans"].get(node, {}).get("minimum_green", min(self.green_seconds, 10.0))
 
+    def enable_no_signal_control(self):
+        self.disable_rl_control()
+        self.no_signal_control = True
+        self.controller_type, self.controller_provenance = "no_signal", "no-signal"
+        self.control_mode_label = self.controller_provenance_label = NO_SIGNAL_LABEL
+        for signal in self.signals.values():
+            signal.mode = "first_come"
+
+    def disable_no_signal_control(self):
+        self.no_signal_control = False
+        for node, signal in self.signals.items():
+            signal.mode = self.config["signal_plans"].get(node, {}).get("mode", "signalized")
+
     def get_green_phase_for_action(self, action_name):
-        return action_name.replace("SERVE_", "").replace("PEDESTRIAN", "PED")+"_GREEN" if action_name in RL_SERVICE_ACTIONS else None
+        if action_name not in RL_SERVICE_ACTIONS:
+            return None
+        key = phase_slots(self.signals[self.controlled_junction])[RL_SERVICE_ACTIONS.index(action_name)]
+        return None if key is None else key.upper().replace("PEDESTRIAN", "PED")+"_GREEN"
 
     def apply_rl_action(self, action_name: str, junction_id: str | None = None):
         self._settle_metrics()
@@ -1623,7 +1786,8 @@ class TrafficEngine:
         if signal.mode != "signalized":
             return {"applied": False, "reason": "unsignalized_junction"}
         signal.external = True
-        result = signal.request(action_name.removeprefix("SERVE_").lower())
+        key = phase_slots(signal)[RL_SERVICE_ACTIONS.index(action_name)]
+        result = {"applied": False, "reason": "unavailable_phase"} if key is None else signal.request(key)
         self.policy_decisions += 1
         self.last_policy_decision = {"time": self.simulation_time, "junction_id": node,
                                      "action": action_name, **result}
@@ -1660,12 +1824,12 @@ class TrafficEngine:
     def junction_controls(self):
         return {node: {"mode": signal.mode,
                        "controller": self.controller_provenance if signal.external else
-                       "all-way-stop" if signal.mode == "all_way_stop" else "fixed-time",
+                       "no-signal" if signal.mode == "first_come" else "all-way-stop" if signal.mode == "all_way_stop" else "fixed-time",
                        "selected_for_rl": node == self.controlled_junction,
                        "phase": signal.phase, "remaining": signal.remaining,
                        "stage": signal.stage, "elapsed_seconds": signal.elapsed,
-                       "remaining_seconds": None if signal.mode == "all_way_stop" else signal.remaining,
-                       "timing_kind": "none" if signal.mode == "all_way_stop" else
+                       "remaining_seconds": None if signal.mode in {"all_way_stop", "first_come"} else signal.remaining,
+                       "timing_kind": "none" if signal.mode in {"all_way_stop", "first_come"} else
                        "minimum_hold" if signal.stage == "green" and signal.external else
                        "fixed_stage" if signal.stage == "green" else "clearance",
                        "pending_service": signal.pending, "external_control": signal.external,
@@ -1683,8 +1847,10 @@ class TrafficEngine:
                 "duration_seconds": self.duration_limit, "step_length": STEP_LENGTH,
                 "measurement_start": self.measurement_start, "controller": self.controller_provenance,
                 "demand_sha256": self.demand_fingerprint, "config": copy.deepcopy(self.config),
+                "site_calibration_sha256": site_calibration_sha256(self.site_calibration),
                 "policy": copy.deepcopy(getattr(self.runtime_policy, "artifact_metadata", None)),
                 "control": {"decision_interval": self.rl_decision_interval if self.rl_control_enabled else None,
-                            "minimum_green_hold": self.rl_minimum_green_hold if self.rl_control_enabled else None},
+                            "minimum_green_hold": self.rl_minimum_green_hold if self.rl_control_enabled else None,
+                            **({"junction_control": "first_come"} if self.no_signal_control else {})},
                 "last_policy_decision": copy.deepcopy(self.last_policy_decision),
                 "last_safety_override": copy.deepcopy(self.last_safety_override)}

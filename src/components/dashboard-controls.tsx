@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { isRlControl } from "@/lib/control-labels"
 
 const durationOptions = [
   { label: "5 minutes", value: "300" },
@@ -25,7 +26,8 @@ const durationOptions = [
 ]
 const speedOptions = [0.25, 0.5, 1, 2, 4].map((value) => ({ value: String(value), label: `${value}×` }))
 const METHODS = [
-  { value: "fixed-time", label: "Fixed-time", description: "Saved plan" },
+  { value: "no-signal", label: "No signal", description: "Today" },
+  { value: "fixed-time", label: "Traditional", description: "Fixed-time plan" },
   { value: "ql", label: "QL", description: "Tabular" },
   { value: "dql", label: "DQL", description: "Deep Q-Learning" },
   { value: "ppo", label: "PPO", description: "Policy gradient" },
@@ -140,26 +142,27 @@ export function SignalControlCard({ simulation, models, controlMode, scenarioCon
   const isActive = simulation?.status === "running" || simulation?.status === "paused"
   const activeMode = isPlayback ? simulation?.state.playback?.source_controller ?? "playback" : isActive ? simulation?.control_mode ?? controlMode : controlMode
   const selectedMethod = activeMode.split(":")[0]
+  const usesRl = isRlControl(selectedMethod)
   const junctionLabel = nativeOptions?.junctions.find((junction) => junction.id === controlledJunction)?.label ?? controlledJunction ?? "the selected junction"
   const junctionNumber = /^J\d+/.exec(junctionLabel)?.[0] ?? junctionLabel
   const statusText = isPlayback ? `Replaying ${simulation?.state.playback?.source_controller_label ?? "a recording"}`
-    : isActive ? `${simulation?.status === "running" ? "Running" : "Paused"}${selectedMethod === "fixed-time" ? "" : " (RL inference)"}` : "Idle"
+    : isActive ? `${simulation?.status === "running" ? "Running" : "Paused"}${usesRl ? " (RL inference)" : ""}` : "Idle"
   function chooseMethod(values: string[]) {
     const method = values[0]
     if (!method) return
-    if (method === "fixed-time") { onControlModeChange("fixed-time"); return }
+    if (method === "fixed-time" || method === "no-signal") { onControlModeChange(method); return }
     const model = latestModel(method)
     if (model) onControlModeChange(`${method}:${model.id}`)
   }
   return <Card size="sm">
     <CardHeader>
       <CardTitle>Signal control</CardTitle>
-      <CardDescription>{selectedMethod === "fixed-time" ? "Every junction runs its saved fixed-time plan." : `RL on ${junctionLabel}; other junctions run fixed-time.`}</CardDescription>
+      <CardDescription>{selectedMethod === "no-signal" ? "Every junction runs without signals; vehicles go in order of arrival." : usesRl ? `RL on ${junctionLabel}; other junctions run fixed-time.` : "Every junction runs its saved fixed-time plan."}</CardDescription>
     </CardHeader>
     <CardContent>
-      <ToggleGroup value={[selectedMethod]} onValueChange={chooseMethod} variant="outline" className="grid w-full grid-cols-4" aria-label="Signal controller" disabled={isLocked || isActive || isPlayback}>
+      <ToggleGroup value={[selectedMethod]} onValueChange={chooseMethod} variant="outline" className="grid w-full grid-cols-5" aria-label="Signal controller" disabled={isLocked || isActive || isPlayback}>
         {METHODS.map((method) => {
-          const unavailable = method.value !== "fixed-time" && !latestModel(method.value)
+          const unavailable = isRlControl(method.value) && !latestModel(method.value)
           return <ToggleGroupItem key={method.value} value={method.value} disabled={unavailable} className="h-auto flex-col gap-0 py-1.5"
             title={unavailable ? `No trained ${method.label} model for ${junctionNumber} yet` : method.description}>
             <span className="text-sm font-medium">{method.label}</span>

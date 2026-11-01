@@ -104,7 +104,8 @@ class NativeEngineTests(unittest.TestCase):
         signal = engine.signals[engine.controlled_junction]
         target = next(approach for approach in signal.approaches if approach not in {signal.family, "pedestrian"})
         original = signal.family
-        engine.apply_rl_action("SERVE_"+target.upper())
+        from simulation.traffic_engine import RL_SERVICE_ACTIONS, phase_slots
+        engine.apply_rl_action(RL_SERVICE_ACTIONS[phase_slots(signal).index(target)])
         engine.step(90)
         self.assertEqual((signal.family, signal.stage), (original, "green"))
         phases = []

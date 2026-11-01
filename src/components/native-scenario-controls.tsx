@@ -1,6 +1,7 @@
 import * as React from "react"
-import { ArrowDownIcon, ArrowUpIcon, PlusIcon, TrashIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, LinkIcon, PlusIcon, TrashIcon, UnlinkIcon } from "lucide-react"
 import type { LaneEvent, NativeScenarioConfig, NativeScenarioOptions, SignalPlan } from "@/api/native-scenario"
+import { designSignalPlan, type SignalDesignResult } from "@/api/signal-design"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { automaticMaximumRed, fixedTimeRed, MAXIMUM_RED_BOUNDS } from "@/lib/signal-plan"
+import { automaticMaximumRed, fixedTimeRed, groupWithNext, MAXIMUM_RED_BOUNDS, movePhase as movePhaseOf, phaseKey, splitGroup } from "@/lib/signal-plan"
 import { matchingMixPreset, mixShares } from "@/lib/vehicle-mix"
 
 export function NativeSelect({ label, value, options, onChange, disabled = false }: {
@@ -71,10 +72,31 @@ export function NativeScenarioControls({ value, options, onChange }: {
     else next[lane] = percent / 100
     onChange({ ...value, slow_lanes: next })
   }
-  function movePhase(index: number, direction: number) {
-    const order = [...plan.phase_order]
-    ;[order[index], order[index + direction]] = [order[index + direction], order[index]]
-    updatePlan({ phase_order: order })
+  function movePhase(index: number, direction: -1 | 1) {
+    updatePlan(movePhaseOf(plan, index, direction))
+  }
+  function regroup(edit: ReturnType<typeof groupWithNext>) {
+    if (edit) updatePlan({ phase_order: edit.phase_order, phase_greens: edit.phase_greens })
+  }
+  function setPhaseGreens(enabled: boolean) {
+    updatePlan({ phase_greens: enabled ? plan.phase_order.map(() => plan.green_seconds) : undefined })
+  }
+  const [flows, setFlows] = React.useState<Record<string, number>>({})
+  const vehicleApproaches = junction.approaches.filter((approach) => approach !== "pedestrian")  // the walk phase carries no vehicle flow
+  const [design, setDesign] = React.useState<{ result?: SignalDesignResult; error?: string; busy?: boolean }>({})
+  async function designWithWebster() {
+    setDesign({ busy: true })
+    const shares = mixShares(value.vehicle_mix ?? options.defaults.vehicle_mix ?? {})
+    const approach_counts = Object.fromEntries(vehicleApproaches.map((approach) => [approach,
+      Object.fromEntries(shares.map(({ type, percent }) => [type, (flows[approach] ?? 0) * percent / 100]))]))
+    try {
+      const response = await designSignalPlan({ network_id: options.network_id, junction: junction.id, phase_order: plan.phase_order, approach_counts,
+        base_plan: { yellow_seconds: plan.yellow_seconds, all_red_seconds: plan.all_red_seconds, minimum_green: plan.minimum_green, maximum_green: plan.maximum_green } })
+      updatePlan({ phase_order: response.plan.phase_order, phase_greens: response.plan.phase_greens })
+      setDesign({ result: response.result })
+    } catch (error) {
+      setDesign({ error: error instanceof Error ? error.message : "The design could not be made." })
+    }
   }
   return <FieldGroup>
     <FieldSet>
@@ -86,7 +108,7 @@ export function NativeScenarioControls({ value, options, onChange }: {
       <NativeSelect label="Edit signal plan for" value={junction.id}
         options={options.junctions.map((item) => ({ value: item.id, label: item.label }))} onChange={setEditingJunction} />
       <NativeSelect label="Junction control" value={plan.mode}
-        options={[{ value: "signalized", label: "Traffic signals" }, { value: "all_way_stop", label: "All-way stop" }]}
+        options={[{ value: "signalized", label: "Traditional signal (fixed-time)" }, { value: "all_way_stop", label: "All-way stop" }]}
         onChange={(mode) => updatePlan({ mode: mode as SignalPlan["mode"] })} />
       {plan.mode === "signalized" ? <>
         <FieldGroup className="grid sm:grid-cols-2">
@@ -119,18 +141,40 @@ export function NativeScenarioControls({ value, options, onChange }: {
           <Alert variant="destructive"><AlertDescription>Maximum red must be at least this plan’s own fixed-time red ({ownRed} s), or the fixed-time baseline would be interrupted.</AlertDescription></Alert>}
         <Field>
           <FieldLabel>Phase order</FieldLabel>
-          <ol className="flex flex-col gap-2">{plan.phase_order.map((phase, index) => <li key={phase} className="flex items-center gap-2">
-            <span className="flex-1">{index + 1}. {phase === "pedestrian" ? "Pedestrian crossing" : `${phase} approach`}</span>
-            <Button type="button" size="icon-sm" variant="outline" disabled={index === 0} aria-label={`Move ${phase} earlier`} onClick={() => movePhase(index, -1)}><ArrowUpIcon /></Button>
-            <Button type="button" size="icon-sm" variant="outline" disabled={index === plan.phase_order.length - 1} aria-label={`Move ${phase} later`} onClick={() => movePhase(index, 1)}><ArrowDownIcon /></Button>
-          </li>)}</ol>
-          <FieldDescription>Every available approach and the protected crossing appears once. Pedestrian clearance remains enforced.</FieldDescription>
+          <ol className="flex flex-col gap-2">{plan.phase_order.map((phase, index) => {
+            const key = phaseKey(phase)
+            const label = key === "pedestrian" ? "Pedestrian crossing" : Array.isArray(phase) ? `${phase.join(" + ")} approaches together` : `${phase} approach`
+            return <li key={key} className="flex flex-wrap items-center gap-2">
+              <span className="min-w-40 flex-1">{index + 1}. {label}</span>
+              {plan.phase_greens && <Input type="number" min={plan.minimum_green} max={plan.maximum_green} step={.1} className="w-24" aria-label={`Green for ${label} (seconds)`}
+                value={plan.phase_greens[index] ?? plan.green_seconds}
+                onChange={(event) => updatePlan({ phase_greens: plan.phase_greens?.map((green, position) => position === index ? Number(event.target.value) : green) })} />}
+              <Button type="button" size="icon-sm" variant="outline" disabled={index === 0} aria-label={`Move ${key} earlier`} onClick={() => movePhase(index, -1)}><ArrowUpIcon /></Button>
+              <Button type="button" size="icon-sm" variant="outline" disabled={index === plan.phase_order.length - 1} aria-label={`Move ${key} later`} onClick={() => movePhase(index, 1)}><ArrowDownIcon /></Button>
+              {Array.isArray(phase)
+                ? <Button type="button" size="icon-sm" variant="outline" aria-label={`Split ${key}`} onClick={() => regroup(splitGroup(plan, index))}><UnlinkIcon /></Button>
+                : key !== "pedestrian" && groupWithNext(plan, index) !== null && <Button type="button" size="icon-sm" variant="outline" aria-label={`Give ${key} and the next phase one shared green`} onClick={() => regroup(groupWithNext(plan, index))}><LinkIcon /></Button>}
+            </li>
+          })}</ol>
+          <label className="flex items-center gap-2 text-sm"><Checkbox checked={plan.phase_greens !== undefined} onCheckedChange={(checked) => setPhaseGreens(checked === true)} />A different green for each phase</label>
+          <FieldDescription>Every available approach and the protected crossing appears once. Approaches in one phase may enter together; turns that cross are kept apart by the junction rules, not by a protected phase. Pedestrian clearance remains enforced.</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel>Design with Webster</FieldLabel>
+          <FieldDescription>Enter the expected vehicles per hour on each approach. The classes follow this scenario's vehicle mix. The result uses provisional passenger-car equivalents and saturation flows and needs field review before any claim.</FieldDescription>
+          <FieldGroup className="grid sm:grid-cols-2">{vehicleApproaches.map((approach) =>
+            <NativeNumber key={approach} label={`${approach} (vehicles per hour)`} value={flows[approach] ?? 0} min={0} max={20000} step={10}
+              onChange={(next) => setFlows({ ...flows, [approach]: next })} />)}</FieldGroup>
+          <Button type="button" variant="outline" disabled={design.busy} onClick={() => void designWithWebster()}>Design with Webster</Button>
+          {design.error && <Alert variant="destructive"><AlertDescription>{design.error}</AlertDescription></Alert>}
+          {design.result && <Alert><AlertDescription>Provisional plan: {design.result.cycle_seconds} s cycle, greens {design.result.phase_greens.join(", ")} s (Webster cycle {design.result.webster_cycle_seconds} s, flow ratio {design.result.total_flow_ratio.toFixed(2)}).
+            {design.result.warnings.map((warning) => ` ${warning}.`)}</AlertDescription></Alert>}
         </Field>
       </> : <Alert><AlertDescription>Vehicles stop before taking turns. This junction cannot host an RL signal controller while set to all-way stop.</AlertDescription></Alert>}
       <div className="flex flex-col gap-2" aria-label="Configured junction controllers">
         {options.junctions.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm">{item.label}</span>
-          <Badge variant="outline">{value.signal_plans?.[item.id]?.mode === "all_way_stop" ? "All-way stop" : item.id === selected ? "RL candidate / fixed-time baseline" : "Fixed-time"}</Badge>
+          <Badge variant="outline">{value.signal_plans?.[item.id]?.mode === "all_way_stop" ? "All-way stop" : item.id === selected ? "RL candidate / fixed-time baseline" : "Traditional signal"}</Badge>
         </div>)}
       </div>
     </FieldSet>

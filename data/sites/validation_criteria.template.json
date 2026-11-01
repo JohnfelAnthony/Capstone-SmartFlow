@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "_status": "INCOMPLETE TEMPLATE. The team and adviser must fill every field and commit this file as data/sites/validation_criteria.json BEFORE any held-out outcome is inspected. Nothing here is a measured or chosen value.",
+  "sites": {
+    "tagum_site_a": {
+      "development_seeds": null,
+      "tolerances": {
+        "queue": null,
+        "discharge": null,
+        "travel_time": null,
+        "arrival_order_share": null
+      },
+      "arrival_order_share_min": null,
+      "pair_window_s": null,
+      "tie_tolerance_s": null,
+      "min_order_pairs": null,
+      "min_samples": {
+        "queue": null,
+        "discharge": null,
+        "travel_time": null
+      },
+      "queue_sample_interval_s": null,
+      "stopped_speed_mps": null,
+      "discharge_bin_s": null,
+      "max_unfinished_share": null,
+      "approaches": null
+    },
+    "tagum_site_b": {
+      "development_seeds": null,
+      "tolerances": {
+        "queue": null,
+        "discharge": null,
+        "travel_time": null,
+        "arrival_order_share": null
+      },
+      "arrival_order_share_min": null,
+      "pair_window_s": null,
+      "tie_tolerance_s": null,
+      "min_order_pairs": null,
+      "min_samples": {
+        "queue": null,
+        "discharge": null,
+        "travel_time": null
+      },
+      "queue_sample_interval_s": null,
+      "stopped_speed_mps": null,
+      "discharge_bin_s": null,
+      "max_unfinished_share": null,
+      "approaches": null
+    }
+  }
+}

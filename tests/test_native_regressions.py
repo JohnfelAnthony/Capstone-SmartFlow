@@ -102,7 +102,8 @@ class NativeRegressionTests(unittest.TestCase):
         self.engine.configure_rl_control(minimum_green_hold=10)
         self.assertEqual(self.engine.signals[node].minimum_green, 15)
         self.assertEqual(self.engine.signals[other].minimum_green, 6)
-        action = "SERVE_"+self.engine.signals[node].family.upper()
+        from simulation.traffic_engine import RL_SERVICE_ACTIONS, phase_slots
+        action = RL_SERVICE_ACTIONS[phase_slots(self.engine.signals[node]).index(self.engine.signals[node].family)]
         self.assertEqual(self.engine.apply_rl_action(action, other)["reason"], "uncontrolled_junction")
         self.engine.apply_rl_action(action)
         self.engine.step()

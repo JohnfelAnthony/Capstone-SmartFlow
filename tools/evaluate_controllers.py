@@ -35,8 +35,10 @@ from simulation.traffic_engine import STEP_LENGTH
 from simulation.traffic_engine import TrafficEngine
 
 
-DEFAULT_SEEDS = (11, 22, 33, 44, 55)
-SUPPORTED_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
+DEFAULT_SEEDS = (101, 102, 103, 104, 105)  # development seeds; 11-55 are for training
+FINAL_EVALUATION_SEEDS = tuple(range(201, 221))  # reserved for the final study (plan Task 29)
+SUPPORTED_CONTROLLERS = ("fixed-time", "no-signal", "ql", "dql", "ppo")
+DEFAULT_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
 
 
 def _utc_now_iso() -> str:
@@ -63,7 +65,7 @@ def _parse_controller_set(raw_controllers: str) -> tuple[str, ...]:
     unsupported = sorted(set(controllers) - set(SUPPORTED_CONTROLLERS))
     if unsupported:
         raise argparse.ArgumentTypeError(f"unsupported controller(s): {', '.join(unsupported)}")
-    return controllers or SUPPORTED_CONTROLLERS
+    return controllers or DEFAULT_CONTROLLERS
 
 
 def _latest_model_path(controller: str) -> Path | None:
@@ -154,12 +156,17 @@ def _configure_engine_for_controller(
     decision_interval_seconds: float,
     minimum_green_hold_seconds: float,
 ):
+    if controller == "no-signal":
+        engine.enable_no_signal_control()
+        return
     if controller == "fixed-time":
+        engine.disable_no_signal_control()
         engine.disable_rl_control()
         return
     if controller in {"ql", "dql", "ppo"}:
         if controller not in policies:
             raise ValueError(f"{controller.upper()} controller requires a runtime policy.")
+        engine.disable_no_signal_control()
         engine.set_runtime_policy(
             policies[controller],
             decision_interval=decision_interval_seconds,
@@ -246,8 +253,12 @@ def _run_controller_once(
         if abs(value/STEP_LENGTH-round(value/STEP_LENGTH)) > 1e-7:
             raise ValueError("Evaluation durations must be multiples of 0.1 seconds")
     total_duration_seconds = float(warmup_seconds) + float(duration_seconds)
-    engine = TrafficEngine(seed=seed)
-    engine.configure_from_scenario(scenario)
+    if scenario.get("network_id"):
+        from simulation.network_registry import engine_for_scenario
+        engine = engine_for_scenario(scenario, seed=seed)
+    else:
+        engine = TrafficEngine(seed=seed)
+        engine.configure_from_scenario(scenario)
     _configure_engine_for_controller(
         engine,
         controller,
@@ -256,8 +267,8 @@ def _run_controller_once(
         minimum_green_hold_seconds=minimum_green_hold_seconds,
     )
 
-    if warmup_seconds > 0:
-        engine.disable_rl_control()
+    # Each condition warms up under its own control (no signal, its fixed-time plan or its policy), so the experiment
+    # measures sustained operation of that condition, not a switch from a common fixed-time start.
 
     run_id = database.create_run(
         scenario_id=scenario_id,
@@ -294,7 +305,6 @@ def _run_controller_once(
             if not official_metrics_reset and engine.simulation_time >= warmup_seconds:
                 _reset_official_metrics(engine)
                 official_metrics_reset = True
-                _configure_engine_for_controller(engine, controller, policies, decision_interval_seconds=decision_interval_seconds, minimum_green_hold_seconds=minimum_green_hold_seconds)
             if record_timeline and engine.status in {"running", "completed"}:
                 timeline_file.write(json.dumps(engine.to_dict()) + "\n")
                 frame_count += 1
@@ -349,6 +359,8 @@ def _run_controller_once(
             "status": "completed",
             "duration_seconds": float(engine.simulation_time),
             "metrics": metrics,
+            "pending_demand": metrics.get("pending_demand"),
+            "unfinished_vehicles": metrics.get("unfinished_vehicles"),
             "timeline_path": timeline_path,
         }
     except (Exception, KeyboardInterrupt) as exc:
@@ -429,15 +441,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate SMARTFLOW controllers using the fixed comparison protocol."
     )
-    parser.add_argument("--controllers", type=_parse_controller_set, default=SUPPORTED_CONTROLLERS)
+    parser.add_argument("--controllers", type=_parse_controller_set, default=DEFAULT_CONTROLLERS)
     parser.add_argument("--seeds", type=_parse_seed_set, default=DEFAULT_SEEDS)
     parser.add_argument("--duration-seconds", type=float, default=DEFAULT_EPISODE_SECONDS)
     parser.add_argument("--warmup-seconds", type=float, default=DEFAULT_WARMUP_SECONDS)
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
-    parser.add_argument("--intersection-id", default="tagum_network")
+    parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
+    parser.add_argument("--final", action="store_true", help="Allow the protected final-evaluation seeds 201-220 (final study only)")
+    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site without the validation gate; the artifact is marked as not study evidence")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -451,15 +465,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    if not args.final and any(int(seed) in FINAL_EVALUATION_SEEDS for seed in args.seeds):
+        raise ValueError("Seeds 201–220 are reserved for the final evaluation (Task 29); pass --final to use them")
     database.init_db()
 
     scenario = {
         "name": args.scenario_name,
-        "intersection_id": args.intersection_id,
+        "intersection_id": args.intersection_id or "tagum_network",
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
     }
     scenario = load_training_scenario(args, scenario)
+    from simulation.network_registry import load_registered_network
+    scenario_network = load_registered_network(scenario.get("network_id"))
 
     model_paths = {
         "ql": args.ql_model or _latest_model_path("ql"),
@@ -474,14 +492,14 @@ def main() -> int:
         model_path = model_paths[controller]
         if model_path is None:
             raise SystemExit(f"No {controller.upper()} model found. Pass --{controller}-model or train {controller.upper()} first.")
-        metadata = artifact_metadata(controller, model_path)
+        metadata = artifact_metadata(controller, model_path, scenario_network)
         trained_scenario = metadata.get("scenario")
         if not isinstance(trained_scenario, dict):
             if has_observed_inputs(scenario):
                 raise ValueError("Model lacks its training snapshot for held-out observed evaluation.")
         else:
             validate_observed_holdout(trained_scenario, scenario)
-        policies[controller] = load_runtime_policy(controller, model_path)
+        policies[controller] = load_runtime_policy(controller, model_path, network=scenario_network)
         model_ids[controller] = _find_rl_model_id_by_path(model_path)
 
     scenario_id = args.scenario_id or _find_or_create_scenario(scenario)
@@ -560,6 +578,9 @@ def main() -> int:
         "seeds": list(args.seeds),
         "duration_seconds": args.duration_seconds,
         "warmup_seconds": args.warmup_seconds,
+        "warmup_control": "evaluated controller",
+        "measurement_window_seconds": args.duration_seconds,
+        "final": bool(args.final),
         "model_paths": {
             controller: str(model_paths[controller])
             for controller in args.controllers

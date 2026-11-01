@@ -28,8 +28,10 @@ def prepare_settings(settings: dict) -> dict:
     scenario = database.get_scenario_by_id(scenario_id)
     if not scenario or scenario.get("is_archived"):
         raise ValueError("Select an available saved scenario before starting training.")
-    engine = TrafficEngine()
-    engine.configure_from_scenario(scenario)
+    from simulation.network_registry import engine_for_scenario
+    engine = engine_for_scenario(scenario)
+    from services.study_gate import require_study_gate
+    require_study_gate(engine)
     normalized = {"scenario_id": scenario_id}
     evaluation_scenario_id = numeric(settings.get("evaluation_scenario_id"), "Held-out scenario ID", 1, 2**31-1, integer=True)
     if evaluation_scenario_id == scenario_id:
@@ -37,8 +39,9 @@ def prepare_settings(settings: dict) -> dict:
     evaluation_scenario = database.get_scenario_by_id(evaluation_scenario_id)
     if not evaluation_scenario or evaluation_scenario.get("is_archived"):
         raise ValueError("Select an available held-out evaluation scenario.")
-    evaluation_engine = TrafficEngine()
-    evaluation_engine.configure_from_scenario(evaluation_scenario)
+    evaluation_engine = engine_for_scenario(evaluation_scenario)
+    if evaluation_engine.network.fingerprint != engine.network.fingerprint:
+        raise ValueError("Training and held-out scenarios must use the same network.")
     validate_observed_holdout({"engine_config": engine.config}, {"engine_config": evaluation_engine.config})
     if evaluation_engine.controlled_junction != engine.controlled_junction:
         raise ValueError("Training and held-out scenarios must use the same controlled junction.")
@@ -67,11 +70,13 @@ def prepare_settings(settings: dict) -> dict:
     engine.configure_rl_control(decision_interval=normalized["decision_interval_seconds"],
                                 minimum_green_hold=normalized["minimum_green_hold_seconds"])
     snapshot = {"id": scenario_id, "name": scenario["name"], "intersection_id": engine.intersection_id,
+                "network_id": engine.network.id, "network_sha256": engine.network.fingerprint,
                 "engine_config": engine.config}
     normalized["scenario_snapshot"] = snapshot
     normalized["scenario_sha256"] = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     evaluation_snapshot = {"id": evaluation_scenario_id, "name": evaluation_scenario["name"],
-                           "intersection_id": evaluation_engine.intersection_id,
+                           "intersection_id": evaluation_engine.intersection_id, "network_id": evaluation_engine.network.id,
+                           "network_sha256": evaluation_engine.network.fingerprint,
                            "engine_config": evaluation_engine.config}
     normalized["evaluation_scenario_snapshot"] = evaluation_snapshot
     normalized["evaluation_scenario_sha256"] = hashlib.sha256(json.dumps(evaluation_snapshot, sort_keys=True).encode()).hexdigest()
@@ -116,8 +121,10 @@ def prepare_settings(settings: dict) -> dict:
 
 def validate_model_for_settings(model, settings, *, path=None):
     algorithm = str(model["algorithm"]).lower()
-    metadata = artifact_metadata(algorithm, path or model.get("checkpoint_path") or "")
-    if training_junction(metadata) != settings["controlled_junction"]:
+    from simulation.network_registry import load_registered_network
+    network = load_registered_network(settings.get("scenario_snapshot", {}).get("network_id"))
+    metadata = artifact_metadata(algorithm, path or model.get("checkpoint_path") or "", network)
+    if training_junction(metadata, network) != settings["controlled_junction"]:
         raise ValueError("This model was trained for a different controlled junction. Choose the matching scenario or train a new model.")
     for key, default in (("decision_interval_seconds", 5), ("minimum_green_hold_seconds", 10)):
         if settings[key] != metadata.get(key, default):

@@ -72,6 +72,11 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual((self.take / "draft/events.csv").read_bytes(), original)
         self.assertFalse(list((self.take / "revisions").glob("revision*")))
 
+    def test_readme_uses_current_tricycle_subtypes(self):
+        readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8").lower()
+        self.assertNotIn("tagum_passenger_tricycle", readme)
+        self.assertNotIn("tagum passenger tricycle", readme)
+
     def test_registration_preserves_source_and_refuses_overwrite(self):
         self.assertEqual(sha256(self.video), self.manifest["source_sha256"])
         self.assertEqual(self.manifest["camera_id"], "PHONE_01")

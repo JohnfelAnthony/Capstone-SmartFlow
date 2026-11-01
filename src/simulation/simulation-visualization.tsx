@@ -70,14 +70,14 @@ function Workspace({ geometry, frame, controlledJunction, mode, runKey, seekRevi
   const running = Boolean(frame && frame.status !== "stopped")
   const control = running && junctionId ? frame?.junction_controls[junctionId] : undefined
   const service = phaseService(control?.phase)
-  const phaseColor = !control ? "off" : control.mode === "all_way_stop" ? "off" : control.stage === "green" ? "green" : control.stage === "yellow" ? "yellow" : "red"
+  const phaseColor = !control ? "off" : control.mode === "all_way_stop" || control.mode === "first_come" ? "off" : control.stage === "green" ? "green" : control.stage === "yellow" ? "yellow" : "red"
   return <div ref={host} className={cn("sf-scene-workspace sf-sim-layout", expanded && "sf-scene-expanded")} data-mode={is2D ? "2d" : "3d"} data-focus={presentation.focus} data-junction={presentation.junctionId} data-selection={selectionKey(presentation.selection)}>
     <div className="sf-sim-main">
       {failure ? <Alert><AlertDescription>{failure}</AlertDescription></Alert> : null}
       <div className="sf-scene-viewport">
         {is2D ? <SimulationCanvas2D frame={frame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={select} onPerformanceSample={onPerformanceSample} /> : <SimulationScene3D frame={frame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={select} onUnavailable={fallback} onPerformanceSample={onPerformanceSample} />}
         <div className="sf-sim-chip sf-sim-chip-top-left"><span>Intersection</span><strong>{junction?.label ?? "—"}</strong></div>
-        <div className="sf-sim-chip sf-sim-chip-bottom-left"><span>Signal phase</span><strong><i className="sf-sim-chip-dot" data-color={phaseColor} />{!control ? "—" : control.mode === "all_way_stop" ? "All-way stop" : service === "pedestrian" ? "Pedestrian crossing" : service ? readable(control.phase) : "All red"}</strong></div>
+        <div className="sf-sim-chip sf-sim-chip-bottom-left"><span>Signal phase</span><strong><i className="sf-sim-chip-dot" data-color={phaseColor} />{!control ? "—" : control.mode === "first_come" ? "No signal" : control.mode === "all_way_stop" ? "All-way stop" : service === "pedestrian" ? "Pedestrian crossing" : service ? readable(control.phase) : "All red"}</strong></div>
         <div className="sf-sim-chip sf-sim-chip-bottom-right"><span>Phase timer</span><strong>{control?.remaining_seconds == null ? "—" : `${Math.ceil(control.remaining_seconds)}s`}</strong></div>
         {overlay ? <div className="sf-sim-overlay">{overlay}</div> : null}
       </div>

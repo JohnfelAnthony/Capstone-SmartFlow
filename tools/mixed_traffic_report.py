@@ -22,7 +22,8 @@ from simulation.road_network import RoadNetwork  # noqa: E402
 from simulation.scenario_config import CARS_ONLY_MIX, TAGUM_PROVISIONAL_MIX  # noqa: E402
 from simulation.traffic_engine import ENGINE_VERSION, TrafficEngine  # noqa: E402
 
-NETWORKS = {"5j": ROOT/"data"/"networks"/"tagum_network.json", "2j": ROOT/"data"/"networks"/"tagum_network_2j.json"}
+NETWORKS = {"5j": ROOT/"data"/"networks"/"tagum_network.json", "2j": ROOT/"data"/"networks"/"tagum_network_2j.json",
+            "siteA": ROOT/"data"/"networks"/"tagum_site_a.json", "siteB": ROOT/"data"/"networks"/"tagum_site_b.json"}
 CARS_ONLY, TAGUM = CARS_ONLY_MIX, TAGUM_PROVISIONAL_MIX
 MIXES = {"cars": CARS_ONLY, "tagum": TAGUM}
 CASES = {
@@ -37,6 +38,14 @@ CASES = {
     "5j-closure-tagum": ("5j", "medium", "tagum", {"closure": True}),
     "5j-allwaystop-tagum": ("5j", "medium", "tagum", {"all_way_stop": True}),
 }
+# Two-site study (design 0.13): each site at medium and high demand under no signal, its default fixed-time plan and a grouped Webster plan.
+SITE_CONTROLS = {"nosignal": {"no_signal": True}, "fixed": {}, "grouped": {"grouped": True}}
+for _site in ("siteA", "siteB"):
+    for _density in ("medium", "high"):
+        for _control, _extras in SITE_CONTROLS.items():
+            CASES[f"{_site}-{_density}-{_control}"] = (_site, _density, "tagum", dict(_extras))
+GROUPED_PHASES = [["north", "south"], ["east", "west"], "pedestrian"]
+SYNTHETIC_VEHICLES_PER_HOUR = {"low": 432, "medium": 1080, "high": 2340, "very high": 3420}  # simulation/demand.py, spread evenly over boundaries
 QUICK_CASES = ("2j-medium-tagum", "5j-medium-cars")
 FRONT_ROW_M = 1.0
 MIN_FRONT_ROW_SAMPLES = 20
@@ -65,8 +74,32 @@ def percentile_95(values: list[float]) -> float | None:
     return float(ordered[max(0, math.ceil(0.95*len(ordered))-1)])
 
 
+def queue_distribution(values: list[float]) -> dict:
+    """Percentiles of every per-approach queue sample, and how many non-zero samples exceed 8 vehicles (the QL bin rule, plan Task 25)."""
+    ordered = sorted(values)
+    def at(fraction):
+        return float(ordered[max(0, math.ceil(fraction*len(ordered))-1)]) if ordered else None
+    nonzero = [value for value in ordered if value > 0]
+    return {"queue_count_p50": at(.50), "queue_count_p75": at(.75), "queue_count_p90": at(.90), "nonzero_samples": len(nonzero),
+            "nonzero_share_above_8": sum(1 for value in nonzero if value > 8)/len(nonzero) if nonzero else None}
+
+
+def grouped_plan(network_name: str, density: str, mix: dict) -> dict:
+    """A provisional Webster plan for the case's own synthetic demand: every boundary sends an equal share of the rate."""
+    from simulation.signal_design import flows_from_counts, plan_from_result, saturation_from_network, webster_plan
+    network = load_network(network_name)
+    junction = network.intersections[0]
+    # simulation/demand.py draws a uniformly random routable boundary pair, so a source's share is its share of those pairs.
+    pairs = [(a, b) for a in network.boundaries for b in network.boundaries if a != b and network.route(a, b)]
+    approach_of = {lane.source: lane.approach for lane in network.lanes.values() if lane.target == junction and lane.source in network.boundaries}
+    counts = {approach_of[boundary]: {kind: SYNTHETIC_VEHICLES_PER_HOUR[density]*share*sum(1 for a, _ in pairs if a == boundary)/len(pairs) for kind, share in mix.items()}
+              for boundary in network.boundaries if boundary in approach_of}
+    result = webster_plan(GROUPED_PHASES, flows_from_counts(counts), saturation_from_network(network, junction))
+    return {junction: plan_from_result(result, {})}
+
+
 def build_engine(network_name: str, density: str, mix: dict, seconds: float, seed: int, *, events=None,
-                 all_way_stop: bool = False, sideways_decisions: bool = True) -> TrafficEngine:
+                 all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None) -> TrafficEngine:
     network = load_network(network_name)
     engine = (TrafficEngine if sideways_decisions else NoFilteringEngine)(seed=seed, network=network)
     settings = {"traffic_density": density, "pedestrian_density": "medium", "vehicle_mix": dict(mix)}
@@ -74,16 +107,20 @@ def build_engine(network_name: str, density: str, mix: dict, seconds: float, see
         settings["events"] = events
     if all_way_stop:
         settings["signal_plans"] = {node: {"mode": "all_way_stop"} for node in network.intersections}
+    if signal_plans:
+        settings["signal_plans"] = signal_plans
     engine.configure(**settings)
+    if no_signal:
+        engine.enable_no_signal_control()
     engine.start(int(math.ceil(seconds)))
     return engine
 
 
 def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: int, *, events=None,
-             all_way_stop: bool = False, sideways_decisions: bool = True) -> dict:
+             all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None) -> dict:
     started = time.perf_counter()
     engine = build_engine(network_name, density, mix, seconds, seed, events=events, all_way_stop=all_way_stop,
-                          sideways_decisions=sideways_decisions)
+                          sideways_decisions=sideways_decisions, no_signal=no_signal, signal_plans=signal_plans)
     network = engine.network
     node = engine.controlled_junction
     incoming = [network.lanes[lane_id] for lane_id in network.incoming[node]]
@@ -102,7 +139,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         max_gridlock = max(max_gridlock, metrics["gridlock_seconds"])
         is_green = signal.stage == "green"
         if is_green and not was_green and signal.family != "pedestrian":
-            green_lanes = [lane.id for lane in incoming if lane.approach == signal.family]
+            green_lanes = [lane.id for lane in incoming if signal.serves(lane.approach)]
             open_discharge = [engine.ticks+DISCHARGE_TICKS, green_lanes, sum(engine.lane_exits[lane] for lane in green_lanes)]
         was_green = is_green
         if open_discharge and engine.ticks >= open_discharge[0]:
@@ -138,6 +175,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         "final_vehicle_conservation_error": engine._last_metrics["vehicle_conservation_error"],
         "completed": engine.lifetime_completed,
         "queue_count_p95": percentile_95(queue_samples),
+        **queue_distribution(queue_samples),
         "active_count_p95": percentile_95(active_samples),
         "front_row_motorcycle_share": front_row_motorcycles/front_row_total if enough_front_row else None,
         "queue_motorcycle_share": queue_motorcycles/queue_total if enough_front_row else None,
@@ -149,7 +187,10 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
 
 def case_options(name: str) -> tuple[str, str, dict, dict]:
     network_name, density, mix_name, extras = CASES[name]
-    options = {"sideways_decisions": extras.get("sideways_decisions", True), "all_way_stop": extras.get("all_way_stop", False)}
+    options = {"sideways_decisions": extras.get("sideways_decisions", True), "all_way_stop": extras.get("all_way_stop", False),
+               "no_signal": extras.get("no_signal", False)}
+    if extras.get("grouped"):
+        options["signal_plans"] = grouped_plan(network_name, density, MIXES[mix_name])
     if extras.get("closure"):
         lane_id = load_network(network_name).incoming[TrafficEngine(seed=1, network=load_network(network_name)).controlled_junction][0]
         options["events"] = [{"time": 200, "lane_id": lane_id, "closed": True}, {"time": 500, "lane_id": lane_id, "closed": False}]
@@ -185,6 +226,16 @@ def determinism_equal() -> bool:
     return digests[0] == digests[1]
 
 
+DETERMINISM_SECONDS = 120.0
+
+
+def determinism_equal_case(name: str, seconds: float = DETERMINISM_SECONDS, seed: int = 101) -> bool:
+    """The same case built and stepped twice gives the same state digest."""
+    network_name, density, mix, options = case_options(name)
+    digests = [state_digest(build_engine(network_name, density, mix, seconds, seed, **options), seconds) for _ in range(2)]
+    return digests[0] == digests[1]
+
+
 def log(message: str):
     print(message, file=sys.stderr, flush=True)
 
@@ -195,11 +246,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seconds", type=float, default=1800.0)
     parser.add_argument("--seeds", default="101,102")
     parser.add_argument("--quick", action="store_true", help="60 s, seed 101, two cases, no benchmarks")
+    parser.add_argument("--determinism", action="store_true", help="also check that each selected case gives equal state digests when run twice")
+    parser.add_argument("--only", help="comma-separated case-name prefixes (for example siteA,siteB); the benchmarks are skipped")
     args = parser.parse_args(argv)
     seconds, seeds = (60.0, [101]) if args.quick else (args.seconds, [int(seed) for seed in args.seeds.split(",")])
-    names = QUICK_CASES if args.quick else tuple(CASES)
+    prefixes = tuple(args.only.split(",")) if args.only else ()
+    names = QUICK_CASES if args.quick else tuple(name for name in CASES if not prefixes or name.startswith(prefixes))
+    if not names:
+        parser.error(f"no case starts with {args.only}")
     report = {"engine_version": ENGINE_VERSION, "seconds": seconds, "seeds": seeds, "cases": {}, "benchmarks": {}}
-    if not args.quick:
+    if not args.quick and not prefixes:
         log("benchmarks: cars-only 900 s run")
         report["benchmarks"]["cars_only_5j_medium_900s_runtime_s"] = benchmark_cars_only()
         log("benchmarks: RL environment episode")
@@ -208,6 +264,11 @@ def main(argv: list[str] | None = None) -> int:
         report["benchmarks"]["rl_env_episode"] = rl
         log("benchmarks: determinism")
         report["benchmarks"]["determinism_digest_equal"] = determinism_equal()
+    if args.determinism:
+        report["determinism"] = {}
+        for name in names:
+            log(f"determinism {name}")
+            report["determinism"][name] = determinism_equal_case(name)
     for name in names:
         network_name, density, mix, options = case_options(name)
         for seed in seeds:

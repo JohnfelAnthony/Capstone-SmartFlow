@@ -45,7 +45,7 @@ class RenderPresentationTests(unittest.TestCase):
         baseline = copy.deepcopy(network.visual())
         labels = {junction["id"]: junction["label"] for junction in configuration_options()["junctions"]}
         # Labeling reuses the loaded network; it does not initialize an engine.
-        with patch("services.visual_network_service.load_network", return_value=network), \
+        with patch("services.visual_network_service.load_registered_network", return_value=network), \
                 patch("services.native_scenario_service.TrafficEngine", side_effect=AssertionError("engine should not be constructed")):
             visual = load_client_visual_network(network.id)
         self.assertEqual(visual["network_id"], network.id)
@@ -143,7 +143,8 @@ class RenderPresentationTests(unittest.TestCase):
         self.assertFalse(fixed["external_control"])
         engine.configure_rl_control(controller_provenance="synthetic-policy")
         before_phase = signal.phase
-        request = engine.apply_rl_action("SERVE_EAST")
+        from simulation.traffic_engine import RL_SERVICE_ACTIONS, phase_slots
+        request = engine.apply_rl_action(RL_SERVICE_ACTIONS[phase_slots(signal).index("east")])
         control = engine.junction_controls()[junction]
         self.assertEqual(request, {"applied": True, "reason": "queued_safely"})
         self.assertEqual(control["timing_kind"], "minimum_hold")

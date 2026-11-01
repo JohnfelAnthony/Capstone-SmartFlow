@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .analysis import AnalysisCancelled, analyze, use_proposals
-from .core import (CLASSES, COMMON, TABLES, TRICYCLE_SUBTYPES, create_take, export_revision, identifier, load_tables,
+from .core import (CLASSES, COMMON, PRIORITY_PAIR_COLUMNS, TABLES, TRICYCLE_SUBTYPES, create_take, export_revision, identifier, load_tables,
                    nearest_frame, number, read_json, read_take, require, sha256, write_csv, write_json)
 from .demo import DemoDetector, create_demo
 from .detector import TrafficDetector
@@ -254,8 +254,15 @@ class ObserverGUI:
             category = data.get("reviewed_class")
             is_vehicle = row["event_type"].startswith("vehicle_")
             require(category in CLASSES if is_vehicle else category == "person", "Choose the correct vehicle/person class.")
-            subtype = data.get("vehicle_subtype", "") if category == "tricycle" else ""
+            if "exit_id" in data:
+                exit_id = data.get("exit_id") or ""
+                require(not exit_id or (is_vehicle and any(line["id"] == exit_id and line["event_type"] == "vehicle_discharge"
+                                                          for line in self.config["lines"])),
+                        "Choose a configured vehicle exit line.")
+                row["exit_id"] = exit_id
+            subtype = data.get("vehicle_subtype", "")
             require(subtype in ("", *TRICYCLE_SUBTYPES), "Unknown tricycle subtype.")
+            require(not subtype or category == "tricycle", "A tricycle subtype requires the tricycle class.")
             require(status != "corrected" or bool(data.get("note", "").strip()), "Describe the correction in the note.")
             episode = data.get("episode_id", "").strip() or row.get("episode_id") or row["event_id"]
             identifier(episode, "episode_id")
@@ -289,6 +296,71 @@ class ObserverGUI:
                        start_s=start, end_s=end, visibility=visibility, review_method="manual_count", reviewer=data["reviewer"], note=data.get("note", ""))
             self.save_draft("coverage.csv", [*rows, row])
             self.update(message="Coverage saved. Export will check all accepted events against it.")
+
+    def queue_sample(self, data):
+        with self.lock:
+            self.idle()
+            require(self.run is not None and self.config is not None and
+                    read_json(self.run / "run.json")["status"] == "complete", "Finish analysis first.")
+            approach = data.get("approach_id", "")
+            require(any(line.get("approach_id") == approach and approach for line in self.config["lines"]),
+                    "Choose a configured vehicle approach.")
+            reviewer = data.get("reviewer", "").strip()
+            require(bool(reviewer), "Enter a reviewer.")
+            visibility = data.get("visibility")
+            require(visibility in ("complete", "lower_bound", "unknown"), "Choose queue visibility.")
+            count = data.get("queue_count")
+            if visibility == "unknown":
+                require(count in (None, ""), "An unknown queue must be left blank.")
+                count = ""
+            else:
+                require(isinstance(count, int) and not isinstance(count, bool) and count >= 0,
+                        "Queue count must be a nonnegative whole number.")
+            timing = nearest_frame(self.take, number(data.get("time_s"), "sample time"))
+            row = {key: "" for key in TABLES["queue_samples.csv"]}
+            row.update({key: self.manifest[key] for key in COMMON}, sample_id="Q" + uuid.uuid4().hex[:12],
+                       time_s=timing["time_s"], frame_pts=timing["frame_pts"], approach_id=approach,
+                       queue_count=count, visibility=visibility, review_status="accepted", reviewer=reviewer,
+                       note=data.get("note", "").strip())
+            self.save_draft("queue_samples.csv", [*load_tables(self.take)["queue_samples.csv"], row])
+            self.update(message="Queue sample saved as a manual observation.")
+
+    def priority_pair(self, data):
+        """One reviewed pair of vehicles from different approaches, for the arrival-order check (not for demand)."""
+        with self.lock:
+            self.idle()
+            require(self.run is not None and self.config is not None and
+                    read_json(self.run / "run.json")["status"] == "complete", "Finish analysis first.")
+            movements = [data.get(key, "") for key in ("movement_a", "movement_b")]
+            require(all(isinstance(item, str) and re.fullmatch(r"[A-Za-z0-9_.-]+->[A-Za-z0-9_.-]+", item) for item in movements),
+                    "Enter each movement as origin->destination, for example west->east.")
+            reviewer = data.get("reviewer", "").strip()
+            require(bool(reviewer), "Enter a reviewer.")
+            visibility = data.get("visibility")
+            require(visibility in ("complete", "partial", "unseen"), "Choose pair visibility.")
+            readiness = data.get("readiness_of_earlier")
+            require(readiness in ("ready", "blocked", "unknown"), "Choose whether the earlier vehicle was ready, blocked or unknown.")
+            reason = (data.get("blocked_reason") or "").strip()
+            require(readiness != "blocked" or bool(reason), "Say what blocked the earlier vehicle.")
+            times = {}
+            for key in ("priority_time_a_s", "priority_time_b_s", "entry_time_a_s", "entry_time_b_s"):
+                value = data.get(key)
+                if value in (None, ""):
+                    require(key.startswith("entry_") and visibility != "complete", f"{key} is required unless the pair is not fully visible.")
+                    times[key] = ""
+                else:
+                    times[key] = number(value, key)
+                    require(times[key] >= 0, f"{key} must not be negative.")
+            path = self.take / "priority_pairs.csv"
+            existing = []
+            if path.exists():
+                with path.open(newline="", encoding="utf-8") as stream:
+                    existing = list(csv.DictReader(stream))
+            row = {"pair_id": "PP" + uuid.uuid4().hex[:12], "movement_a": movements[0], "movement_b": movements[1], **times,
+                   "readiness_of_earlier": readiness, "blocked_reason": reason, "visibility": visibility, "reviewer": reviewer,
+                   "note": (data.get("note") or "").strip()}
+            write_csv(path, PRIORITY_PAIR_COLUMNS, [*existing, row])
+            self.update(message="Priority pair saved as a manual observation.")
 
 
 class GUIHTTPServer(ThreadingHTTPServer):
@@ -390,7 +462,7 @@ def make_server(root: Path, port=0):
                     self.file_response(service.revision.parent / (service.revision.name + ".zip"), "application/zip", "field-observations.zip")
                 else:
                     self.json_response({"error": "Not found"}, 404)
-            except (BrokenPipeError, ConnectionResetError):
+            except ConnectionError:
                 pass
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.json_response({"error": str(exc)}, 400)
@@ -453,6 +525,10 @@ def make_server(root: Path, port=0):
                         service.review(data)
                     elif route.path == "/api/coverage":
                         service.coverage(data)
+                    elif route.path == "/api/queue":
+                        service.queue_sample(data)
+                    elif route.path == "/api/priority_pair":
+                        service.priority_pair(data)
                     elif route.path == "/api/export":
                         with service.lock:
                             service.idle()
@@ -460,7 +536,12 @@ def make_server(root: Path, port=0):
                             service.update(status="exporting", message="Checking observations and saving a provisional revision...")
                         def export_job():
                             try:
-                                revision = export_revision(service.take, data.get("reviewer", ""), data.get("note", ""))
+                                lines_path = service.run / "lines.json"
+                                run_record = read_json(service.run / "run.json")
+                                require(sha256(lines_path) == run_record.get("artifact_sha256", {}).get("lines.json"),
+                                        "The analysis counting lines have changed; preserve the original evidence.")
+                                revision = export_revision(service.take, data.get("reviewer", ""), data.get("note", ""),
+                                                           lines=read_json(lines_path))
                                 with zipfile.ZipFile(revision.parent / (revision.name + ".zip"), "w", zipfile.ZIP_DEFLATED) as archive:
                                     for item in revision.iterdir():
                                         archive.write(item, item.name)
@@ -471,7 +552,7 @@ def make_server(root: Path, port=0):
                     else:
                         raise ValueError("Unknown action.")
                 self.json_response({"ok": True})
-            except (BrokenPipeError, ConnectionResetError):
+            except ConnectionError:
                 pass
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.json_response({"error": str(exc)}, 400)

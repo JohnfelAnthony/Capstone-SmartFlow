@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -39,17 +40,37 @@ DEFAULT_PEDESTRIAN_PHASE = "on_call"
 PEDESTRIAN_PHASE_RULES = {"on_call", "every_cycle"}
 
 
-def fixed_red_seconds(order, green, yellow, all_red):
-    """How long each approach waits for green under the plan's own fixed-time cycle (cycle minus its green)."""
-    cycle = sum(green+all_red+(0 if service == "pedestrian" else yellow) for service in order)
-    return cycle-green
+def phase_key(item) -> str:
+    """The engine's name for a phase_order item: an approach, "pedestrian", or a group joined by "+" in plan order."""
+    return item if isinstance(item, str) else "+".join(item)
+
+
+def _phase_cycle(order, green, yellow, all_red, phase_greens):
+    greens = list(phase_greens) if phase_greens is not None else [green]*len(order)
+    keys = [phase_key(item) for item in order]
+    cycle = sum(phase_green+all_red+(0 if key == "pedestrian" else yellow) for key, phase_green in zip(keys, greens))
+    return cycle, keys, greens
+
+
+def fixed_red_seconds(order, green, yellow, all_red, phase_greens=None):
+    """The longest a vehicle phase waits for green under the plan's own fixed-time cycle (cycle minus its green).
+
+    The walk phase's own red is separate (`walk_red_seconds`) and never counts here."""
+    cycle, keys, greens = _phase_cycle(order, green, yellow, all_red, phase_greens)
+    return cycle-min((phase_green for key, phase_green in zip(keys, greens) if key != "pedestrian"), default=green)
+
+
+def walk_red_seconds(order, green, yellow, all_red, phase_greens=None):
+    """How long the walk phase waits under the plan's own cycle: cycle minus the walk green."""
+    cycle, keys, greens = _phase_cycle(order, green, yellow, all_red, phase_greens)
+    return cycle-(greens[keys.index("pedestrian")] if "pedestrian" in keys else green)
 
 
 def effective_maximum_red(plan, order, green):
     """The explicit cap, else 120 s or the plan's own fixed-time red if longer, so a legal baseline never trips it."""
     if "maximum_red_seconds" in plan:
         return plan["maximum_red_seconds"]
-    return max(DEFAULT_MAXIMUM_RED_SECONDS, fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1)))
+    return max(DEFAULT_MAXIMUM_RED_SECONDS, fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1), plan.get("phase_greens")))
 
 
 def number(value, label, minimum=0.0, maximum=86400.0):
@@ -62,6 +83,49 @@ def number(value, label, minimum=0.0, maximum=86400.0):
     if not math.isfinite(result) or not minimum <= result <= maximum:
         raise ValueError(f"{label} must be between {minimum} and {maximum}")
     return result
+
+
+# Per-site physical calibration (design 0.15). Absent means these defaults; the engine resolves it per instance and
+# never edits shared constants. The first two apply only to first-come junctions; the turn speed and class factors
+# apply to every condition so the three conditions share one frozen physical model.
+SITE_CALIBRATION_DEFAULTS = {"first_come_approach_speed_mps": 4.0, "approach_zone_m": 30.0, "turn_speed_mps": 5.0}
+SITE_CALIBRATION_BOUNDS = {"first_come_approach_speed_mps": (0.1, 30.0), "approach_zone_m": (5.0, 200.0), "turn_speed_mps": (0.5, 30.0)}
+CLASS_SPEED_FACTOR_BOUNDS = (0.1, 2.0)
+SITE_CALIBRATION_FIELDS = {"schema_version", "network_id", "class_speed_factors", *SITE_CALIBRATION_DEFAULTS}
+
+
+def default_class_speed_factors() -> dict:
+    return {name: spec["speed_factor"] for name, spec in VEHICLE_TYPES.items()}
+
+
+def resolve_site_calibration(value, network_id: str) -> dict:
+    """The complete, validated calibration for one site; defaults fill an absent object."""
+    if value is None:
+        return {"schema_version": 1, "network_id": network_id, **SITE_CALIBRATION_DEFAULTS, "class_speed_factors": default_class_speed_factors()}
+    if not isinstance(value, dict):
+        raise ValueError("site_calibration must be an object")
+    unknown = value.keys() - SITE_CALIBRATION_FIELDS
+    if unknown:
+        raise ValueError(f"Unknown site_calibration fields: {', '.join(sorted(unknown))}")
+    if value.get("schema_version") != 1:
+        raise ValueError("site_calibration schema_version must be 1")
+    if value.get("network_id") != network_id:
+        raise ValueError(f"site_calibration was made for another site ({value.get('network_id')!r}), not '{network_id}'")
+    resolved = {"schema_version": 1, "network_id": network_id}
+    for name, (low, high) in SITE_CALIBRATION_BOUNDS.items():
+        if name not in value:
+            raise ValueError(f"site_calibration needs {name}")
+        resolved[name] = number(value[name], name, low, high)
+    factors = value.get("class_speed_factors")
+    if not isinstance(factors, dict) or set(factors) != set(VEHICLE_TYPES):
+        raise ValueError(f"class_speed_factors must give all five classes: {', '.join(VEHICLE_TYPES)}")
+    resolved["class_speed_factors"] = {name: number(factors[name], f"class_speed_factors {name}", *CLASS_SPEED_FACTOR_BOUNDS) for name in VEHICLE_TYPES}
+    return resolved
+
+
+def site_calibration_sha256(resolved: dict) -> str:
+    """Hash of the resolved values, so a default and the same values saved explicitly are one identity."""
+    return hashlib.sha256(json.dumps(resolved, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def object_config(value, label):
@@ -98,7 +162,7 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Engine settings must be an object with named fields")
     result = normalize_vehicle_scope(current)
     settings = normalize_vehicle_scope(settings)
-    unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id"})
+    unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id", "site_calibration"})
     if unknown:
         raise ValueError(f"Unknown engine settings: {', '.join(sorted(unknown))}")
     result.update(copy.deepcopy(settings))
@@ -115,6 +179,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Signal plans must be objects")
     if any(not isinstance(lane, str) for lane in result["closed_lanes"]):
         raise ValueError("Closed lanes must contain lane IDs")
+    if result.get("site_calibration") is None:
+        result.pop("site_calibration", None)
+    else:
+        result["site_calibration"] = resolve_site_calibration(result["site_calibration"], network.id)
     requested = result.pop("intersection_id", network.id)
     if not isinstance(requested, str) or requested != network.id:
         raise ValueError("Unknown road network")
@@ -157,15 +225,18 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")
-        if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "offset_seconds", "maximum_red_seconds", "pedestrian_phase"}:
+        if plan.keys() - {"mode", "green_seconds", "minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds", "phase_order", "phase_greens", "offset_seconds", "maximum_red_seconds", "pedestrian_phase"}:
             raise ValueError("Unknown signal plan field")
-        if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop"}:
-            raise ValueError("Signal mode must be signalized or all_way_stop")
+        if not isinstance(plan.get("mode", "signalized"), str) or plan.get("mode", "signalized") not in {"signalized", "all_way_stop", "first_come"}:
+            raise ValueError("Signal mode must be signalized, all_way_stop or first_come")
         if plan.get("pedestrian_phase", DEFAULT_PEDESTRIAN_PHASE) not in PEDESTRIAN_PHASE_RULES:
             raise ValueError("pedestrian_phase must be on_call or every_cycle")
         available = {network.lanes[lane].approach for lane in network.incoming[node]} | {"pedestrian"}
         order = plan.get("phase_order", [a for a in ("north", "east", "south", "west", "pedestrian") if a in available])
-        if not isinstance(order, list) or any(not isinstance(item, str) for item in order) or len(order) != len(set(order)) or set(order) != available:
+        flattened = [name for item in order for name in ([item] if isinstance(item, str) else item)] if isinstance(order, list) else []
+        grouped_ok = isinstance(order, list) and all(isinstance(item, str) or (isinstance(item, list) and len(item) >= 2 and "pedestrian" not in item and all(isinstance(name, str) for name in item))
+                                                     for item in order)
+        if not grouped_ok or len(flattened) != len(set(flattened)) or set(flattened) != available:
             raise ValueError("phase_order must contain every available approach and pedestrian exactly once")
         plan["phase_order"] = order
         for key, default, low, high in (("minimum_green", 10, 5, 60), ("maximum_green", 60, 10, 180),
@@ -175,9 +246,14 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             plan[key] = number(plan.get(key, default), key, low, high)
         if not plan["minimum_green"] <= plan["green_seconds"] <= plan["maximum_green"]:
             raise ValueError("Signal timing requires minimum_green <= green_seconds <= maximum_green")
+        if "phase_greens" in plan:
+            greens = plan["phase_greens"]
+            if not isinstance(greens, list) or len(greens) != len(order):
+                raise ValueError("phase_greens needs one green time per phase_order item")
+            plan["phase_greens"] = [number(value, "phase_greens", plan["minimum_green"], plan["maximum_green"]) for value in greens]
         if "maximum_red_seconds" in plan:
             plan["maximum_red_seconds"] = number(plan["maximum_red_seconds"], "maximum_red_seconds", 30, 600)
-            own_red = fixed_red_seconds(order, plan["green_seconds"], plan["yellow_seconds"], plan["all_red_seconds"])
+            own_red = fixed_red_seconds(order, plan["green_seconds"], plan["yellow_seconds"], plan["all_red_seconds"], plan.get("phase_greens"))
             if plan.get("mode", "signalized") == "signalized" and plan["maximum_red_seconds"] < own_red:
                 raise ValueError(f"maximum_red_seconds ({plan['maximum_red_seconds']:g} s) is shorter than this plan's own fixed-time red ({own_red:g} s)")
     mix = result["vehicle_mix"]

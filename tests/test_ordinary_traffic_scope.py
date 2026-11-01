@@ -78,8 +78,8 @@ class OrdinaryTrafficScopeTests(unittest.TestCase):
 
     def test_observation_reward_and_artifact_contract_match_new_scope(self):
         snapshot = extract_rl_snapshot(self.engine)
-        self.assertEqual(len(snapshot.observation), 22)
-        self.assertEqual(len(snapshot.ql_state), 15)
+        self.assertEqual(len(snapshot.observation), 20)
+        self.assertEqual(len(snapshot.ql_state), 14)
         self.assertFalse(any("emergency" in key for key in vars(snapshot)))
         self.assertFalse(any("emergency" in key for key in calculate_reward(snapshot, snapshot).to_dict()))
         self.assertFalse(any("emergency" in item["key"] for item in METRIC_CATALOG["metrics"]))

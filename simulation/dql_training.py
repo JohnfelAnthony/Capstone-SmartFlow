@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .model_contract import native_contract, validate_neural_artifact
+from .model_contract import native_contract, scenario_phase_plan, validate_neural_artifact
 from .rl_reward import REWARD_VERSION
 from .rl_state import OBSERVATION_VERSION
 
@@ -160,6 +160,8 @@ def train_deep_q_learning(
 ) -> tuple[Path, Path]:
     require_dql_dependencies()
     env = env_factory()
+    from .network_registry import load_registered_network
+    network = load_registered_network(scenario.get("network_id") if isinstance(scenario := getattr(env, "scenario", None), dict) else None)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path = output_path.with_suffix(".metadata.json")
@@ -188,7 +190,8 @@ def train_deep_q_learning(
             "reward_version": REWARD_VERSION,
             "action_space_version": ACTION_SPACE_VERSION,
             **(metadata or {}),
-            "native_contract": native_contract(),
+            "native_contract": native_contract(network),
+            "phase_plan": scenario_phase_plan((metadata or {}).get("scenario") or getattr(env, "scenario", None)),
         }
 
     def save_artifact(model, path: Path, *, status: str) -> tuple[Path, Path]:
@@ -222,7 +225,7 @@ def train_deep_q_learning(
 
     try:
         if resume_model_path:
-            validate_neural_artifact(resume_model_path)
+            validate_neural_artifact(resume_model_path, network)
             model = DQN.load(str(resume_model_path), env=env)
         else:
             model = build_dql_model(env, config)

@@ -56,6 +56,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { controlLabel } from "@/lib/control-labels"
 import "@/styles/compare-runs.css"
 
 const noSelection = "none"
@@ -83,7 +84,7 @@ function formatNumber(value: number | null | undefined, digits = 1) {
 
 
 function runModeLabel(value: string | null | undefined) {
-  return String(value || "unknown").replaceAll("-", " ")
+  return controlLabel(value)
 }
 
 function RunSelect({

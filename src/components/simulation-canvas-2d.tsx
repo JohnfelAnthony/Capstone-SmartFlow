@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import type { VisualPoint } from "@/api/visual-network"
 import type { RenderFrame, RenderPedestrian, RenderVehicle } from "@/simulation/frame-types"
 import { cityScenery, pedestrianWalkways, STREET_EDGE, vergeLines, WALKWAY_HALF_WIDTH, type SceneryItem } from "@/simulation/city-scenery"
-import { boundsForJunction, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, signalHeadPlacement, walkSignalState, type SceneGeometry, type SceneSignalGroup, type Selection, type SignalColor, type WalkSignal } from "@/simulation/scene-geometry"
+import { boundsForJunction, hasSignalHead, headingToCanvasRotation, normalizeVehicleClass, pickSceneEntity, SCENE_PALETTE as palette, signalAppearance, signalHeadPlacement, walkSignalState, type SceneGeometry, type SceneSignalGroup, type Selection, type SignalColor, type WalkSignal } from "@/simulation/scene-geometry"
 import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
@@ -317,10 +317,13 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
   }
   if (presentation.overlays.signals) {
     for (const group of geometry.signalGroups) {
+      if (!hasSignalHead(group, frame)) continue
       const { color } = signalAppearance(group, frame)
       drawSignalHead(ctx, group, color, transform, colors); report.approaches[group.lane_id] = color
     }
     for (const junction of geometry.junctions) {
+      // Unsignalized (first-come) sites have no pedestrian signals either.
+      if (frame?.junction_controls?.[junction.id]?.mode === "first_come") continue
       const state = walkSignalState(junction.id, frame); report.walk[junction.id] = state
       for (const crosswalk of junction.crosswalks) for (const point of crosswalk.walkSignals) drawWalkSignal(ctx, point, state, transform, colors)
     }

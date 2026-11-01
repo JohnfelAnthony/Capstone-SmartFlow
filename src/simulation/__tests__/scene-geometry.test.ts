@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest"
 import type { VisualNetwork } from "@/api/visual-network"
 import { bentNetwork, crossNetwork } from "./geometry-fixture"
 import {
-  boundsForJunction, centeredVehicleFootprint, dashedPieces, forwardAtHeading, headingToThreeYaw, laneDividers,
+  boundsForJunction, centeredVehicleFootprint, dashedPieces, forwardAtHeading, hasSignalHead, headingToThreeYaw, laneDividers,
   normalizeSceneGeometry, normalizeVehicleClass, pickSceneEntity, pointToThree, signalAppearance, signalHeadPlacement, vehicleDimensions, walkSignalState,
 } from "@/simulation/scene-geometry"
 
 describe("canonical native display geometry", () => {
+  it("hides a signal head when the junction has no signal", () => {
+    const group = bentNetwork.signal_groups[0]
+    expect(hasSignalHead(group, { traffic_lights: { "lane-west": { state: "n" } } })).toBe(false)
+    expect(hasSignalHead(group, { traffic_lights: { "lane-west": { state: "G" } } })).toBe(true)
+  })
   it("preserves both bent-road endpoints despite the connected-network flags", () => {
     const before = JSON.stringify(bentNetwork)
     const geometry = normalizeSceneGeometry(bentNetwork)

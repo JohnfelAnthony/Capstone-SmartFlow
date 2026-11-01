@@ -2,8 +2,11 @@ import { API_BASE_URL, apiRequest } from "@/api/client"
 import type { VehicleMixPreset } from "@/lib/vehicle-mix"
 
 export type SignalPlan = {
-  mode: "signalized" | "all_way_stop"
-  phase_order: string[]
+  mode: "signalized" | "all_way_stop" | "first_come"
+  /** Each item is an approach, "pedestrian", or a group of approaches that share a green. */
+  phase_order: (string | string[])[]
+  /** One green per phase_order item; absent means every phase uses green_seconds. */
+  phase_greens?: number[]
   green_seconds: number
   minimum_green: number
   maximum_green: number
@@ -24,6 +27,16 @@ export type LaneEvent = {
   label?: string
 }
 
+/** Per-site physical calibration (design 0.15). Absent means the engine defaults; the complete object is kept through save and edit. */
+export type SiteCalibration = {
+  schema_version: 1
+  network_id: string
+  first_come_approach_speed_mps: number
+  approach_zone_m: number
+  turn_speed_mps: number
+  class_speed_factors: Record<"car" | "motorcycle" | "tricycle" | "bus" | "truck", number>
+}
+
 export type NativeScenarioConfig = {
   traffic_density?: string
   pedestrian_density?: string
@@ -38,6 +51,7 @@ export type NativeScenarioConfig = {
   reroute_improvement?: number
   demand_source?: { kind: "synthetic" | "observed"; description?: string }
   vehicle_mix?: Record<string, number>
+  site_calibration?: SiteCalibration
   [setting: string]: unknown
 }
 
@@ -52,15 +66,23 @@ export type NativeScenarioOptions = {
   vehicle_mix_presets: Record<string, VehicleMixPreset>
 }
 
-export function getNativeScenarioOptions() {
-  return apiRequest<NativeScenarioOptions>("/api/simulation/options")
+export type NetworkSummary = { id: string; name: string; sha256: string; junctions: number }
+
+export function listNetworks() {
+  return apiRequest<NetworkSummary[]>("/api/networks")
 }
 
-export async function downloadObservationTemplate(kind: string, example: boolean) {
+export function getNativeScenarioOptions(networkId?: string) {
+  const query = networkId ? `?network_id=${encodeURIComponent(networkId)}` : ""
+  return apiRequest<NativeScenarioOptions>(`/api/simulation/options${query}`)
+}
+
+export async function downloadObservationTemplate(kind: string, example: boolean, networkId?: string) {
+  const network = networkId ? `&network_id=${encodeURIComponent(networkId)}` : ""
   const result = await apiRequest<{ filename: string; csv_text: string; network_id: string; network_sha256: string }>(
-    `/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}`)
+    `/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}${network}`)
   const link = document.createElement("a")
-  link.href = `${API_BASE_URL}/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}&format=csv`
+  link.href = `${API_BASE_URL}/api/scenarios/observations/template?kind=${encodeURIComponent(kind)}&example=${example}&format=csv${network}`
   link.download = result.filename
   document.body.appendChild(link)
   try {
@@ -84,6 +106,7 @@ export function importObservationCsv(payload: {
   collection_start?: string
   collection_end?: string
   engine_config: NativeScenarioConfig
+  network_id?: string
 }) {
   return apiRequest<{ engine_config: NativeScenarioConfig; summary: { row_count: number; arrival_count: number; sha256: string; conversion: string } }>(
     "/api/scenarios/observations/import", { method: "POST", body: payload })

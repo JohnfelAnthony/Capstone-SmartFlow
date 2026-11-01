@@ -18,6 +18,7 @@ import auth
 import config
 import database
 from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics
+from services.control_labels import condition_label
 from backend.schemas import (
     AdminPasswordResetResponse,
     AdminRole,
@@ -67,6 +68,7 @@ from backend.schemas import (
     SimulationConfigureRequest,
     SimulationRunListResponse,
     SimulationRunRecord,
+    SignalDesignRequest,
     SimulationStartRequest,
     SimulationSpeedRequest,
     SimulationStateResponse,
@@ -962,10 +964,12 @@ def get_scenario(scenario_id: int, user: dict = Depends(require_current_user)) -
 
 
 def scenario_write_values(payload: ScenarioWriteRequest) -> dict:
+    native = database.validated_native_scenario(payload.network_id, payload.engine_config)
+    native.pop("network_sha256", None)  # database writes the fingerprint after validation
     return {
         "name": payload.name.strip(),
         "description": payload.description or "",
-        **database.validated_native_scenario(payload.network_id, payload.engine_config),
+        **native,
     }
 
 
@@ -975,10 +979,9 @@ def resolved_native_scenario(scenario_id: int, user: dict = Depends(require_curr
     scenario = database.get_scenario_by_id(scenario_id)
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found.")
-    from simulation.traffic_engine import TrafficEngine
-    engine = TrafficEngine()
     try:
-        engine.configure_from_scenario(scenario)
+        from simulation.network_registry import engine_for_scenario
+        engine = engine_for_scenario(scenario)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"engine_config": engine.config}
@@ -1038,6 +1041,7 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Scenario": run.scenario_name or "Unknown",
         "Run Mode": run.run_mode,
         "Control Mode": run.control_mode,
+        "Condition": condition_label(run.control_mode),
         "Status": run.status,
         "Started": run.start_time or "",
         "Ended": run.end_time or "",
@@ -1101,7 +1105,7 @@ def write_runs_csv(records: list[SimulationRunRecord]) -> Path:
 
 def write_runs_json(records: list[SimulationRunRecord]) -> Path:
     path = report_export_directory() / f"smartflow_runs_export_{secrets.token_hex(6)}.json"
-    payload = [{**record.model_dump(), "metric_definitions_version": METRIC_VERSION,
+    payload = [{**record.model_dump(), "condition": condition_label(record.control_mode), "metric_definitions_version": METRIC_VERSION,
                 "metric_definitions": METRIC_CATALOG} for record in records]
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
     return path
@@ -1172,7 +1176,7 @@ def compare_timeline_meta(run: SimulationRunRecord, manifest: dict) -> CompareTi
     timeline = manifest.get("timeline", {}) if isinstance(manifest, dict) else {}
     scenario = manifest.get("scenario", {}) if isinstance(manifest, dict) else {}
     return CompareTimelineMeta(
-        intersection_id=scenario.get("network_id"),
+        intersection_id=scenario.get("network_id") or scenario.get("intersection_id"),
         requested_duration_seconds=compare_float(timeline.get("requested_duration_seconds") or run.duration_seconds),
         actual_duration_seconds=compare_float(timeline.get("actual_duration_seconds") or run.duration_seconds),
         step_length_seconds=compare_float(timeline.get("step_length_seconds")),
@@ -1227,7 +1231,7 @@ def compare_kind(left: CompareRunOption, right: CompareRunOption) -> str | None:
 
 def compare_run_label(run: SimulationRunRecord, manifest: dict) -> str:
     controller = manifest.get("controller", {}) if isinstance(manifest, dict) else {}
-    controller_label = controller.get("provenance_label") or run.control_mode.replace("-", " ").title()
+    controller_label = condition_label(run.control_mode)
     scenario_label = run.scenario_name or "Unknown Scenario"
     seed_label = run.seed if run.seed is not None else "none"
     model_label = f" model #{run.rl_model_id}" if run.rl_model_id is not None else ""
@@ -1423,13 +1427,17 @@ def create_scenario(payload: ScenarioWriteRequest, user: dict = Depends(require_
 
 
 @app.get("/api/scenarios/observations/template")
-def get_observation_template(kind: str, example: bool = False, format: str = "json", user: dict = Depends(require_current_user)):
+def get_observation_template(kind: str, example: bool = False, format: str = "json", network_id: str | None = None, user: dict = Depends(require_current_user)):
     require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
     from services.observation_templates import observation_template
     try:
         if format not in {"json", "csv"}:
             raise ValueError("Template format must be json or csv.")
-        template = observation_template(kind, example=example)
+        if network_id:
+            from simulation.network_registry import load_registered_network
+            template = observation_template(kind, example=example, network=load_registered_network(network_id))
+        else:
+            template = observation_template(kind, example=example)
         if format == "csv":
             return Response(template["csv_text"], media_type="text/csv",
                             headers={"Content-Disposition": f'attachment; filename="{template["filename"]}"'})
@@ -1977,11 +1985,45 @@ async def simulation_websocket(
 
 
 @app.get("/api/simulation/options")
-def native_configuration_options(user: dict = Depends(require_current_user)) -> dict:
+def native_configuration_options(network_id: str | None = None, user: dict = Depends(require_current_user)) -> dict:
     require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
                                   ("dashboard", "view"), ("rl-training", "view")])
     from services.native_scenario_service import configuration_options
-    return configuration_options()
+    try:
+        return configuration_options(network_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/signal-design")
+def design_signal_plan(payload: SignalDesignRequest, user: dict = Depends(require_current_user)) -> dict:
+    """A provisional fixed-time plan from approach counts; the result is validated like any saved plan."""
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from dataclasses import asdict
+    from simulation.network_registry import load_registered_network
+    from simulation.scenario_config import DEFAULTS, validate_config
+    from simulation.signal_design import flows_from_counts, plan_from_result, saturation_from_network, webster_plan
+    try:
+        network = load_registered_network(payload.network_id)
+        junction = payload.junction or network.intersections[0]
+        saturation = saturation_from_network(network, junction)
+        base = payload.base_plan
+        limits = {key: base[key] for key in ("minimum_green", "maximum_green", "yellow_seconds", "all_red_seconds") if key in base}
+        result = webster_plan(payload.phase_order, flows_from_counts(payload.approach_counts), saturation,
+                              pedestrian_green_seconds=payload.pedestrian_green_seconds, **limits)
+        plan = plan_from_result(result, base)
+        validate_config(DEFAULTS, {"signal_plans": {junction: plan}}, network)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"network_id": network.id, "junction": junction, "plan": plan, "result": asdict(result)}
+
+
+@app.get("/api/networks")
+def networks(user: dict = Depends(require_current_user)) -> list[dict]:
+    require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
+                                  ("dashboard", "view"), ("rl-training", "view")])
+    from simulation.network_registry import registered_networks
+    return registered_networks()
 
 
 @app.get("/api/visual-network")

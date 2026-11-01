@@ -171,3 +171,13 @@ Keep the criteria and any adviser-approved replacement in a dated quality-plan r
 5. **Integration readiness:** map reviewed observations and measurement locations to the verified graph using the smallest adequate conversion path. Apply necessary site-specific engine/import changes in [the integration plan](FIELD_DATA_SMARTFLOW_INTEGRATION.md) before claiming a calibrated Tagum baseline; defer general-purpose interface work until needed.
 
 The field team supplies observations and context; the tool organizes and assists their measurement; SmartFlow reproduces the baseline and evaluates controlled alternatives. A missing camera view, unknown signal state or unrepresentable real phase is a recorded limitation to resolve before relying on that part of the comparison.
+
+## Additions for the two unsignalized study sites
+
+Record the second day as the independent validation recording only if it has not informed any model or criteria choice (see the study ledger in [the research method](RESEARCH_METHOD.md#the-three-way-comparison-and-the-validation-gate)); otherwise plan a fresh third day.
+
+- **Lines.** Configure, in the counting-line editor, for every approach an **arrival** line far enough upstream to lie upstream of the farthest midday queue, a **stop-line** line at the physical stop position and a **priority** line at the approach-zone distance upstream of the stop line (it records when a vehicle enters the zone, not demand); for every exit an **exit** line; and a **crossing** line per pedestrian crossing. Give each line its `role`. Measure and write down each line's distance from the junction along the road.
+- **Queue samples.** At every 30 seconds of video from the measurement start, count the stopped vehicles on each approach with the *Queue samples* form. Use *lower bound* when part of the queue is hidden and *unknown* when it cannot be counted; those samples are reported as unusable, never as zero.
+- **Priority pairs.** For two vehicles from different approaches whose paths conflict, record with the *Priority pairs* form the zone-entry and stop-line times of both, whether the earlier vehicle could have gone (ready, blocked with the reason, or unknown), and how completely you saw it. Do not infer readiness from who entered first.
+- **Initialization.** Choose a simulation origin at which all approaches are visibly empty, and keep the footage from the origin through the measurement window and at least 120 seconds after it, with every line's coverage complete. Say in writing who verified the empty start and how.
+- **Classes.** Review each vehicle's class and subtype. Decide, with the team, what happens to `pedicab`, `jeepney`, `bicycle`, `other` and `unknown` before conversion.

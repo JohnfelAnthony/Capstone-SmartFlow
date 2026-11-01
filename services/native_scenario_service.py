@@ -17,8 +17,9 @@ def network_display_labels(network):
     return road_names, node_labels
 
 
-def configuration_options():
-    engine = TrafficEngine()
+def configuration_options(network_id: str | None = None):
+    from simulation.network_registry import load_registered_network
+    engine = TrafficEngine(network=load_registered_network(network_id))
     network = engine.network
     road_names, node_labels = network_display_labels(network)
     junctions = []

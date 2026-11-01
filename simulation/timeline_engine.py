@@ -44,10 +44,18 @@ class TimelinePlaybackEngine:
         
         manifest = self._load_manifest()
         from simulation.traffic_engine import ENGINE_VERSION
-        from simulation.road_network import load_network
+        from simulation.road_network import RoadNetwork, load_network
         experiment = manifest.get("experiment", {})
         experiment = experiment if isinstance(experiment, dict) else {}
-        if experiment.get("engine_version") != ENGINE_VERSION or experiment.get("network_sha256") != load_network().fingerprint:
+        if "network" not in manifest:
+            # Older recordings did not embed a network; accept only the active default fingerprint.
+            recorded_network_hash = load_network().fingerprint
+        else:
+            try:
+                recorded_network_hash = RoadNetwork(manifest["network"]).fingerprint
+            except (TypeError, ValueError):
+                recorded_network_hash = None
+        if experiment.get("engine_version") != ENGINE_VERSION or not recorded_network_hash or experiment.get("network_sha256") != recorded_network_hash:
             self.status = "error"
             self.last_error = "Recording is incompatible with the current native engine/network; generate a new recording."
             return

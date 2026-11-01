@@ -64,6 +64,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { controlLabel } from "@/lib/control-labels"
 import "@/styles/runs-reports.css"
 
 type FilterState = {
@@ -99,7 +100,7 @@ function formatDate(value: string | null) {
 }
 
 function formatMode(value: string | null | undefined) {
-  return String(value || "unknown").replaceAll("-", " ")
+  return controlLabel(value)
 }
 
 function metricNumber(run: SimulationRunRecord, key: string) {
@@ -484,8 +485,9 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId, onOpenResearch,
               onChange={(controlMode) => setFilters({ ...filters, controlMode })}
               options={[
                 { label: "All Control Modes", value: "all" },
-                { label: "Fixed-Time", value: "fixed-time" },
-                ...[...new Set(runs.map((run) => run.control_mode))].filter((mode) => mode !== "fixed-time" && mode !== "playback")
+                { label: controlLabel("fixed-time"), value: "fixed-time" },
+                { label: controlLabel("no-signal"), value: "no-signal" },
+                ...[...new Set(runs.map((run) => run.control_mode))].filter((mode) => !["fixed-time", "no-signal", "playback"].includes(mode))
                   .map((mode) => ({ label: formatMode(mode), value: mode })),
                 { label: "Playback", value: "playback" },
               ]}

@@ -163,6 +163,7 @@ class RLModelRecord(BaseModel):
     compatible: bool = False
     compatibility_message: str = ""
     controlled_junction: str | None = None
+    network_id: str | None = None
     decision_interval_seconds: float = 5
     minimum_green_hold_seconds: float = 10
     training_status: str | None = None
@@ -297,6 +298,7 @@ class ObservationImportRequest(BaseModel):
     collection_start: str | None = None
     collection_end: str | None = None
     engine_config: dict[str, Any] = Field(default_factory=dict)
+    network_id: str | None = None
 
 
 class ObservationImportResponse(BaseModel):
@@ -459,3 +461,14 @@ class SimulationActionResponse(BaseModel):
     ok: bool = True
     message: str
     simulation: SimulationStateResponse
+
+
+class SignalDesignRequest(BaseModel):
+    """Inputs for a provisional Webster plan; see simulation/signal_design.py for the formulas and placeholders."""
+    network_id: str | None = None
+    junction: str | None = None
+    phase_order: list[Any] = Field(min_length=1)
+    # approach -> vehicle class -> vehicles per hour
+    approach_counts: dict[str, dict[str, float]]
+    base_plan: dict[str, Any] = Field(default_factory=dict)
+    pedestrian_green_seconds: float | None = None

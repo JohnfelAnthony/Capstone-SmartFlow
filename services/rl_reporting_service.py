@@ -253,6 +253,10 @@ def build_combined_ranking(summary: dict, model_learning: dict | None = None) ->
     fixed_wait = _summary_mean(fixed_summary, "avg_wait")
     fixed_queue = _summary_mean(fixed_summary, "avg_queue")
     fixed_throughput = _summary_mean(fixed_summary, "throughput")
+    reference_summary = summary.get("no-signal")
+    reference_wait = _summary_mean(reference_summary or {}, "avg_wait")
+    reference_queue = _summary_mean(reference_summary or {}, "avg_queue")
+    reference_throughput = _summary_mean(reference_summary or {}, "throughput")
 
     rows = []
     for controller, controller_summary in summary.items():
@@ -260,7 +264,7 @@ def build_combined_ranking(summary: dict, model_learning: dict | None = None) ->
         avg_queue = _summary_mean(controller_summary, "avg_queue")
         throughput = _summary_mean(controller_summary, "throughput")
         learning = model_learning.get(controller) or {}
-        rows.append(
+        row = (
             {
                 "controller": controller,
                 "ranking_version": RANKING_VERSION,
@@ -308,6 +312,15 @@ def build_combined_ranking(summary: dict, model_learning: dict | None = None) ->
                 },
             }
         )
+        if reference_summary:  # the no-signal condition is a second reference beside fixed-time
+            row["comparison_to_no_signal"] = {key: _comparison(_summary_mean(controller_summary, key), _summary_mean(reference_summary, key), controller == "no-signal")
+                                                for key in TRADEOFF_METRICS}
+            row["beats_no_signal"] = {
+                "avg_wait": None if avg_wait is None or reference_wait is None else controller != "no-signal" and avg_wait < reference_wait,
+                "avg_queue": None if avg_queue is None or reference_queue is None else controller != "no-signal" and avg_queue < reference_queue,
+                "throughput": None if throughput is None or reference_throughput is None else controller != "no-signal" and throughput > reference_throughput,
+            }
+        rows.append(row)
 
     rows.sort(
         key=lambda row: (

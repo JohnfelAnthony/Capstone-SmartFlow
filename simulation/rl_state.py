@@ -3,13 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from .traffic_engine import RL_SERVICE_ACTIONS, TrafficEngine, phase_family_from_name
+from .traffic_engine import RL_SERVICE_ACTIONS, TrafficEngine, phase_family_from_name, phase_slots  # noqa: F401  (re-exported)
 
 APPROACH_ORDER = ("north", "east", "south", "west")
-PHASE_FAMILY_ORDER = ("NORTH", "EAST", "SOUTH", "WEST", "PEDESTRIAN")
-INTERSECTION_ORDER = ("tagum_network", "custom_network")
-
-OBSERVATION_VERSION = "obs_v3"
+OBSERVATION_VERSION = "obs_v4"  # 20 values; the phase one-hot is by plan slot and the network flags are gone (the contract binds the site)
 
 # Above the largest per-approach p95 in docs/reports/mixed-traffic-acceptance.json (Tagum mix).
 MAX_QUEUE_COUNT = 70.0
@@ -39,16 +36,15 @@ class RLSnapshot:
     total_phase_switches: int
     simulation_time: float
     intersection_id: str
+    phase_slot: int = 5  # 0-4 for the slot being served, 5 during clearance
 
     @property
     def ql_state(self) -> tuple[int, ...]:
-        phase_index = PHASE_FAMILY_ORDER.index(self.phase_family) if self.phase_family in PHASE_FAMILY_ORDER else len(PHASE_FAMILY_ORDER)
-        encoded: list[int] = [phase_index]
+        encoded: list[int] = [self.phase_slot]
         encoded.extend(_discretize_value(self.queue_by_approach[approach], QUEUE_BIN_EDGES) for approach in APPROACH_ORDER)
         encoded.extend(_discretize_value(self.wait_by_approach[approach], WAIT_BIN_EDGES) for approach in APPROACH_ORDER)
         encoded.extend(_discretize_value(self.active_vehicles_by_approach[approach], ACTIVE_BIN_EDGES) for approach in APPROACH_ORDER)
         encoded.append(_discretize_value(self.pedestrian_waiting_count, PEDESTRIAN_BIN_EDGES))
-        encoded.append(INTERSECTION_ORDER.index(self.intersection_id) if self.intersection_id in INTERSECTION_ORDER else len(INTERSECTION_ORDER))
         return tuple(encoded)
 
 
@@ -70,12 +66,8 @@ def _discretize_value(value: float, edges: Iterable[float]) -> int:
     return len(tuple(edges))
 
 
-def _phase_one_hot(phase_family: str) -> list[float]:
-    return [1.0 if phase_family == family else 0.0 for family in PHASE_FAMILY_ORDER]
-
-
-def _intersection_one_hot(intersection_id: str) -> list[float]:
-    return [1.0 if intersection_id == family else 0.0 for family in INTERSECTION_ORDER]
+def _phase_one_hot(current_slot: int, slot_count: int = 5) -> list[float]:
+    return [1.0 if slot == current_slot else 0.0 for slot in range(slot_count)]
 
 
 def _is_action_valid_for_snapshot(snapshot_state: dict, target_phase_family: str) -> bool:
@@ -136,22 +128,21 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         "remaining_switch_seconds": remaining_switch_seconds,
     }
     signal = engine.signals[engine.controlled_junction]
+    slots = phase_slots(signal)
+    current_slot = slots.index(signal.family) if signal.stage != "red" and signal.family in slots else len(slots)
     valid_action_mask = tuple(
-        int(action.removeprefix("SERVE_").lower() in signal.approaches and
-            (action.removeprefix("SERVE_").lower() == signal.family or
-             (signal.stage == "green" and signal.elapsed >= signal.minimum_green)))
-        for action in RL_SERVICE_ACTIONS
+        int(key is not None and (key == signal.family or (signal.stage == "green" and signal.elapsed >= signal.minimum_green)))
+        for key in slots
     )
 
     observation = [
-        *_phase_one_hot(phase_family),
+        *_phase_one_hot(current_slot),
         _normalize(elapsed_phase_seconds, float(engine.rl_minimum_green_hold)),
         _normalize(remaining_switch_seconds, float(engine.rl_minimum_green_hold)),
         *(_normalize(queue_by_approach[approach], MAX_QUEUE_COUNT) for approach in APPROACH_ORDER),
         *(_normalize(wait_by_approach[approach], MAX_WAIT_SECONDS) for approach in APPROACH_ORDER),
         *(_normalize(active_vehicles_by_approach[approach], MAX_ACTIVE_VEHICLES) for approach in APPROACH_ORDER),
         _normalize(float(pedestrian_waiting_count), MAX_PEDESTRIAN_WAITING),
-        *_intersection_one_hot(runtime_state["intersection_id"]),
     ]
 
     return RLSnapshot(
@@ -169,4 +160,5 @@ def extract_rl_snapshot(engine: TrafficEngine) -> RLSnapshot:
         total_phase_switches=int(runtime_state.get("rl_total_phase_switches", 0) or 0),
         simulation_time=float(runtime_state.get("simulation_time", 0.0) or 0.0),
         intersection_id=str(runtime_state.get("intersection_id") or engine.network.id),
+        phase_slot=current_slot,
     )

@@ -158,12 +158,13 @@ def generate_timeline(
         engine = None
         timeline_path = None
         try:
-            engine = TrafficEngine(seed=seed)
             timeline_path, gzip_path, manifest_path = _artifact_paths(run_id)
-            estimated_frame_count = _estimated_frame_count(duration_limit, engine.step_length)
             scenario = database.get_scenario_by_id(scenario_id)
             if not scenario:
                 raise ValueError("Scenario not found")
+            from simulation.network_registry import load_registered_network
+            engine = TrafficEngine(seed=seed, network=load_registered_network(scenario.get("network_id")))
+            estimated_frame_count = _estimated_frame_count(duration_limit, engine.step_length)
             engine.configure_from_scenario(scenario)
             from services.native_controller import apply_controller
             apply_controller(engine, control_mode)

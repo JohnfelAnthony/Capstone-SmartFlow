@@ -6,7 +6,7 @@ import sys
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from .core import create_take, export_revision, nearest_frame, validate
+from .core import create_take, export_revision, nearest_frame, read_json, require, sha256, validate
 
 
 def main(argv=None) -> int:
@@ -51,6 +51,7 @@ def main(argv=None) -> int:
     export.add_argument("--reviewer", required=True)
     export.add_argument("--note", required=True)
     export.add_argument("--bin-seconds", type=float, default=900)
+    export.add_argument("--analysis", type=Path, help="Completed analysis whose checked counting lines belong in the revision.")
     args = parser.parse_args(argv)
     try:
         if args.command == "gui":
@@ -84,7 +85,17 @@ def main(argv=None) -> int:
         elif args.command == "check":
             result = validate(args.take)[2]
         else:
-            result = {"revision_path": str(export_revision(args.take, args.reviewer, args.note, args.bin_seconds).resolve()),
+            lines = None
+            if args.analysis:
+                run = read_json(args.analysis / "run.json")
+                lines_path = args.analysis / "lines.json"
+                require(run.get("status") == "complete" and
+                        run.get("source_manifest_sha256") == sha256(args.take / "manifest.json"),
+                        "Analysis must be complete and belong to this take.")
+                require(sha256(lines_path) == run.get("artifact_sha256", {}).get("lines.json"),
+                        "The analysis counting lines have changed.")
+                lines = read_json(lines_path)
+            result = {"revision_path": str(export_revision(args.take, args.reviewer, args.note, args.bin_seconds, lines=lines).resolve()),
                       "publication_status": "provisional"}
     except (OSError, ValueError, KeyError, ImportError, RuntimeError) as exc:
         print(f"Field observer: {exc}", file=sys.stderr)

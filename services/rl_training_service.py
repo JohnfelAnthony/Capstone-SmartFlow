@@ -150,8 +150,11 @@ def build_training_command(algorithm: str, settings: dict, advanced: dict | None
     return command
 
 
+REFERENCE_CONTROLLERS = ("no-signal", "fixed-time")  # evaluated beside every model, in this order
+
+
 def build_evaluation_command(algorithms: list[str], settings: dict, model_paths: dict[str, str]) -> list[str]:
-    controllers = ["fixed-time"] + [
+    controllers = list(REFERENCE_CONTROLLERS) + [
         algorithm for algorithm in algorithms if algorithm in model_paths and model_paths[algorithm]
     ]
     command = [
@@ -281,6 +284,18 @@ def active_job_id() -> int | None:
 
 
 def model_rows(limit: int = 200, algorithm: str | None = None) -> list[dict]:
+    from simulation.network_registry import load_registered_network, registered_networks
+
+    def find_compatible(algorithm, path):
+        error = None
+        for entry in registered_networks():
+            network = load_registered_network(entry['id'])
+            try:
+                return artifact_metadata(algorithm, path, network), network
+            except ValueError as exc:
+                error = exc
+        raise error or ValueError('No registered networks available')
+
     rows = []
     for model in database.list_rl_models(limit=limit, algorithm=algorithm):
         row = {**model, "algorithm": str(model["algorithm"]).upper(), "compatible": False,
@@ -288,8 +303,8 @@ def model_rows(limit: int = 200, algorithm: str | None = None) -> list[dict]:
         normalized_algorithm = str(model["algorithm"]).lower()
         try:
             _normalize_algorithm(normalized_algorithm)
-            metadata = artifact_metadata(normalized_algorithm, model.get("checkpoint_path") or "")
-            row.update(compatible=True, controlled_junction=training_junction(metadata),
+            metadata, network = find_compatible(normalized_algorithm, model.get("checkpoint_path") or "")
+            row.update(compatible=True, controlled_junction=training_junction(metadata, network), network_id=network.id,
                        decision_interval_seconds=metadata.get("decision_interval_seconds", 5),
                        minimum_green_hold_seconds=metadata.get("minimum_green_hold_seconds", 10),
                        training_status=metadata.get("training_status", "unknown"))
@@ -299,10 +314,10 @@ def model_rows(limit: int = 200, algorithm: str | None = None) -> list[dict]:
             item = {**checkpoint, "compatible": False, "compatibility_message": ""}
             try:
                 _normalize_algorithm(normalized_algorithm)
-                checkpoint_metadata = artifact_metadata(normalized_algorithm, checkpoint.get("path") or "")
+                checkpoint_metadata, network = find_compatible(normalized_algorithm, checkpoint.get("path") or "")
                 item["compatible"] = True
                 if row["controlled_junction"] is None:
-                    row.update(controlled_junction=training_junction(checkpoint_metadata),
+                    row.update(controlled_junction=training_junction(checkpoint_metadata, network), network_id=network.id,
                                decision_interval_seconds=checkpoint_metadata.get("decision_interval_seconds", 5),
                                minimum_green_hold_seconds=checkpoint_metadata.get("minimum_green_hold_seconds", 10),
                                training_status=checkpoint_metadata.get("training_status", "checkpoint"))
@@ -378,7 +393,7 @@ def _run_job(job_id: int, workload_lease=None):
                 database.update_rl_training_job_item(item["id"], status="running", started_at=_utc_now_iso(), rl_model_id=model["id"])
                 model_paths[item["algorithm"]] = model["checkpoint_path"]
             else:
-                model_paths[item["algorithm"]] = _run_command_item(job_id, item, log_path, len(items))
+                model_paths[item["algorithm"]] = _run_command_item(job_id, item, log_path, len(items), settings)
         _check_cancelled()
         database.update_rl_training_job(job_id, current_algorithm="evaluation", current_item_id=None,
             progress_percent=90, message="Evaluating saved models against fixed-time on the held-out scenario snapshot.")
@@ -392,7 +407,7 @@ def _run_job(job_id: int, workload_lease=None):
         if not output_path or not Path(output_path).is_file():
             raise RuntimeError("Evaluation finished without saving a result file. Inspect the job log.")
         payload = json.loads(Path(output_path).read_text(encoding="utf-8"))
-        expected_count = (1+len(model_paths))*len(settings["evaluation_seeds"].split(","))
+        expected_count = (len(REFERENCE_CONTROLLERS)+len(model_paths))*len(settings["evaluation_seeds"].split(","))
         results = payload.get("results", [])
         if len(results) != expected_count or any(result.get("status") != "completed" for result in results):
             raise RuntimeError("Evaluation did not complete every controller/seed comparison.")
@@ -421,7 +436,7 @@ def _run_job(job_id: int, workload_lease=None):
                 _active_process = None
 
 
-def _run_command_item(job_id: int, item: dict, log_path: Path, item_count: int) -> str:
+def _run_command_item(job_id: int, item: dict, log_path: Path, item_count: int, settings: dict) -> str:
     item_id, algorithm = item["id"], item["algorithm"]
     database.update_rl_training_job(job_id, current_algorithm=algorithm, current_item_id=item_id,
                                    message=f"Training {ALGORITHM_LABELS[algorithm]}.")
@@ -447,7 +462,12 @@ def _run_command_item(job_id: int, item: dict, log_path: Path, item_count: int) 
             database.update_rl_training_job_item(item_id, rl_model_id=model_id)
     if not artifact_path or not model_id or not database.get_rl_model_by_id(model_id):
         raise RuntimeError(f"{algorithm.upper()} finished without a registered model artifact. Inspect the job log.")
-    artifact_metadata(algorithm, artifact_path)
+    from simulation.network_registry import load_registered_network
+    scenario = settings.get("scenario_snapshot") or {}
+    network = load_registered_network(scenario.get("network_id"))
+    if scenario.get("network_sha256") and scenario["network_sha256"] != network.fingerprint:
+        raise ValueError("The training scenario's network has changed since the job was created")
+    artifact_metadata(algorithm, artifact_path, network)
     database.update_rl_training_job_item(item_id, status="completed", progress_percent=100,
                                         message="Model saved; evaluation pending.")
     return artifact_path

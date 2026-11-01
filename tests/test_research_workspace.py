@@ -179,6 +179,28 @@ class ResearchWorkspaceTests(unittest.TestCase):
             conn.execute("UPDATE run_metrics SET raw_metrics_json=? WHERE run_id=?", (json.dumps(raw), self.run_id))
         self.assertEqual(self.client.post("/api/calibration", json=self.draft).status_code, 422)
 
+    def record_run(self, controller):
+        scenario = database.get_scenario_by_id(self.scenario_id)
+        return _run_controller_once(controller=controller, seed=0, scenario=scenario, scenario_id=self.scenario_id,
+            duration_seconds=2, warmup_seconds=1, decision_interval_seconds=1, minimum_green_hold_seconds=5,
+            policies={}, model_ids={}, record_timeline=False)["run_id"]
+
+    def test_calibration_accepts_a_completed_no_signal_run(self):
+        run_id = self.record_run("no-signal")
+        self.assertEqual(database.get_run_by_id(run_id)["control_mode"], "no-signal")
+        record = self.save({**self.draft, "run_id": run_id})
+        self.assertEqual(record["run_id"], run_id)
+        self.assertEqual(record["snapshot"]["controller"], "no-signal")
+
+    def test_calibration_refuses_an_rl_run_and_a_mislabelled_no_signal_run(self):
+        from backend.research_routes import baseline_snapshot
+        database.update_run(self.run_id, control_mode="ql")
+        with self.assertRaisesRegex(ValueError, "Choose a completed no-signal or fixed-time run."):
+            baseline_snapshot(self.run_id)
+        database.update_run(self.run_id, control_mode="no-signal")
+        with self.assertRaisesRegex(ValueError, "no-signal provenance"):
+            baseline_snapshot(self.run_id)
+
     def test_exports_and_backup_restore_keep_frozen_record(self):
         draft = {**self.draft, "name": "=Untrusted spreadsheet name"}
         record = self.save(draft)

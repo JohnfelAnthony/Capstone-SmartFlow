@@ -5,6 +5,10 @@ import math
 from .core import identifier, number, require
 
 LINE_EVENTS = ("vehicle_arrival", "vehicle_discharge", "pedestrian_start", "pedestrian_complete")
+# What each line is for. A priority line records the time a vehicle enters the priority zone; it feeds the arrival-order
+# check, not demand. The role is optional and kept with the line so exports show which line plays which part.
+LINE_ROLES = {"arrival": ("vehicle_arrival",), "priority": ("vehicle_discharge",), "stopline": ("vehicle_discharge",),
+              "exit": ("vehicle_discharge",), "crossing": ("pedestrian_start", "pedestrian_complete")}
 
 
 def validate_config(config: dict, manifest: dict) -> None:
@@ -34,6 +38,10 @@ def validate_config(config: dict, manifest: dict) -> None:
         identifier(line.get("location_id", ""), "location_id")
         key = "approach_id" if line["event_type"].startswith("vehicle_") else "crossing_id"
         identifier(line.get(key, ""), key)
+        role = line.get("role")
+        if role is not None:
+            require(role in LINE_ROLES, "Unknown line role.")
+            require(line["event_type"] in LINE_ROLES[role], f"A {role} line cannot record {line['event_type']} events.")
         for point in (line["a"], line["b"]):
             require(isinstance(point, list) and len(point) == 2, "Each endpoint needs [x, y].")
             require(all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in point),

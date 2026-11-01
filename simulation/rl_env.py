@@ -87,7 +87,7 @@ class SmartFlowRLEnv(BaseEnv):
         self._last_snapshot: RLSnapshot | None = None
         self._step_index = 0
 
-        observation_size = 22
+        observation_size = 20
         if spaces is not None:
             self.action_space = spaces.Discrete(len(RL_SERVICE_ACTIONS))
             self.observation_space = spaces.Box(
@@ -106,8 +106,12 @@ class SmartFlowRLEnv(BaseEnv):
         return list(snapshot.observation)
 
     def _build_engine(self, seed: int) -> TrafficEngine:
-        engine = TrafficEngine(seed=seed)
-        if self.scenario:
+        if self.scenario.get("network_id"):
+            from simulation.network_registry import engine_for_scenario
+            engine = engine_for_scenario(self.scenario, seed=seed)
+        else:
+            engine = TrafficEngine(seed=seed)
+        if self.scenario and not self.scenario.get("network_id"):
             engine.configure_from_scenario(self.scenario)
         engine.start(duration_limit=self.total_episode_seconds)
         if engine.status == "error":

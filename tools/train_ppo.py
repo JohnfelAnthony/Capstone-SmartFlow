@@ -79,9 +79,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--decision-interval-seconds", type=float, default=5.0)
     parser.add_argument("--minimum-green-hold-seconds", type=float, default=10.0)
     parser.add_argument("--max-steps-per-episode", type=int, default=None)
-    parser.add_argument("--intersection-id", default="tagum_network")
+    parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
+    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site without the validation gate; the artifact is marked as not study evidence")
     parser.add_argument("--scenario-name", default="SMARTFLOW PPO Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -164,7 +165,7 @@ def main() -> int:
 
     scenario = {
         "name": args.scenario_name,
-        "intersection_id": args.intersection_id,
+        "intersection_id": args.intersection_id or "tagum_network",
         "traffic_density": args.traffic_density,
         "pedestrian_density": args.pedestrian_density,
     }

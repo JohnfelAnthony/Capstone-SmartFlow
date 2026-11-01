@@ -1,0 +1,14 @@
+{
+  "_status": "INCOMPLETE TEMPLATE for tagum_site_a. Fill as the study proceeds; the validation gate reads it as data/sites/tagum_site_a_ledger.json and trusts nothing it does not contain.",
+  "criteria_commit": "",
+  "criteria_sha256": "",
+  "frozen_at": "",
+  "development_recordings": [],
+  "informed_by": [],
+  "accesses": [],
+  "held_out": {
+    "recording": "",
+    "manifest_sha256": "",
+    "first_outcome_access_at": ""
+  }
+}

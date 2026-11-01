@@ -19,16 +19,23 @@ def cumulative_training_seeds(seeds: tuple[int, ...], resume_model: Path | None,
 
 
 def load_training_scenario(args, fallback: dict) -> dict:
+    def checked(snapshot):
+        requested = getattr(args, "intersection_id", None)
+        actual = snapshot.get("network_id") or snapshot.get("intersection_id")
+        if requested and requested != actual:
+            raise ValueError(f"Requested network '{requested}' differs from scenario network '{actual}'")
+        from services.study_gate import gate_study_scenario
+        return gate_study_scenario(snapshot, smoke=getattr(args, "synthetic_smoke_test", False))
     if args.scenario_file is not None:
         scenario = json.loads(args.scenario_file.read_text(encoding="utf-8"))
         if not isinstance(scenario, dict):
             raise ValueError("Scenario snapshot must be an object")
-        return import_snapshot(scenario)
+        return checked(import_snapshot(scenario))
     if args.scenario_id is not None:
         import database
         database.init_db()
         scenario = database.get_scenario_by_id(args.scenario_id)
         if not scenario or scenario.get("is_archived"):
             raise ValueError("Saved scenario missing or archived")
-        return native_snapshot(scenario)
-    return import_snapshot(fallback)
+        return checked(native_snapshot(scenario))
+    return checked(import_snapshot(fallback))

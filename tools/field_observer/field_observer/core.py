@@ -22,6 +22,8 @@ EVENT_TYPES = ("vehicle_arrival", "vehicle_movement", "vehicle_discharge",
 STATUSES = ("proposed", "accepted", "corrected", "rejected", "uncertain")
 ACCEPTED = {"accepted", "corrected"}
 COMMON = ("survey_id", "intersection_id", "camera_id", "take_id", "view_segment_id")
+PRIORITY_PAIR_COLUMNS = ("pair_id", "movement_a", "movement_b", "priority_time_a_s", "priority_time_b_s", "entry_time_a_s", "entry_time_b_s",
+                         "readiness_of_earlier", "blocked_reason", "visibility", "reviewer", "note")
 TABLES = {
     "events.csv": (*COMMON, "event_id", "episode_id", "event_type", "location_id", "time_s",
                    "frame_pts", "approach_id", "exit_id", "crossing_id", "direction",
@@ -293,9 +295,12 @@ def make_bins(manifest: dict, tables: dict, bin_seconds: float) -> list[dict]:
     return output
 
 
-def export_revision(take: Path, reviewer: str, note: str, bin_seconds: float = 900) -> Path:
+def export_revision(take: Path, reviewer: str, note: str, bin_seconds: float = 900, *, lines: dict | None = None) -> Path:
     require(bool(reviewer.strip()) and bool(note.strip()), "Export reviewer and review note are required.")
     manifest, tables, summary = validate(take)
+    if lines is not None:
+        from .lines import validate_config
+        validate_config(lines, manifest)
     bins = make_bins(manifest, tables, bin_seconds)
     revisions = take / "revisions"
     existing = sorted(path for path in revisions.iterdir() if re.fullmatch(r"r[0-9]{6}", path.name))
@@ -314,9 +319,14 @@ def export_revision(take: Path, reviewer: str, note: str, bin_seconds: float = 9
         stage.mkdir()
         for name, rows in tables.items():
             write_csv(stage / name, TABLES[name], rows)
+        if lines is not None:
+            write_json(stage / "lines.json", lines)
         bin_columns = (*COMMON, "start_s", "end_s", "event_type", "location_id", "reviewed_class",
                        "vehicle_subtype", "observed_count", "count", "coverage", "review_state", "publication_status")
         write_csv(stage / "reviewed_bins.csv", bin_columns, bins)
+        if (take / "priority_pairs.csv").exists():  # reviewed arrival-order annotations; hashed in the manifest like every other file
+            with (take / "priority_pairs.csv").open(newline="", encoding="utf-8") as pairs:
+                write_csv(stage / "priority_review.csv", PRIORITY_PAIR_COLUMNS, list(csv.DictReader(pairs)))
         write_json(stage / "quality_report.json", summary)
         record = {"reviewer": reviewer.strip(), "note": note.strip(),
                   "created_at": datetime.now(timezone.utc).isoformat(),
