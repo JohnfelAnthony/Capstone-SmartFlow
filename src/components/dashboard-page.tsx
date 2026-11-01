@@ -275,8 +275,9 @@ export function DashboardPage({
   const currentExperiment = simulation?.state.experiment
   // Recompute only when the run's identity changes, not on every streamed frame.
   const currentIdentity = React.useMemo(() => JSON.stringify(currentExperiment ?? {}), [currentExperiment])
+  const referenceScenarioId = simulation?.selected_scenario_id ?? Number(selectedScenarioId)  // the active run's own scenario, not the setup dropdown
   React.useEffect(() => {
-    const scenarioId = Number(selectedScenarioId)
+    const scenarioId = Number(referenceScenarioId)
     if (!scenarioId) return
     let cancelled = false
     listSimulationRuns({ scenarioId, status: "completed", limit: 50 }).then((response) => {
@@ -286,7 +287,7 @@ export function DashboardPage({
       if (!cancelled) setReference(pickReferenceRun(readable, { experiment: JSON.parse(currentIdentity) as Record<string, unknown>, activeRunId }))
     }).catch(() => { if (!cancelled) setReference(null) })
     return () => { cancelled = true }
-  }, [selectedScenarioId, currentIdentity, activeRunId])
+  }, [referenceScenarioId, currentIdentity, activeRunId])
 
   function handleScenarioChange(scenarioId: string) {
     setSelectedScenarioId(scenarioId)

@@ -82,11 +82,12 @@ export function NativeScenarioControls({ value, options, onChange }: {
     updatePlan({ phase_greens: enabled ? plan.phase_order.map(() => plan.green_seconds) : undefined })
   }
   const [flows, setFlows] = React.useState<Record<string, number>>({})
+  const vehicleApproaches = junction.approaches.filter((approach) => approach !== "pedestrian")  // the walk phase carries no vehicle flow
   const [design, setDesign] = React.useState<{ result?: SignalDesignResult; error?: string; busy?: boolean }>({})
   async function designWithWebster() {
     setDesign({ busy: true })
     const shares = mixShares(value.vehicle_mix ?? options.defaults.vehicle_mix ?? {})
-    const approach_counts = Object.fromEntries(junction.approaches.map((approach) => [approach,
+    const approach_counts = Object.fromEntries(vehicleApproaches.map((approach) => [approach,
       Object.fromEntries(shares.map(({ type, percent }) => [type, (flows[approach] ?? 0) * percent / 100]))]))
     try {
       const response = await designSignalPlan({ network_id: options.network_id, junction: junction.id, phase_order: plan.phase_order, approach_counts,
@@ -161,7 +162,7 @@ export function NativeScenarioControls({ value, options, onChange }: {
         <Field>
           <FieldLabel>Design with Webster</FieldLabel>
           <FieldDescription>Enter the expected vehicles per hour on each approach. The classes follow this scenario's vehicle mix. The result uses provisional passenger-car equivalents and saturation flows and needs field review before any claim.</FieldDescription>
-          <FieldGroup className="grid sm:grid-cols-2">{junction.approaches.map((approach) =>
+          <FieldGroup className="grid sm:grid-cols-2">{vehicleApproaches.map((approach) =>
             <NativeNumber key={approach} label={`${approach} (vehicles per hour)`} value={flows[approach] ?? 0} min={0} max={20000} step={10}
               onChange={(next) => setFlows({ ...flows, [approach]: next })} />)}</FieldGroup>
           <Button type="button" variant="outline" disabled={design.busy} onClick={() => void designWithWebster()}>Design with Webster</Button>
