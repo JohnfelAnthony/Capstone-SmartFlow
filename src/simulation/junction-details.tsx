@@ -5,17 +5,12 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress, ProgressLabel } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { JunctionMetrics, RenderFrame } from "@/simulation/frame-types"
 import type { SceneGeometry } from "@/simulation/scene-geometry"
 import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService } from "@/simulation/scene-summary"
 import { timingLabel } from "@/simulation/render-frame-adapter"
-
-// shortcut: placeholder until field photos exist; drop J1.jpg / J2.jpg into public/assets/junctions to replace it per junction.
-const PLACEHOLDER_PHOTO = "/assets/junctions/placeholder.jpg"
-const PLACEHOLDER_CREDIT = "Placeholder photo — not the study site"
-// CC BY 3.0 requires author, source and licence: Tulip Drive–Quimpo Blvd, Davao City (2012), Wikimedia Commons.
-const PLACEHOLDER_ATTRIBUTION = { author: "Kenneth Rangas", source: "https://commons.wikimedia.org/wiki/File:Tulip_Drive_-_Quimpo_Blvd_Intersection_-_panoramio.jpg", license: "CC BY 3.0", licenseUrl: "https://creativecommons.org/licenses/by/3.0" }
 
 const SERVICE_DISPLAY: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   north: { label: "North", icon: ArrowDownIcon },
@@ -30,17 +25,12 @@ const queueBand = (queue: number) => queue >= 10 ? "High" : queue >= 5 ? "Modera
 const readable = (text: string | null | undefined) => text ? text.replaceAll("_", " ").toLowerCase().replace(/^\w/, letter => letter.toUpperCase()) : "Unavailable"
 const seconds = (value: number | undefined) => value === undefined ? "—" : `${Math.round(value)} s`
 
-function JunctionPhoto({ shortLabel }: { shortLabel: string }) {
-  const sources = React.useMemo(() => [`/assets/junctions/${shortLabel}.jpg`, PLACEHOLDER_PHOTO], [shortLabel])
-  const [sourceIndex, setSourceIndex] = React.useState(0)
-  const source = sources[sourceIndex]
-  if (!source) return <div className="sf-junction-photo sf-junction-photo-empty"><ImageOffIcon className="size-5" />No photo yet</div>
+function JunctionPhoto({ networkId, shortLabel }: { networkId: string; shortLabel: string }) {
+  const photo = sitePhoto(networkId)
+  if (!photo) return <div className="sf-junction-photo sf-junction-photo-empty"><ImageOffIcon className="size-5" />No photo yet</div>
   return <figure className="sf-junction-photo">
-    <img src={source} alt={source === PLACEHOLDER_PHOTO ? "Placeholder intersection photo" : `${shortLabel} junction`} onError={() => setSourceIndex(index => index + 1)} />
-    {source === PLACEHOLDER_PHOTO ? <figcaption>
-      <strong>{PLACEHOLDER_CREDIT}</strong>
-      <span>Photo: <a href={PLACEHOLDER_ATTRIBUTION.source} target="_blank" rel="noreferrer">{PLACEHOLDER_ATTRIBUTION.author}</a>, <a href={PLACEHOLDER_ATTRIBUTION.licenseUrl} target="_blank" rel="noreferrer">{PLACEHOLDER_ATTRIBUTION.license}</a></span>
-    </figcaption> : null}
+    <img src={photo} alt={`${shortLabel} intersection`} />
+    <figcaption><strong>Enhanced site photo</strong></figcaption>
   </figure>
 }
 
@@ -65,7 +55,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
       </div>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
-      <JunctionPhoto key={shortLabel} shortLabel={shortLabel} />
+      <JunctionPhoto networkId={geometry.networkId} shortLabel={shortLabel} />
       <Tabs defaultValue="phases">
         <TabsList className="w-full">
           <TabsTrigger value="phases">Signal phases</TabsTrigger>

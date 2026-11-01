@@ -70,7 +70,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { STUDY_SITES, sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type ScenarioDensity = "None" | "Single" | "Low" | "Medium" | "High" | "Very High"
 type ScenarioCategory = "all" | "official" | "user" | "active" | "archived"
@@ -748,7 +750,16 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
                 <FieldLabel htmlFor="scenario-name">Name</FieldLabel>
                 <Input id="scenario-name" value={draft.name} maxLength={160} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
               </Field>
-              <NativeSelect label="Site" value={draft.intersectionId} options={networks.map((network) => ({ value: network.id, label: network.name }))} disabled={isResolving || isSaving} onChange={(value) => void changeNetwork(value)} />
+              <Field>
+                <FieldLabel>Site</FieldLabel>
+                <ToggleGroup aria-label="Site" variant="outline" className="grid w-full grid-cols-2" value={[draft.intersectionId]} disabled={isResolving || isSaving}
+                  onValueChange={(values) => values[0] && void changeNetwork(values[0])}>
+                  {networks.map((network) => <ToggleGroupItem key={network.id} value={network.id} className="h-auto flex-col items-stretch gap-1.5 p-1.5 text-left data-pressed:border-primary data-pressed:ring-2 data-pressed:ring-primary/40">
+                    <ScenarioPhoto networkId={network.id} className="aspect-[4/3]" />
+                    <span className="line-clamp-2 text-xs font-medium whitespace-normal">{network.name}</span>
+                  </ToggleGroupItem>)}
+                </ToggleGroup>
+              </Field>
               <FieldGroup className="grid sm:grid-cols-2">
                 <NativeSelect label={hasCsvDemand ? "Traffic density (set by the CSV)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={hasCsvDemand}
                   options={["None", "Single", "Low", "Medium", "High", "Very High"].map((label) => ({ label, value: label.toLowerCase() }))}
@@ -858,6 +869,7 @@ function ScenarioCard({
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <ScenarioPhoto networkId={scenario.intersectionId} />
         <div className="scenario-card-meta-grid">
           <ScenarioMeta icon={MapPinnedIcon} label="Intersection" value={formatIntersection(scenario.intersectionId)} />
           <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
@@ -1024,7 +1036,7 @@ function ScenarioDetailSheet({
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />
           </div>
-          <ScenarioSchematic scenario={scenario} />
+          <ScenarioPhoto networkId={scenario.intersectionId} />
           <Card>
             <CardHeader>
               <CardTitle>Disruptions</CardTitle>
@@ -1070,29 +1082,7 @@ function ScenarioDetailSheet({
   )
 }
 
-function ScenarioSchematic({ scenario }: { scenario: ScenarioRecord }) {
-  const intensity = densityOrder[scenario.trafficDensity]
-
-  return (
-    <Card className="scenario-schematic-card">
-      <CardHeader>
-        <CardTitle>Traffic Schematic</CardTitle>
-        <CardDescription>Directional pressure preview from the selected density.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="scenario-schematic">
-          <div className="scenario-road vertical" />
-          <div className="scenario-road horizontal" />
-          <div className="scenario-junction">
-            <span>{scenario.intersectionId.replace("_", " ").toUpperCase()}</span>
-          </div>
-          {["N", "E", "S", "W"].map((direction, index) => (
-            <span key={direction} className={cn("scenario-direction", direction.toLowerCase(), index < intensity && "active")}>
-              {direction}
-            </span>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
+function ScenarioPhoto({ networkId, className }: { networkId: string; className?: string }) {
+  const photo = sitePhoto(networkId)
+  return photo ? <img className={cn("scenario-photo", className)} src={photo} alt={`${STUDY_SITES[networkId].label} intersection`} /> : null
 }

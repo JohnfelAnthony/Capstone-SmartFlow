@@ -23,6 +23,7 @@ import { SetupCard, SignalControlCard, SimControlBar } from "@/components/dashbo
 import { DashboardKpis } from "@/components/dashboard-kpis"
 import type { DashboardView } from "@/components/site-header"
 import { SimulationVisualization } from "@/simulation/simulation-visualization"
+import { TagumMap } from "@/components/tagum-map"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
@@ -36,9 +37,6 @@ function compactNumber(value: number, digits = 0) {
     minimumFractionDigits: digits,
   })
 }
-
-// Both study sites sit inside this box (Site A 7.4617 N, Site B 7.4383 N).
-const TAGUM_MAP_URL = "https://www.openstreetmap.org/export/embed.html?bbox=125.785%2C7.428%2C125.825%2C7.472&layer=mapnik"
 
 function apiMessage(error: unknown) {
   if (error instanceof ApiError || error instanceof Error) return error.message
@@ -348,7 +346,7 @@ export function DashboardPage({
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
       <DashboardKpis metrics={simulation?.state.metrics} reference={reference} isReferenceRun={simulation?.control_mode === "no-signal"} />
-      {view === "map" ? <iframe title="Map of Tagum City" src={TAGUM_MAP_URL} loading="lazy" className="h-[min(72vh,680px)] w-full rounded-xl border" /> :
+      {view === "map" ? <TagumMap /> :
       <SimulationVisualization frame={renderFrame} networkId={intersectionId}
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
         runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}

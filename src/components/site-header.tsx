@@ -13,7 +13,7 @@ export function SiteHeader({ title = "Live Simulation View", dashboardView, onDa
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mx-2 h-4 data-vertical:self-auto" />
       <h1 className="text-base font-medium">{title}</h1>
-      {onDashboardViewChange && <ToggleGroup variant="outline" size="sm" className="ml-auto" aria-label="Dashboard view" value={[dashboardView ?? "simulation"]}
+      {onDashboardViewChange && <ToggleGroup variant="outline" size="sm" spacing={0} className="ml-auto" aria-label="Dashboard view" value={[dashboardView ?? "simulation"]}
         onValueChange={(values) => values[0] && onDashboardViewChange(values[0] as DashboardView)}>
         <ToggleGroupItem value="simulation"><PanelsTopLeftIcon />Simulation</ToggleGroupItem>
         <ToggleGroupItem value="map"><MapIcon />Map</ToggleGroupItem>

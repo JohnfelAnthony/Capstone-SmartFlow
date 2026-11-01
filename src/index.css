@@ -643,104 +643,13 @@
   border-top: 1px solid var(--border);
 }
 
-.scenario-schematic-card [data-slot="card-content"] {
-  padding-bottom: 18px;
-}
-
-.scenario-schematic {
-  position: relative;
-  height: 240px;
-  overflow: hidden;
+.scenario-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px),
-    color-mix(in oklch, var(--background), var(--card) 40%);
-  background-size: 36px 36px;
-}
-
-.scenario-road {
-  position: absolute;
-  inset: auto;
-  background: color-mix(in oklch, var(--foreground), transparent 86%);
-}
-
-.scenario-road.vertical {
-  top: -10%;
-  bottom: -10%;
-  left: 50%;
-  width: 58px;
-  transform: translateX(-50%);
-}
-
-.scenario-road.horizontal {
-  top: 50%;
-  right: -10%;
-  left: -10%;
-  height: 58px;
-  transform: translateY(-50%);
-}
-
-.scenario-junction {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  width: 112px;
-  height: 82px;
-  place-items: center;
-  border: 1px solid color-mix(in oklch, var(--primary), transparent 55%);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--card), var(--primary) 8%);
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 800;
-  transform: translate(-50%, -50%);
-}
-
-.scenario-direction {
-  position: absolute;
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.scenario-direction.active {
-  border-color: color-mix(in oklch, var(--primary), transparent 45%);
-  color: var(--primary);
-  box-shadow: 0 0 18px color-mix(in oklch, var(--primary), transparent 65%);
-}
-
-.scenario-direction.n {
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.scenario-direction.e {
-  top: 50%;
-  right: 18px;
-  transform: translateY(-50%);
-}
-
-.scenario-direction.s {
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.scenario-direction.w {
-  top: 50%;
-  left: 18px;
-  transform: translateY(-50%);
 }
 
 .scenario-disruption-summary {
@@ -1795,7 +1704,6 @@
 }
 
 .random-theme .smartflow-page,
-.random-theme .scenario-schematic,
 .random-theme .scenario-meta-item,
 .random-theme .scenario-disruption-summary,
 .random-theme .scenario-json-preview,
@@ -1822,6 +1730,8 @@
 .sf-sim-chip-dot[data-color="yellow"] { background:#f59e0b; }
 .sf-sim-chip-dot[data-color="red"] { background:#ef4444; }
 .sf-sim-overlay { position:absolute; inset:0; z-index:4; display:flex; align-items:center; justify-content:center; padding:24px; background:color-mix(in srgb, var(--background) 35%, transparent); }
+.sf-sim-overlay > * { position:relative; }
+.sf-sim-overlay > .sf-sim-backdrop { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .sf-sim-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid var(--border); }
 .sf-sim-bar-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
 .sf-sim-credit { padding:0 12px 8px; font-size:10px; color:var(--muted-foreground); text-align:right; }

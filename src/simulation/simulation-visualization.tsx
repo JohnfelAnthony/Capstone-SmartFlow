@@ -8,6 +8,7 @@ import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { RenderFrame } from "@/simulation/frame-types"
 import { normalizeSceneGeometry, selectionKey, type SceneGeometry, type Selection } from "@/simulation/scene-geometry"
@@ -73,7 +74,11 @@ function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision =
         <div className="sf-sim-chip sf-sim-chip-top-left"><span>Intersection</span><strong>{junction?.label ?? "—"}</strong></div>
         <div className="sf-sim-chip sf-sim-chip-bottom-left"><span>Signal phase</span><strong><i className="sf-sim-chip-dot" data-color={phaseColor} />{!control ? "—" : control.mode === "first_come" ? "No signal" : control.mode === "all_way_stop" ? "All-way stop" : service === "pedestrian" ? "Pedestrian crossing" : service ? readable(control.phase) : "All red"}</strong></div>
         <div className="sf-sim-chip sf-sim-chip-bottom-right"><span>Phase timer</span><strong>{control?.remaining_seconds == null ? "—" : `${Math.ceil(control.remaining_seconds)}s`}</strong></div>
-        {overlay ? <div className="sf-sim-overlay">{overlay}</div> : null}
+        {overlay ? <div className="sf-sim-overlay">
+          {/* The site photo covers the map until a run starts; the overlay is only passed while idle. */}
+          {sitePhoto(geometry.networkId) ? <img className="sf-sim-backdrop" src={sitePhoto(geometry.networkId)} alt="" /> : null}
+          {overlay}
+        </div> : null}
       </div>
       {presentation.notice ? <p className="sf-scene-notice" role="status">{presentation.notice}</p> : null}
       <div className="sf-sim-bar">
