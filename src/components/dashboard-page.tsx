@@ -28,7 +28,8 @@ import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
 import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
-import { metricCatalog, metricEngineVersion, metricValue, savedExperiment } from "@/lib/metrics"
+import { pickReferenceRun, type ReferenceRun } from "@/lib/reference-run"
+import { metricCatalog, metricEngineVersion, metricValue } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
@@ -85,7 +86,7 @@ export function DashboardPage({
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
   const [chartHistory, setChartHistory] = React.useState<TrendPoint[]>([])
-  const [baseline, setBaseline] = React.useState<SimulationRunRecord | null>(null)
+  const [reference, setReference] = React.useState<ReferenceRun | null>(null)
   const [notice, setNotice] = React.useState("Loading simulation workspace...")
   const [isBusy, setIsBusy] = React.useState(false)
   const lastStateRefreshAt = React.useRef(0)
@@ -270,23 +271,22 @@ export function DashboardPage({
     setChartHistory((current) => [...current, { timeLabel: nextPoint.timeLabel, avgWait: nextPoint.avgWait, avgQueue: nextPoint.avgQueue }].slice(-240))
   }, [simulation])
 
-  const runSeed = simulation?.seed
-  const activeRunId = simulation?.active_run_id
-  const runNetwork = simulation?.state.experiment?.network_sha256
+  const activeRunId = simulation?.active_run_id ?? null
+  const currentExperiment = simulation?.state.experiment
+  // Recompute only when the run's identity changes, not on every streamed frame.
+  const currentIdentity = React.useMemo(() => JSON.stringify(currentExperiment ?? {}), [currentExperiment])
   React.useEffect(() => {
     const scenarioId = Number(selectedScenarioId)
     if (!scenarioId) return
     let cancelled = false
     listSimulationRuns({ scenarioId, status: "completed", limit: 50 }).then((response) => {
-      // Only a run from the current engine on the same road network is a fair baseline; runs without an engine
-      // version predate the native engine, and both networks share one network id, so compare fingerprints.
-      const isComparableBaseline = (run: SimulationRunRecord) => run.control_mode === "fixed-time" && run.seed === runSeed && run.id !== activeRunId
-        && metricEngineVersion(run.metrics) === metricCatalog.engine_version
-        && typeof runNetwork === "string" && savedExperiment(run.metrics).network_sha256 === runNetwork
-      if (!cancelled) setBaseline(response.runs.find(isComparableBaseline) ?? null)
-    }).catch(() => { if (!cancelled) setBaseline(null) })
+      // A reference must come from the current engine and share the complete experiment identity (network, seed, duration,
+      // measurement window, demand and settings); the newest no-signal run is preferred, a matching fixed-time run is the fallback.
+      const readable = response.runs.filter((run) => metricEngineVersion(run.metrics) === metricCatalog.engine_version)
+      if (!cancelled) setReference(pickReferenceRun(readable, { experiment: JSON.parse(currentIdentity) as Record<string, unknown>, activeRunId }))
+    }).catch(() => { if (!cancelled) setReference(null) })
     return () => { cancelled = true }
-  }, [selectedScenarioId, runSeed, activeRunId, runNetwork])
+  }, [selectedScenarioId, currentIdentity, activeRunId])
 
   function handleScenarioChange(scenarioId: string) {
     setSelectedScenarioId(scenarioId)
@@ -372,7 +372,7 @@ export function DashboardPage({
 
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
-      <DashboardKpis metrics={simulation?.state.metrics} baseline={baseline} isBaselineRun={simulation?.control_mode === "fixed-time"} />
+      <DashboardKpis metrics={simulation?.state.metrics} reference={reference} isReferenceRun={simulation?.control_mode === "no-signal"} />
       <SimulationVisualization frame={renderFrame} networkId={intersectionId}
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
         mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
