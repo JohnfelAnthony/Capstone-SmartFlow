@@ -28,7 +28,7 @@
       "No traffic signal exists today; signal plans are proposals",
       "Approach length 250 m per leg unless field queue reach needs more",
       "Synthetic demand until Field Observer counts are imported",
-      "The first 30 m of every leg is drawn straight from the junction; check this against the road",
+      "The first 30 m of every leg is drawn straight from the junction, and map bends under 5 m are drawn straight; check both against the road",
       "Median crossing modelled as one movement; pending field check"
     ]
   },
@@ -89,40 +89,8 @@
           0.0
         ],
         [
-          42.707,
-          -25.036
-        ],
-        [
-          69.839,
-          -46.454
-        ],
-        [
-          73.736,
-          -49.537
-        ],
-        [
-          123.927,
-          -88.032
-        ],
-        [
           141.611,
           -100.255
-        ],
-        [
-          156.943,
-          -108.915
-        ],
-        [
-          169.372,
-          -115.339
-        ],
-        [
-          185.51,
-          -121.773
-        ],
-        [
-          201.184,
-          -126.037
         ],
         [
           211.351,
@@ -188,18 +156,6 @@
           0.0
         ],
         [
-          23.931,
-          23.188
-        ],
-        [
-          100.162,
-          120.237
-        ],
-        [
-          107.502,
-          129.599
-        ],
-        [
           112.398,
           135.852
         ]
@@ -245,18 +201,6 @@
         [
           -149.004,
           -199.844
-        ],
-        [
-          -109.92,
-          -149.414
-        ],
-        [
-          -41.824,
-          -62.862
-        ],
-        [
-          -37.354,
-          -57.185
         ],
         [
           0.0,
@@ -309,26 +253,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          -3.466,
-          47.133
-        ],
-        [
-          -3.974,
-          61.259
-        ],
-        [
-          -3.908,
-          84.581
-        ],
-        [
-          -3.598,
-          96.57
-        ],
-        [
-          -4.195,
-          231.601
         ],
         [
           -4.244,
@@ -387,18 +311,6 @@
           141.187
         ],
         [
-          100.603,
-          134.82
-        ],
-        [
-          93.252,
-          125.458
-        ],
-        [
-          17.242,
-          28.587
-        ],
-        [
           0.0,
           0.0
         ]
@@ -444,18 +356,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          -44.86,
-          -51.998
-        ],
-        [
-          -49.054,
-          -57.475
-        ],
-        [
-          -118.187,
-          -145.696
         ],
         [
           -156.096,

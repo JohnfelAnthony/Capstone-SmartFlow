@@ -28,7 +28,7 @@
       "No traffic signal exists today; signal plans are proposals",
       "Approach length 250 m per leg unless field queue reach needs more",
       "Synthetic demand until Field Observer counts are imported",
-      "The first 30 m of every leg is drawn straight from the junction; check this against the road"
+      "The first 30 m of every leg is drawn straight from the junction, and map bends under 5 m are drawn straight; check both against the road"
     ]
   },
   "nodes": [
@@ -76,10 +76,6 @@
           0.0
         ],
         [
-          5.32,
-          -71.534
-        ],
-        [
           3.329,
           -134.498
         ]
@@ -113,22 +109,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          6.214,
-          67.282
-        ],
-        [
-          6.932,
-          114.025
-        ],
-        [
-          8.035,
-          185.826
-        ],
-        [
-          8.466,
-          214.146
         ],
         [
           8.469,
@@ -170,18 +150,6 @@
           0.0
         ],
         [
-          -48.279,
-          1.514
-        ],
-        [
-          -178.458,
-          9.707
-        ],
-        [
-          -225.722,
-          12.668
-        ],
-        [
           -249.579,
           14.169
         ]
@@ -218,18 +186,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          60.498,
-          -2.137
-        ],
-        [
-          129.782,
-          -0.968
-        ],
-        [
-          222.752,
-          0.59
         ],
         [
           249.939,

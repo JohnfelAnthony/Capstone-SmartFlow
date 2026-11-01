@@ -120,6 +120,21 @@ MAJOR_CLASSES = frozenset({"trunk", "trunk_link", "primary", "primary_link", "se
 JUNCTION_MOUTH_STRAIGHT_M = 30.0  # Provisional: field-check that each leg really is straight this far from the junction.
 
 
+LEG_SIMPLIFY_TOLERANCE_M = 5.0  # Provisional: map vertex jitter, not road shape, below this.
+
+
+def simplify_leg(shape: list, tolerance_m: float = LEG_SIMPLIFY_TOLERANCE_M) -> list:
+    """Douglas-Peucker: drop vertices within `tolerance_m` of the straight line between their neighbours, so map jitter is not drawn as a bend."""
+    if len(shape) < 3:
+        return list(shape)
+    (x1, y1), (x2, y2) = shape[0], shape[-1]
+    chord = math.dist(shape[0], shape[-1]) or 1.0
+    index, farthest = max(((i, abs((x2-x1)*(y1-point[1])-(x1-point[0])*(y2-y1))/chord) for i, point in enumerate(shape[1:-1], 1)), key=lambda item: item[1])
+    if farthest <= tolerance_m:
+        return [shape[0], shape[-1]]
+    return simplify_leg(shape[:index+1], tolerance_m)[:-1] + simplify_leg(shape[index:], tolerance_m)
+
+
 def straighten_mouth(shape: list, mouth_m: float = JUNCTION_MOUTH_STRAIGHT_M) -> list:
     """Drop map vertices closer than `mouth_m` to the junction so the leg leaves it straight; lanes either side of a kink there cross."""
     kept = [shape[0]] + [point for point in shape[1:] if math.dist(shape[0], point) >= mouth_m]
@@ -194,7 +209,7 @@ def build_site_network(source_path: Path, centre: tuple[float, float], *, networ
             limit = min(requested, available)
             if limit < 30:
                 raise ValueError(f"Leg along {first_way.get('tags', {}).get('name', 'Unnamed road')} (way {first_way['id']}) is only {limit:.1f} m; raise --approach or check the map")
-            shape = straighten_mouth(clip(shape, 0, limit))
+            shape = straighten_mouth(simplify_leg(clip(shape, 0, limit)))
             if not forward and not reverse:
                 raise ValueError(f"Inconsistent direction on way {first_way['id']}")
             boundary = f"boundary_{len(roads)}"
@@ -208,7 +223,7 @@ def build_site_network(source_path: Path, centre: tuple[float, float], *, networ
                           "shape": [[round(x, 3), round(y, 3)] for x, y in shape],
                           "oneway": not (forward and reverse), "name": tags.get("name", "Unnamed road"),
                           "osm_way_id": first_way["id"], "osm_node_ids": chain, "osm_tags": tags, "speed_mps": 8.33})
-    assumptions = ["Lane counts from OSM lanes tags; carriageway widths need field measurement", "30 km/h study speed; not a verified posted limit", "Driveways, service roads and minor side streets along approaches are not modelled", "No traffic signal exists today; signal plans are proposals", f"Approach length {approach_m:g} m per leg unless field queue reach needs more", "Synthetic demand until Field Observer counts are imported", f"The first {JUNCTION_MOUTH_STRAIGHT_M:g} m of every leg is drawn straight from the junction; check this against the road"]
+    assumptions = ["Lane counts from OSM lanes tags; carriageway widths need field measurement", "30 km/h study speed; not a verified posted limit", "Driveways, service roads and minor side streets along approaches are not modelled", "No traffic signal exists today; signal plans are proposals", f"Approach length {approach_m:g} m per leg unless field queue reach needs more", "Synthetic demand until Field Observer counts are imported", f"The first {JUNCTION_MOUTH_STRAIGHT_M:g} m of every leg is drawn straight from the junction, and map bends under {LEG_SIMPLIFY_TOLERANCE_M:g} m are drawn straight; check both against the road"]
     source = {**raw["smartflow_source"], "origin": {"lat": lat, "lon": lon}, "projection": "local equirectangular, metres; study area only", "assumptions": assumptions + (extra_assumptions or [])}
     payload = {"id": network_id, "version": 1, "name": name, "source": source, "nodes": output_nodes, "roads": roads}
     RoadNetwork(payload)

@@ -1,30 +1,30 @@
 {
   "network_id": "tagum_site_a",
-  "network_sha256": "ad2176bf63ce0108fae2b4899e50b93517240f8e68bd75ed83aad80a01ffc0f6",
+  "network_sha256": "dee8e0425d45cedc34185ac9399e9361f495120bdb498c5911795210307d2402",
   "boundaries": [
     {
       "boundary": "boundary_0",
       "road_name": "Dalisay Gante Road",
       "road_id": "road0",
-      "length_m": 134.73
+      "length_m": 134.54
     },
     {
       "boundary": "boundary_1",
       "road_name": "Dalisay Gante Road",
       "road_id": "road1",
-      "length_m": 214.68
+      "length_m": 214.55
     },
     {
       "boundary": "boundary_2",
       "road_name": "Capitol Circumferential Road",
       "road_id": "road2",
-      "length_m": 250.0
+      "length_m": 249.98
     },
     {
       "boundary": "boundary_3",
       "road_name": "Capitol Circumferential Road",
       "road_id": "road3",
-      "length_m": 250.0
+      "length_m": 249.94
     }
   ],
   "locations": {},

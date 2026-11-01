@@ -163,3 +163,21 @@ class JunctionMouthTests(unittest.TestCase):
         east = next(road for road in payload["roads"] if road["osm_way_id"] == EAST_WAY)
         self.assertEqual(len(east["shape"]), 2)
         self.assertAlmostEqual(length(east["shape"]), 250.0, delta=0.5)
+
+
+class LegSimplificationTests(JunctionMouthTests):
+    def wobbly(self, offset):
+        osm = cross()
+        osm.node(3, 2.0, 80)
+        osm.node(4, offset, 160)
+        osm.ways[0]["nodes"] = [1, 11, 3, 4, 10]
+        return self.build(osm)
+
+    def test_map_wobble_under_5_m_is_drawn_straight(self):
+        north = next(road for road in self.wobbly(3.0)["roads"] if road["osm_way_id"] == 101)
+        self.assertEqual(len(north["shape"]), 2)
+        self.assertIn("5 m", " ".join(self.wobbly(3.0)["source"]["assumptions"]))
+
+    def test_a_real_bend_keeps_its_shape(self):
+        north = next(road for road in self.wobbly(12.0)["roads"] if road["osm_way_id"] == 101)
+        self.assertGreater(len(north["shape"]), 2)
