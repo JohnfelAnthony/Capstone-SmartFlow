@@ -74,6 +74,16 @@ def percentile_95(values: list[float]) -> float | None:
     return float(ordered[max(0, math.ceil(0.95*len(ordered))-1)])
 
 
+def queue_distribution(values: list[float]) -> dict:
+    """Percentiles of every per-approach queue sample, and how many non-zero samples exceed 8 vehicles (the QL bin rule, plan Task 25)."""
+    ordered = sorted(values)
+    def at(fraction):
+        return float(ordered[max(0, math.ceil(fraction*len(ordered))-1)]) if ordered else None
+    nonzero = [value for value in ordered if value > 0]
+    return {"queue_count_p50": at(.50), "queue_count_p75": at(.75), "queue_count_p90": at(.90), "nonzero_samples": len(nonzero),
+            "nonzero_share_above_8": sum(1 for value in nonzero if value > 8)/len(nonzero) if nonzero else None}
+
+
 def grouped_plan(network_name: str, density: str, mix: dict) -> dict:
     """A provisional Webster plan for the case's own synthetic demand: every boundary sends an equal share of the rate."""
     from simulation.signal_design import flows_from_counts, plan_from_result, saturation_from_network, webster_plan
@@ -165,6 +175,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         "final_vehicle_conservation_error": engine._last_metrics["vehicle_conservation_error"],
         "completed": engine.lifetime_completed,
         "queue_count_p95": percentile_95(queue_samples),
+        **queue_distribution(queue_samples),
         "active_count_p95": percentile_95(active_samples),
         "front_row_motorcycle_share": front_row_motorcycles/front_row_total if enough_front_row else None,
         "queue_motorcycle_share": queue_motorcycles/queue_total if enough_front_row else None,

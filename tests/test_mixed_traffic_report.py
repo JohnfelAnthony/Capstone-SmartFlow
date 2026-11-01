@@ -62,3 +62,12 @@ def test_a_site_case_reports_equal_determinism_digests(tmp_path):
     out = tmp_path/"r.json"
     assert main(["--only", "siteB-medium-grouped", "--seconds", "20", "--seeds", "101", "--determinism", "--out", str(out)]) == 0
     assert json.loads(out.read_text(encoding="utf-8"))["determinism"] == {"siteB-medium-grouped": True}
+
+
+def test_a_case_reports_the_queue_distribution_the_ql_bin_rule_needs():
+    from tools.mixed_traffic_report import queue_distribution
+    values = [0] * 10 + [2, 4, 6, 9, 10, 12, 20, 30]
+    result = queue_distribution(values)
+    assert result["queue_count_p50"] == 0 and result["queue_count_p75"] == 9 and result["queue_count_p90"] == 20
+    assert result["nonzero_samples"] == 8 and result["nonzero_share_above_8"] == 5 / 8
+    assert queue_distribution([0, 0])["nonzero_share_above_8"] is None
