@@ -1,0 +1,684 @@
+{
+  "benchmarks": {
+    "cars_only_5j_medium_900s_runtime_s": {
+      "budget_s": 18.0,
+      "final_code": [
+        18.136,
+        18.228,
+        18.258
+      ],
+      "pre_two_site_code_51880ab": [
+        16.289,
+        16.31,
+        17.616
+      ],
+      "within_budget": false
+    },
+    "determinism_digest_equal_2j": true,
+    "measured_on": "this development machine, nothing else running, 2026-11-01",
+    "rl_env_decisions_per_second": {
+      "budget": 7.07,
+      "final_code": 4.84,
+      "note": "the pre-two-site code also misses this budget here, so it does not describe this machine",
+      "pre_two_site_code_51880ab": 4.582,
+      "within_budget": false
+    }
+  },
+  "case_summary": {
+    "siteA-high-fixed": {
+      "all_safety_ok": true,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteA-high-grouped": {
+      "all_safety_ok": true,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteA-high-nosignal": {
+      "all_safety_ok": true,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteA-medium-fixed": {
+      "all_safety_ok": true,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteA-medium-grouped": {
+      "all_safety_ok": true,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteA-medium-nosignal": {
+      "all_safety_ok": true,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteB-high-fixed": {
+      "all_safety_ok": false,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteB-high-grouped": {
+      "all_safety_ok": false,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteB-high-nosignal": {
+      "all_safety_ok": false,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteB-medium-fixed": {
+      "all_safety_ok": false,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteB-medium-grouped": {
+      "all_safety_ok": false,
+      "determinism_equal": true,
+      "runs": 2
+    },
+    "siteB-medium-nosignal": {
+      "all_safety_ok": false,
+      "determinism_equal": true,
+      "runs": 2
+    }
+  },
+  "cases": {
+    "siteA-high-fixed@101": {
+      "active_count_p95": 93.0,
+      "completed": 362,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5427753369205707,
+      "front_row_samples": 20257,
+      "green_onsets_measured": 80,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 2.7375,
+      "queue_count_p95": 91.0,
+      "queue_motorcycle_share": 0.5014316737258104,
+      "runtime_s": 790.81,
+      "simulated_s": 1800.0
+    },
+    "siteA-high-fixed@102": {
+      "active_count_p95": 104.0,
+      "completed": 368,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5642836271549625,
+      "front_row_samples": 20534,
+      "green_onsets_measured": 78,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.128205128205128,
+      "queue_count_p95": 100.0,
+      "queue_motorcycle_share": 0.5164523206554087,
+      "runtime_s": 783.425,
+      "simulated_s": 1800.0
+    },
+    "siteA-high-grouped@101": {
+      "active_count_p95": 114.0,
+      "completed": 362,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5073014306857425,
+      "front_row_samples": 20270,
+      "green_onsets_measured": 71,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.535211267605634,
+      "queue_count_p95": 105.0,
+      "queue_motorcycle_share": 0.503671038702994,
+      "runtime_s": 924.1,
+      "simulated_s": 1800.0
+    },
+    "siteA-high-grouped@102": {
+      "active_count_p95": 118.0,
+      "completed": 384,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5826517322219328,
+      "front_row_samples": 19195,
+      "green_onsets_measured": 71,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.9295774647887325,
+      "queue_count_p95": 115.0,
+      "queue_motorcycle_share": 0.5279648810342046,
+      "runtime_s": 952.779,
+      "simulated_s": 1800.0
+    },
+    "siteA-high-nosignal@101": {
+      "active_count_p95": 87.0,
+      "completed": 123,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.765500922435229,
+      "front_row_samples": 24934,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "queue_count_p95": 87.0,
+      "queue_motorcycle_share": 0.5004241361759882,
+      "runtime_s": 3440.061,
+      "simulated_s": 1800.0
+    },
+    "siteA-high-nosignal@102": {
+      "active_count_p95": 87.0,
+      "completed": 75,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.7299712735397382,
+      "front_row_samples": 18798,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "queue_count_p95": 87.0,
+      "queue_motorcycle_share": 0.5415094114132059,
+      "runtime_s": 3229.03,
+      "simulated_s": 1800.0
+    },
+    "siteA-medium-fixed@101": {
+      "active_count_p95": 45.0,
+      "completed": 362,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5305066693716083,
+      "front_row_samples": 19717,
+      "green_onsets_measured": 78,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.0641025641025643,
+      "queue_count_p95": 39.0,
+      "queue_motorcycle_share": 0.4816056600810958,
+      "runtime_s": 178.607,
+      "simulated_s": 1800.0
+    },
+    "siteA-medium-fixed@102": {
+      "active_count_p95": 55.0,
+      "completed": 329,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5829915698336751,
+      "front_row_samples": 17556,
+      "green_onsets_measured": 77,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.064935064935065,
+      "queue_count_p95": 49.0,
+      "queue_motorcycle_share": 0.5495951608927319,
+      "runtime_s": 179.388,
+      "simulated_s": 1800.0
+    },
+    "siteA-medium-grouped@101": {
+      "active_count_p95": 50.0,
+      "completed": 375,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5214591051581647,
+      "front_row_samples": 17545,
+      "green_onsets_measured": 81,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.7160493827160495,
+      "queue_count_p95": 47.0,
+      "queue_motorcycle_share": 0.48269779175197425,
+      "runtime_s": 194.566,
+      "simulated_s": 1800.0
+    },
+    "siteA-medium-grouped@102": {
+      "active_count_p95": 72.0,
+      "completed": 349,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5474768118220406,
+      "front_row_samples": 12722,
+      "green_onsets_measured": 80,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.575,
+      "queue_count_p95": 64.0,
+      "queue_motorcycle_share": 0.5491023100962029,
+      "runtime_s": 197.71,
+      "simulated_s": 1800.0
+    },
+    "siteA-medium-nosignal@101": {
+      "active_count_p95": 9.0,
+      "completed": 495,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5692166649689314,
+      "front_row_samples": 9817,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "queue_count_p95": 5.0,
+      "queue_motorcycle_share": 0.504532406707962,
+      "runtime_s": 216.122,
+      "simulated_s": 1800.0
+    },
+    "siteA-medium-nosignal@102": {
+      "active_count_p95": 7.0,
+      "completed": 457,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5967705253581987,
+      "front_row_samples": 4397,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "queue_count_p95": 3.0,
+      "queue_motorcycle_share": 0.5695511524464214,
+      "runtime_s": 113.405,
+      "simulated_s": 1800.0
+    },
+    "siteB-high-fixed@101": {
+      "active_count_p95": 107.0,
+      "completed": 292,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.4849991278562707,
+      "front_row_samples": 22932,
+      "green_onsets_measured": 76,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 11,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 2.5,
+      "queue_count_p95": 105.0,
+      "queue_motorcycle_share": 0.5091385402705008,
+      "runtime_s": 886.417,
+      "simulated_s": 1800.0
+    },
+    "siteB-high-fixed@102": {
+      "active_count_p95": 120.0,
+      "completed": 320,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5297514651152843,
+      "front_row_samples": 23377,
+      "green_onsets_measured": 78,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 14,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 2.5128205128205128,
+      "queue_count_p95": 117.0,
+      "queue_motorcycle_share": 0.52624766762206,
+      "runtime_s": 832.392,
+      "simulated_s": 1800.0
+    },
+    "siteB-high-grouped@101": {
+      "active_count_p95": 126.0,
+      "completed": 364,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5256055693305359,
+      "front_row_samples": 20972,
+      "green_onsets_measured": 66,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 15,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.272727272727273,
+      "queue_count_p95": 124.0,
+      "queue_motorcycle_share": 0.5047216871498807,
+      "runtime_s": 1156.02,
+      "simulated_s": 1800.0
+    },
+    "siteB-high-grouped@102": {
+      "active_count_p95": 154.0,
+      "completed": 376,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5820250812819322,
+      "front_row_samples": 21530,
+      "green_onsets_measured": 66,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 13,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.590909090909091,
+      "queue_count_p95": 149.0,
+      "queue_motorcycle_share": 0.5264903018314809,
+      "runtime_s": 1545.122,
+      "simulated_s": 1800.0
+    },
+    "siteB-high-nosignal@101": {
+      "active_count_p95": 95.0,
+      "completed": 136,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.6638754167929676,
+      "front_row_samples": 26392,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 7,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "nonzero_samples": 6935,
+      "nonzero_share_above_8": 0.8925739005046863,
+      "queue_count_p50": 63.0,
+      "queue_count_p75": 79.0,
+      "queue_count_p90": 95.0,
+      "queue_count_p95": 95.0,
+      "queue_motorcycle_share": 0.49698260116792853,
+      "runtime_s": 4058.506,
+      "simulated_s": 1800.0
+    },
+    "siteB-high-nosignal@102": {
+      "active_count_p95": 99.0,
+      "completed": 79,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.6463520019752274,
+      "front_row_samples": 24301,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 7,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "nonzero_samples": 7028,
+      "nonzero_share_above_8": 0.9019635742743313,
+      "queue_count_p50": 66.0,
+      "queue_count_p75": 84.0,
+      "queue_count_p90": 99.0,
+      "queue_count_p95": 99.0,
+      "queue_motorcycle_share": 0.5324851589429337,
+      "runtime_s": 4057.278,
+      "simulated_s": 1800.0
+    },
+    "siteB-medium-fixed@101": {
+      "active_count_p95": 71.0,
+      "completed": 298,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5408058998622773,
+      "front_row_samples": 22509,
+      "green_onsets_measured": 78,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 11,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 2.448717948717949,
+      "queue_count_p95": 68.0,
+      "queue_motorcycle_share": 0.5010445299615173,
+      "runtime_s": 286.168,
+      "simulated_s": 1800.0
+    },
+    "siteB-medium-fixed@102": {
+      "active_count_p95": 70.0,
+      "completed": 289,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5311159820832936,
+      "front_row_samples": 20986,
+      "green_onsets_measured": 78,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 15,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 2.230769230769231,
+      "queue_count_p95": 68.0,
+      "queue_motorcycle_share": 0.5232401246917601,
+      "runtime_s": 285.387,
+      "simulated_s": 1800.0
+    },
+    "siteB-medium-grouped@101": {
+      "active_count_p95": 84.0,
+      "completed": 320,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.4600053008216273,
+      "front_row_samples": 18865,
+      "green_onsets_measured": 73,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 9,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 3.1232876712328768,
+      "queue_count_p95": 80.0,
+      "queue_motorcycle_share": 0.4854787153773339,
+      "runtime_s": 298.031,
+      "simulated_s": 1800.0
+    },
+    "siteB-medium-grouped@102": {
+      "active_count_p95": 85.0,
+      "completed": 309,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.640137982013059,
+      "front_row_samples": 16234,
+      "green_onsets_measured": 76,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 10,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": 2.9210526315789473,
+      "queue_count_p95": 85.0,
+      "queue_motorcycle_share": 0.4852446687733659,
+      "runtime_s": 272.509,
+      "simulated_s": 1800.0
+    },
+    "siteB-medium-nosignal@101": {
+      "active_count_p95": 62.0,
+      "completed": 402,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.6285080276726276,
+      "front_row_samples": 7661,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 9,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "queue_count_p95": 56.0,
+      "queue_motorcycle_share": 0.4881750519831322,
+      "runtime_s": 676.269,
+      "simulated_s": 1800.0
+    },
+    "siteB-medium-nosignal@102": {
+      "active_count_p95": 8.0,
+      "completed": 463,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": 0.5278742460244927,
+      "front_row_samples": 5471,
+      "green_onsets_measured": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 4,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "queue_count_p95": 3.0,
+      "queue_motorcycle_share": 0.5151562257111767,
+      "runtime_s": 191.18,
+      "simulated_s": 1800.0
+    }
+  },
+  "determinism": {
+    "siteA-high-fixed": true,
+    "siteA-high-grouped": true,
+    "siteA-high-nosignal": true,
+    "siteA-medium-fixed": true,
+    "siteA-medium-grouped": true,
+    "siteA-medium-nosignal": true,
+    "siteB-high-fixed": true,
+    "siteB-high-grouped": true,
+    "siteB-high-nosignal": true,
+    "siteB-medium-fixed": true,
+    "siteB-medium-grouped": true,
+    "siteB-medium-nosignal": true
+  },
+  "engine_version": "native-7",
+  "purpose": "two-site acceptance, plan design 0.13 (synthetic demand; software evidence only, not field validation)",
+  "seconds": 1800.0,
+  "seeds": [
+    101,
+    102
+  ],
+  "source_commit": "5de043a86781f7a94e77b946ea6f5996dc7af553",
+  "thresholds": {
+    "determinism": "equal",
+    "final_vehicle_conservation_error": 0,
+    "max_gridlock_seconds": 0,
+    "max_overlapping_pairs": 0,
+    "max_stuck_junction_vehicles": 0
+  },
+  "verdict_per_run": {
+    "siteA-high-fixed@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-high-fixed@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-high-grouped@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-high-grouped@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-high-nosignal@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-high-nosignal@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-medium-fixed@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-medium-fixed@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-medium-grouped@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-medium-grouped@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-medium-nosignal@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteA-medium-nosignal@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": true
+    },
+    "siteB-high-fixed@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 11,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-high-fixed@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 14,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-high-grouped@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 15,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-high-grouped@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 13,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-high-nosignal@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 7,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-high-nosignal@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 7,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-medium-fixed@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 11,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-medium-fixed@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 15,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-medium-grouped@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 9,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-medium-grouped@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 10,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-medium-nosignal@101": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 9,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    },
+    "siteB-medium-nosignal@102": {
+      "final_vehicle_conservation_error": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_overlapping_pairs": 4,
+      "max_stuck_junction_vehicles": 0,
+      "safety_ok": false
+    }
+  }
+}
