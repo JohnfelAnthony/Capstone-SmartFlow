@@ -18,6 +18,7 @@ import auth
 import config
 import database
 from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics
+from services.control_labels import condition_label
 from backend.schemas import (
     AdminPasswordResetResponse,
     AdminRole,
@@ -1040,6 +1041,7 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Scenario": run.scenario_name or "Unknown",
         "Run Mode": run.run_mode,
         "Control Mode": run.control_mode,
+        "Condition": condition_label(run.control_mode),
         "Status": run.status,
         "Started": run.start_time or "",
         "Ended": run.end_time or "",
@@ -1103,7 +1105,7 @@ def write_runs_csv(records: list[SimulationRunRecord]) -> Path:
 
 def write_runs_json(records: list[SimulationRunRecord]) -> Path:
     path = report_export_directory() / f"smartflow_runs_export_{secrets.token_hex(6)}.json"
-    payload = [{**record.model_dump(), "metric_definitions_version": METRIC_VERSION,
+    payload = [{**record.model_dump(), "condition": condition_label(record.control_mode), "metric_definitions_version": METRIC_VERSION,
                 "metric_definitions": METRIC_CATALOG} for record in records]
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
     return path
@@ -1229,7 +1231,7 @@ def compare_kind(left: CompareRunOption, right: CompareRunOption) -> str | None:
 
 def compare_run_label(run: SimulationRunRecord, manifest: dict) -> str:
     controller = manifest.get("controller", {}) if isinstance(manifest, dict) else {}
-    controller_label = controller.get("provenance_label") or run.control_mode.replace("-", " ").title()
+    controller_label = condition_label(run.control_mode)
     scenario_label = run.scenario_name or "Unknown Scenario"
     seed_label = run.seed if run.seed is not None else "none"
     model_label = f" model #{run.rl_model_id}" if run.rl_model_id is not None else ""

@@ -1,4 +1,4 @@
-"""tools/record_fixed_time_baselines.py backs up the database, then records one fixed-time run per active scenario."""
+"""tools/record_fixed_time_baselines.py backs up the database, then records one run per active scenario and reference condition."""
 import json
 import os
 import subprocess
@@ -46,20 +46,33 @@ class RecordBaselinesTests(unittest.TestCase):
             self.assertEqual(database.get_runs(limit=10), [])
         self.assertFalse((self.database_path.parent/"backups").exists())
 
-    def test_with_confirm_it_backs_up_and_records_a_fixed_time_run_on_this_engine(self):
+    def test_with_confirm_it_backs_up_and_records_both_conditions_on_this_engine(self):
         result = self.run_tool("--seconds", "30", "--confirm")
         self.assertEqual(result.returncode, 0, result.stderr)
         backups = list((self.database_path.parent/"backups").glob(f"smartflow_backup_*_pre_{ENGINE_VERSION}_baselines.db"))
         self.assertEqual(len(backups), 1)
         with patch.object(config, "DB_PATH", str(self.database_path)):
             runs = database.get_runs(limit=10)
-            self.assertEqual(len(runs), 1)
-            run = runs[0]
-            self.assertEqual((run["scenario_id"], run["status"], run["run_mode"], run["control_mode"]),
-                             (self.scenario["id"], "completed", "pre-record", "fixed-time"))
-            metrics = database.get_run_metrics(run["id"])
-        self.assertEqual(json.loads(metrics["raw_metrics_json"])["experiment"]["engine_version"], ENGINE_VERSION)
-        self.assertIn(str(run["id"]), result.stdout)
+            self.assertEqual(len(runs), 2)
+            self.assertEqual({run["control_mode"] for run in runs}, {"no-signal", "fixed-time"})
+            for run in runs:
+                self.assertEqual((run["scenario_id"], run["status"], run["run_mode"]), (self.scenario["id"], "completed", "pre-record"))
+                experiment = json.loads(database.get_run_metrics(run["id"])["raw_metrics_json"])["experiment"]
+                self.assertEqual(experiment["engine_version"], ENGINE_VERSION)
+                self.assertEqual(experiment["control"].get("junction_control"), "first_come" if run["control_mode"] == "no-signal" else None)
+                self.assertIn(str(run["id"]), result.stdout)
+            # The two conditions share every input, so the dashboard and Compare Runs pair them.
+            from backend.main import compare_key
+            from types import SimpleNamespace
+            keys = {compare_key(SimpleNamespace(id=run["id"]), None, {"experiment": json.loads(database.get_run_metrics(run["id"])["raw_metrics_json"])["experiment"]}) for run in runs}
+            self.assertEqual(len(keys), 1)
+
+    def test_one_condition_can_be_chosen_and_an_unknown_one_is_refused(self):
+        self.assertEqual(self.run_tool("--seconds", "30", "--confirm", "--conditions", "bogus").returncode, 2)
+        result = self.run_tool("--seconds", "30", "--confirm", "--conditions", "no-signal")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with patch.object(config, "DB_PATH", str(self.database_path)):
+            self.assertEqual([run["control_mode"] for run in database.get_runs(limit=10)], ["no-signal"])
 
 
 if __name__ == "__main__":

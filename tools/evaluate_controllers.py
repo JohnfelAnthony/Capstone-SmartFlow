@@ -35,7 +35,8 @@ from simulation.traffic_engine import STEP_LENGTH
 from simulation.traffic_engine import TrafficEngine
 
 
-DEFAULT_SEEDS = (11, 22, 33, 44, 55)
+DEFAULT_SEEDS = (101, 102, 103, 104, 105)  # development seeds; 11-55 are for training
+FINAL_EVALUATION_SEEDS = tuple(range(201, 221))  # reserved for the final study (plan Task 29)
 SUPPORTED_CONTROLLERS = ("fixed-time", "no-signal", "ql", "dql", "ppo")
 DEFAULT_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
 
@@ -266,8 +267,8 @@ def _run_controller_once(
         minimum_green_hold_seconds=minimum_green_hold_seconds,
     )
 
-    if warmup_seconds > 0:
-        engine.disable_rl_control()
+    # Each condition warms up under its own control (no signal, its fixed-time plan or its policy), so the experiment
+    # measures sustained operation of that condition, not a switch from a common fixed-time start.
 
     run_id = database.create_run(
         scenario_id=scenario_id,
@@ -304,7 +305,6 @@ def _run_controller_once(
             if not official_metrics_reset and engine.simulation_time >= warmup_seconds:
                 _reset_official_metrics(engine)
                 official_metrics_reset = True
-                _configure_engine_for_controller(engine, controller, policies, decision_interval_seconds=decision_interval_seconds, minimum_green_hold_seconds=minimum_green_hold_seconds)
             if record_timeline and engine.status in {"running", "completed"}:
                 timeline_file.write(json.dumps(engine.to_dict()) + "\n")
                 frame_count += 1
@@ -359,6 +359,8 @@ def _run_controller_once(
             "status": "completed",
             "duration_seconds": float(engine.simulation_time),
             "metrics": metrics,
+            "pending_demand": metrics.get("pending_demand"),
+            "unfinished_vehicles": metrics.get("unfinished_vehicles"),
             "timeline_path": timeline_path,
         }
     except (Exception, KeyboardInterrupt) as exc:
@@ -448,6 +450,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
+    parser.add_argument("--final", action="store_true", help="Allow the protected final-evaluation seeds 201-220 (final study only)")
     parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site without the validation gate; the artifact is marked as not study evidence")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
@@ -462,6 +465,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    if not args.final and any(int(seed) in FINAL_EVALUATION_SEEDS for seed in args.seeds):
+        raise ValueError("Seeds 201–220 are reserved for the final evaluation (Task 29); pass --final to use them")
     database.init_db()
 
     scenario = {
@@ -573,6 +578,9 @@ def main() -> int:
         "seeds": list(args.seeds),
         "duration_seconds": args.duration_seconds,
         "warmup_seconds": args.warmup_seconds,
+        "warmup_control": "evaluated controller",
+        "measurement_window_seconds": args.duration_seconds,
+        "final": bool(args.final),
         "model_paths": {
             controller: str(model_paths[controller])
             for controller in args.controllers

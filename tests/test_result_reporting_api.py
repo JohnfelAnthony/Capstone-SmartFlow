@@ -94,6 +94,23 @@ class ResultReportingApiTests(unittest.TestCase):
         self.assertEqual(payload["metrics"]["raw_metrics"]["avg_wait"], 0)
         self.assertIsNone(payload["metrics"]["metric_interpretation"]["values"]["avg_wait"]["value"])
 
+    def test_export_names_the_condition(self):
+        no_signal = _run_controller_once(controller="no-signal", seed=0, scenario=database.get_scenario_by_id(self.scenario_id), scenario_id=self.scenario_id,
+            duration_seconds=2, warmup_seconds=1, decision_interval_seconds=1, minimum_green_hold_seconds=5, policies={}, model_ids={}, record_timeline=False)["run_id"]
+        expected = {no_signal: "No signal (first come, first served)", self.run_id: "Traditional signal (fixed-time)"}
+        csv_response = self.client.post("/api/reports/export", json={"run_ids": [no_signal, self.run_id], "format": "csv"})
+        self.assertEqual(csv_response.status_code, 200, csv_response.text)
+        rows = {int(row["Run ID"]): row["Condition"] for row in csv.DictReader(io.StringIO(csv_response.text))}
+        self.assertEqual(rows, expected)
+        json_response = self.client.post("/api/reports/export", json={"run_ids": [no_signal, self.run_id], "format": "json"})
+        self.assertEqual({item["id"]: item["condition"] for item in json_response.json()}, expected)
+
+    def test_a_comparison_label_names_the_condition(self):
+        from backend.main import compare_run_label
+        from backend.schemas import SimulationRunRecord
+        record = SimulationRunRecord(**{**self.client.get(f"/api/runs/{self.run_id}").json(), "control_mode": "no-signal"})
+        self.assertIn("No signal (first come, first served)", compare_run_label(record, {"controller": {"provenance_label": "No signal"}, "experiment": {}}))
+
     def test_cli_evaluation_retains_repetitions_and_qualifies_empty_results(self):
         output = self.root / "evaluation.json"
         with patch.object(sys, "argv", ["evaluate_controllers", "--scenario-id", str(self.scenario_id),

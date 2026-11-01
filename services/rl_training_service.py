@@ -150,8 +150,11 @@ def build_training_command(algorithm: str, settings: dict, advanced: dict | None
     return command
 
 
+REFERENCE_CONTROLLERS = ("no-signal", "fixed-time")  # evaluated beside every model, in this order
+
+
 def build_evaluation_command(algorithms: list[str], settings: dict, model_paths: dict[str, str]) -> list[str]:
-    controllers = ["fixed-time"] + [
+    controllers = list(REFERENCE_CONTROLLERS) + [
         algorithm for algorithm in algorithms if algorithm in model_paths and model_paths[algorithm]
     ]
     command = [
@@ -404,7 +407,7 @@ def _run_job(job_id: int, workload_lease=None):
         if not output_path or not Path(output_path).is_file():
             raise RuntimeError("Evaluation finished without saving a result file. Inspect the job log.")
         payload = json.loads(Path(output_path).read_text(encoding="utf-8"))
-        expected_count = (1+len(model_paths))*len(settings["evaluation_seeds"].split(","))
+        expected_count = (len(REFERENCE_CONTROLLERS)+len(model_paths))*len(settings["evaluation_seeds"].split(","))
         results = payload.get("results", [])
         if len(results) != expected_count or any(result.get("status") != "completed" for result in results):
             raise RuntimeError("Evaluation did not complete every controller/seed comparison.")

@@ -14,14 +14,14 @@ def run_experiment(scenario, *, seed=42, duration=300, warmup=0, network=None, p
     duration = number(duration, "measurement duration", .1, 86400)
     engine = TrafficEngine(seed=seed, network=network)
     engine.configure_from_scenario(scenario)
+    if policy is not None:  # the policy controls the warm-up too, as in tools/evaluate_controllers.py
+        engine.set_runtime_policy(policy)
     engine.start(duration+warmup)
     warmup_ticks = round(warmup/engine.step_length)
     if abs(warmup_ticks*engine.step_length-warmup) > 1e-7:
         raise ValueError("Warmup must be a multiple of 0.1 seconds")
     engine.step(warmup_ticks)
     engine.reset_metrics()
-    if policy is not None:
-        engine.set_runtime_policy(policy)
     while engine.status == "running":
         engine.step(100)
     return {"experiment": engine.experiment_metadata(), "network": engine.network.payload,
