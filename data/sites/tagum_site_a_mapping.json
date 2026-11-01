@@ -1,12 +1,12 @@
 {
   "network_id": "tagum_site_a",
-  "network_sha256": "5fd6088b0e43c652fd8969b9b0b850ea5e430234799f96ec57dfa4ecb4481240",
+  "network_sha256": "ad2176bf63ce0108fae2b4899e50b93517240f8e68bd75ed83aad80a01ffc0f6",
   "boundaries": [
     {
       "boundary": "boundary_0",
       "road_name": "Dalisay Gante Road",
       "road_id": "road0",
-      "length_m": 135.29
+      "length_m": 134.73
     },
     {
       "boundary": "boundary_1",

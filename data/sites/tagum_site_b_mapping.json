@@ -1,12 +1,12 @@
 {
   "network_id": "tagum_site_b",
-  "network_sha256": "9ef5015599ed880d53d45a89b3655a757e0ad0d1e74842947e5cc93d57f9b803",
+  "network_sha256": "ec44c1a61519efd8f833eb197edc3e2741100ffa8c70e790d6193c7db06f4f80",
   "boundaries": [
     {
       "boundary": "boundary_0",
       "road_name": "Dao Street",
       "road_id": "road0",
-      "length_m": 250.0
+      "length_m": 249.42
     },
     {
       "boundary": "boundary_1",
@@ -18,7 +18,7 @@
       "boundary": "boundary_2",
       "road_name": "Davao-Agusan National Highway",
       "road_id": "road2",
-      "length_m": 250.0
+      "length_m": 249.46
     },
     {
       "boundary": "boundary_3",
@@ -36,7 +36,7 @@
       "boundary": "boundary_5",
       "road_name": "Davao-Agusan National Highway",
       "road_id": "road5",
-      "length_m": 250.0
+      "length_m": 249.58
     }
   ],
   "locations": {},

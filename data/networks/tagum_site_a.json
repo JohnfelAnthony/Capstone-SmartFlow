@@ -27,7 +27,8 @@
       "Driveways, service roads and minor side streets along approaches are not modelled",
       "No traffic signal exists today; signal plans are proposals",
       "Approach length 250 m per leg unless field queue reach needs more",
-      "Synthetic demand until Field Observer counts are imported"
+      "Synthetic demand until Field Observer counts are imported",
+      "The first 30 m of every leg is drawn straight from the junction; check this against the road"
     ]
   },
   "nodes": [
@@ -73,10 +74,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          5.662,
-          -20.783
         ],
         [
           5.32,

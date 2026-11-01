@@ -28,6 +28,7 @@
       "No traffic signal exists today; signal plans are proposals",
       "Approach length 250 m per leg unless field queue reach needs more",
       "Synthetic demand until Field Observer counts are imported",
+      "The first 30 m of every leg is drawn straight from the junction; check this against the road",
       "Median crossing modelled as one movement; pending field check"
     ]
   },
@@ -86,10 +87,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          21.238,
-          -8.082
         ],
         [
           42.707,
@@ -262,10 +259,6 @@
           -57.185
         ],
         [
-          -5.232,
-          -14.55
-        ],
-        [
           0.0,
           0.0
         ]
@@ -316,10 +309,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          -2.164,
-          29.678
         ],
         [
           -3.466,
@@ -455,10 +444,6 @@
         [
           0.0,
           0.0
-        ],
-        [
-          -12.032,
-          -9.128
         ],
         [
           -44.86,

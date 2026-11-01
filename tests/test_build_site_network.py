@@ -137,3 +137,29 @@ class SiteNetworkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class JunctionMouthTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+
+    def build(self, osm):
+        return build_site_network(osm.save(self.folder.name), CENTRE, network_id="site_test", name="Test")
+
+    def test_a_kink_near_the_junction_is_drawn_straight_for_the_first_30_m(self):
+        # OSM vertex jitter 20 m out bends the leg 20 degrees; opposing lanes on either side of such a kink cross and vehicles overlap.
+        osm = cross()
+        osm.node(2, 6, 20)
+        osm.ways[0]["nodes"] = [1, 2, 11, 10]
+        payload = self.build(osm)
+        north = next(road for road in payload["roads"] if road["osm_way_id"] == 101)
+        self.assertGreaterEqual(math.dist(north["shape"][0], north["shape"][1]), 30.0)
+        self.assertIn("first 30 m of every leg", " ".join(payload["source"]["assumptions"]))
+
+    def test_a_leg_without_a_nearby_vertex_keeps_its_shape(self):
+        payload = self.build(cross())
+        east = next(road for road in payload["roads"] if road["osm_way_id"] == EAST_WAY)
+        self.assertEqual(len(east["shape"]), 2)
+        self.assertAlmostEqual(length(east["shape"]), 250.0, delta=0.5)
