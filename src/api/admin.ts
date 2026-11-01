@@ -207,3 +207,7 @@ export function downloadBackup(backupId: number, filename: string) {
 export function downloadDatabase() {
   return downloadFile("/api/admin/database/download", "smartflow.db")
 }
+
+export function openFieldObserver() {
+  return apiRequest<{ message: string }>("/api/tools/field-observer/open", { method: "POST" })
+}

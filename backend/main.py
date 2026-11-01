@@ -7,6 +7,7 @@ import json
 import secrets
 import shutil
 import string
+import subprocess
 import threading
 from pathlib import Path
 
@@ -154,6 +155,9 @@ def require_any_permission(user: dict, permissions: list[tuple[str, str]]) -> No
 def require_admin(user: dict) -> None:
     if str(user.get("role_name") or user.get("role") or "").lower() != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required.")
+
+
+FIELD_OBSERVER_LAUNCHER = Path(config.BASE_DIR) / "tools" / "field_observer" / "Start Field Observer.cmd"
 
 
 def simulation_presentation_response(simulation: SimulationStateResponse) -> SimulationStateResponse:
@@ -1457,6 +1461,16 @@ def import_scenario_observations(payload: ObservationImportRequest, user: dict =
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return ObservationImportResponse(**result)
+
+
+@app.post("/api/tools/field-observer/open", response_model=MessageResponse)
+def open_field_observer(user: dict = Depends(require_current_user)) -> MessageResponse:
+    require_admin(user)
+    if not FIELD_OBSERVER_LAUNCHER.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field Observer is not installed in tools/field_observer.")
+    # shortcut: the tool opens on the computer running this API, which is the only computer while SmartFlow runs locally.
+    subprocess.Popen(["cmd", "/c", "start", "Field Observer", str(FIELD_OBSERVER_LAUNCHER)], cwd=FIELD_OBSERVER_LAUNCHER.parent)
+    return MessageResponse(message="Field Observer is starting. It opens in a new browser tab; keep its helper window open.")
 
 
 @app.post("/api/scenarios/movement-counts")

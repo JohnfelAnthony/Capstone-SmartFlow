@@ -1,5 +1,6 @@
 import * as React from "react"
-import { CheckIcon, CircleIcon, EyeIcon, EyeOffIcon, UserRoundIcon } from "lucide-react"
+import { CheckIcon, CircleIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, UserRoundIcon } from "lucide-react"
+import { openFieldObserver } from "@/api/admin"
 import { changePassword, type CurrentUser } from "@/api/auth"
 import { applyTheme, clearRandomPalette, getInitialTheme, type ThemeMode } from "@/lib/appearance"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -122,6 +123,26 @@ function PreferencesCard() {
     </FieldGroup></CardContent></Card>
 }
 
+function ToolsCard() {
+  const [notice, setNotice] = React.useState("")
+  const [isOpening, setIsOpening] = React.useState(false)
+  async function open() {
+    setIsOpening(true)
+    try {
+      setNotice((await openFieldObserver()).message)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to start Field Observer.")
+    } finally {
+      setIsOpening(false)
+    }
+  }
+  return <Card><CardHeader><CardTitle>Tools</CardTitle><CardDescription>Field Observer counts vehicles and pedestrians in your intersection videos. It opens on this computer in a new browser tab.</CardDescription></CardHeader>
+    <CardContent className="flex flex-col gap-3">
+      {notice && <Alert><AlertDescription role="status">{notice}</AlertDescription></Alert>}
+      <Button className="self-start" onClick={() => void open()} disabled={isOpening}><ExternalLinkIcon data-icon="inline-start" />{isOpening ? "Starting..." : "Open Field Observer"}</Button>
+    </CardContent></Card>
+}
+
 export function SettingsPage({ user, onPasswordChanged }: {
   user: CurrentUser; onPasswordChanged: () => void
 }) {
@@ -129,7 +150,7 @@ export function SettingsPage({ user, onPasswordChanged }: {
     <div><h1 className="text-2xl font-semibold">Settings</h1><p className="text-muted-foreground">Your account, password and display preferences.</p></div>
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-6"><ProfileCard user={user} /><PreferencesCard /></div>
-      <PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />
+      <div className="flex flex-col gap-6"><PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />{user.role.toLowerCase() === "admin" && <ToolsCard />}</div>
     </div>
   </main>
 }
