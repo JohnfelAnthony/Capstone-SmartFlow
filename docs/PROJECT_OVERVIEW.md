@@ -92,7 +92,7 @@ The current map pipeline derives a bounded cached network. A browser feature tha
 - Junction occupancy is approach-scoped (since October 25, 2026): only vehicles from the approach with green share a junction, and turns are slower than through movements. Synthetic discharge is about 1,480 veh/h/lane straight through; field calibration of discharge headways is still required and must be stated in comparisons.
 - Simulated pedestrians and ordinary vehicles follow traffic logic; the primary RL agent is the signal controller.
 - The current RL environment controls one selected junction. It does not establish coordinated multi-agent optimization across all five junctions.
-- Signal placement and timing in the supplied network are experimental assumptions. All-way-stop comparison is one modeled alternative, not a comprehensive model of local unsignalized driving behavior.
+- Signal placement and timing in the supplied network are experimental assumptions. All-way-stop comparison is one modeled alternative, not a comprehensive model of local unsignalized driving behavior. Since the two-site study (October 31, 2026) the engine also models an unsignalized junction where vehicles enter by arrival order (`first_come`, run control `no-signal`). That is a hypothesis about the two study sites, to be tested against reviewed video by the validation gate, not an established description of local driving.
 - There is no current requirement for live CCTV/GPS/IoT ingestion or physical traffic-signal actuation.
 - A hosting direction has been chosen, but no provider, budget, public release or concurrent-user deployment has been verified.
 

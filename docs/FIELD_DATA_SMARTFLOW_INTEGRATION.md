@@ -184,3 +184,20 @@ Implementation tests should cover exact class/time preservation; zero versus mis
 Use the same synthetic fixtures across headless, live and recording paths; assert conservation and reproducibility. For changed control contracts, assert invalidation and refused old-model resume/load, then run real QL/DQL/PPO save/load/inference with the new phase mapping. Verify observation-point metric definitions against small hand-calculated trajectories. Exercise the selected conversion/import path, scenario save/edit/reopen, reports, isolated backup/restore and evidence relocation; add bundle-interface checks when that interface is implemented. Existing tests are starting evidence, not substitutes for these new cases.
 
 When implementation is authorized, follow [handoff verification](../IMPLEMENTATION_HANDOFF.md#8-verification-and-safe-execution-instructions): targeted tests first, full Python acceptance, API checks, lint/build and then browser import/run/replay/report checks using isolated artifacts. Archive actual results and source revision. This document introduces a plan only; the next decision gate is a pilot and an explicit site/model-gap review, not a claim that field collection or the proposed software work is complete.
+
+## 8. The two unsignalized study sites and the converter path
+
+Both study sites have no traffic light. Rows above that describe signal plans, phases, green/yellow/all-red or signal-change observations are **not applicable at an unsignalized site**: nothing is recorded or converted for them, and a signal plan appears only as a *proposal* in the fixed-time and RL conditions, never as a measured condition.
+
+**Converter path.** A reviewed Field Observer revision (`events.csv`, `coverage.csv`, `reviewed_bins.csv`, `lines.json`, optionally `queue_samples.csv` and `priority_review.csv`) becomes scenario demand through `services/field_observer_import.convert_revision`, then the existing `trips` and `pedestrian_counts` importers. The converter:
+
+- checks that every file still matches its manifest hash and that the mapping (`data/sites/<network_id>_mapping.json`, completed by the team) belongs to the same network fingerprint;
+- keeps the vehicle class, with `tricycle/bao_bao` mapped by default and every other class or subtype (`pedicab`, `jeepney`, `bicycle`, `other`, `unknown`) refused until the team writes an explicit `class_map` entry (a simulation class or `"exclude"`); excluded vehicles are counted by class in the summary;
+- never treats a blank or incomplete reviewed bin as zero demand: it stops and names the line and interval;
+- separates the simulation origin from the measurement start. A vehicle's boundary entry is its counting-line crossing minus the travel time from the boundary to the line, so demand before the measurement window is lead-in that stays in the engine; a vehicle already on the approach at the origin without documented initialization stops the conversion with `INSUFFICIENT_INITIAL_STATE`; nothing is dropped or moved to time zero;
+- searches exits through `lead_out_s` (at least 120 s) after the window and refuses a cohort arrival with no exit; follow-up arrivals without an exit are disclosed, not imported;
+- records survey, take, revision, manifest and reviewed-bins hashes, timing, initialization evidence, the upstream-speed assumptions used and the mapping hash in the imported dataset.
+
+The mapping templates in `data/sites/` contain the network's boundaries and road lengths and nothing measured. The team must supply the line locations, distances from the junction, per-approach and per-class upstream speeds with their sources, the reviewed movement-conflict table, the initialization evidence and the class decisions before any conversion of a real revision.
+
+**Validation.** Observed queue, discharge, travel time and arrival-order measures come from the same revision (`services/site_measures.py`); the simulation is measured at the same lines, sample instants and bins (`services/site_simulation.py`). `tools/validate_site.py` writes an immutable report per attempt. See [the research method](RESEARCH_METHOD.md#the-three-way-comparison-and-the-validation-gate).
