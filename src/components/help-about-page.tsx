@@ -2,7 +2,6 @@ import type * as React from "react"
 import {
   BookOpenIcon,
   CircleHelpIcon,
-  DatabaseIcon,
   FileDownIcon,
   GaugeIcon,
   MapPinnedIcon,
@@ -10,12 +9,10 @@ import {
   PlayIcon,
   RocketIcon,
   RouteIcon,
-  Settings2Icon,
   SlidersHorizontalIcon,
 } from "lucide-react"
 
-import { metricCatalog, metricDefinitions } from "@/lib/metrics"
-import { MetricDefinitions } from "@/components/metric-definitions"
+import { metricDefinitions } from "@/lib/metrics"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -24,124 +21,55 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import "@/styles/help-about.css"
 
-type HelpStep = {
-  title: string
-  description: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-}
+type Icon = React.ComponentType<React.SVGProps<SVGSVGElement>>
 
-type MetricGlossaryItem = {
-  title: string
-  description: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  tone: "warning" | "info" | "error" | "success" | "purple" | "accent"
-}
+const quickStartSteps: { title: string; description: string; icon: Icon }[] = [
+  { title: "Choose a scenario", icon: MapPinnedIcon, description: "Pick a saved scenario on Scenarios. It sets the site, traffic density and pedestrians." },
+  { title: "Choose signal control", icon: SlidersHorizontalIcon, description: "Run with no signal, a fixed-time plan, or a trained RL model for the junction." },
+  { title: "Run the simulation", icon: PlayIcon, description: "Start a live run on the Dashboard, or replay a saved recording." },
+  { title: "Watch the metrics", icon: GaugeIcon, description: "Follow waiting time, queues and completed trips while the run plays." },
+  { title: "Review results", icon: FileDownIcon, description: "Export runs on Runs & Reports, or put two runs side by side on Compare Runs." },
+]
 
-type FaqItem = {
-  question: string
-  answer: string
-}
+// Plain-language summaries; the full catalog definitions are on Runs & Reports.
+const keyMetrics: { key: string; summary: string; tone: string }[] = [
+  { key: "avg_wait", summary: "Average time vehicles spend stopped during the measurement.", tone: "warning" },
+  { key: "avg_queue", summary: "Average number of stopped vehicles per incoming lane.", tone: "info" },
+  { key: "max_queue", summary: "Largest number of stopped vehicles seen on any one lane.", tone: "error" },
+  { key: "throughput", summary: "Vehicle trips completed during the measurement.", tone: "success" },
+  { key: "avg_travel_time", summary: "Average time a completed trip took to cross the network.", tone: "purple" },
+  { key: "avg_ped_delay", summary: "Average time pedestrians wait before crossing.", tone: "accent" },
+]
+const metricLabels = new Map(metricDefinitions.map((metric) => [metric.key, `${metric.label} (${metric.unit})`]))
 
-const quickStartSteps: HelpStep[] = [
+const faqs = [
   {
-    title: "Choose a Scenario",
-    icon: MapPinnedIcon,
-    description: "Choose a saved scenario. Identify its modeled network, input source and assumptions before making field claims.",
+    question: "Can several simulations run at once?",
+    answer: "No. One live run, recording or training job runs at a time. Others can watch it, and saved runs can be reviewed any time.",
   },
   {
-    title: "Select Control Mode",
-    icon: SlidersHorizontalIcon,
-    description: "Choose fixed-time or a compatible registered policy for one selected junction. Routing is separate from signal learning.",
+    question: "What is the difference between fixed-time and RL control?",
+    answer: "Fixed-time follows the saved signal plan. An RL model chooses which phase to serve at one junction, within the same safety rules.",
   },
   {
-    title: "Run the Simulation",
-    icon: PlayIcon,
-    description: "Start a live run from the dashboard, then monitor the phase, signal timer, queues, and live telemetry.",
+    question: "Do these results show real Tagum traffic?",
+    answer: "Not yet. Demand and site details are provisional until field observations are reviewed and the site passes validation.",
   },
   {
-    title: "Monitor Metrics",
-    icon: GaugeIcon,
-    description: "Watch waiting time, queue length, throughput, pedestrian activity, and event history during a run.",
-  },
-  {
-    title: "Review Outputs",
-    icon: FileDownIcon,
-    description: "Use saved runs, generated timelines, reports, and comparison workflows to evaluate completed experiments.",
+    question: "Why can't I see some pages?",
+    answer: "Pages follow your role's permissions. Ask an administrator to change your access on Role & Access Control.",
   },
 ]
 
-const glossaryKeys = new Set(["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
-  "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles",
-  "boundary_wait_seconds", "avg_admitted_boundary_wait", "measurement_start", "measurement_seconds"])
-const metricGlossary: MetricGlossaryItem[] = metricDefinitions
-  .filter((metric) => glossaryKeys.has(metric.key))
-  .map((metric) => ({
-    title: `${metric.label} (${metric.unit})`,
-    icon: BookOpenIcon,
-    tone: "info",
-    description: `${metric.definition} Population: ${metric.population} ${metric.zero}`,
-  }))
-
-const faqs: FaqItem[] = [
-  {
-    question: "How is the AI reinforcement learning model trained?",
-    answer:
-      "SMARTFLOW keeps RL training in Python. React starts and monitors training through backend services, while traffic simulation, reward calculation, and model artifacts stay in the Python runtime.",
-  },
-  {
-    question: "Can I run multiple simulations at the same time?",
-    answer:
-      "The runtime is designed around one active simulation session at a time for local reliability. Completed live runs and pre-recorded timelines can still be reviewed and compared later.",
-  },
-  {
-    question: "What happens if a user account is pending?",
-    answer:
-      "Registration can create inactive accounts when approval-only mode is enabled. An administrator must approve the user before that account can sign in.",
-  },
-  {
-    question: "How does fixed-time control differ from AI control?",
-    answer:
-      "Fixed-time uses saved signal plans with shared safety and pedestrian rules. A compatible registered RL policy can request safe service at one selected junction. Routing uses a separate graph algorithm; no controller effectiveness is established by a successful demonstration.",
-  },
-  {
-    question: "How do pre-recorded timelines work?",
-    answer:
-      "A pre-record run fast-forwards Python in the backend, writes frame data to timeline artifacts, saves the run record in SQLite, and lets the dashboard load the recording for playback.",
-  },
-]
-
-const systemSpecs = [
-  ["App Version", "Native research prototype"],
-  ["Frontend", "React, Vite, TypeScript"],
-  ["API Layer", "FastAPI with HTTP and WebSocket endpoints"],
-  ["Simulation Engine", "Native Python traffic model"],
-  ["Database", "SQLite3 with local run, metric, scenario, user, and session data"],
-  ["Authentication", "Werkzeug PBKDF2 password hashing with SQLite sessions"],
-  ["Runtime Assets", "OSM road networks, generated visual-network JSON, timelines, and model artifacts"],
-  ["Target Area", "Tagum City traffic intersections"],
-]
-
-function PageSection({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string
-  description: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  children: React.ReactNode
+function Section({ title, description, icon: Icon, children }: {
+  title: string; description: string; icon: Icon; children: React.ReactNode
 }) {
   return (
     <Card className="help-section-card">
       <CardHeader>
-        <CardTitle className="help-section-title">
-          <Icon />
-          <span>{title}</span>
-        </CardTitle>
+        <CardTitle className="help-section-title"><Icon /><span>{title}</span></CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>{children}</CardContent>
@@ -154,110 +82,60 @@ export function HelpAboutPage() {
     <main className="help-about-page">
       <section className="help-hero">
         <div>
-          <Badge variant="secondary">
-            <CircleHelpIcon data-icon="inline-start" />
-            Help Center
-          </Badge>
+          <Badge variant="secondary"><CircleHelpIcon data-icon="inline-start" />Help Center</Badge>
           <h1>Help & Documentation</h1>
-          <p>
-            Run traffic simulation experiments, understand saved metrics, and keep the migrated React/FastAPI workflow clear.
-          </p>
+          <p>How to run a simulation, read its results and find your way around SmartFlow.</p>
         </div>
         <div className="help-hero-system">
           <RouteIcon />
-          <span>SMARTFLOW Traffic</span>
-          <strong>Python + FastAPI + React</strong>
+          <span>SmartFlow Traffic</span>
+          <strong>Tagum City study</strong>
         </div>
       </section>
+
+      <Section title="Getting started" icon={RocketIcon} description="Five steps from a scenario to a result.">
+        <ol className="help-step-grid">
+          {quickStartSteps.map((step, index) => (
+            <li className="help-step-card" key={step.title}>
+              <span className="help-step-number">{index + 1}</span>
+              <step.icon />
+              <h3>{step.title}</h3>
+              <p>{step.description}</p>
+            </li>
+          ))}
+        </ol>
+      </Section>
 
       <section className="help-top-grid">
-        <PageSection
-          title="Getting Started"
-          icon={RocketIcon}
-          description="The usual path for running your first scenario experiment."
-        >
-          <div className="help-step-grid">
-            {quickStartSteps.map((step, index) => {
-              const Icon = step.icon
-              return (
-                <article className="help-step-card" key={step.title}>
-                  <span className="help-step-number">{index + 1}</span>
-                  <Icon />
-                  <h3>{step.title}</h3>
-                  <p>{step.description}</p>
-                </article>
-              )
-            })}
-          </div>
-        </PageSection>
-
-        <PageSection
-          title="System Specifications"
-          icon={MicrochipIcon}
-          description="Current architecture after the standalone SmartFlow migration."
-        >
-          <div className="help-spec-list">
-            {systemSpecs.map(([label, value]) => (
-              <div className="help-spec-row" key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
-              </div>
-            ))}
-          </div>
-          <Separator />
-          <div className="help-callout">
-            <DatabaseIcon />
-            <p>
-              SmartFlow stores users, scenarios, simulation runs, run metrics, timeline paths, RL jobs, and model metadata in local SQLite.
-            </p>
-          </div>
-        </PageSection>
-      </section>
-
-      <PageSection
-        title="Traffic Metrics Glossary"
-        icon={BookOpenIcon}
-        description="Definitions shared with Python reports and calibration. — means unavailable; an empty population is not a measured zero average."
-      >
-        <p>{metricCatalog.scope} {metricCatalog.window} {metricCatalog.unsupported.emissions}</p>
-        <div className="help-metric-grid">
-          {metricGlossary.map((metric) => {
-            const Icon = metric.icon
-            return (
-              <article className="help-metric-card" data-tone={metric.tone} key={metric.title}>
-                <div className="help-metric-icon">
-                  <Icon />
-                </div>
+        <Section title="Key metrics" icon={BookOpenIcon} description="What the main numbers mean. Full definitions are on Runs & Reports.">
+          <div className="help-metric-grid">
+            {keyMetrics.map((metric) => (
+              <article className="help-metric-card" data-tone={metric.tone} key={metric.key}>
+                <div className="help-metric-icon"><BookOpenIcon /></div>
                 <div>
-                  <h3>{metric.title}</h3>
-                  <p>{metric.description}</p>
+                  <h3>{metricLabels.get(metric.key) ?? metric.key}</h3>
+                  <p>{metric.summary}</p>
                 </div>
               </article>
-            )
-          })}
-        </div>
-      </PageSection>
+            ))}
+          </div>
+        </Section>
 
-      <MetricDefinitions />
-
-      <PageSection
-        title="Frequently Asked Questions"
-        icon={CircleHelpIcon}
-        description="Answers to common questions about the migrated platform."
-      >
-        <div className="help-faq-list">
-          {faqs.map((faq) => (
-            <details className="help-faq-item" key={faq.question}>
-              <summary>{faq.question}</summary>
-              <p>{faq.answer}</p>
-            </details>
-          ))}
-        </div>
-      </PageSection>
+        <Section title="Common questions" icon={CircleHelpIcon} description="Quick answers to what people ask most.">
+          <div className="help-faq-list">
+            {faqs.map((faq) => (
+              <details className="help-faq-item" key={faq.question}>
+                <summary>{faq.question}</summary>
+                <p>{faq.answer}</p>
+              </details>
+            ))}
+          </div>
+        </Section>
+      </section>
 
       <section className="help-footer-note">
-        <Settings2Icon />
-        <span>Use the sidebar to move between scenarios, dashboard simulation, runs, reports, and admin pages based on your permissions.</span>
+        <MicrochipIcon />
+        <span>Native research prototype: React interface, Python traffic engine and FastAPI, with data stored locally in SQLite.</span>
       </section>
     </main>
   )

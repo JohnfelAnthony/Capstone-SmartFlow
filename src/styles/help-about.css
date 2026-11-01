@@ -96,7 +96,6 @@
 .help-step-card {
   position: relative;
   display: grid;
-  min-height: 190px;
   gap: 9px;
   align-content: start;
   border: 1px solid var(--border);
@@ -133,7 +132,6 @@
 
 .help-step-card p,
 .help-metric-card p,
-.help-callout p,
 .help-faq-item p,
 .help-footer-note span {
   color: var(--muted-foreground);
@@ -141,67 +139,15 @@
   line-height: 1.6;
 }
 
-.help-spec-list {
-  display: grid;
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.help-spec-row {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  border-bottom: 1px solid var(--border);
-  padding: 10px 12px;
-}
-
-.help-spec-row:last-child {
-  border-bottom: 0;
-}
-
-.help-spec-row span {
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.help-spec-row strong {
-  color: var(--foreground);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.help-callout {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  padding: 12px;
-}
-
-.help-callout svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  color: var(--primary);
-}
-
 .help-metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .help-metric-card {
   display: flex;
   gap: 12px;
-  min-height: 126px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--muted);
@@ -289,9 +235,11 @@
 }
 
 @media (max-width: 1180px) {
-  .help-top-grid,
-  .help-step-grid,
-  .help-metric-grid {
+  .help-top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .help-step-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -304,8 +252,7 @@
   .help-hero,
   .help-top-grid,
   .help-step-grid,
-  .help-metric-grid,
-  .help-spec-row {
+  .help-metric-grid {
     grid-template-columns: 1fr;
   }
 
