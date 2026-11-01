@@ -15,7 +15,7 @@ The latest source and fresh verification establish current software behavior. Ol
 
 ## Architecture boundaries
 
-- React/TypeScript/Vite and Three.js provide interaction and rendering. Python/FastAPI owns simulation and learning.
+- React/TypeScript/Vite and Canvas 2D provide interaction and rendering. Python/FastAPI owns simulation and learning.
 - The active engine is `simulation/traffic_engine.py`; do not substitute similarly named legacy engines or reconnect SUMO/TraCI.
 - `engine_config` is the native scenario contract. Preserve complete saved settings through editing, running, training and evaluation.
 - RL currently controls one selected junction; routing is separate. The two study sites (`tagum_site_a`, `tagum_site_b`) are provisional OpenStreetMap networks and neither has a signal; the no-signal (`first_come`) model is a hypothesis until a site passes the independent validation gate (`services/study_gate.py`, `services/site_validation.py`). Study-site training and final evaluation need that gate; `--synthetic-smoke-test` is for code checks only. Field calibration is not established. Label synthetic evidence honestly.

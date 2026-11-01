@@ -9,7 +9,7 @@ import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
-type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number; drawCalls: number }) => void }
+type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number }) => void }
 type Theme = "light" | "dark"
 /** Flat city-illustration palettes. Scenery stays muted so traffic and signals carry the contrast. */
 const CITY = {
@@ -439,13 +439,13 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       lastDrawAt = now; drawnFrames++
       if (now - sampleStarted >= 1000 && frameIntervals.length >= 5) {
         const sorted = [...frameIntervals].sort((a, b) => a - b)
-        current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))], drawCalls: 0 })
+        current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))] })
         sampleStarted = now; drawnFrames = 0; frameIntervals = []
       }
       if (stream.moving(now)) schedule()
     }
     const resize = () => {
-      const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, latestRef.current.presentation.quality === "laptop" ? 1.5 : 2)
+      const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, 1.5)
       if (width === nextWidth && height === nextHeight && dpr === nextDpr) return
       const current = latestRef.current.presentation
       transform = followSuspended

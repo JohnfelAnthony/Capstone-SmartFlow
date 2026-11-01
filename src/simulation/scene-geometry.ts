@@ -74,12 +74,7 @@ export function selectionKey(selection: Selection | null) {
   return selection ? `${selection.kind}:${selection.id}` : ""
 }
 
-export function pointToThree(point: VisualPoint, elevation = 0) {
-  return { x: point.x, y: elevation, z: -point.y }
-}
-
 /** Frame angles are clockwise from north; signal-group headings are from +X. */
-export function headingToThreeYaw(angle: number) { return (90 - angle) * Math.PI / 180 }
 export function headingToCanvasRotation(angle: number) { return (angle - 90) * Math.PI / 180 }
 export function forwardAtHeading(angle: number): VisualPoint {
   const radians = angle * Math.PI / 180
@@ -152,29 +147,6 @@ export function offsetLine(points: readonly VisualPoint[], distance: number): Vi
 export function laneDividers(centerline: readonly VisualPoint[], width: number, laneCount: number): VisualPoint[][] {
   if (centerline.length < 2 || laneCount < 2) return []
   return Array.from({ length: laneCount - 1 }, (_, index) => offsetLine(centerline, -width / 2 + (index + 1) * width / laneCount))
-}
-
-/** Dash pieces of a polyline: `dash` metres drawn, then `gap` metres skipped. */
-export function dashedPieces(points: readonly VisualPoint[], dash: number, gap: number): VisualPoint[][] {
-  const pieces: VisualPoint[][] = []
-  let current: VisualPoint[] | null = [{ ...points[0] }], remaining = dash
-  for (let index = 1; index < points.length; index++) {
-    let a = points[index - 1]
-    const b = points[index]
-    let segment = Math.hypot(b.x - a.x, b.y - a.y)
-    while (segment > 1e-9) {
-      const step = Math.min(segment, remaining)
-      const fraction = step / segment
-      const point = { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction }
-      if (current) current.push(point)
-      segment -= step; remaining -= step; a = point
-      if (remaining <= 1e-9) {
-        if (current) { pieces.push(current); current = null; remaining = gap } else { current = [{ ...point }]; remaining = dash }
-      }
-    }
-  }
-  if (current && current.length > 1) pieces.push(current)
-  return pieces
 }
 
 export function boundsOfPoints(points: readonly VisualPoint[], paddingFraction = 0): SceneBounds {

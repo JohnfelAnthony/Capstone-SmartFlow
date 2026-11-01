@@ -26,7 +26,6 @@ import { SimulationVisualization } from "@/simulation/simulation-visualization"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
-import type { VisualizationMode } from "@/simulation/visualization-mode"
 import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { pickReferenceRun, type ReferenceRun } from "@/lib/reference-run"
 import { metricCatalog, metricEngineVersion, metricValue } from "@/lib/metrics"
@@ -58,14 +57,10 @@ export function DashboardPage({
   currentUserId,
   isAdmin,
   canRunSimulation,
-  visualizationMode,
-  onVisualizationModeChange,
 }: {
   currentUserId: number
   isAdmin: boolean
   canRunSimulation: boolean
-  visualizationMode: VisualizationMode
-  onVisualizationModeChange: (mode: VisualizationMode) => void
 }) {
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = React.useState("")
@@ -78,10 +73,10 @@ export function DashboardPage({
   const [simulation, setSimulation] = React.useState<SimulationStatePayload | null>(null)
   const [renderFrame, setRenderFrame] = React.useState<RenderFrame | null>(null)
   const [seekRevision, setSeekRevision] = React.useState(0)
-  const [renderPerformance, setRenderPerformance] = React.useState<{ mode: VisualizationMode; fps: number; p95FrameMs: number; drawCalls: number } | null>(null)
-  const handleRenderPerformance = React.useCallback((sample: { fps: number; p95FrameMs: number; drawCalls: number }) => {
-    setRenderPerformance({ ...sample, mode: visualizationMode })
-  }, [visualizationMode])
+  const [renderPerformance, setRenderPerformance] = React.useState<{ fps: number; p95FrameMs: number } | null>(null)
+  const handleRenderPerformance = React.useCallback((sample: { fps: number; p95FrameMs: number }) => {
+    setRenderPerformance(sample)
+  }, [])
   const showPerformance = new URLSearchParams(window.location.search).has("perf")
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
@@ -294,13 +289,6 @@ export function DashboardPage({
     setControlMode("fixed-time")
   }
 
-  const handleThreeUnavailable = React.useCallback(
-    (message: string) => {
-      setNotice(message)
-      onVisualizationModeChange("2d")
-    },
-    [onVisualizationModeChange]
-  )
 
   function handleStart() {
     if (!canConfigure) {
@@ -378,8 +366,8 @@ export function DashboardPage({
       <DashboardKpis metrics={simulation?.state.metrics} reference={reference} isReferenceRun={simulation?.control_mode === "no-signal"} />
       <SimulationVisualization frame={renderFrame} networkId={intersectionId}
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
-        mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
-        onUnavailable={handleThreeUnavailable} onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
+        runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
+        onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
         controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} canOperate={canOperate} canStart={canConfigure}
           onStart={handleStart} onStartPlayback={handleStartPlayback} onPause={handlePauseOrResume} onStop={() => applySimulationAction(stopSimulation)} onReset={() => applySimulationAction(resetSimulation)}
           onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }} onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)} />}
@@ -404,8 +392,8 @@ export function DashboardPage({
           <li key={id}>{nativeOptions?.junctions.find((junction) => junction.id === id)?.label ?? id}: {control.controller} · {control.phase}</li>
         ))}</ul>
       </section>
-      {showPerformance && renderPerformance?.mode === visualizationMode &&
-        <p role="status" className="text-xs text-muted-foreground">{visualizationMode.toUpperCase()} renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms{visualizationMode === "3d" ? `; ${renderPerformance.drawCalls} draw calls` : " (active rendering)"}.</p>}
+      {showPerformance && renderPerformance &&
+        <p role="status" className="text-xs text-muted-foreground">2D renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms (active rendering).</p>}
     </div>
   )
 }

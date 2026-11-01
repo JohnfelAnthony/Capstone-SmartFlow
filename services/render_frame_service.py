@@ -1,4 +1,4 @@
-"""Render-frame serialization for the live 2D/3D visualizers."""
+"""Render-frame serialization for the live 2D visualizer."""
 
 from __future__ import annotations
 

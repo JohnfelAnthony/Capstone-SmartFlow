@@ -1,5 +1,7 @@
 # Architecture, technical-lead review and historical delivery plan
 
+> **D31 — November 1, 2026: 2D-only presentation.** The owner removed the Three.js renderer, exclusive model assets, rendering quality/camera settings and view preferences. Canvas 2D consumes the existing native frame and geometry contracts. Backend physics, model/recording formats and study gates are unchanged. Pages load on demand to reduce initial JavaScript. Historical decisions below retain their dates. Source before removal is retained as branch and tag `before-removing-3d`.
+
 > **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
 
 

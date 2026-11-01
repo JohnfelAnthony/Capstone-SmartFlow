@@ -11,7 +11,9 @@ For current status and dated evidence, see [Progress and handoff](PROGRESS_AND_H
 
 **Planning context:** the owner reported approximately 35 days remaining in the September 22 discussion, giving a provisional deadline around October 27, 2026. This is the original planning anchor, not a new countdown or a confirmed submission date. The exact date and whether RL must control one junction, every junction independently, or coordinate the network remain unconfirmed in the repository. The current single-junction environment is an implementation fact, not proof of academic acceptance. The [technical-lead review](ARCHITECTURE_AND_PLAN.md) retains the original schedule and decision gates as history.
 
-**Current software and research distinction:** scenario editing, live runs, RL jobs, replay/reporting, research comparisons and shared 2D/3D views are implemented with dated synthetic verification. The offline [Field Observer](../tools/field_observer/README.md) provides provisional proposals and reviewed exports; [Calibration & Validation](RESEARCH_WORKSPACE.md) stores baseline-fit and independent-validation records. Neither tool establishes audited field accuracy or a validated baseline. Final site mapping, field audit/conversion, model fidelity and final comparative results remain research work.
+**Current software and research distinction:** scenario editing, live runs, RL jobs, replay/reporting, research comparisons and interactive 2D views are implemented with dated synthetic verification. The offline [Field Observer](../tools/field_observer/README.md) provides provisional proposals and reviewed exports; [Calibration & Validation](RESEARCH_WORKSPACE.md) stores baseline-fit and independent-validation records. Neither tool establishes audited field accuracy or a validated baseline. Final site mapping, field audit/conversion, model fidelity and final comparative results remain research work.
+
+**November 1 scope decision:** the delivered application uses Canvas 2D only. Historical 3D descriptions below record earlier milestones. Removing a presentation mode does not change simulation, calibration or validation requirements.
 
 ## Purpose
 

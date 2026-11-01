@@ -1,7 +1,6 @@
 import type { SceneGeometry, Selection } from "@/simulation/scene-geometry"
 
-export type CameraFocus = "junction" | "network" | "follow"
-export type SceneQuality = "laptop" | "enhanced"
+export type MapFocus = "junction" | "network" | "follow"
 export type OverlaySettings = {
   signals: boolean
   labels: boolean
@@ -14,9 +13,8 @@ export type OverlaySettings = {
 export type PresentationState = {
   networkId: string
   selection: Selection | null
-  focus: CameraFocus
+  focus: MapFocus
   junctionId: string | null
-  quality: SceneQuality
   overlays: OverlaySettings
   notice: string | null
   /** Incremented on jumps/reset so renderers discard interpolation history. */
@@ -33,13 +31,12 @@ function initialJunction(geometry: SceneGeometry, controlledJunction?: string | 
 
 export function createPresentationState(geometry: SceneGeometry, controlledJunction?: string | null): PresentationState {
   const junctionId = initialJunction(geometry, controlledJunction)
-  return { networkId: geometry.networkId, selection: null, focus: junctionId ? "junction" : "network", junctionId, quality: "laptop", overlays: { ...DEFAULT_OVERLAYS }, notice: null, revision: 0 }
+  return { networkId: geometry.networkId, selection: null, focus: junctionId ? "junction" : "network", junctionId, overlays: { ...DEFAULT_OVERLAYS }, notice: null, revision: 0 }
 }
 
 export type PresentationAction =
   | { type: "select"; selection: Selection | null }
-  | { type: "focus"; focus: CameraFocus; junctionId?: string | null }
-  | { type: "quality"; quality: SceneQuality }
+  | { type: "focus"; focus: MapFocus; junctionId?: string | null }
   | { type: "overlay"; overlay: keyof OverlaySettings; enabled: boolean }
   | { type: "network"; geometry: SceneGeometry; controlledJunction?: string | null }
   | { type: "entities"; vehicleIds: readonly string[]; pedestrianIds: readonly string[]; coverageLimited?: boolean }
@@ -59,13 +56,12 @@ export function presentationReducer(state: PresentationState, action: Presentati
       const junctionId = action.junctionId ?? state.junctionId
       return { ...state, focus: action.focus === "junction" && !junctionId ? "network" : action.focus, junctionId, notice: null }
     }
-    case "quality": return { ...state, quality: action.quality }
     case "overlay": return { ...state, overlays: { ...state.overlays, [action.overlay]: action.enabled } }
     case "network": {
       if (state.networkId === action.geometry.networkId) return state
       const next = createPresentationState(action.geometry, action.controlledJunction)
       const staticSelection = state.selection?.kind === "junction" && action.geometry.junctionById.has(state.selection.id) || state.selection?.kind === "lane" && action.geometry.laneById.has(state.selection.id)
-      return { ...next, selection: staticSelection ? state.selection : null, quality: state.quality, overlays: state.overlays, revision: state.revision + 1 }
+      return { ...next, selection: staticSelection ? state.selection : null, overlays: state.overlays, revision: state.revision + 1 }
     }
     case "entities": {
       if (!state.selection || state.selection.kind === "junction" || state.selection.kind === "lane") return state

@@ -6,11 +6,10 @@ import { createPresentationState, presentationReducer } from "@/simulation/prese
 const geometry = normalizeSceneGeometry(bentNetwork)
 
 describe("shared presentation navigation lifecycle", () => {
-  it("starts at the configured junction and ordinary-laptop quality with the intended overlays", () => {
+  it("starts at the configured junction with the intended overlays", () => {
     const state = createPresentationState(geometry, "J1")
     expect(state.focus).toBe("junction")
     expect(state.junctionId).toBe("J1")
-    expect(state.quality).toBe("laptop")
     expect(state.overlays).toEqual({ signals: true, labels: true, queues: true, heatmap: true, arrows: false, connectors: false, context: true })
   })
 
@@ -35,26 +34,21 @@ describe("shared presentation navigation lifecycle", () => {
     expect(state.notice).toContain("left")
   })
 
-  it("preserves static selection, quality, and toggles across entity updates and view changes", () => {
+  it("preserves static selection and toggles across entity updates", () => {
     let state = createPresentationState(geometry, "J1")
     state = presentationReducer(state, { type: "select", selection: { kind: "lane", id: "lane-west" } })
-    state = presentationReducer(state, { type: "quality", quality: "enhanced" })
     state = presentationReducer(state, { type: "overlay", overlay: "heatmap", enabled: false })
     state = presentationReducer(state, { type: "entities", vehicleIds: [], pedestrianIds: [] })
     expect(state.selection).toEqual({ kind: "lane", id: "lane-west" })
-    expect(state.quality).toBe("enhanced")
     expect(state.overlays.heatmap).toBe(false)
-    // View mode is intentionally owned by the host; toggling it does not reset shared state.
   })
 
   it("clears stale dynamic details on stop/reset while keeping navigation preferences", () => {
     let state = createPresentationState(geometry, "J1")
     state = presentationReducer(state, { type: "select", selection: { kind: "pedestrian", id: "p1" } })
-    state = presentationReducer(state, { type: "quality", quality: "enhanced" })
     const reset = presentationReducer(state, { type: "reset", junctionId: "J1" })
     expect(reset.selection).toBe(null)
     expect(reset.focus).toBe("junction")
-    expect(reset.quality).toBe("enhanced")
     expect(reset.revision).toBe(state.revision + 1)
   })
 

@@ -2,8 +2,6 @@ import * as React from "react"
 import { CheckIcon, CircleIcon, EyeIcon, EyeOffIcon, UserRoundIcon } from "lucide-react"
 import { changePassword, type CurrentUser } from "@/api/auth"
 import { applyTheme, clearRandomPalette, getInitialTheme, type ThemeMode } from "@/lib/appearance"
-import { defaultVisualization, saveDefaultVisualization } from "@/lib/preferences"
-import type { VisualizationMode } from "@/simulation/visualization-mode"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -102,39 +100,35 @@ function PasswordCard({ mustChange, onChanged }: { mustChange: boolean; onChange
     </FieldGroup></form></CardContent></Card>
 }
 
-function PreferencesCard({ user, onVisualizationChange }: { user: CurrentUser; onVisualizationChange: (mode: VisualizationMode) => void }) {
+function PreferencesCard() {
   const [theme, setTheme] = React.useState<ThemeMode>(getInitialTheme)
-  const [view, setView] = React.useState(() => defaultVisualization(user.id))
   const [notice, setNotice] = React.useState("")
   function save() {
     try {
       clearRandomPalette()
       window.localStorage.setItem("smartflow-theme", theme)
-      saveDefaultVisualization(user.id, view)
       applyTheme(theme)
       window.dispatchEvent(new Event("smartflow-appearance"))
-      onVisualizationChange(view)
-      setNotice("Preferences saved on this browser. The default view will be restored when you sign in.")
+      setNotice("Theme saved on this browser.")
     } catch {
       setNotice("This browser could not save preferences. Check its local storage settings.")
     }
   }
-  return <Card><CardHeader><CardTitle>Appearance and simulation view</CardTitle><CardDescription>Theme applies to this browser. Default visualization is saved for your account on this browser.</CardDescription></CardHeader>
+  return <Card><CardHeader><CardTitle>Appearance</CardTitle><CardDescription>Theme applies to this browser.</CardDescription></CardHeader>
     <CardContent><FieldGroup>
       {notice && <Alert><AlertDescription role="status">{notice}</AlertDescription></Alert>}
       <Field><FieldLabel>Theme</FieldLabel><ToggleGroup value={[theme]} onValueChange={(values) => values[0] && setTheme(values[0] as ThemeMode)} aria-label="Theme"><ToggleGroupItem value="dark">Dark</ToggleGroupItem><ToggleGroupItem value="light">Light</ToggleGroupItem></ToggleGroup><FieldDescription>Saving restores the standard palette if Randomize was used.</FieldDescription></Field>
-      <Field><FieldLabel>Default simulation view</FieldLabel><ToggleGroup value={[view]} onValueChange={(values) => values[0] && setView(values[0] as VisualizationMode)} aria-label="Default simulation view"><ToggleGroupItem value="3d">3D</ToggleGroupItem><ToggleGroupItem value="2d">2D</ToggleGroupItem></ToggleGroup></Field>
       <Button onClick={save}>Save preferences</Button>
     </FieldGroup></CardContent></Card>
 }
 
-export function SettingsPage({ user, onVisualizationChange, onPasswordChanged }: {
-  user: CurrentUser; onVisualizationChange: (mode: VisualizationMode) => void; onPasswordChanged: () => void
+export function SettingsPage({ user, onPasswordChanged }: {
+  user: CurrentUser; onPasswordChanged: () => void
 }) {
   return <main className="flex flex-col gap-6 p-4 lg:p-6">
     <div><h1 className="text-2xl font-semibold">Settings</h1><p className="text-muted-foreground">Your account, password and display preferences.</p></div>
     <div className="grid items-start gap-6 lg:grid-cols-2">
-      <div className="flex flex-col gap-6"><ProfileCard user={user} /><PreferencesCard user={user} onVisualizationChange={onVisualizationChange} /></div>
+      <div className="flex flex-col gap-6"><ProfileCard user={user} /><PreferencesCard /></div>
       <PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />
     </div>
   </main>
