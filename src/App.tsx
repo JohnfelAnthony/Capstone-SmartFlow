@@ -5,7 +5,6 @@ import {
 } from "@/api/client"
 import {
   getCurrentUser,
-  changePassword,
   type CurrentUser,
   login,
   logout,
@@ -13,7 +12,7 @@ import {
 } from "@/api/auth"
 import { AppSidebar } from "@/components/app-sidebar"
 import { AuditLogsPage } from "@/components/audit-logs-page"
-import { ChangePasswordPage, LoginPage, RegisterPage } from "@/components/auth-pages"
+import { LoginPage, RegisterPage } from "@/components/auth-pages"
 import { BackupRestorePage } from "@/components/backup-restore-page"
 import { CompareRunsPage } from "@/components/compare-runs-page"
 import { CalibrationValidationPage } from "@/components/calibration-validation-page"
@@ -23,14 +22,12 @@ import { RoleAccessControlPage } from "@/components/role-access-control-page"
 import { RLTrainingPage } from "@/components/rl-training-page"
 import { RunsReportsPage } from "@/components/runs-reports-page"
 import { ScenariosPage } from "@/components/scenarios-page"
-import { SearchPage } from "@/components/search-page"
 import { SettingsPage } from "@/components/settings-page"
 import { SiteHeader } from "@/components/site-header"
 import { UserManagementPage } from "@/components/user-management-page"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { VisualizationMode } from "@/simulation/visualization-mode"
-import type { SearchResult } from "@/api/research"
 import { defaultVisualization } from "@/lib/preferences"
 
 export default function App() {
@@ -38,13 +35,10 @@ export default function App() {
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null)
   const [isSessionLoading, setIsSessionLoading] = React.useState(true)
   const [visualizationMode, setVisualizationMode] = React.useState<VisualizationMode>("3d")
-  const [selection, setSelection] = React.useState<SearchResult | null>(null)
-  const [passwordReturnPage, setPasswordReturnPage] = React.useState("Dashboard")
   const pageTitleByPage: Record<string, string> = {
     Dashboard: "Live Simulation View",
     Scenarios: "Scenario Library",
     "Calibration & Validation": "Calibration & Validation",
-    Search: "Workspace Search",
     Settings: "Settings",
     "RL Training": "RL Training",
     "Runs & Reports": "Runs & Reports",
@@ -53,7 +47,6 @@ export default function App() {
     "Role & Access Control": "Role & Access Control",
     "Audit Logs": "Audit Logs",
     "Backup & Restore": "Backup & Restore",
-    "Change Password": "Change Password",
     Help: "Help & Documentation",
   }
   const pageTitle = pageTitleByPage[activePage] ?? activePage
@@ -94,7 +87,6 @@ export default function App() {
   async function handleLogin(username: string, password: string) {
     const response = await login(username, password)
     setCurrentUser(response.user)
-    setSelection(null)
     setVisualizationMode(defaultVisualization(response.user.id))
     setActivePage(response.landing_path === "/scenarios" ? "Scenarios" : "Dashboard")
   }
@@ -109,14 +101,6 @@ export default function App() {
     return registerAccount(payload)
   }
 
-  async function handleChangePassword(payload: {
-    current_password: string
-    new_password: string
-    confirm_password: string
-  }) {
-    return changePassword(payload)
-  }
-
   async function handleLogout() {
     try {
       await logout()
@@ -127,13 +111,7 @@ export default function App() {
   }
 
   function navigate(page: string) {
-    setSelection(null)
     setActivePage(page)
-  }
-
-  function openPassword() {
-    setPasswordReturnPage(activePage)
-    setActivePage("Change Password")
   }
 
   if (isSessionLoading) {
@@ -166,7 +144,7 @@ export default function App() {
           activeItem={activePage}
           onSelectItem={navigate}
           currentUser={currentUser}
-          onChangePassword={openPassword}
+          onOpenAccount={() => navigate("Settings")}
           onLogout={handleLogout}
           variant="inset"
         />
@@ -179,21 +157,19 @@ export default function App() {
           />
           <div className="flex min-h-0 flex-1 flex-col">
             {activePage === "Scenarios" ? (
-              <ScenariosPage initialScenarioId={selection?.id} onOpenDashboard={() => navigate("Dashboard")}
+              <ScenariosPage onOpenDashboard={() => navigate("Dashboard")}
                 permissions={{ create: can("scenarios", "create"), edit: can("scenarios", "edit"),
                   run: can("simulation", "run") }} />
             ) : activePage === "Calibration & Validation" ? (
-              <CalibrationValidationPage initialRecordId={selection?.id} canEdit={can("scenarios", "edit")}
+              <CalibrationValidationPage canEdit={can("scenarios", "edit")}
                 canExport={can("runs-reports", "export")} onOpenScenarios={() => navigate("Scenarios")} />
             ) : activePage === "Settings" ? (
-              <SettingsPage user={currentUser!} onChangePassword={openPassword} onVisualizationChange={setVisualizationMode} />
-            ) : activePage === "Search" ? (
-              <SearchPage onOpen={(result) => { setSelection(result); setActivePage(result.page) }} />
+              <SettingsPage user={currentUser!} onVisualizationChange={setVisualizationMode} />
             ) : activePage === "RL Training" ? (
-              <RLTrainingPage initialModelId={selection?.id} currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
+              <RLTrainingPage currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
             ) : activePage === "Runs & Reports" ? (
-              <RunsReportsPage initialRunId={selection?.id} onOpenDashboard={() => navigate("Dashboard")}
+              <RunsReportsPage onOpenDashboard={() => navigate("Dashboard")}
                 onOpenResearch={can("scenarios", "view") && can("runs-reports", "view") ? () => navigate("Calibration & Validation") : undefined}
                 onOpenCompare={can("compare", "view") ? () => navigate("Compare Runs") : undefined} />
             ) : activePage === "Compare Runs" ? (
@@ -206,11 +182,6 @@ export default function App() {
               <AuditLogsPage />
             ) : activePage === "Backup & Restore" ? (
               <BackupRestorePage />
-            ) : activePage === "Change Password" ? (
-              <ChangePasswordPage
-                onCancel={() => setActivePage(passwordReturnPage)}
-                onChangePassword={handleChangePassword}
-              />
             ) : activePage === "Help" ? (
               <HelpAboutPage />
             ) : (

@@ -1,10 +1,6 @@
 import { apiRequest, API_BASE_URL } from "@/api/client"
 import type { SimulationRunRecord } from "@/api/simulation"
 
-export type SearchResult = { kind: string; id: number | null; title: string; description: string; page: string }
-export function searchWorkspace(query: string, signal: AbortSignal) {
-  return apiRequest<{ results: SearchResult[]; has_more: boolean }>(`/api/search?q=${encodeURIComponent(query)}`, { signal })
-}
 export type MetricDefinition = { key: string; label: string; unit: string; definition: string }
 export type Measurement = { metric: string; location: string; definition: string; unit: string; observed: number; tolerance: number; tolerance_mode: "absolute" | "percent"; simulated: number | null; simulation_method: string }
 export type FitDraft = { name: string; site_id: string; purpose: "calibration" | "validation"; source_kind: "observed" | "synthetic"; source_reference: string; source_sha256: string; collection_start: string; collection_end: string; run_id: number; calibration_id: number | null; measurement_start: number; measurement_seconds: number; definitions_confirmed: boolean; measurements: Measurement[]; parameter_changes: string; notes: string }
