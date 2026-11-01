@@ -3,7 +3,7 @@ import { DownloadIcon, FlaskConicalIcon, PlusIcon, RefreshCcwIcon, Trash2Icon } 
 import { listRuns } from "@/api/runs"
 import type { SimulationRunRecord } from "@/api/simulation"
 import {
-  downloadFitRecord, getFitRecord, listFitRecords, rawRunMetrics, saveFitRecord,
+  downloadFitRecord, listFitRecords, rawRunMetrics, saveFitRecord,
   type FitDraft, type FitRecord, type Measurement, type MetricDefinition,
 } from "@/api/research"
 import { NativeNumber, NativeSelect } from "@/components/native-scenario-controls"
@@ -48,15 +48,15 @@ function TextField({ label, value, onChange, description, multiline = false, dis
   </Field>
 }
 
-export function CalibrationValidationPage({ initialRecordId, canEdit, canExport, onOpenScenarios }: {
-  initialRecordId?: number | null; canEdit: boolean; canExport: boolean; onOpenScenarios: () => void
+export function CalibrationValidationPage({ canEdit, canExport, onOpenScenarios }: {
+  canEdit: boolean; canExport: boolean; onOpenScenarios: () => void
 }) {
   const [records, setRecords] = React.useState<FitRecord[]>([])
   const [metrics, setMetrics] = React.useState<MetricDefinition[]>([])
   const [runs, setRuns] = React.useState<SimulationRunRecord[]>([])
   const [draft, setDraft] = React.useState<FitDraft>(blankDraft)
   const [selected, setSelected] = React.useState<FitRecord | null>(null)
-  const [tab, setTab] = React.useState(initialRecordId ? "history" : "new")
+  const [tab, setTab] = React.useState("new")
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [notice, setNotice] = React.useState("")
@@ -69,17 +69,16 @@ export function CalibrationValidationPage({ initialRecordId, canEdit, canExport,
   React.useEffect(() => {
     let mounted = true
     Promise.all([listFitRecords(), Promise.all(["no-signal", "fixed-time"].map((controlMode) => listRuns({ status: "completed", controlMode, limit: 1000 })))
-        .then((lists) => ({ runs: lists.flatMap((list) => list.runs).sort((a, b) => b.id - a.id) })),
-      initialRecordId ? getFitRecord(initialRecordId) : Promise.resolve(null)])
-      .then(([history, baselines, opened]) => {
+        .then((lists) => ({ runs: lists.flatMap((list) => list.runs).sort((a, b) => b.id - a.id) }))])
+      .then(([history, baselines]) => {
         if (!mounted) return
-        setRecords(opened && !history.records.some((record) => record.id === opened.id) ? [opened, ...history.records] : history.records)
-        setMetrics(history.metrics); setRuns(baselines.runs); setSelected(opened)
+        setRecords(history.records)
+        setMetrics(history.metrics); setRuns(baselines.runs)
         setDraft((current) => current.measurements.length ? current : { ...current, measurements: [measurementFor(history.metrics[0])] })
       }).catch((cause) => { if (mounted) setError(cause instanceof Error ? cause.message : "Unable to load research records.") })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
-  }, [initialRecordId])
+  }, [])
 
   function update(patch: Partial<FitDraft>) {
     setDraft((current) => ({ ...current, ...patch, definitions_confirmed: false }))

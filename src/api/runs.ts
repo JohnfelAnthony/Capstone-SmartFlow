@@ -21,10 +21,6 @@ export function listRuns(filters: RunFilters = {}) {
   return apiRequest<SimulationRunListResponse>(`/api/runs${query ? `?${query}` : ""}`)
 }
 
-export function getRun(runId: number) {
-  return apiRequest<SimulationRunRecord>(`/api/runs/${runId}`)
-}
-
 export function getRunMetrics(runId: number) {
   return apiRequest<Record<string, unknown>>(`/api/runs/${runId}/metrics`)
 }

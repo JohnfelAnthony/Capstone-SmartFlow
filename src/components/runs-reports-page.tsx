@@ -29,7 +29,6 @@ import {
   deleteRun,
   exportRuns,
   favoriteRun,
-  getRun,
   getRunTimeline,
   listRuns,
   type RunTimelineResponse,
@@ -251,15 +250,15 @@ function RunsSelect({
   )
 }
 
-export function RunsReportsPage({ onOpenDashboard, initialRunId, onOpenResearch, onOpenCompare }: {
-  onOpenDashboard?: () => void; initialRunId?: number | null;
+export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare }: {
+  onOpenDashboard?: () => void;
   onOpenResearch?: () => void; onOpenCompare?: () => void;
 }) {
   const [runs, setRuns] = React.useState<SimulationRunRecord[]>([])
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [filters, setFilters] = React.useState<FilterState>(defaultFilters)
   const [selectedRunIds, setSelectedRunIds] = React.useState<number[]>([])
-  const [selectedRunId, setSelectedRunId] = React.useState<number | null>(initialRunId ?? null)
+  const [selectedRunId, setSelectedRunId] = React.useState<number | null>(null)
   const [timelinePreview, setTimelinePreview] = React.useState<RunTimelineResponse | null>(null)
   const [isTimelineLoading, setIsTimelineLoading] = React.useState(false)
   const [alert, setAlert] = React.useState("Loading simulation run history.")
@@ -287,10 +286,6 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId, onOpenResearch,
         }),
       ])
       setScenarios(scenarioResponse.scenarios)
-      if (initialRunId && !runResponse.runs.some((run) => run.id === initialRunId) && filters === defaultFilters) {
-        const searchedRun = await getRun(initialRunId)
-        runResponse.runs.unshift(searchedRun)
-      }
       setRuns(runResponse.runs)
       setSelectedRunId((current) => current ?? runResponse.runs[0]?.id ?? null)
       setSelectedRunIds((current) => current.filter((id) => runResponse.runs.some((run) => run.id === id)))
@@ -300,7 +295,7 @@ export function RunsReportsPage({ onOpenDashboard, initialRunId, onOpenResearch,
     } finally {
       setIsLoading(false)
     }
-  }, [filters, initialRunId])
+  }, [filters])
 
   React.useEffect(() => {
     let active = true

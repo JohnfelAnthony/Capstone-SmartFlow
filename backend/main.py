@@ -486,6 +486,7 @@ def change_password(
         user["id"],
         invalidate_sessions=False,
         password_hash=auth.hash_password(payload.new_password),
+        must_change_password=0,
     )
     database.log_audit_event(
         user_id=user["id"],

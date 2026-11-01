@@ -46,7 +46,7 @@ function ProfileCard({ user }: { user: CurrentUser }) {
     </CardContent></Card>
 }
 
-function PasswordCard({ mustChange }: { mustChange: boolean }) {
+function PasswordCard({ mustChange, onChanged }: { mustChange: boolean; onChanged: () => void }) {
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
@@ -71,6 +71,7 @@ function PasswordCard({ mustChange }: { mustChange: boolean }) {
       const response = await changePassword({ current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword })
       setSuccess(response.message)
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswords(false)
+      onChanged()
     } catch (changeError) {
       setError(changeError instanceof Error ? changeError.message : "Password update failed.")
     } finally {
@@ -127,14 +128,14 @@ function PreferencesCard({ user, onVisualizationChange }: { user: CurrentUser; o
     </FieldGroup></CardContent></Card>
 }
 
-export function SettingsPage({ user, onVisualizationChange }: {
-  user: CurrentUser; onVisualizationChange: (mode: VisualizationMode) => void
+export function SettingsPage({ user, onVisualizationChange, onPasswordChanged }: {
+  user: CurrentUser; onVisualizationChange: (mode: VisualizationMode) => void; onPasswordChanged: () => void
 }) {
   return <main className="flex flex-col gap-6 p-4 lg:p-6">
     <div><h1 className="text-2xl font-semibold">Settings</h1><p className="text-muted-foreground">Your account, password and display preferences.</p></div>
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-6"><ProfileCard user={user} /><PreferencesCard user={user} onVisualizationChange={onVisualizationChange} /></div>
-      <PasswordCard mustChange={user.must_change_password} />
+      <PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />
     </div>
   </main>
 }

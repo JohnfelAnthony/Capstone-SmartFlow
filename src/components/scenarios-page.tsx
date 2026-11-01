@@ -248,8 +248,8 @@ function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
   )
 }
 
-export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId }: {
-  onOpenDashboard?: () => void; permissions: ScenarioPermissions; initialScenarioId?: number | null
+export function ScenariosPage({ onOpenDashboard, permissions }: {
+  onOpenDashboard?: () => void; permissions: ScenarioPermissions
 }) {
   const [scenarios, setScenarios] = React.useState<ScenarioRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -261,7 +261,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
   const [stateFilter, setStateFilter] = React.useState<ScenarioStateFilter>("all")
   const [sort, setSort] = React.useState<ScenarioSort>("name_asc")
   const [viewMode, setViewMode] = React.useState<ScenarioViewMode>("cards")
-  const [selectedId, setSelectedId] = React.useState<number | null>(initialScenarioId ?? null)
+  const [selectedId, setSelectedId] = React.useState<number | null>(null)
   const [recordingScenarioId, setRecordingScenarioId] = React.useState<number | null>(null)
   const [recordingModels, setRecordingModels] = React.useState<RLModelRecord[]>([])
   const [recordControlMode, setRecordControlMode] = React.useState("fixed-time")

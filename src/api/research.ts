@@ -7,7 +7,6 @@ export type FitDraft = { name: string; site_id: string; purpose: "calibration" |
 export type Comparison = Measurement & { simulated: number; difference: number; absolute_error: number; percent_error: number | null; within_tolerance: boolean }
 export type FitRecord = FitDraft & { id: number; created_at: string; created_by: number | null; comparisons: Comparison[]; within_tolerance: boolean; assessment: string; snapshot: { run_id: number; scenario_name: string | null; seed: number | null; controller: string; experiment: Record<string, unknown>; metrics: Record<string, unknown> } }
 export function listFitRecords() { return apiRequest<{ records: FitRecord[]; metrics: MetricDefinition[] }>("/api/calibration") }
-export function getFitRecord(id: number) { return apiRequest<FitRecord>(`/api/calibration/${id}`) }
 export function saveFitRecord(draft: FitDraft) { return apiRequest<FitRecord>("/api/calibration", { method: "POST", body: draft }) }
 export async function downloadFitRecord(id: number, format: "json" | "csv") {
   // Check authorization before navigating to the authenticated attachment URL.

@@ -164,7 +164,8 @@ export default function App() {
               <CalibrationValidationPage canEdit={can("scenarios", "edit")}
                 canExport={can("runs-reports", "export")} onOpenScenarios={() => navigate("Scenarios")} />
             ) : activePage === "Settings" ? (
-              <SettingsPage user={currentUser!} onVisualizationChange={setVisualizationMode} />
+              <SettingsPage user={currentUser!} onVisualizationChange={setVisualizationMode}
+                onPasswordChanged={() => { getCurrentUser().then(setCurrentUser).catch(() => undefined) }} />
             ) : activePage === "RL Training" ? (
               <RLTrainingPage currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
