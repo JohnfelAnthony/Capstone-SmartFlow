@@ -199,7 +199,7 @@ def load_runtime_policy(controller_provenance: str, model_path: str | Path | Non
         model_hash = hashlib.file_digest(stream, "sha256").hexdigest()
     policy.artifact_metadata = {"algorithm": normalized_provenance, "filename": path.name, "sha256": model_hash}
     metadata = artifact_metadata(normalized_provenance, path, network)
-    policy.artifact_metadata.update(native_contract=metadata["native_contract"], training_junction=training_junction(metadata, network),
+    policy.artifact_metadata.update(native_contract=metadata["native_contract"], phase_plan=metadata.get("phase_plan"), training_junction=training_junction(metadata, network),
         decision_interval_seconds=metadata.get("decision_interval_seconds", 5),
         minimum_green_hold_seconds=metadata.get("minimum_green_hold_seconds", 10))
     if normalized_provenance != "ql":

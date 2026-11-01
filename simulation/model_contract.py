@@ -9,7 +9,33 @@ from functools import lru_cache
 
 def native_contract(network=None) -> dict:
     from .traffic_engine import ENGINE_VERSION
-    return {"engine": ENGINE_VERSION, "observation": "native-local-22-v3", "actions": "protected-service-5-v1", "network_sha256": (network or load_network()).fingerprint}
+    return {"engine": ENGINE_VERSION, "observation": "native-local-20-v4", "actions": "phase-service-5-v2", "network_sha256": (network or load_network()).fingerprint}
+
+
+def phase_plan(engine) -> dict:
+    """What an action means: the controlled junction and its phases in slot order. Green times may differ between scenarios."""
+    from .traffic_engine import phase_slots
+    signal = engine.signals[engine.controlled_junction]
+    keys = [key for key in phase_slots(signal)[:4] if key is not None]
+    return {"junction": engine.controlled_junction, "phase_keys": [*keys, "pedestrian"] if "pedestrian" in signal.approaches else keys}
+
+
+def phase_plan_for_scenario(scenario: dict) -> dict:
+    """The phase plan of a training scenario snapshot, for the model metadata (a snapshot with no network id uses the default network)."""
+    from .network_registry import engine_for_scenario
+    from .traffic_engine import TrafficEngine
+    settings = scenario.get("engine_config", {})
+    settings = json.loads(settings) if isinstance(settings, str) else dict(settings or {})
+    if scenario.get("network_id"):
+        return phase_plan(engine_for_scenario({"network_id": scenario["network_id"], "engine_config": settings}, seed=0))
+    engine = TrafficEngine(seed=0)
+    engine.configure(**settings)
+    return phase_plan(engine)
+
+
+def scenario_phase_plan(scenario) -> dict:
+    """The phase plan to store with a model; a training scenario that is not a snapshot object means the default network and plan."""
+    return phase_plan_for_scenario(scenario if isinstance(scenario, dict) else {})
 
 
 def validate_metadata(metadata: dict, network=None) -> None:

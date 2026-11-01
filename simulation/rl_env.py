@@ -87,7 +87,7 @@ class SmartFlowRLEnv(BaseEnv):
         self._last_snapshot: RLSnapshot | None = None
         self._step_index = 0
 
-        observation_size = 22
+        observation_size = 20
         if spaces is not None:
             self.action_space = spaces.Discrete(len(RL_SERVICE_ACTIONS))
             self.observation_space = spaces.Box(

@@ -35,9 +35,10 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-6"
+ENGINE_VERSION = "native-7"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
-RL_SERVICE_ACTIONS = ("SERVE_NORTH", "SERVE_EAST", "SERVE_SOUTH", "SERVE_WEST", "SERVE_PEDESTRIAN")
+# Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
+RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
 CAR_LENGTH = 4.5
 MIN_GAP = 2.0
@@ -51,6 +52,12 @@ TURN_SPEED_MPS = SITE_CALIBRATION_DEFAULTS["turn_speed_mps"]
 THROUGH_ANGLE_DEGREES = 30.0
 COMFORTABLE_DECELERATION = 2.0
 TIME_HEADWAY = 1.2
+
+
+def phase_slots(signal) -> list[str | None]:
+    """The four vehicle phase keys in plan order (None where the plan has fewer), then "pedestrian" (or None)."""
+    vehicle = [key for key in signal.approaches if key != "pedestrian"][:4]
+    return [*vehicle, *[None]*(4-len(vehicle)), "pedestrian" if "pedestrian" in signal.approaches else None]
 
 
 def phase_family_from_name(phase: str) -> str:
@@ -641,6 +648,14 @@ class TrafficEngine:
             validate_metadata(policy_metadata, self.network)
         elif self.network.fingerprint != native_contract()["network_sha256"]:
             raise ValueError("This model was not trained for the current Python engine and road network. Train a new model; artifacts from earlier engine or observation versions cannot be reused.")
+        if "native_contract" in policy_metadata:
+            from .model_contract import phase_plan
+            trained_plan, current_plan = policy_metadata.get("phase_plan"), phase_plan(self)
+            if not trained_plan:
+                raise ValueError("Selected model records no signal phase plan, and what its actions mean depends on the phase order. Train a new model.")
+            if trained_plan != current_plan:
+                raise ValueError(f"Selected model was trained for phases {trained_plan.get('phase_keys')} at junction {trained_plan.get('junction')}; "
+                                 f"this scenario uses {current_plan['phase_keys']} at {current_plan['junction']}. Train a model for this phase plan.")
         training_node = getattr(policy, "artifact_metadata", {}).get("training_junction")
         if training_node and training_node != self.controlled_junction:
             raise ValueError("Selected model was trained for a different controlled junction")
@@ -1707,8 +1722,6 @@ class TrafficEngine:
         minimum_green_hold = number(minimum_green_hold, "minimum green hold", 5, 60)
         if self.no_signal_control or self.config["signal_plans"].get(self.controlled_junction, {}).get("mode", "signalized") != "signalized":
             raise ValueError("RL signal control requires a signalized controlled junction")
-        if any(isinstance(item, list) for item in self.config["signal_plans"].get(self.controlled_junction, {}).get("phase_order", [])):
-            raise ValueError("RL signal control does not support grouped phases until the phase-slot contract (native-7)")
         plan = self.config["signal_plans"].get(self.controlled_junction, {})
         effective_minimum = max(plan.get("minimum_green", 0), minimum_green_hold)
         maximum_green = plan.get("maximum_green", max(60, self.green_seconds))
@@ -1748,7 +1761,10 @@ class TrafficEngine:
             signal.mode = self.config["signal_plans"].get(node, {}).get("mode", "signalized")
 
     def get_green_phase_for_action(self, action_name):
-        return action_name.replace("SERVE_", "").replace("PEDESTRIAN", "PED")+"_GREEN" if action_name in RL_SERVICE_ACTIONS else None
+        if action_name not in RL_SERVICE_ACTIONS:
+            return None
+        key = phase_slots(self.signals[self.controlled_junction])[RL_SERVICE_ACTIONS.index(action_name)]
+        return None if key is None else key.upper().replace("PEDESTRIAN", "PED")+"_GREEN"
 
     def apply_rl_action(self, action_name: str, junction_id: str | None = None):
         self._settle_metrics()
@@ -1765,7 +1781,8 @@ class TrafficEngine:
         if signal.mode != "signalized":
             return {"applied": False, "reason": "unsignalized_junction"}
         signal.external = True
-        result = signal.request(action_name.removeprefix("SERVE_").lower())
+        key = phase_slots(signal)[RL_SERVICE_ACTIONS.index(action_name)]
+        result = {"applied": False, "reason": "unavailable_phase"} if key is None else signal.request(key)
         self.policy_decisions += 1
         self.last_policy_decision = {"time": self.simulation_time, "junction_id": node,
                                      "action": action_name, **result}

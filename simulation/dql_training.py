@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .model_contract import native_contract, validate_neural_artifact
+from .model_contract import native_contract, scenario_phase_plan, validate_neural_artifact
 from .rl_reward import REWARD_VERSION
 from .rl_state import OBSERVATION_VERSION
 
@@ -191,6 +191,7 @@ def train_deep_q_learning(
             "action_space_version": ACTION_SPACE_VERSION,
             **(metadata or {}),
             "native_contract": native_contract(network),
+            "phase_plan": scenario_phase_plan((metadata or {}).get("scenario") or getattr(env, "scenario", None)),
         }
 
     def save_artifact(model, path: Path, *, status: str) -> tuple[Path, Path]:

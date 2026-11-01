@@ -61,12 +61,15 @@ class GroupedPhaseTests(unittest.TestCase):
         grouped = validate_config(DEFAULTS, GROUPED, junction_network())["signal_plans"]["j"]["phase_order"]
         self.assertEqual(grouped, GROUPED["signal_plans"]["j"]["phase_order"])
 
-    def test_rl_control_is_refused_on_grouped_phases_until_the_phase_slot_contract(self):
+    def test_rl_control_serves_phase_groups(self):
         from simulation.traffic_engine import TrafficEngine
         engine = TrafficEngine(seed=7, network=junction_network())
         engine.configure(**GROUPED)
-        with self.assertRaisesRegex(ValueError, "grouped phases"):
-            engine.configure_rl_control()
+        engine.configure_rl_control()
+        engine.start(60)
+        engine.step(110)
+        self.assertTrue(engine.apply_rl_action("SERVE_PHASE_2")["applied"])
+        self.assertEqual(engine.signals["j"].pending, "east+west")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from simulation.model_contract import phase_plan_for_scenario
 from simulation.ql_agent import QLearningConfig, TabularQLearningAgent
 from simulation.ql_training import QLEpisodeResult, train_tabular_q_learning
 from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES, DEFAULT_WARMUP_SECONDS, SmartFlowRLEnv
@@ -164,6 +165,7 @@ def _build_metadata(
     metadata = {
         "created_at": datetime.now(UTC).isoformat(),
         "scenario": scenario,
+        "phase_plan": phase_plan_for_scenario(scenario),
         "seed_set": list(seed_set),
         "action_labels": list(RL_SERVICE_ACTIONS),
         "observation_version": OBSERVATION_VERSION,

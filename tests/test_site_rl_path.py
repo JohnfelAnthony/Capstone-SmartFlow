@@ -17,7 +17,7 @@ def test_rl_environment_uses_scenario_network():
     try:
         observation, _ = env.reset(seed=11)
         assert env.engine.network.id == "tagum_site_a"
-        assert len(observation) == 22
+        assert len(observation) == 20
     finally:
         env.close()
 

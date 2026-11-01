@@ -27,7 +27,7 @@ class RuntimeParityTests(unittest.TestCase):
         mask = tuple(int(index != blocked) for index in range(len(RL_SERVICE_ACTIONS)))
         for policy_class in (DQLRuntimePolicy, PPORuntimePolicy):
             with self.subTest(policy=policy_class.__name__):
-                prediction = policy_class(FixedActionModel(blocked)).predict(np.zeros(22, dtype=np.float32), {"valid_action_mask": mask})
+                prediction = policy_class(FixedActionModel(blocked)).predict(np.zeros(20, dtype=np.float32), {"valid_action_mask": mask})
                 self.assertEqual(prediction.action, blocked)
                 self.assertEqual(prediction.action_name, RL_SERVICE_ACTIONS[blocked])
 

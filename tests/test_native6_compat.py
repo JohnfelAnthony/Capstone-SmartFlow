@@ -1,4 +1,4 @@
-"""Signalized and all-way-stop behaviour stays what `native-6` released.
+"""Signalized and all-way-stop behaviour stays what `native-6` released (and `native-7` keeps).
 
 The digests were recorded from the pre-two-site code (commit 51880ab). A change here means existing runs and
 models would behave differently under the same engine label, so it needs the coordinated `native-7` bump.

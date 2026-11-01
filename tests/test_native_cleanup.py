@@ -95,21 +95,21 @@ class NativeCleanupTests(unittest.TestCase):
         with patch.object(engine,'build_rl_runtime_state',return_value=runtime):
             snapshot = extract_rl_snapshot(engine)
         index = APPROACH_ORDER.index(approach)
-        self.assertEqual(len(snapshot.observation),22)
+        self.assertEqual(len(snapshot.observation),20)
         self.assertEqual(snapshot.observation[7+index],.042857)
         self.assertEqual(snapshot.observation[11+index],.5)
         self.assertEqual(snapshot.observation[15+index],.028571)
         self.assertEqual(snapshot.observation[19],.05)
-        self.assertEqual(native_contract()['engine'],'native-6')
-        self.assertEqual(native_contract()['observation'],'native-local-22-v3')
-        self.assertEqual(native_contract()['actions'],'protected-service-5-v1')
+        self.assertEqual(native_contract()['engine'],'native-7')
+        self.assertEqual(native_contract()['observation'],'native-local-20-v4')
+        self.assertEqual(native_contract()['actions'],'phase-service-5-v2')
 
     def test_observation_scales_cover_tagum_queues(self):
         report = json.loads((Path(__file__).resolve().parents[1]/'docs/reports/mixed-traffic-acceptance.json').read_text(encoding='utf-8'))
         largest = max(max(case['queue_count_p95'], case['active_count_p95']) for name, case in report['cases'].items() if 'tagum' in name)
         self.assertGreaterEqual(MAX_QUEUE_COUNT, largest)
         self.assertGreaterEqual(MAX_ACTIVE_VEHICLES, largest)
-        self.assertEqual((OBSERVATION_VERSION, REWARD_VERSION), ('obs_v3', 'reward_v4'))
+        self.assertEqual((OBSERVATION_VERSION, REWARD_VERSION), ('obs_v4', 'reward_v4'))
         self.assertEqual({dql_training.OBSERVATION_VERSION, ppo_training.OBSERVATION_VERSION}, {OBSERVATION_VERSION})
 
     def test_restore_compacts_deep_import_paths_without_changing_source_bytes(self):

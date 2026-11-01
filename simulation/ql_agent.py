@@ -128,7 +128,7 @@ class TabularQLearningAgent:
         return self.epsilon
 
     def to_artifact(self, *, metadata: dict | None = None) -> dict:
-        from .model_contract import native_contract
+        from .model_contract import native_contract, scenario_phase_plan
         from .network_registry import load_registered_network
         scenario = (metadata or {}).get("scenario", {})
         network = load_registered_network(scenario.get("network_id")) if isinstance(scenario, dict) and scenario.get("network_id") else None
@@ -138,7 +138,7 @@ class TabularQLearningAgent:
             "action_count": self.action_count,
             "config": asdict(self.config),
             "epsilon": round(float(self.epsilon), 8),
-            "metadata": {**(metadata or {}), "native_contract": native_contract(network)},
+            "metadata": {"phase_plan": scenario_phase_plan(scenario), **(metadata or {}), "native_contract": native_contract(network)},
             "q_table": [
                 {
                     "state": list(state),
