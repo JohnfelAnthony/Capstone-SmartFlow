@@ -1,3 +1,3 @@
 # Study-site photos
 
-`tagum_site_a.jpg` and `tagum_site_b.jpg` are the team's enhanced images of the two study intersections (supplied as `1.png` and `2.png` on 2026-11-01, converted to JPEG). They are named by network id and mapped in `src/lib/study-sites.ts`; the dashboard junction card, the idle simulation background and the scenario pages use them. They are enhanced images, not unedited field photographs.
+`tagum_site_a.jpg` and `tagum_site_b.jpg` are the team's enhanced images of the two study intersections (supplied as `1.png` and `2.png` on 2026-11-01, converted to JPEG; the owner corrected the pairing on 2026-11-02, so `1.png` is Site B and `2.png` is Site A). They are named by network id and mapped in `src/lib/study-sites.ts`; the dashboard junction card, the idle simulation background and the scenario pages use them. They are enhanced images, not unedited field photographs.

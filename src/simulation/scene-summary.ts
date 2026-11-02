@@ -1,4 +1,4 @@
-import type { SceneGeometry } from "@/simulation/scene-geometry"
+import { signalAppearance, type SceneGeometry } from "@/simulation/scene-geometry"
 
 export function junctionShortLabel(geometry: SceneGeometry, junctionId: string) {
   const index = geometry.junctions.findIndex(junction => junction.id === junctionId)
@@ -12,6 +12,16 @@ export function laneDisplayLabel(geometry: SceneGeometry, laneId: string) {
     .filter(candidate => candidate.kind === "vehicle" && candidate.junctionId === group.junctionId)
     .map(candidate => candidate.lane_id))]
   return `${junctionShortLabel(geometry, group.junctionId)} approach ${approaches.indexOf(laneId) + 1}`
+}
+
+/** One arm per signalled approach: unit direction from the junction (screen axes, north up) and the lane's own light colour. */
+export function signalArms(geometry: SceneGeometry, junctionId: string, frame: Parameters<typeof signalAppearance>[1]) {
+  const center = geometry.junctionById.get(junctionId)?.center
+  if (!center) return []
+  return geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => {
+    const dx = group.anchor.x - center.x, dy = group.anchor.y - center.y, reach = Math.hypot(dx, dy) || 1
+    return { laneId: group.lane_id, x: dx / reach, y: -dy / reach, color: signalAppearance(group, frame).color }
+  })
 }
 
 /** Compass side a vehicle approach comes from, using the lane's final travel direction (+y is north). */

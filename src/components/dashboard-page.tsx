@@ -19,7 +19,7 @@ import {
   type SimulationRunRecord,
   type SimulationStatePayload,
 } from "@/api/simulation"
-import { SetupCard, SignalControlCard, SimControlBar } from "@/components/dashboard-controls"
+import { SetupCard, SimControlBar } from "@/components/dashboard-controls"
 import { DashboardKpis } from "@/components/dashboard-kpis"
 import type { DashboardView } from "@/components/site-header"
 import { SimulationVisualization } from "@/simulation/simulation-visualization"
@@ -27,7 +27,6 @@ import { TagumMap } from "@/components/tagum-map"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
-import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { pickReferenceRun, type ReferenceRun } from "@/lib/reference-run"
 import { metricCatalog, metricEngineVersion } from "@/lib/metrics"
 
@@ -148,12 +147,11 @@ export function DashboardPage({
     async function loadDashboard() {
       setIsBusy(true)
       try {
-        const [scenarioResponse, simulationResponse, runsResponse, modelResponse, optionsResponse] = await Promise.all([
+        const [scenarioResponse, simulationResponse, runsResponse, modelResponse] = await Promise.all([
           listScenarios(),
           getSimulationState(),
           listSimulationRuns({ runMode: "pre-record", limit: 30 }),
           listRLModels(),
-          getNativeScenarioOptions(),
         ])
         if (!isMounted) return
 
@@ -162,7 +160,6 @@ export function DashboardPage({
         const presentationAvailable = applySimulationSnapshot(simulationResponse)
         setRecordedRuns(runsResponse.runs)
         setModels(modelResponse.models)
-        setNativeOptions(optionsResponse)
         const firstCompletedRun = runsResponse.runs.find((run) => run.status === "completed")
         setSelectedRecordedRunId(firstCompletedRun ? String(firstCompletedRun.id) : "")
         const activeScenarioId =
@@ -336,12 +333,16 @@ export function DashboardPage({
   const previewNetworkId = !hasConfiguredScenario ? selectedScenario?.network_id ?? null : null
   const intersectionId = previewNetworkId ?? renderFrame?.intersection_id ??
     (typeof simulation?.state.scenario?.intersection_id === "string" ? simulation.state.scenario.intersection_id : null)
+  React.useEffect(() => {
+    if (!intersectionId) return
+    let cancelled = false
+    getNativeScenarioOptions(intersectionId).then((options) => { if (!cancelled) setNativeOptions(options) }).catch((error) => { if (!cancelled) setNotice(apiMessage(error)) })
+    return () => { cancelled = true }
+  }, [intersectionId])
   const frozenConfig = simulation?.state.experiment?.config
   const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null
   const isIdle = !["running", "paused"].includes(simulation?.status ?? "") && simulation?.control_mode !== "playback"
   const laneStreets = React.useMemo(() => Object.fromEntries((nativeOptions?.lanes ?? []).map((lane) => [lane.id, lane.road_name])), [nativeOptions])
-  const selectedModel = models.find((model) => `${model.algorithm.toLowerCase()}:${model.id}` === controlMode)
-  const controllerLabel = selectedModel ? `${selectedModel.algorithm} model #${selectedModel.id}` : controlMode === "no-signal" ? NO_SIGNAL_LABEL : "Fixed-time plan"
 
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
@@ -354,13 +355,11 @@ export function DashboardPage({
         controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} canOperate={canOperate} canStart={canConfigure}
           onStart={handleStart} onStartPlayback={handleStartPlayback} onPause={handlePauseOrResume} onStop={() => applySimulationAction(stopSimulation)} onReset={() => applySimulationAction(resetSimulation)}
           onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }} onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)} />}
-        overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controllerLabel={controllerLabel}
+        overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controlMode={controlMode} models={models} controlledJunction={scenarioConfig?.controlled_junction}
           recordedRuns={recordedRuns} selectedRecordedRunId={selectedRecordedRunId} isBusy={isBusy} canOperate={canOperate} canTakeOver={!canOperate && isAdmin}
-          onScenarioChange={handleScenarioChange} onDurationChange={setDurationSeconds} onSeedChange={setSeed} onStart={handleStart}
+          onScenarioChange={handleScenarioChange} onDurationChange={setDurationSeconds} onSeedChange={setSeed} onControlModeChange={setControlMode} onStart={handleStart}
           onRecordedRunChange={setSelectedRecordedRunId} onLoadRecording={handleLoadRecording}
-          onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null}
-        sidePanel={<SignalControlCard simulation={simulation} models={models} controlMode={controlMode} scenarioConfig={scenarioConfig} nativeOptions={nativeOptions}
-          isLocked={isBusy || !canOperate} onControlModeChange={setControlMode} />} />}
+          onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null} />}
       <p className="text-xs text-muted-foreground" role="status">{statusLine}</p>
       <section className="sr-only" aria-label="Live road and controller state">
         <h2>Road and junction state at {compactNumber(renderFrame?.time ?? 0, 1)}s</h2>

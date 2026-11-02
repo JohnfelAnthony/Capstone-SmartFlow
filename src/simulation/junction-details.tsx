@@ -1,24 +1,15 @@
-import * as React from "react"
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, ImageOffIcon, PersonStandingIcon } from "lucide-react"
+import { ImageOffIcon, PersonStandingIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress, ProgressLabel } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { JunctionMetrics, RenderFrame } from "@/simulation/frame-types"
-import type { SceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService } from "@/simulation/scene-summary"
+import { walkSignalState, type SceneGeometry } from "@/simulation/scene-geometry"
+import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService, signalArms } from "@/simulation/scene-summary"
 import { timingLabel } from "@/simulation/render-frame-adapter"
-
-const SERVICE_DISPLAY: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  north: { label: "North", icon: ArrowDownIcon },
-  east: { label: "East", icon: ArrowLeftIcon },
-  south: { label: "South", icon: ArrowUpIcon },
-  west: { label: "West", icon: ArrowRightIcon },
-  pedestrian: { label: "Pedestrians", icon: PersonStandingIcon },
-}
 
 // Same bands as the map: 0 clear · 1–4 low · 5–9 moderate · 10+ high.
 const queueBand = (queue: number) => queue >= 10 ? "High" : queue >= 5 ? "Moderate" : queue >= 1 ? "Low" : "Clear"
@@ -47,13 +38,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
   const approaches = [...new Set(geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => group.lane_id))]
   const approachName = (laneId: string) => [approachDirection(geometry, laneId)?.replace("From ", "").replace(/^\w/, letter => letter.toUpperCase()), laneStreets[laneId]].filter(Boolean).join(" · ") || laneDisplayLabel(geometry, laneId)
   return <Card size="sm">
-    <CardHeader className="grid-cols-[auto_1fr] items-center gap-x-3">
-      <span className="sf-junction-badge">{shortLabel}</span>
-      <div className="min-w-0">
-        <CardTitle className="truncate">{streets.join(" × ")}</CardTitle>
-        <CardDescription>{control ? readable(control.controller) : "Not running"}</CardDescription>
-      </div>
-    </CardHeader>
+    <CardHeader><CardTitle>{streets.join(" × ")}</CardTitle></CardHeader>
     <CardContent className="flex flex-col gap-3">
       <JunctionPhoto networkId={geometry.networkId} shortLabel={shortLabel} />
       <Tabs defaultValue="phases">
@@ -62,7 +47,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
           <TabsTrigger value="queues">Queue info</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
-        <TabsContent value="phases"><SignalPhases control={control} /></TabsContent>
+        <TabsContent value="phases"><SignalPhases control={control} frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} /></TabsContent>
         <TabsContent value="queues"><QueueInfo frame={running ? frame : null} geometry={geometry} junctionId={junctionId} approaches={approaches} approachName={approachName} laneStreets={laneStreets} /></TabsContent>
         <TabsContent value="performance"><Performance frame={running ? frame : null} approaches={approaches} metric={metric} /></TabsContent>
       </Tabs>
@@ -70,29 +55,33 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
   </Card>
 }
 
-function SignalPhases({ control }: { control: RenderFrame["junction_controls"][string] | undefined }) {
+function SignalPhases({ control, frame, geometry, junctionId, approachName }: {
+  control: RenderFrame["junction_controls"][string] | undefined; frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string; approachName: (laneId: string) => string
+}) {
   if (!control) return <p className="sf-junction-note">Start a simulation to see the signal phases.</p>
   if (control.mode === "first_come") return <p className="sf-junction-note">No signal — first come, first served.</p>
   if (control.mode === "all_way_stop") return <p className="sf-junction-note">All-way stop: this junction has no signal phases.</p>
   const current = phaseService(control.phase)
   const stageLength = (control.elapsed_seconds ?? 0) + (control.remaining_seconds ?? 0)
   const isRlControlled = Boolean(control.external_control)
+  const arms = signalArms(geometry, junctionId, frame)
+  const walkLit = walkSignalState(junctionId, frame) === "walk"
   return <div className="flex flex-col gap-3">
     <Progress value={stageLength > 0 ? (control.elapsed_seconds ?? 0) / stageLength * 100 : 0}>
-      <ProgressLabel>Current: {current ? `${SERVICE_DISPLAY[current]?.label ?? current} ${control.stage ?? ""}` : "All red (clearance)"}</ProgressLabel>
+      <ProgressLabel>Current: {current ? `${readable(current)} ${control.stage ?? ""}` : "All red (clearance)"}</ProgressLabel>
       <span className="ml-auto text-sm tabular-nums">{seconds(control.elapsed_seconds)} / {seconds(stageLength)}</span>
     </Progress>
-    <div className="sf-phase-grid">
-      {(control.phase_order ?? []).map((service, index) => {
-        const display = SERVICE_DISPLAY[service] ?? { label: service, icon: ArrowUpIcon }
-        const Icon = display.icon
-        return <div key={service} className="sf-phase-card" data-active={service === current} data-stage={service === current ? control.stage : undefined}>
-          <span className="sf-phase-number">{index + 1}</span>
-          <Icon className="size-5" />
-          <span>{display.label}</span>
-        </div>
-      })}
-    </div>
+    <svg className="sf-mini-intersection" viewBox="-60 -60 120 120" role="img"
+      aria-label={arms.map(arm => `${approachName(arm.laneId)}: ${arm.color}`).join(", ")}>
+      {arms.map(arm => <line key={arm.laneId} className="sf-mini-road" data-color={arm.color} x1={0} y1={0} x2={arm.x * 58} y2={arm.y * 58} />)}
+      <circle className="sf-mini-junction" r={13} />
+      {arms.map(arm => <circle key={arm.laneId} className="sf-mini-light" data-color={arm.color} cx={arm.x * 28} cy={arm.y * 28} r={5}>
+        <title>{approachName(arm.laneId)}: {arm.color}</title>
+      </circle>)}
+      {control.phase_order?.includes("pedestrian")
+        ? <PersonStandingIcon className="sf-mini-walk" data-lit={walkLit} x={-8} y={-8} width={16} height={16} aria-hidden />
+        : null}
+    </svg>
     <p className="sf-junction-note">
       {isRlControlled ? `RL-timed green: ${seconds(control.minimum_green)}–${seconds(control.maximum_green)}` : `Plan green: ${seconds(control.green_seconds)}`}
       {` · yellow ${seconds(control.yellow_seconds)} · all-red ${seconds(control.all_red_seconds)}`}

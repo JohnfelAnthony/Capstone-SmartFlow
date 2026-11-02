@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -47,14 +48,6 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -62,6 +55,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { NativeSelect } from "@/components/native-scenario-controls"
 import { cn } from "@/lib/utils"
 import { controlLabel } from "@/lib/control-labels"
 import "@/styles/runs-reports.css"
@@ -98,10 +93,6 @@ function formatDate(value: string | null) {
   }).format(new Date(value))
 }
 
-function formatMode(value: string | null | undefined) {
-  return controlLabel(value)
-}
-
 function metricNumber(run: SimulationRunRecord, key: string) {
   return metricValue(run.metrics, key)
 }
@@ -121,12 +112,12 @@ function RunSourceSummary({ run }: { run: SimulationRunRecord }) {
   const source = sourceRecord(settings.demand_source)
   const datasets = Array.isArray(source.datasets) ? source.datasets.map(sourceRecord) : []
   const text = (value: unknown) => typeof value === "string" && value ? value : "Not recorded"
-  return <section className="flex flex-col gap-2" aria-label="Saved input context">
-    <p>Model network: {text(experiment.network_id)}. Controlled model junction: {text(settings.controlled_junction)}. These identifiers do not establish the final field site.</p>
-    <p>Saved input assumptions: {text(source.description)}.</p>
+  return <section className="runs-prose" aria-label="Saved input context">
+    <p>Network: {text(experiment.network_id)}. Controlled junction: {text(settings.controlled_junction)}.</p>
+    <p>Input assumptions: {text(source.description)}.</p>
     {datasets.length ? <ul>{datasets.map((dataset, index) => <li key={index}>
-      {text(dataset.description)} — declared {text(dataset.kind)}; {text(dataset.schema)}; collection date {text(dataset.collected_on)}; period {text(dataset.collection_start)} to {text(dataset.collection_end)}. Conversion: {text(dataset.conversion)}.
-    </li>)}</ul> : <p>No collection periods or reviewed datasets are recorded in this run's frozen source metadata.</p>}
+      {text(dataset.description)} — declared {text(dataset.kind)}; {text(dataset.schema)}; collected {text(dataset.collected_on)}, {text(dataset.collection_start)} to {text(dataset.collection_end)}. Conversion: {text(dataset.conversion)}.
+    </li>)}</ul> : <p>No collection periods or reviewed datasets are recorded for this run.</p>}
   </section>
 }
 
@@ -151,103 +142,50 @@ function StatusBadge({ status }: { status: string }) {
       variant={normalized === "completed" ? "secondary" : normalized === "running" ? "outline" : "destructive"}
       className={cn("runs-status-badge", normalized)}
     >
-      {formatMode(status)}
+      {controlLabel(status)}
     </Badge>
   )
 }
 
-function TimelinePreviewCard({
-  preview,
-  selectedRun,
-  isLoading,
-}: {
-  preview: RunTimelineResponse | null
-  selectedRun: SimulationRunRecord | null
-  isLoading: boolean
-}) {
-  const hasRecordedTimeline =
-    selectedRun?.status === "completed" && selectedRun.run_mode === "pre-record" && Boolean(selectedRun.timeline_path)
+function hasRecordedTimeline(run: SimulationRunRecord | null) {
+  return run?.status === "completed" && run.run_mode === "pre-record" && Boolean(run.timeline_path)
+}
+
+function TimelinePanel({ preview, run, isLoading }: { preview: RunTimelineResponse | null; run: SimulationRunRecord; isLoading: boolean }) {
   const frames = preview?.frames ?? []
+  if (!hasRecordedTimeline(run)) return <p className="runs-empty-state">Only completed recordings keep a timeline. This run has none.</p>
+  if (isLoading) return <p className="runs-empty-state">Loading timeline...</p>
+  if (!preview || !frames.length) return <p className="runs-empty-state">No timeline frames were returned for this run.</p>
   const chartData = frames.map((frame) => ({
     time: frame.time,
     avgWait: frame.interpreted_metrics?.avg_wait ?? null,
     avgQueue: frame.interpreted_metrics?.avg_queue ?? null,
     throughput: frame.throughput,
   }))
-
-  return (
-    <Card className="runs-timeline-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3Icon />
-          Timeline Preview
-        </CardTitle>
-        <CardDescription>
-          {selectedRun ? `Recorded frame history for run #${selectedRun.id}.` : "Select a recorded run to inspect timeline frames."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!selectedRun ? (
-          <div className="runs-empty-state">No run selected.</div>
-        ) : !hasRecordedTimeline ? (
-          <div className="runs-empty-state">This run does not have a completed pre-record timeline artifact.</div>
-        ) : isLoading ? (
-          <div className="runs-empty-state">Loading timeline frames...</div>
-        ) : preview && frames.length ? (
-          <div className="runs-timeline-layout">
-            <div className="runs-timeline-summary">
-              <div><span>Frames</span><strong>{preview.timeline.frame_count.toLocaleString()}</strong></div>
-              <div><span>Duration</span><strong>{compactNumber(preview.timeline.actual_duration_seconds, 1)}s</strong></div>
-              <div><span>Step</span><strong>{compactNumber(preview.timeline.step_length_seconds, 2)}s</strong></div>
-              <div><span>Intersection</span><strong>{preview.timeline.intersection_id ?? "Unknown"}</strong></div>
-            </div>
-            <div className="runs-timeline-chart">
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" tickLine={false} axisLine={false} minTickGap={28} />
-                  <YAxis tickLine={false} axisLine={false} width={42} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="avgWait" stroke="var(--chart-1)" dot={false} strokeWidth={2} name="Avg Wait" />
-                  <Line type="monotone" dataKey="avgQueue" stroke="var(--chart-2)" dot={false} strokeWidth={2} name="Avg Queue" />
-                  <Line type="monotone" dataKey="throughput" stroke="var(--chart-3)" dot={false} strokeWidth={2} name="Throughput" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        ) : (
-          <div className="runs-empty-state">Timeline metadata is available, but no preview frames were returned.</div>
-        )}
-      </CardContent>
-    </Card>
-  )
+  return <div className="flex flex-col gap-2">
+    <p className="runs-empty-state">{preview.timeline.frame_count.toLocaleString()} frames over {compactNumber(preview.timeline.actual_duration_seconds, 1)} s.</p>
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="time" tickLine={false} axisLine={false} minTickGap={28} tickFormatter={(time) => `${time}s`} />
+        <YAxis tickLine={false} axisLine={false} width={42} />
+        <Tooltip />
+        <Legend />
+        <Line type="monotone" dataKey="avgWait" stroke="var(--chart-1)" dot={false} strokeWidth={2} name="Average wait (s)" />
+        <Line type="monotone" dataKey="avgQueue" stroke="var(--chart-2)" dot={false} strokeWidth={2} name="Average queue (veh)" />
+        <Line type="monotone" dataKey="throughput" stroke="var(--chart-3)" dot={false} strokeWidth={2} name="Completed trips" />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
 }
 
-function RunsSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value: string
-  onChange: (value: string) => void
-  options: { label: string; value: string }[]
-}) {
-  return (
-    <Select items={options} value={value} onValueChange={(nextValue) => nextValue !== null && onChange(nextValue)}>
-      <SelectTrigger className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  )
+function MetricTiles({ run, keys }: { run: SimulationRunRecord; keys: string[] }) {
+  return <div className="runs-detail-grid">
+    {keys.map((key) => {
+      const value = metricNumber(run, key)
+      return <div key={key} title={metricDescription(key)}><span>{metricLabel(key)}</span><strong>{formatMetric(value, 2)}{value === null ? "" : ` ${metricDefinition(key)?.unit ?? ""}`}</strong></div>
+    })}
+  </div>
 }
 
 export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare }: {
@@ -261,7 +199,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
   const [selectedRunId, setSelectedRunId] = React.useState<number | null>(null)
   const [timelinePreview, setTimelinePreview] = React.useState<RunTimelineResponse | null>(null)
   const [isTimelineLoading, setIsTimelineLoading] = React.useState(false)
-  const [alert, setAlert] = React.useState("Loading simulation run history.")
+  const [alert, setAlert] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
 
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null
@@ -289,7 +227,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
       setRuns(runResponse.runs)
       setSelectedRunId((current) => current ?? runResponse.runs[0]?.id ?? null)
       setSelectedRunIds((current) => current.filter((id) => runResponse.runs.some((run) => run.id === id)))
-      setAlert("Simulation run history loaded from SQLite.")
+      setAlert("")
     } catch (error) {
       setAlert(runsErrorMessage(error, "Unable to load runs and reports."))
     } finally {
@@ -307,9 +245,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
     let isMounted = true
     queueMicrotask(() => { if (isMounted) setTimelinePreview(null) })
 
-    const hasRecordedTimeline =
-      selectedRun?.status === "completed" && selectedRun.run_mode === "pre-record" && Boolean(selectedRun.timeline_path)
-    if (!selectedRun || !hasRecordedTimeline) {
+    if (!selectedRun || !hasRecordedTimeline(selectedRun)) {
       queueMicrotask(() => { if (isMounted) setIsTimelineLoading(false) })
       return () => { isMounted = false }
     }
@@ -388,10 +324,6 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
       setAlert("Select a completed run first.")
       return
     }
-    if (selectedRun.status !== "completed") {
-      setAlert("Only completed runs can be replayed.")
-      return
-    }
     try {
       const response = await loadPlayback(selectedRun.id)
       setAlert(response.message)
@@ -402,34 +334,32 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
   }
 
   const scenarioOptions = [
-    { label: "All Scenarios", value: "all" },
+    { label: "All", value: "all" },
     ...scenarios.map((scenario) => ({ label: scenario.name, value: String(scenario.id) })),
   ]
 
   const metrics = [
-    { label: "Total Runs", value: runs.length, hint: "Current filters", icon: HistoryIcon, tone: "info" },
-    { label: "Completed", value: completedRuns.length, hint: "Saved completed runs", icon: CheckCircle2Icon, tone: "success" },
-    { label: "Run-mean stopped wait", value: `${formatMetric(avgWait, 1)}s`, hint: "Unweighted available run means; empty populations excluded", icon: BarChart3Icon, tone: "warning" },
-    { label: "Sum completed trips", value: formatMetric(throughputTotal, 0), hint: "Available completed-run counts; inputs may repeat", icon: ListFilterIcon, tone: "purple" },
+    { label: "Runs", value: runs.length, hint: "Matching the filters", icon: HistoryIcon, tone: "info" },
+    { label: "Completed", value: completedRuns.length, hint: "Finished and saved", icon: CheckCircle2Icon, tone: "success" },
+    { label: "Average wait", value: `${formatMetric(avgWait, 1)} s`, hint: "Mean across completed runs", icon: BarChart3Icon, tone: "warning" },
+    { label: "Completed trips", value: formatMetric(throughputTotal, 0), hint: "Total across completed runs", icon: ListFilterIcon, tone: "purple" },
   ]
+  const actionTarget = selectedRunIds.length
+    ? `${selectedRunIds.length} ticked run${selectedRunIds.length === 1 ? "" : "s"}.`
+    : selectedRun ? `Run #${selectedRun.id}, the highlighted row. Tick rows to choose several.` : "No run selected."
+  const canReplay = hasRecordedTimeline(selectedRun)
 
   return (
     <main className="smartflow-page runs-page">
       <section className="runs-hero">
         <div>
           <h1>Runs & Reports</h1>
-          <p>Review saved simulations, replay completed timelines, and export report data.</p>
+          <p>Review saved simulations, replay recordings and export results.</p>
         </div>
-        <div className="runs-hero-actions">
-          <Button variant="outline" onClick={() => void loadData()} disabled={isLoading}>
-            <RefreshCcwIcon data-icon="inline-start" />
-            Refresh
-          </Button>
-          <Button onClick={replaySelectedRun} disabled={!selectedRun}>
-            <PlayCircleIcon data-icon="inline-start" />
-            Replay
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => void loadData()} disabled={isLoading}>
+          <RefreshCcwIcon data-icon="inline-start" />
+          Refresh
+        </Button>
       </section>
 
       <section className="runs-metric-strip" aria-label="Runs metrics">
@@ -450,113 +380,83 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
         })}
       </section>
 
-      <div className="runs-notice">
+      {alert ? <div className="runs-notice" role="status">
         <HistoryIcon />
         <span>{alert}</span>
-      </div>
+      </div> : null}
 
       <section className="runs-layout">
+        <Card className="runs-table-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HistoryIcon />
+              Simulation runs
+            </CardTitle>
+            <CardDescription>Click a row to see its results below.</CardDescription>
+          </CardHeader>
+          <CardContent className="runs-table-shell">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead aria-label="Select" />
+                  <TableHead>Run</TableHead>
+                  <TableHead>Scenario</TableHead>
+                  <TableHead>Signal control</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Avg wait</TableHead>
+                  <TableHead>Trips</TableHead>
+                  <TableHead>Started</TableHead>
+                  <TableHead aria-label="Favorite" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.map((run) => (
+                  <TableRow key={run.id} className={cn(selectedRun?.id === run.id && "selected")} onClick={() => setSelectedRunId(run.id)}>
+                    <TableCell>
+                      <Checkbox aria-label={`Select run ${run.id}`} checked={selectedRunIds.includes(run.id)} onCheckedChange={(checked) => toggleSelected(run.id, Boolean(checked))} />
+                    </TableCell>
+                    <TableCell>#{run.id}</TableCell>
+                    <TableCell className="runs-scenario-cell" title={run.scenario_name ?? undefined}>{run.scenario_name ?? "Unknown"}</TableCell>
+                    <TableCell className="whitespace-normal">{controlLabel(run.control_mode)}</TableCell>
+                    <TableCell><StatusBadge status={run.status} /></TableCell>
+                    <TableCell>{metricNumber(run, "avg_waiting_time") === null ? "—" : `${compactNumber(metricNumber(run, "avg_waiting_time")!, 1)} s`}</TableCell>
+                    <TableCell>{metricNumber(run, "throughput") === null ? "—" : compactNumber(metricNumber(run, "throughput")!)}</TableCell>
+                    <TableCell className="whitespace-normal">{formatDate(run.start_time)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon-sm" title="Favorite" aria-label={`Favorite run ${run.id}`} onClick={() => void toggleFavorite(run)}>
+                        <StarIcon className={cn(run.is_favorite && "runs-star-active")} />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!runs.length ? <TableRow><TableCell colSpan={9} className="runs-empty-state py-8 text-center">{isLoading ? "Loading runs..." : "No runs match these filters."}</TableCell></TableRow> : null}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
         <Card className="runs-filter-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ListFilterIcon />
               Filters
             </CardTitle>
-            <CardDescription>Filter saved simulation runs.</CardDescription>
           </CardHeader>
           <CardContent className="runs-filter-stack">
-            <RunsSelect value={filters.scenarioId} onChange={(scenarioId) => setFilters({ ...filters, scenarioId })} options={scenarioOptions} />
-            <RunsSelect
-              value={filters.runMode}
-              onChange={(runMode) => setFilters({ ...filters, runMode })}
+            <NativeSelect label="Scenario" value={filters.scenarioId} onChange={(scenarioId) => setFilters({ ...filters, scenarioId })} options={scenarioOptions} />
+            <NativeSelect label="Run type" value={filters.runMode} onChange={(runMode) => setFilters({ ...filters, runMode })}
+              options={[{ label: "All", value: "all" }, { label: "Live", value: "live" }, { label: "Recording", value: "pre-record" }]} />
+            <NativeSelect label="Signal control" value={filters.controlMode} onChange={(controlMode) => setFilters({ ...filters, controlMode })}
               options={[
-                { label: "All Run Modes", value: "all" },
-                { label: "Live", value: "live" },
-                { label: "Pre-record", value: "pre-record" },
-              ]}
-            />
-            <RunsSelect
-              value={filters.controlMode}
-              onChange={(controlMode) => setFilters({ ...filters, controlMode })}
-              options={[
-                { label: "All Control Modes", value: "all" },
+                { label: "All", value: "all" },
                 { label: controlLabel("fixed-time"), value: "fixed-time" },
                 { label: controlLabel("no-signal"), value: "no-signal" },
                 ...[...new Set(runs.map((run) => run.control_mode))].filter((mode) => !["fixed-time", "no-signal", "playback"].includes(mode))
-                  .map((mode) => ({ label: formatMode(mode), value: mode })),
+                  .map((mode) => ({ label: controlLabel(mode), value: mode })),
                 { label: "Playback", value: "playback" },
-              ]}
-            />
-            <RunsSelect
-              value={filters.status}
-              onChange={(status) => setFilters({ ...filters, status })}
-              options={[
-                { label: "All Statuses", value: "all" },
-                { label: "Completed", value: "completed" },
-                { label: "Running", value: "running" },
-                { label: "Stopped", value: "stopped" },
-                { label: "Error", value: "error" },
-              ]}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="runs-table-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <HistoryIcon />
-              Simulation Runs
-            </CardTitle>
-            <CardDescription>{runs.length} saved run{runs.length === 1 ? "" : "s"} match the current filters.</CardDescription>
-            <CardAction>
-              <Badge variant="secondary">{selectedIds.length} selected</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="runs-table-shell">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Select</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Scenario</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Avg Wait</TableHead>
-                  <TableHead>Throughput</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {runs.map((run) => {
-                  const isSelected = selectedRun?.id === run.id
-                  return (
-                    <TableRow key={run.id} className={cn(isSelected && "selected")} onClick={() => setSelectedRunId(run.id)}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedRunIds.includes(run.id)}
-                          onCheckedChange={(checked) => toggleSelected(run.id, Boolean(checked))}
-                        />
-                      </TableCell>
-                      <TableCell>#{run.id}</TableCell>
-                      <TableCell>{run.scenario_name ?? "Unknown"}</TableCell>
-                      <TableCell>{formatMode(run.run_mode)} / {formatMode(run.control_mode)}</TableCell>
-                      <TableCell><StatusBadge status={run.status} /></TableCell>
-                      <TableCell>{metricNumber(run, "avg_waiting_time") === null ? "—" : `${compactNumber(metricNumber(run, "avg_waiting_time")!, 1)}s`}</TableCell>
-                      <TableCell>{metricNumber(run, "throughput") === null ? "—" : compactNumber(metricNumber(run, "throughput")!)}</TableCell>
-                      <TableCell>{formatDate(run.start_time)}</TableCell>
-                      <TableCell>
-                        <div className="runs-row-actions">
-                          <Button variant="ghost" size="icon-sm" title="Favorite" onClick={() => void toggleFavorite(run)}>
-                            <StarIcon className={cn(run.is_favorite && "runs-star-active")} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+              ]} />
+            <NativeSelect label="Status" value={filters.status} onChange={(status) => setFilters({ ...filters, status })}
+              options={[{ label: "All", value: "all" }, { label: "Completed", value: "completed" }, { label: "Running", value: "running" }, { label: "Stopped", value: "stopped" }, { label: "Error", value: "error" }]} />
           </CardContent>
         </Card>
 
@@ -564,71 +464,86 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DownloadIcon />
-              Reports
+              Export or delete
             </CardTitle>
-            <CardDescription>Export selected run records for offline analysis.</CardDescription>
+            <CardDescription>{actionTarget}</CardDescription>
           </CardHeader>
           <CardContent className="runs-action-stack">
-            <Button onClick={() => void exportSelected("csv")}>
-              <FileSpreadsheetIcon data-icon="inline-start" />
-              Export CSV
-            </Button>
-            <Button variant="outline" onClick={() => void exportSelected("json")}>
-              <FileJsonIcon data-icon="inline-start" />
-              Export JSON
-            </Button>
-            <Button variant="destructive" onClick={() => void deleteSelectedRuns()}>
+            <div className="grid grid-cols-2 gap-2">
+              <Button disabled={!selectedIds.length} onClick={() => void exportSelected("csv")}>
+                <FileSpreadsheetIcon data-icon="inline-start" />
+                CSV
+              </Button>
+              <Button variant="outline" disabled={!selectedIds.length} onClick={() => void exportSelected("json")}>
+                <FileJsonIcon data-icon="inline-start" />
+                JSON
+              </Button>
+            </div>
+            <Button variant="destructive" disabled={!selectedIds.length} onClick={() => void deleteSelectedRuns()}>
               <Trash2Icon data-icon="inline-start" />
-              Delete Selected
+              Delete {selectedIds.length === 1 ? `run #${selectedIds[0]}` : `${selectedIds.length} runs`}
             </Button>
           </CardContent>
         </Card>
 
         <Card className="runs-detail-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3Icon />
-              Run Details
-            </CardTitle>
-            <CardDescription>{selectedRun ? `Run #${selectedRun.id}. Metrics show separate outcomes, not an overall recommendation. — means unavailable.` : "Select a run to inspect metrics."}</CardDescription>
+            <CardTitle>{selectedRun ? `Run #${selectedRun.id}` : "Run results"}</CardTitle>
+            <CardDescription>{selectedRun ? selectedRun.scenario_name ?? "Unknown scenario" : "Select a run to see its results."}</CardDescription>
+            {selectedRun ? <CardAction className="flex flex-wrap justify-end gap-2">
+              {onOpenCompare ? <Button variant="outline" size="sm" onClick={onOpenCompare}>Compare runs</Button> : null}
+              <Button size="sm" onClick={replaySelectedRun} disabled={!canReplay} title={canReplay ? undefined : "Only completed recordings can be replayed"}>
+                <PlayCircleIcon data-icon="inline-start" />
+                Replay
+              </Button>
+            </CardAction> : null}
           </CardHeader>
-          <CardContent>
-            {selectedRun ? (
-              <div className="runs-detail-grid">
-                <div><span>Scenario</span><strong>{selectedRun.scenario_name ?? "Unknown"}</strong></div>
-                <div><span>Duration</span><strong>{compactNumber(selectedRun.duration_seconds, 1)}s</strong></div>
-                <div><span>Max Queue</span><strong>{metricNumber(selectedRun, "max_queue_length") === null ? "—" : compactNumber(metricNumber(selectedRun, "max_queue_length")!)}</strong></div>
-                <div><span>Pedestrian Delay</span><strong>{metricNumber(selectedRun, "avg_pedestrian_delay") === null ? "—" : `${compactNumber(metricNumber(selectedRun, "avg_pedestrian_delay")!, 1)}s`}</strong></div>
-                <div><span>Seed</span><strong>{selectedRun.seed ?? "--"}</strong></div>
-                <div><span>Model ID</span><strong>{selectedRun.rl_model_id ?? "None"}</strong></div>
-                <div><span>Scheduled vehicles</span><strong>{formatMetric(metricNumber(selectedRun, "scheduled_vehicles"), 0)}</strong></div>
-                <div><span>Unfinished vehicles</span><strong>{formatMetric(metricNumber(selectedRun, "unfinished_vehicles"), 0)}</strong></div>
-                <div><span>Demand source</span><strong>{demandSourceKind(selectedRun)}</strong></div>
-                <div><span>Timeline</span><strong>{selectedRun.timeline_path ? "Available" : "None"}</strong></div>
-              </div>
-            ) : (
-              <div className="runs-empty-state">No run selected.</div>
-            )}
-            {selectedRun && <div className="runs-detail-grid">{["avg_wait", "avg_queue", "throughput", "avg_travel_time", "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles", "boundary_wait_seconds", "avg_admitted_boundary_wait", "measurement_start", "measurement_seconds"].map((key) =>
-              <div key={key} title={metricDescription(key)}><span>{metricLabel(key)}</span><strong>{formatMetric(metricNumber(selectedRun, key), 2)} {metricDefinition(key)?.unit}</strong></div>)}</div>}
-            <MetricDefinitions />
-            {selectedRun && <section aria-label="Research context and next actions" className="flex flex-col gap-3 p-3">
-              <h3>Research context and next actions</h3>
-              <RunSourceSummary run={selectedRun} />
-              <p>Declared input kind: {demandSourceKind(selectedRun)}. A source label does not certify field accuracy. This is single-run evidence, not a completed repeated study or an overall recommendation.</p>
-              <p>Study question and final field-site mapping are not recorded by this run contract. Retain the study protocol alongside the scenario. Run note: {selectedRun.notes || "Not recorded."}</p>
-              <p>Before field claims, match this run and its frozen network/settings with the supporting calibration and independent-validation records. Numerical fit and compatibility alone are not field certification.</p>
-              <details><summary>Frozen inputs, periods, assumptions and reproduction references</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(rawRunMetrics(selectedRun).experiment ?? { note: "No frozen experiment metadata was retained by this historical run." }, null, 2)}</pre></details>
-              <div className="flex flex-wrap gap-2">
-                {onOpenResearch && <Button variant="outline" onClick={onOpenResearch}>Review baseline evidence</Button>}
-                {onOpenCompare && <Button variant="outline" onClick={onOpenCompare}>Compare matched recordings</Button>}
-              </div>
-              <p>Use Export CSV or Export JSON above to retain metric definitions, missing-value reasons and original experiment inputs. Additional seeds over one measured schedule are not independent field observations.</p>
-            </section>}
-          </CardContent>
+          {selectedRun ? <CardContent>
+            <dl className="runs-facts">
+              <div><dt>Signal control</dt><dd>{controlLabel(selectedRun.control_mode)}</dd></div>
+              <div><dt>Run type</dt><dd>{selectedRun.run_mode === "pre-record" ? "Recording" : "Live"}</dd></div>
+              <div><dt>Status</dt><dd><StatusBadge status={selectedRun.status} /></dd></div>
+              <div><dt>Duration</dt><dd>{compactNumber(selectedRun.duration_seconds, 1)} s</dd></div>
+              <div><dt>Seed</dt><dd>{selectedRun.seed ?? "—"}</dd></div>
+              <div><dt>Input data</dt><dd>{demandSourceKind(selectedRun)}</dd></div>
+              {selectedRun.rl_model_id ? <div><dt>Model</dt><dd>#{selectedRun.rl_model_id}</dd></div> : null}
+            </dl>
+            <Tabs defaultValue="results" className="mt-4">
+              <TabsList>
+                <TabsTrigger value="results">Results</TabsTrigger>
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                <TabsTrigger value="details">Inputs and definitions</TabsTrigger>
+              </TabsList>
+              <TabsContent value="results" className="flex flex-col gap-4 pt-3">
+                <div>
+                  <h3 className="runs-group-title">Traffic</h3>
+                  <MetricTiles run={selectedRun} keys={["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay"]} />
+                </div>
+                <div>
+                  <h3 className="runs-group-title">Vehicle demand</h3>
+                  <MetricTiles run={selectedRun} keys={["requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles"]} />
+                </div>
+                <p className="runs-empty-state">One run shows these conditions only. It is not field evidence or an overall recommendation. — means unavailable.{selectedRun.notes ? ` Note: ${selectedRun.notes}` : ""}</p>
+              </TabsContent>
+              <TabsContent value="timeline" className="pt-3">
+                <TimelinePanel preview={timelinePreview} run={selectedRun} isLoading={isTimelineLoading} />
+              </TabsContent>
+              <TabsContent value="details" className="flex flex-col gap-4 pt-3">
+                <div>
+                  <h3 className="runs-group-title">Measurement window</h3>
+                  <MetricTiles run={selectedRun} keys={["measurement_start", "measurement_seconds", "boundary_wait_seconds", "avg_admitted_boundary_wait"]} />
+                </div>
+                <div>
+                  <h3 className="runs-group-title">Inputs</h3>
+                  <RunSourceSummary run={selectedRun} />
+                  {onOpenResearch ? <Button className="mt-2" variant="outline" size="sm" onClick={onOpenResearch}>Review baseline evidence</Button> : null}
+                </div>
+                <details className="runs-prose"><summary>Saved settings for reproducing this run</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(rawRunMetrics(selectedRun).experiment ?? { note: "This older run kept no saved settings." }, null, 2)}</pre></details>
+                <MetricDefinitions />
+              </TabsContent>
+            </Tabs>
+          </CardContent> : null}
         </Card>
-
-        <TimelinePreviewCard preview={timelinePreview} selectedRun={selectedRun} isLoading={isTimelineLoading} />
       </section>
     </main>
   )

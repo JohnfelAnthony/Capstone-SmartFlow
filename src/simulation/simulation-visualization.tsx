@@ -22,11 +22,11 @@ const readable = (text: string | null | undefined) => text ? text.replaceAll("_"
 
 type WorkspaceProps = {
   geometry: SceneGeometry; frame: RenderFrame | null; controlledJunction?: string | null; runKey: string; seekRevision?: number
-  laneStreets: Record<string, string>; controlBar?: React.ReactNode; overlay?: React.ReactNode; sidePanel?: React.ReactNode
+  laneStreets: Record<string, string>; controlBar?: React.ReactNode; overlay?: React.ReactNode
   onPerformanceSample?: (sample: PerformanceSample) => void
 }
 
-function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision = 0, laneStreets, controlBar, overlay, sidePanel, onPerformanceSample }: WorkspaceProps) {
+function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision = 0, laneStreets, controlBar, overlay, onPerformanceSample }: WorkspaceProps) {
   const [presentation, dispatch] = React.useReducer(presentationReducer, geometry, network => createPresentationState(network, controlledJunction))
   const [expanded, setExpanded] = React.useState(false)
   const host = React.useRef<HTMLDivElement | null>(null)
@@ -101,7 +101,6 @@ function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision =
     </div>
     <aside className="sf-sim-side" aria-label="Junction information">
       <JunctionCard frame={frame} geometry={geometry} junctionId={junctionId} laneStreets={laneStreets} />
-      {sidePanel}
     </aside>
   </div>
 }
