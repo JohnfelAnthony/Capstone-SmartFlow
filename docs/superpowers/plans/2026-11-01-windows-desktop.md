@@ -252,7 +252,7 @@ Proposed files: `desktop/installer/SmartFlow.iss`, `scripts/build-desktop.ps1`.
 - [ ] Detect WebView2. Support its standalone offline installer when offline installation is promised; a download-only bootstrapper does not satisfy that claim.
 - [ ] Check other runtime prerequisites discovered by clean-machine tests.
 - [ ] Prevent an update from replacing binaries while that installation is running.
-- [ ] Preserve data on uninstall by default; any data removal must be explicit and limited to the verified SmartFlow data root.
+- [x] Preserve data on uninstall by default; any data removal must be explicit and limited to the verified SmartFlow data root. _(silent uninstall kept user data, 2026-11-04; same profile)_
 - [ ] Recheck installer tooling terms and include dependency/asset notices.
 - [ ] Record whether the build is signed. Do not promise warning-free installation for an unsigned package.
 
