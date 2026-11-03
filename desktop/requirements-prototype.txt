@@ -1,0 +1,8 @@
+# Source-mode UI experiment only; not the full training or release environment.
+pywebview==6.2.1
+fastapi==0.115.6
+uvicorn==0.34.0
+Werkzeug==3.1.8
+numpy==2.4.6
+gymnasium==1.2.3
+websockets>=14,<17

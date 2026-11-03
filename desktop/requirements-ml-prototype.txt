@@ -1,0 +1,4 @@
+# Install torch==2.12.0+cpu from the official PyTorch CPU index first.
+# These direct pins do not yet constitute a locked release environment.
+-r requirements-prototype.txt
+stable-baselines3==2.8.0
