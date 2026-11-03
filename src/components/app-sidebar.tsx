@@ -24,7 +24,6 @@ import {
   GraduationCapIcon,
   MapPinnedIcon,
   NetworkIcon,
-  SearchIcon,
   Settings2Icon,
   ShieldIcon,
   UsersIcon,
@@ -84,12 +83,6 @@ const data = {
       icon: <CircleHelpIcon />,
       page: "help",
     },
-    {
-      title: "Search",
-      url: "#",
-      icon: <SearchIcon />,
-      page: "search",
-    },
   ],
   admin: [
     {
@@ -122,7 +115,6 @@ const data = {
 function canViewPage(currentUser: CurrentUser | null, page: string) {
   if (!currentUser) return false
   if (currentUser.role.toLowerCase() === "admin") return true
-  if (page === "search") return true
   if (page.startsWith("admin-")) return false
   return currentUser.permissions.some((permission) => permission.page === page && permission.action === "view")
 }
@@ -130,21 +122,20 @@ function canViewPage(currentUser: CurrentUser | null, page: string) {
 export function AppSidebar({
   activeItem,
   currentUser,
-  onChangePassword,
+  onOpenAccount,
   onLogout,
   onSelectItem,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   activeItem: string
   currentUser: CurrentUser | null
-  onChangePassword: () => void
+  onOpenAccount: () => void
   onLogout: () => void
   onSelectItem: (item: string) => void
 }) {
   const sidebarUser = {
     name: currentUser?.full_name || currentUser?.username || "SMARTFLOW User",
     email: currentUser?.email || currentUser?.role || "smartflow.local",
-    avatar: "",
   }
   const visibleMainItems = data.navMain.filter((item) => canViewPage(currentUser, item.page))
   const visibleResearchItems = data.navResearch.filter((item) => canViewPage(currentUser, item.page) &&
@@ -201,7 +192,7 @@ export function AppSidebar({
         />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={sidebarUser} onChangePassword={onChangePassword} onLogout={onLogout} />
+        <NavUser user={sidebarUser} onOpenAccount={onOpenAccount} onLogout={onLogout} />
       </SidebarFooter>
     </Sidebar>
   )

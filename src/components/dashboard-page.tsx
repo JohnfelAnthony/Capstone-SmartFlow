@@ -19,34 +19,22 @@ import {
   type SimulationRunRecord,
   type SimulationStatePayload,
 } from "@/api/simulation"
-import { SetupCard, SignalControlCard, SimControlBar } from "@/components/dashboard-controls"
+import { SetupCard, SimControlBar } from "@/components/dashboard-controls"
 import { DashboardKpis } from "@/components/dashboard-kpis"
-import { DashboardTrends, type TrendPoint } from "@/components/dashboard-trends"
+import type { DashboardView } from "@/components/site-header"
 import { SimulationVisualization } from "@/simulation/simulation-visualization"
+import { TagumMap } from "@/components/tagum-map"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
-import type { VisualizationMode } from "@/simulation/visualization-mode"
-import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { pickReferenceRun, type ReferenceRun } from "@/lib/reference-run"
-import { metricCatalog, metricEngineVersion, metricValue } from "@/lib/metrics"
+import { metricCatalog, metricEngineVersion } from "@/lib/metrics"
 
 function compactNumber(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   })
-}
-
-function buildChartPoint(simulation: SimulationStatePayload): TrendPoint & { bucket: number } {
-  const time = Math.max(0, Math.floor(Number(simulation.state.time ?? 0)))
-  const metrics = simulation.state.metrics
-  return {
-    bucket: time,
-    timeLabel: `${time}s`,
-    avgWait: metricValue(metrics, "avg_wait"),
-    avgQueue: metricValue(metrics, "avg_queue"),
-  }
 }
 
 function apiMessage(error: unknown) {
@@ -58,14 +46,12 @@ export function DashboardPage({
   currentUserId,
   isAdmin,
   canRunSimulation,
-  visualizationMode,
-  onVisualizationModeChange,
+  view = "simulation",
 }: {
   currentUserId: number
   isAdmin: boolean
   canRunSimulation: boolean
-  visualizationMode: VisualizationMode
-  onVisualizationModeChange: (mode: VisualizationMode) => void
+  view?: DashboardView
 }) {
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = React.useState("")
@@ -78,20 +64,18 @@ export function DashboardPage({
   const [simulation, setSimulation] = React.useState<SimulationStatePayload | null>(null)
   const [renderFrame, setRenderFrame] = React.useState<RenderFrame | null>(null)
   const [seekRevision, setSeekRevision] = React.useState(0)
-  const [renderPerformance, setRenderPerformance] = React.useState<{ mode: VisualizationMode; fps: number; p95FrameMs: number; drawCalls: number } | null>(null)
-  const handleRenderPerformance = React.useCallback((sample: { fps: number; p95FrameMs: number; drawCalls: number }) => {
-    setRenderPerformance({ ...sample, mode: visualizationMode })
-  }, [visualizationMode])
+  const [renderPerformance, setRenderPerformance] = React.useState<{ fps: number; p95FrameMs: number } | null>(null)
+  const handleRenderPerformance = React.useCallback((sample: { fps: number; p95FrameMs: number }) => {
+    setRenderPerformance(sample)
+  }, [])
   const showPerformance = new URLSearchParams(window.location.search).has("perf")
   const [recordedRuns, setRecordedRuns] = React.useState<SimulationRunRecord[]>([])
   const [selectedRecordedRunId, setSelectedRecordedRunId] = React.useState("")
-  const [chartHistory, setChartHistory] = React.useState<TrendPoint[]>([])
   const [reference, setReference] = React.useState<ReferenceRun | null>(null)
   const [notice, setNotice] = React.useState("Loading simulation workspace...")
   const [isBusy, setIsBusy] = React.useState(false)
   const lastStateRefreshAt = React.useRef(0)
   const stateRefreshInFlight = React.useRef(false)
-  const lastChartBucket = React.useRef<number | null>(null)
 
   const canConfigure = Boolean(selectedScenarioId)
   const canOperate = canRunSimulation && (simulation?.owner_user_id == null || simulation.owner_user_id === currentUserId)
@@ -163,12 +147,11 @@ export function DashboardPage({
     async function loadDashboard() {
       setIsBusy(true)
       try {
-        const [scenarioResponse, simulationResponse, runsResponse, modelResponse, optionsResponse] = await Promise.all([
+        const [scenarioResponse, simulationResponse, runsResponse, modelResponse] = await Promise.all([
           listScenarios(),
           getSimulationState(),
           listSimulationRuns({ runMode: "pre-record", limit: 30 }),
           listRLModels(),
-          getNativeScenarioOptions(),
         ])
         if (!isMounted) return
 
@@ -177,7 +160,6 @@ export function DashboardPage({
         const presentationAvailable = applySimulationSnapshot(simulationResponse)
         setRecordedRuns(runsResponse.runs)
         setModels(modelResponse.models)
-        setNativeOptions(optionsResponse)
         const firstCompletedRun = runsResponse.runs.find((run) => run.status === "completed")
         setSelectedRecordedRunId(firstCompletedRun ? String(firstCompletedRun.id) : "")
         const activeScenarioId =
@@ -263,14 +245,6 @@ export function DashboardPage({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [applySimulationSnapshot, latestFrame, streamStatus])
 
-  React.useEffect(() => {
-    if (!simulation) return
-    const nextPoint = buildChartPoint(simulation)
-    if (lastChartBucket.current === nextPoint.bucket) return
-    lastChartBucket.current = nextPoint.bucket
-    setChartHistory((current) => [...current, { timeLabel: nextPoint.timeLabel, avgWait: nextPoint.avgWait, avgQueue: nextPoint.avgQueue }].slice(-240))
-  }, [simulation])
-
   const activeRunId = simulation?.active_run_id ?? null
   const currentExperiment = simulation?.state.experiment
   // Recompute only when the run's identity changes, not on every streamed frame.
@@ -294,13 +268,6 @@ export function DashboardPage({
     setControlMode("fixed-time")
   }
 
-  const handleThreeUnavailable = React.useCallback(
-    (message: string) => {
-      setNotice(message)
-      onVisualizationModeChange("2d")
-    },
-    [onVisualizationModeChange]
-  )
 
   function handleStart() {
     if (!canConfigure) {
@@ -362,34 +329,38 @@ export function DashboardPage({
   const hasConfiguredScenario = simulation?.selected_scenario_id != null && typeof simulation.state.dashboard?.current_scenario_name === "string"
   const scenarioTitle = hasConfiguredScenario ? String(simulation.state.dashboard?.current_scenario_name) : selectedScenario?.name ?? "No scenario selected"
   const statusLine = [scenarioTitle, streamNotice ?? notice, ownershipNote, streamEnabled && streamStatus !== "open" ? `Live stream ${streamStatus}; positions may be delayed.` : ""].filter(Boolean).join(" · ")
-  const intersectionId = renderFrame?.intersection_id ??
+  // Before a scenario is loaded the idle engine sits on the default test network; show the chosen scenario's site instead.
+  const previewNetworkId = !hasConfiguredScenario ? selectedScenario?.network_id ?? null : null
+  const intersectionId = previewNetworkId ?? renderFrame?.intersection_id ??
     (typeof simulation?.state.scenario?.intersection_id === "string" ? simulation.state.scenario.intersection_id : null)
+  React.useEffect(() => {
+    if (!intersectionId) return
+    let cancelled = false
+    getNativeScenarioOptions(intersectionId).then((options) => { if (!cancelled) setNativeOptions(options) }).catch((error) => { if (!cancelled) setNotice(apiMessage(error)) })
+    return () => { cancelled = true }
+  }, [intersectionId])
   const frozenConfig = simulation?.state.experiment?.config
   const recordedJunction = frozenConfig && typeof frozenConfig === "object" && "controlled_junction" in frozenConfig && typeof frozenConfig.controlled_junction === "string" ? frozenConfig.controlled_junction : null
   const isIdle = !["running", "paused"].includes(simulation?.status ?? "") && simulation?.control_mode !== "playback"
   const laneStreets = React.useMemo(() => Object.fromEntries((nativeOptions?.lanes ?? []).map((lane) => [lane.id, lane.road_name])), [nativeOptions])
-  const selectedModel = models.find((model) => `${model.algorithm.toLowerCase()}:${model.id}` === controlMode)
-  const controllerLabel = selectedModel ? `${selectedModel.algorithm} model #${selectedModel.id}` : controlMode === "no-signal" ? NO_SIGNAL_LABEL : "Fixed-time plan"
 
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
       <DashboardKpis metrics={simulation?.state.metrics} reference={reference} isReferenceRun={simulation?.control_mode === "no-signal"} />
+      {view === "map" ? <TagumMap /> :
       <SimulationVisualization frame={renderFrame} networkId={intersectionId}
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
-        mode={visualizationMode} runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
-        onUnavailable={handleThreeUnavailable} onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
+        runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
+        onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
         controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} canOperate={canOperate} canStart={canConfigure}
           onStart={handleStart} onStartPlayback={handleStartPlayback} onPause={handlePauseOrResume} onStop={() => applySimulationAction(stopSimulation)} onReset={() => applySimulationAction(resetSimulation)}
           onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }} onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)} />}
-        overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controllerLabel={controllerLabel}
+        overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controlMode={controlMode} models={models} controlledJunction={scenarioConfig?.controlled_junction}
           recordedRuns={recordedRuns} selectedRecordedRunId={selectedRecordedRunId} isBusy={isBusy} canOperate={canOperate} canTakeOver={!canOperate && isAdmin}
-          onScenarioChange={handleScenarioChange} onDurationChange={setDurationSeconds} onSeedChange={setSeed} onStart={handleStart}
+          onScenarioChange={handleScenarioChange} onDurationChange={setDurationSeconds} onSeedChange={setSeed} onControlModeChange={setControlMode} onStart={handleStart}
           onRecordedRunChange={setSelectedRecordedRunId} onLoadRecording={handleLoadRecording}
-          onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null}
-        sidePanel={<SignalControlCard simulation={simulation} models={models} controlMode={controlMode} scenarioConfig={scenarioConfig} nativeOptions={nativeOptions}
-          isLocked={isBusy || !canOperate} onControlModeChange={setControlMode} />} />
+          onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null} />}
       <p className="text-xs text-muted-foreground" role="status">{statusLine}</p>
-      <DashboardTrends history={chartHistory} />
       <section className="sr-only" aria-label="Live road and controller state">
         <h2>Road and junction state at {compactNumber(renderFrame?.time ?? 0, 1)}s</h2>
         <p>Shared session: {simulation?.owner_name ? `${simulation.owner_name} controls ${simulation.run_mode}${simulation.active_run_id ? ` run #${simulation.active_run_id}` : " configuration"}` : "available"}. Speed {simulation?.speed_multiplier ?? 1}×.</p>
@@ -402,8 +373,8 @@ export function DashboardPage({
           <li key={id}>{nativeOptions?.junctions.find((junction) => junction.id === id)?.label ?? id}: {control.controller} · {control.phase}</li>
         ))}</ul>
       </section>
-      {showPerformance && renderPerformance?.mode === visualizationMode &&
-        <p role="status" className="text-xs text-muted-foreground">{visualizationMode.toUpperCase()} renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms{visualizationMode === "3d" ? `; ${renderPerformance.drawCalls} draw calls` : " (active rendering)"}.</p>}
+      {showPerformance && renderPerformance &&
+        <p role="status" className="text-xs text-muted-foreground">2D renderer: {compactNumber(renderPerformance.fps, 1)} fps; p95 frame interval {compactNumber(renderPerformance.p95FrameMs, 1)} ms (active rendering).</p>}
     </div>
   )
 }

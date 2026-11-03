@@ -1,73 +1,27 @@
-import * as React from "react"
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, ImageOffIcon, PersonStandingIcon } from "lucide-react"
+import { ImageOffIcon, PersonStandingIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress, ProgressLabel } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { JunctionMetrics, RenderFrame } from "@/simulation/frame-types"
-import type { SceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService } from "@/simulation/scene-summary"
+import { walkSignalState, type SceneGeometry } from "@/simulation/scene-geometry"
+import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService, signalArms } from "@/simulation/scene-summary"
 import { timingLabel } from "@/simulation/render-frame-adapter"
-
-// shortcut: placeholder until field photos exist; drop J1.jpg / J2.jpg into public/assets/junctions to replace it per junction.
-const PLACEHOLDER_PHOTO = "/assets/junctions/placeholder.jpg"
-const PLACEHOLDER_CREDIT = "Placeholder photo — not the study site"
-// CC BY 3.0 requires author, source and licence: Tulip Drive–Quimpo Blvd, Davao City (2012), Wikimedia Commons.
-const PLACEHOLDER_ATTRIBUTION = { author: "Kenneth Rangas", source: "https://commons.wikimedia.org/wiki/File:Tulip_Drive_-_Quimpo_Blvd_Intersection_-_panoramio.jpg", license: "CC BY 3.0", licenseUrl: "https://creativecommons.org/licenses/by/3.0" }
-
-const SERVICE_DISPLAY: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  north: { label: "North", icon: ArrowDownIcon },
-  east: { label: "East", icon: ArrowLeftIcon },
-  south: { label: "South", icon: ArrowUpIcon },
-  west: { label: "West", icon: ArrowRightIcon },
-  pedestrian: { label: "Pedestrians", icon: PersonStandingIcon },
-}
 
 // Same bands as the map: 0 clear · 1–4 low · 5–9 moderate · 10+ high.
 const queueBand = (queue: number) => queue >= 10 ? "High" : queue >= 5 ? "Moderate" : queue >= 1 ? "Low" : "Clear"
 const readable = (text: string | null | undefined) => text ? text.replaceAll("_", " ").toLowerCase().replace(/^\w/, letter => letter.toUpperCase()) : "Unavailable"
 const seconds = (value: number | undefined) => value === undefined ? "—" : `${Math.round(value)} s`
 
-export function NetworkMapCard({ geometry, junctionId, onFocus }: { geometry: SceneGeometry; junctionId: string | null; onFocus: (id: string) => void }) {
-  const bounds = geometry.bounds
-  const width = bounds.max_x - bounds.min_x, height = bounds.max_y - bounds.min_y
-  const span = Math.max(width, height), padding = span * .08
-  const point = (position: { x: number; y: number }) => `${position.x - bounds.min_x},${bounds.max_y - position.y}`
-  return <Card size="sm">
-    <CardHeader>
-      <CardTitle>Network map</CardTitle>
-      <CardDescription>{geometry.junctions.length} junctions · click one to select it</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <svg viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`} className="sf-network-map" aria-label="Network map">
-        {geometry.lanes.filter(lane => lane.kind === "road").map(lane => <polyline key={lane.id} points={lane.centerline.map(point).join(" ")} fill="none" className="sf-network-map-road" strokeWidth={Math.max(lane.width, span * .012)} />)}
-        {geometry.junctions.map(junction => {
-          const active = junction.id === junctionId
-          return <g key={junction.id} role="button" tabIndex={0} aria-label={`Select ${junction.label}`} aria-pressed={active} className="sf-network-map-junction" data-active={active}
-            onClick={() => onFocus(junction.id)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onFocus(junction.id) } }}>
-            <title>{junction.label}</title>
-            <circle cx={junction.center.x - bounds.min_x} cy={bounds.max_y - junction.center.y} r={span * .06} />
-            <text x={junction.center.x - bounds.min_x} y={bounds.max_y - junction.center.y} textAnchor="middle" dominantBaseline="central" fontSize={span * .06}>{junctionShortLabel(geometry, junction.id)}</text>
-          </g>
-        })}
-      </svg>
-    </CardContent>
-  </Card>
-}
-
-function JunctionPhoto({ shortLabel }: { shortLabel: string }) {
-  const sources = React.useMemo(() => [`/assets/junctions/${shortLabel}.jpg`, PLACEHOLDER_PHOTO], [shortLabel])
-  const [sourceIndex, setSourceIndex] = React.useState(0)
-  const source = sources[sourceIndex]
-  if (!source) return <div className="sf-junction-photo sf-junction-photo-empty"><ImageOffIcon className="size-5" />No photo yet</div>
+function JunctionPhoto({ networkId, shortLabel }: { networkId: string; shortLabel: string }) {
+  const photo = sitePhoto(networkId)
+  if (!photo) return <div className="sf-junction-photo sf-junction-photo-empty"><ImageOffIcon className="size-5" />No photo yet</div>
   return <figure className="sf-junction-photo">
-    <img src={source} alt={source === PLACEHOLDER_PHOTO ? "Placeholder intersection photo" : `${shortLabel} junction`} onError={() => setSourceIndex(index => index + 1)} />
-    {source === PLACEHOLDER_PHOTO ? <figcaption>
-      <strong>{PLACEHOLDER_CREDIT}</strong>
-      <span>Photo: <a href={PLACEHOLDER_ATTRIBUTION.source} target="_blank" rel="noreferrer">{PLACEHOLDER_ATTRIBUTION.author}</a>, <a href={PLACEHOLDER_ATTRIBUTION.licenseUrl} target="_blank" rel="noreferrer">{PLACEHOLDER_ATTRIBUTION.license}</a></span>
-    </figcaption> : null}
+    <img src={photo} alt={`${shortLabel} intersection`} />
+    <figcaption><strong>Enhanced site photo</strong></figcaption>
   </figure>
 }
 
@@ -84,22 +38,16 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
   const approaches = [...new Set(geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => group.lane_id))]
   const approachName = (laneId: string) => [approachDirection(geometry, laneId)?.replace("From ", "").replace(/^\w/, letter => letter.toUpperCase()), laneStreets[laneId]].filter(Boolean).join(" · ") || laneDisplayLabel(geometry, laneId)
   return <Card size="sm">
-    <CardHeader className="grid-cols-[auto_1fr] items-center gap-x-3">
-      <span className="sf-junction-badge">{shortLabel}</span>
-      <div className="min-w-0">
-        <CardTitle className="truncate">{streets.join(" × ")}</CardTitle>
-        <CardDescription>{control ? readable(control.controller) : "Not running"}</CardDescription>
-      </div>
-    </CardHeader>
+    <CardHeader><CardTitle>{streets.join(" × ")}</CardTitle></CardHeader>
     <CardContent className="flex flex-col gap-3">
-      <JunctionPhoto key={shortLabel} shortLabel={shortLabel} />
+      <JunctionPhoto networkId={geometry.networkId} shortLabel={shortLabel} />
       <Tabs defaultValue="phases">
         <TabsList className="w-full">
           <TabsTrigger value="phases">Signal phases</TabsTrigger>
           <TabsTrigger value="queues">Queue info</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
-        <TabsContent value="phases"><SignalPhases control={control} /></TabsContent>
+        <TabsContent value="phases"><SignalPhases control={control} frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} /></TabsContent>
         <TabsContent value="queues"><QueueInfo frame={running ? frame : null} geometry={geometry} junctionId={junctionId} approaches={approaches} approachName={approachName} laneStreets={laneStreets} /></TabsContent>
         <TabsContent value="performance"><Performance frame={running ? frame : null} approaches={approaches} metric={metric} /></TabsContent>
       </Tabs>
@@ -107,29 +55,33 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
   </Card>
 }
 
-function SignalPhases({ control }: { control: RenderFrame["junction_controls"][string] | undefined }) {
+function SignalPhases({ control, frame, geometry, junctionId, approachName }: {
+  control: RenderFrame["junction_controls"][string] | undefined; frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string; approachName: (laneId: string) => string
+}) {
   if (!control) return <p className="sf-junction-note">Start a simulation to see the signal phases.</p>
   if (control.mode === "first_come") return <p className="sf-junction-note">No signal — first come, first served.</p>
   if (control.mode === "all_way_stop") return <p className="sf-junction-note">All-way stop: this junction has no signal phases.</p>
   const current = phaseService(control.phase)
   const stageLength = (control.elapsed_seconds ?? 0) + (control.remaining_seconds ?? 0)
   const isRlControlled = Boolean(control.external_control)
+  const arms = signalArms(geometry, junctionId, frame)
+  const walkLit = walkSignalState(junctionId, frame) === "walk"
   return <div className="flex flex-col gap-3">
     <Progress value={stageLength > 0 ? (control.elapsed_seconds ?? 0) / stageLength * 100 : 0}>
-      <ProgressLabel>Current: {current ? `${SERVICE_DISPLAY[current]?.label ?? current} ${control.stage ?? ""}` : "All red (clearance)"}</ProgressLabel>
+      <ProgressLabel>Current: {current ? `${readable(current)} ${control.stage ?? ""}` : "All red (clearance)"}</ProgressLabel>
       <span className="ml-auto text-sm tabular-nums">{seconds(control.elapsed_seconds)} / {seconds(stageLength)}</span>
     </Progress>
-    <div className="sf-phase-grid">
-      {(control.phase_order ?? []).map((service, index) => {
-        const display = SERVICE_DISPLAY[service] ?? { label: service, icon: ArrowUpIcon }
-        const Icon = display.icon
-        return <div key={service} className="sf-phase-card" data-active={service === current} data-stage={service === current ? control.stage : undefined}>
-          <span className="sf-phase-number">{index + 1}</span>
-          <Icon className="size-5" />
-          <span>{display.label}</span>
-        </div>
-      })}
-    </div>
+    <svg className="sf-mini-intersection" viewBox="-60 -60 120 120" role="img"
+      aria-label={arms.map(arm => `${approachName(arm.laneId)}: ${arm.color}`).join(", ")}>
+      {arms.map(arm => <line key={arm.laneId} className="sf-mini-road" data-color={arm.color} x1={0} y1={0} x2={arm.x * 58} y2={arm.y * 58} />)}
+      <circle className="sf-mini-junction" r={13} />
+      {arms.map(arm => <circle key={arm.laneId} className="sf-mini-light" data-color={arm.color} cx={arm.x * 28} cy={arm.y * 28} r={5}>
+        <title>{approachName(arm.laneId)}: {arm.color}</title>
+      </circle>)}
+      {control.phase_order?.includes("pedestrian")
+        ? <PersonStandingIcon className="sf-mini-walk" data-lit={walkLit} x={-8} y={-8} width={16} height={16} aria-hidden />
+        : null}
+    </svg>
     <p className="sf-junction-note">
       {isRlControlled ? `RL-timed green: ${seconds(control.minimum_green)}–${seconds(control.maximum_green)}` : `Plan green: ${seconds(control.green_seconds)}`}
       {` · yellow ${seconds(control.yellow_seconds)} · all-red ${seconds(control.all_red_seconds)}`}

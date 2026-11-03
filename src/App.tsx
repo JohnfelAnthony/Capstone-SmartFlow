@@ -5,46 +5,38 @@ import {
 } from "@/api/client"
 import {
   getCurrentUser,
-  changePassword,
   type CurrentUser,
   login,
   logout,
   registerAccount,
 } from "@/api/auth"
 import { AppSidebar } from "@/components/app-sidebar"
-import { AuditLogsPage } from "@/components/audit-logs-page"
-import { ChangePasswordPage, LoginPage, RegisterPage } from "@/components/auth-pages"
-import { BackupRestorePage } from "@/components/backup-restore-page"
-import { CompareRunsPage } from "@/components/compare-runs-page"
-import { CalibrationValidationPage } from "@/components/calibration-validation-page"
-import { DashboardPage } from "@/components/dashboard-page"
-import { HelpAboutPage } from "@/components/help-about-page"
-import { RoleAccessControlPage } from "@/components/role-access-control-page"
-import { RLTrainingPage } from "@/components/rl-training-page"
-import { RunsReportsPage } from "@/components/runs-reports-page"
-import { ScenariosPage } from "@/components/scenarios-page"
-import { SearchPage } from "@/components/search-page"
-import { SettingsPage } from "@/components/settings-page"
-import { SiteHeader } from "@/components/site-header"
-import { UserManagementPage } from "@/components/user-management-page"
+const AuditLogsPage = React.lazy(() => import("@/components/audit-logs-page").then(module => ({ default: module.AuditLogsPage })))
+import { LoginPage, RegisterPage } from "@/components/auth-pages"
+const BackupRestorePage = React.lazy(() => import("@/components/backup-restore-page").then(module => ({ default: module.BackupRestorePage })))
+const CompareRunsPage = React.lazy(() => import("@/components/compare-runs-page").then(module => ({ default: module.CompareRunsPage })))
+const CalibrationValidationPage = React.lazy(() => import("@/components/calibration-validation-page").then(module => ({ default: module.CalibrationValidationPage })))
+const DashboardPage = React.lazy(() => import("@/components/dashboard-page").then(module => ({ default: module.DashboardPage })))
+const HelpAboutPage = React.lazy(() => import("@/components/help-about-page").then(module => ({ default: module.HelpAboutPage })))
+const RoleAccessControlPage = React.lazy(() => import("@/components/role-access-control-page").then(module => ({ default: module.RoleAccessControlPage })))
+const RLTrainingPage = React.lazy(() => import("@/components/rl-training-page").then(module => ({ default: module.RLTrainingPage })))
+const RunsReportsPage = React.lazy(() => import("@/components/runs-reports-page").then(module => ({ default: module.RunsReportsPage })))
+const ScenariosPage = React.lazy(() => import("@/components/scenarios-page").then(module => ({ default: module.ScenariosPage })))
+const SettingsPage = React.lazy(() => import("@/components/settings-page").then(module => ({ default: module.SettingsPage })))
+import { SiteHeader, type DashboardView } from "@/components/site-header"
+const UserManagementPage = React.lazy(() => import("@/components/user-management-page").then(module => ({ default: module.UserManagementPage })))
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import type { VisualizationMode } from "@/simulation/visualization-mode"
-import type { SearchResult } from "@/api/research"
-import { defaultVisualization } from "@/lib/preferences"
 
 export default function App() {
   const [activePage, setActivePage] = React.useState("Login")
+  const [dashboardView, setDashboardView] = React.useState<DashboardView>("simulation")
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null)
   const [isSessionLoading, setIsSessionLoading] = React.useState(true)
-  const [visualizationMode, setVisualizationMode] = React.useState<VisualizationMode>("3d")
-  const [selection, setSelection] = React.useState<SearchResult | null>(null)
-  const [passwordReturnPage, setPasswordReturnPage] = React.useState("Dashboard")
   const pageTitleByPage: Record<string, string> = {
     Dashboard: "Live Simulation View",
     Scenarios: "Scenario Library",
     "Calibration & Validation": "Calibration & Validation",
-    Search: "Workspace Search",
     Settings: "Settings",
     "RL Training": "RL Training",
     "Runs & Reports": "Runs & Reports",
@@ -53,7 +45,6 @@ export default function App() {
     "Role & Access Control": "Role & Access Control",
     "Audit Logs": "Audit Logs",
     "Backup & Restore": "Backup & Restore",
-    "Change Password": "Change Password",
     Help: "Help & Documentation",
   }
   const pageTitle = pageTitleByPage[activePage] ?? activePage
@@ -69,7 +60,6 @@ export default function App() {
       .then((user) => {
         if (!isMounted) return
         setCurrentUser(user)
-        setVisualizationMode(defaultVisualization(user.id))
         setActivePage("Dashboard")
       })
       .catch((error) => {
@@ -94,8 +84,6 @@ export default function App() {
   async function handleLogin(username: string, password: string) {
     const response = await login(username, password)
     setCurrentUser(response.user)
-    setSelection(null)
-    setVisualizationMode(defaultVisualization(response.user.id))
     setActivePage(response.landing_path === "/scenarios" ? "Scenarios" : "Dashboard")
   }
 
@@ -109,14 +97,6 @@ export default function App() {
     return registerAccount(payload)
   }
 
-  async function handleChangePassword(payload: {
-    current_password: string
-    new_password: string
-    confirm_password: string
-  }) {
-    return changePassword(payload)
-  }
-
   async function handleLogout() {
     try {
       await logout()
@@ -127,13 +107,7 @@ export default function App() {
   }
 
   function navigate(page: string) {
-    setSelection(null)
     setActivePage(page)
-  }
-
-  function openPassword() {
-    setPasswordReturnPage(activePage)
-    setActivePage("Change Password")
   }
 
   if (isSessionLoading) {
@@ -166,34 +140,33 @@ export default function App() {
           activeItem={activePage}
           onSelectItem={navigate}
           currentUser={currentUser}
-          onChangePassword={openPassword}
+          onOpenAccount={() => navigate("Settings")}
           onLogout={handleLogout}
           variant="inset"
         />
         <SidebarInset className="min-w-0">
           <SiteHeader
             title={pageTitle}
-            showVizToggle={activePage === "Dashboard"}
-            visualizationMode={visualizationMode}
-            onVisualizationModeChange={setVisualizationMode}
+            dashboardView={dashboardView}
+            onDashboardViewChange={activePage === "Dashboard" ? setDashboardView : undefined}
           />
           <div className="flex min-h-0 flex-1 flex-col">
+            <React.Suspense fallback={<p role="status" className="p-6">Loading page…</p>}>
             {activePage === "Scenarios" ? (
-              <ScenariosPage initialScenarioId={selection?.id} onOpenDashboard={() => navigate("Dashboard")}
+              <ScenariosPage onOpenDashboard={() => navigate("Dashboard")}
                 permissions={{ create: can("scenarios", "create"), edit: can("scenarios", "edit"),
                   run: can("simulation", "run") }} />
             ) : activePage === "Calibration & Validation" ? (
-              <CalibrationValidationPage initialRecordId={selection?.id} canEdit={can("scenarios", "edit")}
-                canExport={can("runs-reports", "export")} onOpenScenarios={() => navigate("Scenarios")} />
+              <CalibrationValidationPage canEdit={can("scenarios", "edit")}
+                canExport={can("runs-reports", "export")} isAdmin={currentUser!.role.toLowerCase() === "admin"} onOpenScenarios={() => navigate("Scenarios")} />
             ) : activePage === "Settings" ? (
-              <SettingsPage user={currentUser!} onChangePassword={openPassword} onVisualizationChange={setVisualizationMode} />
-            ) : activePage === "Search" ? (
-              <SearchPage onOpen={(result) => { setSelection(result); setActivePage(result.page) }} />
+              <SettingsPage user={currentUser!}
+                onPasswordChanged={() => { getCurrentUser().then(setCurrentUser).catch(() => undefined) }} />
             ) : activePage === "RL Training" ? (
-              <RLTrainingPage initialModelId={selection?.id} currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
+              <RLTrainingPage currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
             ) : activePage === "Runs & Reports" ? (
-              <RunsReportsPage initialRunId={selection?.id} onOpenDashboard={() => navigate("Dashboard")}
+              <RunsReportsPage onOpenDashboard={() => navigate("Dashboard")}
                 onOpenResearch={can("scenarios", "view") && can("runs-reports", "view") ? () => navigate("Calibration & Validation") : undefined}
                 onOpenCompare={can("compare", "view") ? () => navigate("Compare Runs") : undefined} />
             ) : activePage === "Compare Runs" ? (
@@ -206,11 +179,6 @@ export default function App() {
               <AuditLogsPage />
             ) : activePage === "Backup & Restore" ? (
               <BackupRestorePage />
-            ) : activePage === "Change Password" ? (
-              <ChangePasswordPage
-                onCancel={() => setActivePage(passwordReturnPage)}
-                onChangePassword={handleChangePassword}
-              />
             ) : activePage === "Help" ? (
               <HelpAboutPage />
             ) : (
@@ -218,10 +186,10 @@ export default function App() {
                 currentUserId={currentUser!.id}
                 isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunSimulation={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "simulation" && permission.action === "run")}
-                visualizationMode={visualizationMode}
-                onVisualizationModeChange={setVisualizationMode}
+                view={dashboardView}
               />
             )}
+            </React.Suspense>
           </div>
         </SidebarInset>
       </SidebarProvider>

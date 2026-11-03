@@ -22,7 +22,7 @@ import {
   restoreBackup,
   type BackupRecord as ApiBackupRecord,
 } from "@/api/admin"
-import { ApiError } from "@/api/client"
+import { ApiError, apiRequest } from "@/api/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -96,7 +96,7 @@ function backupErrorMessage(error: unknown, fallback: string) {
 export function BackupRestorePage() {
   const [backups, setBackups] = React.useState<BackupSnapshot[]>([])
   const [selectedBackupId, setSelectedBackupId] = React.useState(0)
-  const [pendingAction, setPendingAction] = React.useState<"restore" | "delete" | null>(null)
+  const [pendingAction, setPendingAction] = React.useState<"restore" | "activate" | "delete" | null>(null)
   const [alert, setAlert] = React.useState("Loading backup snapshot catalog from SQLite.")
   const [isLoading, setIsLoading] = React.useState(false)
 
@@ -161,11 +161,18 @@ export function BackupRestorePage() {
     setAlert(`Delete requested for '${backup.filename}'. Confirm to remove this snapshot.`)
   }
 
+  function requestActivate(backup: BackupSnapshot) {
+    setSelectedBackupId(backup.id)
+    setPendingAction("activate")
+    setAlert(`Verify and restore '${backup.filename}', then restart with its accounts and data. Stop active simulations and training first. The current data will be kept.`)
+  }
+
   async function confirmPendingAction() {
     if (!selectedBackup || !pendingAction) {
       return
     }
 
+    setIsLoading(true)
     try {
       if (pendingAction === "restore") {
         const response = await restoreBackup(selectedBackup.id)
@@ -176,6 +183,9 @@ export function BackupRestorePage() {
           }))
         )
         setAlert(`${response.message}${response.restore_path ? ` Restored files: ${response.restore_path}` : ""}`)
+      } else if (pendingAction === "activate") {
+        const response = await apiRequest<{ message: string }>(`/api/desktop/backups/${selectedBackup.id}/activate`, { method: "POST", body: {} })
+        setAlert(response.message)
       } else {
         const response = await deleteBackup(selectedBackup.id)
         const nextBackups = backups.filter((backup) => backup.id !== selectedBackup.id)
@@ -185,6 +195,8 @@ export function BackupRestorePage() {
       }
     } catch (error) {
       setAlert(backupErrorMessage(error, `Unable to ${pendingAction} backup.`))
+    } finally {
+      setIsLoading(false)
     }
 
     setPendingAction(null)
@@ -291,6 +303,11 @@ export function BackupRestorePage() {
                             <ArchiveRestoreIcon data-icon="inline-start" />
                             {backup.filename.endsWith(".zip") ? "Verify restore" : "Stage SQLite"}
                           </Button>
+                          {import.meta.env.VITE_SMARTFLOW_DESKTOP === "1" && backup.filename.endsWith(".zip") ? (
+                            <Button variant="outline" size="sm" onClick={() => requestActivate(backup)} disabled={isLoading}>
+                              Restore & restart
+                            </Button>
+                          ) : null}
                           <Button variant="destructive" size="sm" onClick={() => requestDelete(backup)}>
                             <Trash2Icon data-icon="inline-start" />
                             Delete
@@ -351,7 +368,7 @@ export function BackupRestorePage() {
                 <Button variant="outline" onClick={() => setPendingAction(null)}>
                   Cancel
                 </Button>
-                <Button variant={pendingAction === "delete" ? "destructive" : "default"} onClick={confirmPendingAction}>
+                <Button variant={pendingAction === "delete" ? "destructive" : "default"} onClick={confirmPendingAction} disabled={isLoading}>
                   Confirm
                 </Button>
               </div>

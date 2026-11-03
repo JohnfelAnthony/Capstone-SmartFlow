@@ -7,7 +7,6 @@ import {
   ListOrderedIcon,
   RotateCcwIcon,
   SearchIcon,
-  ShieldAlertIcon,
   SlidersHorizontalIcon,
   TriangleAlertIcon,
   UserRoundIcon,
@@ -222,7 +221,6 @@ export function AuditLogsPage() {
   const eventsToday = logs.filter((log) => isoDate(log.timestamp) === today).length
   const failures = logs.filter((log) => /fail|reject/.test(log.action.toLowerCase())).length
   const configChanges = logs.filter((log) => /config|setting|permission|migration/.test(log.action.toLowerCase())).length
-  const recentCritical = logs.filter((log) => actionTone(log.action) === "danger").slice(0, 3)
 
   const metrics = [
     { label: "Events Today", value: eventsToday, hint: today, icon: CalendarDaysIcon, tone: "info" },
@@ -400,24 +398,6 @@ export function AuditLogsPage() {
           </CardContent>
         </Card>
 
-        <Card className="audit-critical-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldAlertIcon />
-              Watchlist
-            </CardTitle>
-            <CardDescription>Recent failed, rejected, or destructive actions.</CardDescription>
-          </CardHeader>
-          <CardContent className="audit-watchlist">
-            {recentCritical.map((log) => (
-              <button key={log.id} type="button" onClick={() => setSelectedLogId(log.id)}>
-                <Badge variant="destructive">{log.action}</Badge>
-                <span>{log.details}</span>
-                <small>{formatTimestamp(log.timestamp)}</small>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
       </section>
     </main>
   )

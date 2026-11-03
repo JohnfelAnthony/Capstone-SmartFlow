@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, junctionShortLabel, junctionTagText, laneDisplayLabel, phaseService } from "@/simulation/scene-summary"
-import { bentNetwork } from "./geometry-fixture"
+import { approachDirection, junctionShortLabel, junctionTagText, laneDisplayLabel, phaseService, signalArms } from "@/simulation/scene-summary"
+import { bentNetwork, crossNetwork } from "./geometry-fixture"
 
 describe("scene labels", () => {
   const geometry = normalizeSceneGeometry(bentNetwork)
@@ -37,5 +37,29 @@ describe("junction display helpers", () => {
     expect(phaseService("PED_GREEN")).toBe("pedestrian")
     expect(phaseService("ALL_RED")).toBeNull()
     expect(phaseService(undefined)).toBeNull()
+  })
+})
+
+describe("signalArms", () => {
+  const geometry = normalizeSceneGeometry(crossNetwork())
+  const lights = (state: Record<string, string>) => ({ traffic_lights: Object.fromEntries(Object.entries(state).map(([id, value]) => [id, { state: value }])) })
+
+  it("places each approach on its real side with north up", () => {
+    const arms = signalArms(geometry, "J", lights({}))
+    const arm = (laneId: string) => arms.find(candidate => candidate.laneId === laneId)!
+    expect(arms).toHaveLength(4)
+    expect(arm("north-in").y).toBeLessThan(-.9)
+    expect(arm("south-in").y).toBeGreaterThan(.9)
+    expect(arm("east-in").x).toBeGreaterThan(.9)
+    expect(arm("west-in").x).toBeLessThan(-.9)
+  })
+
+  it("lights only the lane the engine reports as served", () => {
+    const arms = signalArms(geometry, "J", lights({ "north-in": "G", "south-in": "y", "east-in": "r", "west-in": "r" }))
+    expect(Object.fromEntries(arms.map(arm => [arm.laneId, arm.color]))).toEqual({ "north-in": "green", "south-in": "yellow", "east-in": "red", "west-in": "red" })
+  })
+
+  it("has no arms for an unknown junction", () => {
+    expect(signalArms(geometry, "missing", null)).toEqual([])
   })
 })

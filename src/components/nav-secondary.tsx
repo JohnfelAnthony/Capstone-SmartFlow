@@ -12,6 +12,7 @@ import {
 import { MoonIcon, ShuffleIcon, SunIcon } from "lucide-react"
 
 import { getInitialTheme, applyTheme, clearRandomPalette, generateRandomPalette, applyRandomPalette, type ThemeMode, type RandomPalette } from "@/lib/appearance"
+import { writePreference } from "@/lib/local-preference-store"
 
 export function NavSecondary({
   activeItem,
@@ -40,7 +41,7 @@ export function NavSecondary({
 
   React.useEffect(() => {
     applyTheme(theme)
-    window.localStorage.setItem("smartflow-theme", theme)
+    void writePreference("smartflow-theme", theme).catch(console.error)
   }, [theme])
 
   React.useEffect(() => {
@@ -50,7 +51,7 @@ export function NavSecondary({
       try {
         applyRandomPalette(JSON.parse(savedPalette) as RandomPalette)
       } catch {
-        clearRandomPalette()
+        void clearRandomPalette().catch(console.error)
       }
     }
   }, [])
@@ -67,12 +68,12 @@ export function NavSecondary({
 
     applyRandomPalette(palette)
     setRandomCount(nextCount)
-    window.localStorage.setItem("smartflow-random-count", String(nextCount))
-    window.localStorage.setItem("smartflow-random-palette", JSON.stringify(palette))
+    void writePreference("smartflow-random-count", String(nextCount)).catch(console.error)
+    void writePreference("smartflow-random-palette", JSON.stringify(palette)).catch(console.error)
   }
 
   function handleThemeToggle() {
-    clearRandomPalette()
+    void clearRandomPalette().catch(console.error)
     setTheme(isLight ? "dark" : "light")
   }
 

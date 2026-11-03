@@ -1,3 +1,5 @@
+import { writePreference } from "@/lib/local-preference-store"
+
 export type ThemeMode = "dark" | "light"
 export type RandomPalette = {
   background: string
@@ -104,7 +106,7 @@ export function applyTheme(theme: ThemeMode) {
   root.style.colorScheme = theme
 }
 
-export function clearRandomPalette() {
+export function clearRandomPalette(): Promise<void> {
   const root = document.documentElement
 
   root.classList.remove("random-theme")
@@ -112,7 +114,7 @@ export function clearRandomPalette() {
     root.style.removeProperty(variableName)
   }
 
-  window.localStorage.removeItem("smartflow-random-palette")
+  return writePreference("smartflow-random-palette", null)
 }
 
 export function generateRandomPalette(): RandomPalette {

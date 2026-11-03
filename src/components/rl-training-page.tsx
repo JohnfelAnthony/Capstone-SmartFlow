@@ -258,7 +258,7 @@ function ProgressBar({ value }: { value: number }) {
   )
 }
 
-export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, initialModelId }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean; initialModelId?: number | null }) {
+export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean }) {
   const [algorithms, setAlgorithms] = React.useState<AlgorithmId[]>(["ql"])
   const [settings, setSettings] = React.useState<RLTrainingSettings>(defaultSettings)
   const [advanced, setAdvanced] = React.useState<RLAdvancedSettings>(defaultAdvanced)
@@ -274,7 +274,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, initial
     models: [],
   })
   const [jobs, setJobs] = React.useState<RLTrainingJob[]>([])
-  const [selectedModelId, setSelectedModelId] = React.useState<number | null>(initialModelId ?? null)
+  const [selectedModelId, setSelectedModelId] = React.useState<number | null>(null)
   const [selectedCheckpointId, setSelectedCheckpointId] = React.useState<number | null>(null)
   const [alert, setAlert] = React.useState("RL training console loaded.")
   const [isLoading, setIsLoading] = React.useState(false)

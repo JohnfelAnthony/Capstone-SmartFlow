@@ -1094,10 +1094,10 @@
 
 .audit-console-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
   grid-template-areas:
-    "filters ledger inspector"
-    "watch ledger inspector";
+    "ledger filters"
+    "ledger inspector";
   align-items: start;
   gap: 16px;
 }
@@ -1113,10 +1113,6 @@
 
 .audit-inspector-card {
   grid-area: inspector;
-}
-
-.audit-critical-card {
-  grid-area: watch;
 }
 
 .audit-filter-content {
@@ -1268,56 +1264,10 @@
   color: var(--foreground);
 }
 
-.audit-watchlist {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.audit-watchlist button {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--card), var(--destructive) 5%);
-  color: var(--foreground);
-  text-align: left;
-  transition: border-color var(--duration) var(--ease-out), background var(--duration) var(--ease-out);
-}
-
-.audit-watchlist button:hover {
-  border-color: color-mix(in oklch, var(--destructive), transparent 55%);
-  background: color-mix(in oklch, var(--card), var(--destructive) 9%);
-}
-
-.audit-watchlist span {
-  color: var(--foreground);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.audit-watchlist small {
-  color: var(--muted-foreground);
-}
-
-.random-theme .audit-inspector div,
-.random-theme .audit-watchlist button {
+.random-theme .audit-inspector div {
   border-color: var(--border);
   background: var(--random-dashboard-card);
   color: var(--random-dashboard-primary);
-}
-
-@media (max-width: 1380px) {
-  .audit-console-grid {
-    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-    grid-template-areas:
-      "filters ledger"
-      "watch ledger"
-      "inspector inspector";
-  }
 }
 
 @media (max-width: 900px) {
@@ -1331,8 +1281,7 @@
     grid-template-areas:
       "filters"
       "ledger"
-      "inspector"
-      "watch";
+      "inspector";
   }
 
   .audit-hero {

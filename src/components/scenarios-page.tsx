@@ -31,8 +31,8 @@ import {
 } from "@/api/scenarios"
 import { configureSimulation, generateTimeline, startSimulation } from "@/api/simulation"
 import { listRLModels, type RLModelRecord } from "@/api/rl"
-import { downloadObservationTemplate, getNativeScenarioOptions, importObservationCsv, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
-import { NativeNumber, NativeScenarioControls, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
+import { getNativeScenarioOptions, importMovementCounts, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
+import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
@@ -70,7 +70,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { STUDY_SITES, sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type ScenarioDensity = "None" | "Single" | "Low" | "Medium" | "High" | "Very High"
 type ScenarioCategory = "all" | "official" | "user" | "active" | "archived"
@@ -248,8 +250,8 @@ function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
   )
 }
 
-export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId }: {
-  onOpenDashboard?: () => void; permissions: ScenarioPermissions; initialScenarioId?: number | null
+export function ScenariosPage({ onOpenDashboard, permissions }: {
+  onOpenDashboard?: () => void; permissions: ScenarioPermissions
 }) {
   const [scenarios, setScenarios] = React.useState<ScenarioRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -261,7 +263,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
   const [stateFilter, setStateFilter] = React.useState<ScenarioStateFilter>("all")
   const [sort, setSort] = React.useState<ScenarioSort>("name_asc")
   const [viewMode, setViewMode] = React.useState<ScenarioViewMode>("cards")
-  const [selectedId, setSelectedId] = React.useState<number | null>(initialScenarioId ?? null)
+  const [selectedId, setSelectedId] = React.useState<number | null>(null)
   const [recordingScenarioId, setRecordingScenarioId] = React.useState<number | null>(null)
   const [recordingModels, setRecordingModels] = React.useState<RLModelRecord[]>([])
   const [recordControlMode, setRecordControlMode] = React.useState("fixed-time")
@@ -275,23 +277,15 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
   const [nativeOptions, setNativeOptions] = React.useState<NativeScenarioOptions | null>(null)
   const [networks, setNetworks] = React.useState<NetworkSummary[]>([])
   const [formError, setFormError] = React.useState("")
-  const [importKind, setImportKind] = React.useState<"trips" | "od_counts" | "turn_counts" | "pedestrian_counts">("trips")
-  const [importSourceKind, setImportSourceKind] = React.useState<"synthetic" | "observed">("synthetic")
-  const [importDescription, setImportDescription] = React.useState("")
-  const [importDate, setImportDate] = React.useState(new Date().toISOString().slice(0, 10))
-  const [importCollectionStart, setImportCollectionStart] = React.useState("")
-  const [importCollectionEnd, setImportCollectionEnd] = React.useState("")
-  const [importFile, setImportFile] = React.useState<File | null>(null)
   const [importNotice, setImportNotice] = React.useState("")
   const [isImporting, setIsImporting] = React.useState(false)
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = React.useState(false)
   const [isResolving, setIsResolving] = React.useState(false)
   const [editConfigReady, setEditConfigReady] = React.useState(true)
   const editRequest = React.useRef(0)
 
   React.useEffect(() => {
     let mounted = true
-    Promise.all([getNativeScenarioOptions(), listNetworks()]).then(([options, available]) => { if (mounted) { setNativeOptions(options); setNetworks(available) } })
+    Promise.all([getNativeScenarioOptions(), listNetworks()]).then(([options, available]) => { if (mounted) { setNativeOptions(options); setNetworks(available.filter((network) => network.id !== "tagum_network")) } })
       .catch((error) => { if (mounted) setNotice(error instanceof Error ? error.message : "Unable to load network choices.") })
     return () => { mounted = false }
   }, [])
@@ -338,6 +332,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     )
   }, [category, density, scenarios, search, sort, stateFilter, typeFilter])
 
+  const hasCsvDemand = (draft.engineConfig.demand_windows?.length ?? 0) > 0
   const requiresLegacyMapping = Boolean(scenarios.find((scenario) => scenario.id === editingScenarioId)?.migrationError)
 
   const stats = React.useMemo(() => {
@@ -364,8 +359,9 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     setIsResolving(false)
     setFormMode("create")
     setEditingScenarioId(null)
-    setDraft({ ...emptyScenarioDraft, intersectionId: nativeOptions?.network_id ?? "",
-      engineConfig: structuredClone(nativeOptions?.defaults ?? {}) })
+    setImportNotice("")
+    setDraft(emptyScenarioDraft)
+    if (networks[0]) void changeNetwork(networks[0].id, "")
   }
 
   async function openEditForm(scenario: ScenarioRecord) {
@@ -398,8 +394,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     }
   }
 
-  async function changeNetwork(networkId: string) {
-    if (networkId === draft.intersectionId) return
+  async function changeNetwork(networkId: string, currentNetworkId = draft.intersectionId) {
+    if (networkId === currentNetworkId) return
     const request = ++editRequest.current
     setIsResolving(true)
     setEditConfigReady(false)
@@ -412,7 +408,6 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
         engineConfig: structuredClone(options.defaults),
         trafficDensity: normalizeDensity(String(options.defaults.traffic_density)),
         pedestrianDensity: String(options.defaults.pedestrian_density) }))
-      setImportFile(null)
       setImportNotice("")
       setEditConfigReady(true)
     } catch (error) {
@@ -451,44 +446,17 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
     }
   }
 
-  async function downloadImportTemplate(example: boolean) {
-    setIsDownloadingTemplate(true)
-    setFormError("")
-    try {
-      const result = await downloadObservationTemplate(importKind, example, draft.intersectionId)
-      if (example) {
-        setImportSourceKind("synthetic")
-        setImportDescription(`Synthetic ${importKind} example for ${result.network_id}; no field observations`)
-      }
-      setImportNotice(`${example ? "Synthetic example" : "Blank template"} downloaded for ${result.network_id}. ${example ? "Use Synthetic sample provenance; example values are not field observations." : "Add your data rows before importing."}`)
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Unable to download CSV template.")
-    } finally {
-      setIsDownloadingTemplate(false)
-    }
-  }
-
-  async function importCsvToDraft() {
-    if (!importFile || !nativeOptions || !editConfigReady) {
-      setFormError("Choose a CSV file and wait for scenario settings to load.")
-      return
-    }
+  async function attachCsv(file: File | undefined) {
+    if (!file || !nativeOptions || !editConfigReady) return
     setIsImporting(true)
     setFormError("")
     setImportNotice("")
     try {
-      const response = await importObservationCsv({
-        kind: importKind, source_kind: importSourceKind, csv_text: await importFile.text(),
-        source_description: importDescription, collected_on: importDate, engine_config: draft.engineConfig, network_id: draft.intersectionId,
-        collection_start: importSourceKind === "observed" ? importCollectionStart || undefined : undefined,
-        collection_end: importSourceKind === "observed" ? importCollectionEnd || undefined : undefined,
-      })
-      setDraft((current) => ({ ...current, engineConfig: response.engine_config,
-        trafficDensity: importKind === "pedestrian_counts" ? current.trafficDensity : "None",
-        pedestrianDensity: importKind === "pedestrian_counts" ? "none" : current.pedestrianDensity }))
-      setImportNotice(`Validated ${response.summary.row_count} rows and ${response.summary.arrival_count} arrivals. Source SHA-256: ${response.summary.sha256}. Save the scenario to use them.`)
+      const response = await importMovementCounts({ csv_text: await file.text(), network_id: draft.intersectionId, engine_config: draft.engineConfig })
+      setDraft((current) => ({ ...current, engineConfig: response.engine_config, trafficDensity: "None" }))
+      setImportNotice(`${file.name}: ${response.rows} movements, ${response.vehicles_per_hour} vehicles per hour. Save the scenario to keep them.`)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Unable to import CSV.")
+      setFormError(error instanceof Error ? error.message : "Unable to read the CSV.")
     } finally {
       setIsImporting(false)
     }
@@ -767,7 +735,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
         <SheetContent className="scenario-sheet" side="right">
           <SheetHeader>
             <SheetTitle>{formMode === "edit" ? "Edit Scenario" : "New Scenario"}</SheetTitle>
-            <SheetDescription>Configure demand, signal plans and scheduled road changes. Saved settings are shared by live runs, recordings and training.</SheetDescription>
+            <SheetDescription>Pick a site, set traffic and pedestrians, or attach a traffic counts CSV.</SheetDescription>
           </SheetHeader>
           <div className="scenario-sheet-scroll">
             <FieldGroup className="px-4 pb-4">
@@ -783,59 +751,32 @@ export function ScenariosPage({ onOpenDashboard, permissions, initialScenarioId 
                 <Input id="scenario-name" value={draft.name} maxLength={160} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
               </Field>
               <Field>
-                <FieldLabel htmlFor="scenario-description">Description</FieldLabel>
-                <textarea id="scenario-description" className="scenario-textarea" maxLength={2000} value={draft.description}
-                  onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
+                <FieldLabel>Site</FieldLabel>
+                <ToggleGroup aria-label="Site" variant="outline" className="grid w-full grid-cols-2" value={[draft.intersectionId]} disabled={isResolving || isSaving}
+                  onValueChange={(values) => values[0] && void changeNetwork(values[0])}>
+                  {networks.map((network) => <ToggleGroupItem key={network.id} value={network.id} className="h-auto flex-col items-stretch gap-1.5 p-1.5 text-left data-pressed:border-primary data-pressed:ring-2 data-pressed:ring-primary/40">
+                    <ScenarioPhoto networkId={network.id} className="aspect-[4/3]" />
+                    <span className="line-clamp-2 text-xs font-medium whitespace-normal">{network.name}</span>
+                  </ToggleGroupItem>)}
+                </ToggleGroup>
               </Field>
-              <NativeSelect label="Study network" value={draft.intersectionId} options={networks.map((network) => ({ value: network.id, label: network.id === "tagum_network" ? `Provisional ${network.junctions}-junction network` : network.name }))} disabled={isResolving || isSaving} onChange={(value) => void changeNetwork(value)} />
-              <p className="text-sm text-muted-foreground">Changing the network resets the draft's lane, signal and demand settings to that network's defaults. Site geometry is provisional; demand is synthetic unless identified otherwise.</p>
               <FieldGroup className="grid sm:grid-cols-2">
-                <NativeSelect label="Traffic density" value={draft.trafficDensity.toLowerCase()}
+                <NativeSelect label={hasCsvDemand ? "Traffic density (set by the CSV)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={hasCsvDemand}
                   options={["None", "Single", "Low", "Medium", "High", "Very High"].map((label) => ({ label, value: label.toLowerCase() }))}
                   onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />
                 <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()}
                   options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
                   onChange={(pedestrianDensity) => setDraft((current) => ({ ...current, pedestrianDensity }))} />
               </FieldGroup>
-              <fieldset className="rounded-lg border p-3 flex flex-col gap-3">
-                <legend className="font-medium">Import demand CSV</legend>
-                <p className="text-sm text-muted-foreground">Network boundary IDs: {nativeOptions?.boundaries.map((item) => `${item.id} (${item.label})`).join(", ") ?? "loading"}. Junction IDs: {nativeOptions?.junctions.map((item) => item.id).join(", ") ?? "loading"}.</p>
-                <NativeSelect label="CSV schema" value={importKind} options={[
-                  { value: "trips", label: "Trips: time_s, source, destination, vehicle_type" },
-                  { value: "od_counts", label: "OD counts: start_s, end_s, source, destination, count" },
-                  { value: "turn_counts", label: "Turn counts: start_s, end_s, source, destination, junction, from_lane, to_lane, count" },
-                  { value: "pedestrian_counts", label: "Pedestrians: start_s, end_s, junction, count" },
-                ]} onChange={(value) => setImportKind(value as typeof importKind)} />
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" disabled={isDownloadingTemplate || !nativeOptions} onClick={() => void downloadImportTemplate(false)}>Download blank template</Button>
-                  <Button type="button" variant="outline" size="sm" disabled={isDownloadingTemplate || !nativeOptions} onClick={() => void downloadImportTemplate(true)}>Download synthetic example</Button>
-                </div>
-                <Alert><AlertDescription>Templates match the selected CSV schema. Synthetic examples use the loaded network's IDs and invented counts; never report them as field observations. A blank template needs at least one data row.</AlertDescription></Alert>
-                <p className="text-sm text-muted-foreground">Use exact boundary IDs for source/destination and junction or directed lane IDs where required. Times are seconds from simulation start, not clock times. Counts are non-negative whole numbers; vehicle_type can be car, motorcycle, tricycle, bus or truck. Keep unknown measurements outside this CSV instead of entering zero.</p>
-                {importKind === "turn_counts" && <p className="text-sm text-muted-foreground">Lane IDs (source → target): {nativeOptions?.lanes.map((lane) => `${lane.id} (${lane.source} → ${lane.target})`).join(", ") ?? "loading"}. The supplied boundary route must include the recorded turn; later rerouting may change it.</p>}
-                <NativeSelect label="Data provenance" value={importSourceKind} options={[
-                  { value: "synthetic", label: "Synthetic sample" }, { value: "observed", label: "Field observation" },
-                ]} onChange={(value) => setImportSourceKind(value as typeof importSourceKind)} />
-                <Field><FieldLabel htmlFor="import-description">Source description</FieldLabel>
-                  <Input id="import-description" value={importDescription} maxLength={500} onChange={(event) => setImportDescription(event.target.value)} /></Field>
-                <Field><FieldLabel htmlFor="import-date">Collection or sample date</FieldLabel>
-                  <Input id="import-date" type="date" value={importDate} onChange={(event) => setImportDate(event.target.value)} /></Field>
-                <Field><FieldLabel htmlFor="import-file">CSV file</FieldLabel>
-                  <Input id="import-file" type="file" accept=".csv,text/csv" onChange={(event) => setImportFile(event.target.files?.[0] ?? null)} /></Field>
-                {importSourceKind === "observed" && <FieldGroup>
-                  <Field><FieldLabel htmlFor="import-collection-start">Collection start (optional)</FieldLabel>
-                    <Input id="import-collection-start" placeholder="2026-01-01T07:00:00+08:00" value={importCollectionStart} onChange={(event) => setImportCollectionStart(event.target.value)} /></Field>
-                  <Field><FieldLabel htmlFor="import-collection-end">Collection end (optional)</FieldLabel>
-                    <Input id="import-collection-end" placeholder="2026-01-01T08:00:00+08:00" value={importCollectionEnd} onChange={(event) => setImportCollectionEnd(event.target.value)} /></Field>
-                  <p className="text-sm text-muted-foreground">Enter both timestamps with a UTC offset to declare a collection period. Same-date held-out inputs require disjoint periods. CSV time 0 is the collection start and simulation start, including any warmup.</p>
-                </FieldGroup>}
-                <p className="text-sm text-muted-foreground">Times are seconds from simulation start. Count bins create evenly spaced arrivals; actual arrival times are unknown. Vehicle imports replace vehicle trips and windows; pedestrian imports replace the pedestrian schedule.</p>
-                <Button type="button" variant="outline" disabled={isImporting || !nativeOptions || !editConfigReady} onClick={() => void importCsvToDraft()}>{isImporting ? "Validating..." : "Validate and apply to draft"}</Button>
+              <Field>
+                <FieldLabel htmlFor="import-file">Traffic counts CSV (optional)</FieldLabel>
+                <Input id="import-file" type="file" accept=".csv,text/csv" disabled={isImporting || isResolving || !nativeOptions || !editConfigReady}
+                  onChange={(event) => { void attachCsv(event.target.files?.[0]); event.target.value = "" }} />
+                <p className="text-sm text-muted-foreground">Columns: <code>from,to,vehicle_type,count</code>. One row per movement, for example <code>north,south,car,320</code>. from and to are {nativeOptions?.junctions[0]?.approaches.filter((approach) => approach !== "pedestrian").join(", ") ?? "the approaches"}; vehicle_type is car, motorcycle, tricycle, bus or truck; count is vehicles per hour.</p>
+                {isImporting && <p role="status" className="text-sm">Reading CSV...</p>}
                 {importNotice && <p role="status" className="text-sm">{importNotice}</p>}
-              </fieldset>
-              {isResolving ? <p role="status">Loading saved native settings...</p> : nativeOptions && editConfigReady &&
-                <NativeScenarioControls value={draft.engineConfig} options={nativeOptions}
-                  onChange={(engineConfig) => setDraft((current) => ({ ...current, engineConfig }))} />}
+              </Field>
+              {isResolving && <p role="status">Loading site settings...</p>}
             </FieldGroup>
           </div>
           <SheetFooter className="scenario-sheet-footer">
@@ -928,6 +869,7 @@ function ScenarioCard({
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <ScenarioPhoto networkId={scenario.intersectionId} />
         <div className="scenario-card-meta-grid">
           <ScenarioMeta icon={MapPinnedIcon} label="Intersection" value={formatIntersection(scenario.intersectionId)} />
           <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
@@ -1094,7 +1036,7 @@ function ScenarioDetailSheet({
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />
           </div>
-          <ScenarioSchematic scenario={scenario} />
+          <ScenarioPhoto networkId={scenario.intersectionId} />
           <Card>
             <CardHeader>
               <CardTitle>Disruptions</CardTitle>
@@ -1140,29 +1082,7 @@ function ScenarioDetailSheet({
   )
 }
 
-function ScenarioSchematic({ scenario }: { scenario: ScenarioRecord }) {
-  const intensity = densityOrder[scenario.trafficDensity]
-
-  return (
-    <Card className="scenario-schematic-card">
-      <CardHeader>
-        <CardTitle>Traffic Schematic</CardTitle>
-        <CardDescription>Directional pressure preview from the selected density.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="scenario-schematic">
-          <div className="scenario-road vertical" />
-          <div className="scenario-road horizontal" />
-          <div className="scenario-junction">
-            <span>{scenario.intersectionId.replace("_", " ").toUpperCase()}</span>
-          </div>
-          {["N", "E", "S", "W"].map((direction, index) => (
-            <span key={direction} className={cn("scenario-direction", direction.toLowerCase(), index < intensity && "active")}>
-              {direction}
-            </span>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
+function ScenarioPhoto({ networkId, className }: { networkId: string; className?: string }) {
+  const photo = sitePhoto(networkId)
+  return photo ? <img className={cn("scenario-photo", className)} src={photo} alt={`${STUDY_SITES[networkId].label} intersection`} /> : null
 }
