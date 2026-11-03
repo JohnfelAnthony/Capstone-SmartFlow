@@ -58,6 +58,14 @@ def test_desktop_api_backup_and_staging_keep_networks_and_evidence(tmp_path, mon
     edited_payload = json.loads(edited_site.read_text(encoding="utf-8"))
     edited_payload["name"] = "Synthetic user-edited site"
     edited_site.write_text(json.dumps(edited_payload), encoding="utf-8")
+    # Two trusted synthetic revisions exercise both original and hashed history files.
+    from services.network_revision_storage import store_revision
+    registry_path = edited_site.parent / "registry.json"
+    for _ in range(2):
+        previous = RoadNetwork(edited_payload)
+        edited_payload = json.loads(json.dumps(edited_payload))
+        edited_payload["roads"][0]["width"] = float(edited_payload["roads"][0].get("width", 7)) + 0.1
+        store_revision(registry_path, "tagum_site_a", previous.fingerprint, edited_payload)
     evidence = root / "data" / "sites" / "tagum_site_a_mapping.json"
     evidence.parent.mkdir(parents=True)
     evidence.write_text('{"note":"synthetic evidence"}', encoding="utf-8")
@@ -158,6 +166,12 @@ def test_desktop_api_backup_and_staging_keep_networks_and_evidence(tmp_path, mon
     switch = RestoreSwitch(root, resources, frontend)
     candidate = switch.candidate_path()
     prepare_desktop_restore(stage, candidate, root / "config" / "installation-secret")
+    restored_registry = candidate / "data" / "networks" / "registry.json"
+    for entry in json.loads(restored_registry.read_text())["networks"]:
+        for revision in entry.get("revision_history", []):
+            historical_path = Path(_windows_long_path(restored_registry.parent / revision["file"]))
+            historical = RoadNetwork(json.loads(historical_path.read_text(encoding="utf-8")))
+            assert historical.fingerprint == revision["sha256"]
     shutil.rmtree(stage)
     with closing(sqlite3.connect(candidate / "data" / "smartflow.db")) as connection:
         restored_recording = Path(connection.execute("SELECT timeline_path FROM simulation_runs WHERE timeline_path IS NOT NULL").fetchone()[0])

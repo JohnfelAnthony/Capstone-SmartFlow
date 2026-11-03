@@ -41,7 +41,9 @@ class DesktopPaths:
         return {"SMARTFLOW_DATA_DIR": str(data),
                 "SMARTFLOW_DB_PATH": str(data / "smartflow.db"),
                 "SMARTFLOW_NETWORK_PATH": str(data / "networks" / "tagum_network.json"),
-                "SMARTFLOW_NETWORK_REGISTRY_PATH": str(data / "networks" / "registry.json"),
+                # Immutable revision filenames add a SHA-256 suffix; the parent
+                # must support them even when the registry itself is short.
+                "SMARTFLOW_NETWORK_REGISTRY_PATH": str(extended_path(data / "networks" / "registry.json")),
                 "SMARTFLOW_IMPORT_DIR": str(data / "imports"),
                 "SMARTFLOW_STUDY_ROOT": str(self.root)}
 

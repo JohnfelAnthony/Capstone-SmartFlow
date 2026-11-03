@@ -19,10 +19,13 @@ def test_different_roots_and_release(tmp_path):
 
 def test_crashed_process_releases_lock(tmp_path):
     root = tmp_path / "data"
-    code = "from desktop.instance_lock import InstanceLock; import sys; lock=InstanceLock(sys.argv[1]); lock.__enter__(); print('ready', flush=True); sys.stdin.read()"
-    process = subprocess.Popen([sys.executable, "-c", code, str(root)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    code = "from desktop.instance_lock import InstanceLock; import sys,os; lock=InstanceLock(sys.argv[1]); lock.__enter__(); print(os.getpid(), flush=True); sys.stdin.read()"
+    # Windows venv python.exe redirects to another process: killing the
+    # redirector does not prove that the interpreter holding the lock crashed.
+    interpreter = getattr(sys, "_base_executable", sys.executable)
+    process = subprocess.Popen([interpreter, "-c", code, str(root)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     try:
-        assert process.stdout.readline().strip() == "ready"
+        assert int(process.stdout.readline().strip()) == process.pid
         with pytest.raises(InstanceInUse):
             with InstanceLock(root):
                 pass

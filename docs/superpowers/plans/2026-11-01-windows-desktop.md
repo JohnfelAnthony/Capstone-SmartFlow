@@ -1,7 +1,7 @@
 # SmartFlow Windows desktop implementation guide
 
 Date: 2026-11-01 (Asia/Singapore)
-Status (2026-11-04): development prototype integrated with main `1f3e6a5` (native-8). Source desktop suite 101 passed; frozen worker/backend/restore tests 7 passed on `desktop-shell-experiment-2e58fd33cde4`. NOT done: native-window acceptance, installer build, clean-profile install/offline/update/uninstall. Not LGU-ready. Unchecked boxes are unverified or open.
+Status (2026-11-04): development prototype integrated with main `1f3e6a5` (native-8). An unsigned installer was compiled and silent install/update/uninstall exercised on the developer profile; this does not establish clean-profile acceptance. Recovery and network-history restore corrections are recorded in the latest progress entry with their verification scope. NOT done: native-window acceptance and clean-profile install/offline/update/uninstall. Not LGU-ready. Unchecked boxes are unverified or open.
 Branch: `codex/desktop-version`
 Starting revision: `5de043a86781f7a94e77b946ea6f5996dc7af553`
 

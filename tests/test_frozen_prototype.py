@@ -5,6 +5,7 @@ import queue
 import shutil
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -12,6 +13,31 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+
+
+@pytest.mark.skipif(not os.environ.get("SMARTFLOW_FROZEN_WORKER"), reason="Disposable frozen worker not supplied")
+def test_frozen_recovery_follows_active_root_and_preserves_wal(tmp_path):
+    from tests.test_desktop_recover import make_root, value
+    from desktop.migration_snapshot import snapshot_before_start
+    worker = str(Path(os.environ["SMARTFLOW_FROZEN_WORKER"]).resolve())
+    control = tmp_path / "SmartFlow"
+    active = control / "desktop-restored" / "restore-synthetic"
+    active.mkdir(parents=True)
+    control_data = make_root(control, "inactive")
+    data = make_root(active, "snapshot")
+    snapshot_before_start(data / "smartflow.db", data)
+    (control / "config").mkdir()
+    (control / "config" / "active-data-root.json").write_text(json.dumps({"version": 1, "root": str(active)}))
+    code = "import sqlite3,sys,os; c=sqlite3.connect(sys.argv[1]); c.execute('PRAGMA journal_mode=WAL'); c.execute(\"UPDATE t SET v='committed'\"); c.commit(); os._exit(0)"
+    subprocess.run([sys.executable, "-c", code, str(data / "smartflow.db")], check=True)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("SMARTFLOW_")}
+    env["LOCALAPPDATA"] = str(tmp_path)
+    result = subprocess.run([worker, "recover", "--yes"], env=env, text=True, capture_output=True, timeout=45)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert value(data / "smartflow.db") == "snapshot"
+    kept = [p for p in data.glob("smartflow.db.replaced-*") if not p.name.endswith(("-wal", "-shm"))]
+    assert len(kept) == 1 and value(kept[0]) == "committed"
+    assert value(control_data / "smartflow.db") == "inactive"
 
 
 @pytest.mark.skipif(not os.environ.get("SMARTFLOW_FROZEN_WORKER"), reason="Disposable frozen worker not supplied")

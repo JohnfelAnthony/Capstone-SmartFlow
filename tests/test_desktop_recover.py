@@ -1,9 +1,74 @@
 import sqlite3
+import json
+import subprocess
+import sys
 from contextlib import closing
 
 from desktop.instance_lock import InstanceLock
 from desktop.migration_snapshot import KEEP_SNAPSHOTS, snapshot_before_start
 from desktop.recover import list_snapshots, main, recover
+
+
+def test_recovery_preserves_committed_wal_after_crash(tmp_path):
+    data = make_root(tmp_path, "snapshot")
+    snapshot = snapshot_before_start(data / "smartflow.db", data)
+    code = "import sqlite3,sys,os; c=sqlite3.connect(sys.argv[1]); c.execute('PRAGMA journal_mode=WAL'); c.execute('PRAGMA wal_autocheckpoint=0'); c.execute(\"UPDATE t SET v='committed after snapshot'\"); c.commit(); os._exit(0)"
+    subprocess.run([sys.executable, "-c", code, str(data / "smartflow.db")], check=True)
+    assert (data / "smartflow.db-wal").is_file()
+    kept = recover(tmp_path, snapshot)
+    assert value(kept) == "committed after snapshot"
+    assert value(data / "smartflow.db") == "snapshot"
+
+
+def test_default_recovery_follows_active_selection(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    control = tmp_path / "SmartFlow"
+    control.mkdir()
+    make_root(control, "inactive")
+    active = control / "desktop-restored" / "restore-test"
+    active.mkdir(parents=True)
+    data = make_root(active, "good")
+    snapshot_before_start(data / "smartflow.db", data)
+    make_root(active, "bad")
+    (control / "config").mkdir()
+    (control / "config" / "active-data-root.json").write_text(json.dumps({"version": 1, "root": str(active)}))
+    assert main(["--yes"]) == 0
+    assert value(data / "smartflow.db") == "good"
+    assert value(control / "data" / "smartflow.db") == "inactive"
+    with InstanceLock(control / "config" / "supervisor"):
+        assert main(["--yes"]) == 1
+
+
+def test_recovery_staging_failure_keeps_live_database(tmp_path, monkeypatch):
+    import desktop.recover as module
+    data = make_root(tmp_path, "old")
+    snapshot = snapshot_before_start(data / "smartflow.db", data)
+    make_root(tmp_path, "current")
+    original = module.sqlite3.connect
+    def fail_stage(path, *args, **kwargs):
+        if ".recovery-" in str(path):
+            raise OSError("disk full")
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(module.sqlite3, "connect", fail_stage)
+    import pytest
+    with pytest.raises(OSError, match="disk full"):
+        recover(tmp_path, snapshot)
+    assert value(data / "smartflow.db") == "current"
+
+
+def test_recovery_switch_failure_restores_original_files(tmp_path, monkeypatch):
+    import desktop.recover as module
+    import pytest
+    data = make_root(tmp_path, "snapshot")
+    snapshot = snapshot_before_start(data / "smartflow.db", data)
+    make_root(tmp_path, "current")
+    def fail_switch(*_args):
+        raise OSError("replacement denied")
+    monkeypatch.setattr(module.os, "replace", fail_switch)
+    with pytest.raises(OSError, match="replacement denied"):
+        recover(tmp_path, snapshot)
+    assert value(data / "smartflow.db") == "current"
+    assert not list(data.glob(".recovery-*"))
 
 
 def make_root(tmp_path, value):

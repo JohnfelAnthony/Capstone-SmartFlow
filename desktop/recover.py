@@ -6,14 +6,17 @@ Without --snapshot the newest snapshot is listed and used only with --yes.
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 import sys
+import uuid
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
 from desktop.instance_lock import InstanceInUse, InstanceLock
 from desktop.paths import DesktopPaths
+from desktop.restore_switch import RestoreSwitch
 
 
 def list_snapshots(data_root: Path) -> list[Path]:
@@ -26,19 +29,39 @@ def recover(root: Path, snapshot: Path) -> Path:
     snapshot = data / "pre-start-snapshots" / snapshot.name  # only our own folder, by name
     if not (snapshot.name.startswith("pre-start-") and snapshot.suffix == ".db" and snapshot.is_file()):
         raise ValueError("Choose a snapshot file from the pre-start-snapshots folder")
-    with closing(sqlite3.connect(f"file:{snapshot.as_posix()}?mode=ro", uri=True)) as check:
+    with closing(sqlite3.connect(snapshot.resolve().as_uri() + "?mode=ro", uri=True)) as check:
         if check.execute("PRAGMA integrity_check").fetchone() != ("ok",):
             raise ValueError("That snapshot failed its integrity check; try an older one")
     with InstanceLock(root):  # refuses while SmartFlow is running on this data root
         live = data / "smartflow.db"
-        kept = data / f"smartflow.db.replaced-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
-        if live.exists():
-            live.replace(kept)
-        for suffix in ("-wal", "-shm"):
-            (data / ("smartflow.db" + suffix)).unlink(missing_ok=True)
-        with closing(sqlite3.connect(f"file:{snapshot.as_posix()}?mode=ro", uri=True)) as source, \
-                closing(sqlite3.connect(live)) as target:
-            source.backup(target)
+        token = uuid.uuid4().hex
+        kept = data / f"smartflow.db.replaced-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{token}"
+        staged = data / f".recovery-{token}.db"
+        moved = []
+        try:
+            # Finish and verify the replacement before touching the only live copy.
+            with closing(sqlite3.connect(snapshot.resolve().as_uri() + "?mode=ro", uri=True)) as source, \
+                    closing(sqlite3.connect(staged)) as target:
+                source.backup(target)
+                if target.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+                    raise ValueError("Staged recovery database failed integrity verification")
+            with staged.open("r+b") as stream:
+                os.fsync(stream.fileno())
+            # Preserve the raw set even if the live database is corrupt. SQLite
+            # recovers committed WAL pages when the kept database is opened.
+            for suffix in ("", "-wal", "-shm"):
+                original = Path(str(live) + suffix)
+                preserved = Path(str(kept) + suffix)
+                if original.exists():
+                    original.rename(preserved)
+                    moved.append((original, preserved))
+            os.replace(staged, live)
+        except BaseException:
+            for original, preserved in reversed(moved):
+                preserved.rename(original)
+            raise
+        finally:
+            staged.unlink(missing_ok=True)
     return kept
 
 
@@ -48,7 +71,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--snapshot", type=Path, help="snapshot file name or path")
     parser.add_argument("--yes", action="store_true", help="use the newest snapshot")
     args = parser.parse_args(argv)
-    root = DesktopPaths.discover(data_root=args.data_root).root
+    paths = DesktopPaths.discover(data_root=args.data_root)
+    try:
+        # Match the launcher's lock and selection, including after restore.
+        with InstanceLock(paths.root / "config" / "supervisor"):
+            switch = RestoreSwitch(paths.root, paths.resources, paths.resources / "dist")
+            return _recover_selected(switch.active_root(), args)
+    except InstanceInUse:
+        print("SmartFlow is running on this data folder. Close it and try again.", file=sys.stderr)
+        return 1
+    except (ValueError, OSError, sqlite3.Error) as exc:
+        print(f"Recovery failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def _recover_selected(root: Path, args) -> int:
     snapshots = list_snapshots(root / "data")
     if not snapshots:
         print("No pre-start snapshots exist for this data folder.", file=sys.stderr)
@@ -70,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, OSError, sqlite3.Error) as exc:
         print(f"Recovery failed; nothing was replaced unless stated: {exc}", file=sys.stderr)
         return 1
-    print(f"Restored {chosen.name}. The previous database was kept as {kept.name}.")
+    print(f"Restored {chosen.name} in {root}. The previous database and any WAL/SHM files were kept as {kept.name}.")
     return 0
 
 

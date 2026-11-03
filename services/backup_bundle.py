@@ -404,10 +404,29 @@ def prepare_desktop_restore(staged: Path, destination: Path, secret_file: Path) 
                 raise ValueError("Invalid restored network registry entry")
             ids.add(network_id)
             filenames.add(name.casefold())
-            site = (registry.parent / name).resolve(strict=True)
-            if not _within(site, artifacts) or road_network.load_network(site).id != network_id:
+            site = Path(_windows_long_path(registry.parent / name)).resolve(strict=True)
+            if not _within(site, extended_artifacts.resolve()) or road_network.load_network(site).id != network_id:
                 raise ValueError("Restored network does not match its registry id")
             site_files.append(site)
+            history = entry.get("revision_history", [])
+            if not isinstance(history, list):
+                raise ValueError("Invalid restored network revision history")
+            for revision in history:
+                if not isinstance(revision, dict):
+                    raise ValueError("Invalid restored network revision history entry")
+                historical_name = revision.get("file")
+                if (not isinstance(historical_name, str) or not historical_name or
+                        Path(historical_name).name != historical_name or "/" in historical_name or
+                        "\\" in historical_name or ":" in historical_name or
+                        historical_name.casefold() in {"registry.json", "tagum_network.json"}):
+                    raise ValueError("Unsafe restored network revision history file")
+                historical_path = Path(_windows_long_path(registry.parent / historical_name))
+                if historical_path.is_symlink() or not _within(historical_path.resolve(strict=True), extended_artifacts.resolve()):
+                    raise ValueError("Restored network revision history escapes storage")
+                historical = road_network.load_network(historical_path)
+                if historical.id != network_id or historical.fingerprint != revision.get("sha256"):
+                    raise ValueError("Restored network revision history fingerprint mismatch")
+                site_files.append(historical_path)
         road_network.load_network(active_network)
         mappings = {}
         for relative in layout.values():
@@ -426,7 +445,7 @@ def prepare_desktop_restore(staged: Path, destination: Path, secret_file: Path) 
         shutil.copyfile(active_network, network_dir / "tagum_network.json")
         shutil.copyfile(registry, network_dir / "registry.json")
         for site in site_files:
-            shutil.copyfile(site, network_dir / site.name)
+            shutil.copyfile(site, _windows_long_path(network_dir / site.name))
         if evidence:
             shutil.copytree(_windows_long_path(evidence), _windows_long_path(destination), dirs_exist_ok=True)
         config_dir = destination / "config"

@@ -29,7 +29,7 @@ Close SmartFlow (setup refuses to run while it is open), then run the newer setu
 & "$env:LOCALAPPDATA\Programs\SmartFlow\SmartFlowWorker.exe" recover
 & "$env:LOCALAPPDATA\Programs\SmartFlow\SmartFlowWorker.exe" recover --snapshot <name from the list>
 ```
-The first lists snapshots; the second restores one (the damaged database is kept as `smartflow.db.replaced-<time>`). Then reinstall the previous setup. Restoring old program files alone does not roll back the database.
+The first lists snapshots from the active data folder (including after a restore); the second restores one. The previous database and any WAL/SHM sidecars are kept together as `smartflow.db.replaced-<time>-<unique-id>` and matching sidecars. Keep all these files together. Recovery requires SmartFlow to be closed and prepares a verified replacement before switching. Then reinstall the previous setup. Restoring old program files alone does not roll back the database.
 
 ## Uninstall
 Settings > Apps > SmartFlow > Uninstall. Your data folder is kept. To delete all records, delete `%LOCALAPPDATA%\SmartFlow` yourself.
