@@ -103,6 +103,9 @@ def run(paths: DesktopPaths, *, window_module=None, dialogs=None) -> bool:
         control_root = paths.root
         supervisor_lock = InstanceLock(control_root / "config" / "supervisor")
         supervisor_lock.__enter__()
+        if os.name == "nt":  # held until exit; the installer (AppMutex) refuses to replace running binaries
+            import ctypes
+            ctypes.windll.kernel32.CreateMutexW(None, False, "SmartFlowDesktopRunning")
         switch = RestoreSwitch(control_root, paths.resources, frontend)
         selected = switch.active_root()
         paths = DesktopPaths(paths.resources, selected)
