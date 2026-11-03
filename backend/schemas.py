@@ -12,6 +12,14 @@ class HealthResponse(BaseModel):
     database: str
 
 
+class NetworkRevisionPreviewRequest(BaseModel):
+    network: dict[str, Any]
+
+
+class NetworkRevisionApplyRequest(NetworkRevisionPreviewRequest):
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=1, max_length=256)

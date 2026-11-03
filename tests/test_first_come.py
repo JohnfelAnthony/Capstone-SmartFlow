@@ -10,6 +10,19 @@ from tests.mixed_traffic_helpers import assert_never_overlap, busy_engine, junct
 FIRST_COME = {"signal_plans": {"j": {"mode": "first_come"}}}
 
 
+def test_an_earlier_vehicle_held_in_a_queue_does_not_hold_the_junction():
+    """It cannot go first anyway; counting it let a queue wait on itself until the whole junction froze."""
+    engine = started_engine(junction_network(), **FIRST_COME)
+    leader = place(engine, ["wf", "er"], "car", from_stop_line=0, lateral=0, speed=0)
+    queued = place(engine, ["wf", "er"], "car", from_stop_line=7, lateral=0, speed=0)
+    crossing = place(engine, ["sf", "nr"], "car", from_stop_line=0, lateral=0, speed=0)
+    leader.approach_arrival, queued.approach_arrival, crossing.approach_arrival = 5.0, 1.0, 3.0
+    assert engine._first_come_permission(crossing, "j")
+    # Once the leader has committed, the queued vehicle can follow it straight in, so it counts again.
+    leader.reserved_junction = "j"
+    assert not engine._first_come_permission(crossing, "j")
+
+
 def test_lone_car_can_reserve_without_a_stop():
     engine = started_engine(junction_network(), **FIRST_COME)
     vehicle = place(engine, ["wf", "er"], "car", from_stop_line=12, lateral=0, speed=3)

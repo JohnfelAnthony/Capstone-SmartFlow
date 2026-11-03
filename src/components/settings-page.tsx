@@ -4,6 +4,7 @@ import { openFieldObserver } from "@/api/admin"
 import { changePassword, type CurrentUser } from "@/api/auth"
 import { applyTheme, clearRandomPalette, getInitialTheme, type ThemeMode } from "@/lib/appearance"
 import { writePreference } from "@/lib/local-preference-store"
+import { NetworkRevisionReviewCard } from "@/components/network-revision-review-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -151,7 +152,7 @@ export function SettingsPage({ user, onPasswordChanged }: {
     <div><h1 className="text-2xl font-semibold">Settings</h1><p className="text-muted-foreground">Your account, password and display preferences.</p></div>
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-6"><ProfileCard user={user} /><PreferencesCard /></div>
-      <div className="flex flex-col gap-6"><PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />{user.role.toLowerCase() === "admin" && <ToolsCard />}</div>
+      <div className="flex flex-col gap-6"><PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />{user.role.toLowerCase() === "admin" && <><ToolsCard /><NetworkRevisionReviewCard /></>}</div>
     </div>
   </main>
 }

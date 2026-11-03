@@ -15,13 +15,13 @@ type Theme = "light" | "dark"
 const CITY = {
   light: {
     ground: "#C8CCCE", plaza: "#D3D6D5", sidewalk: "#DEE0DF", kerb: "#F4F4F0", verge: "#80B36D", lawn: "#8FC27D", parking: "#7B8087", stall: "#E9EAE5",
-    asphalt: "#6C7178", marking: "#F7F7F2", centre: "#F3C54F", roofs: [["#60666E", "#747A82"], ["#D8C29C", "#C3AC84"], ["#EEEEEA", "#D5D6D2"], ["#8E98A4", "#7A8591"]],
+    asphalt: "#6C7178", marking: "#F7F7F2", centre: "#F3C54F", shed: "#63C7C2", landmarkLight: "#E4E7EA", landmarkGreen: "#BFDC8B", roofs: [["#60666E", "#747A82"], ["#D8C29C", "#C3AC84"], ["#EEEEEA", "#D5D6D2"], ["#8E98A4", "#7A8591"]],
     fixture: "#D8DBDE", shadow: "rgba(38,46,54,.2)", trees: ["#3F8F4F", "#4FA05B", "#37804A"], highlight: "rgba(255,255,255,.2)", glass: "#2C3B4B",
     housing: "#20252B", rim: "#59616A", arm: "#4A5159", glow: .45, chip: "rgba(250,252,248,.96)", chipText: "#2D493D", chipBorder: "rgba(63,87,74,.14)",
   },
   dark: {
     ground: "#252A31", plaza: "#2B3038", sidewalk: "#363C44", kerb: "#47515A", verge: "#2C5539", lawn: "#30593D", parking: "#20242A", stall: "#7E838A",
-    asphalt: "#1D2126", marking: "#C9CCC7", centre: "#C9A13F", roofs: [["#3A3F47", "#444A51"], ["#58513F", "#4A4436"], ["#51565C", "#454A50"], ["#3D4650", "#353D46"]],
+    asphalt: "#1D2126", marking: "#C9CCC7", centre: "#C9A13F", shed: "#2F6F70", landmarkLight: "#4D535B", landmarkGreen: "#55703F", roofs: [["#3A3F47", "#444A51"], ["#58513F", "#4A4436"], ["#51565C", "#454A50"], ["#3D4650", "#353D46"]],
     fixture: "#5A6068", shadow: "rgba(0,0,0,.34)", trees: ["#244F36", "#2C5C3F", "#1E4630"], highlight: "rgba(255,255,255,.08)", glass: "#18212B",
     housing: "#0F1215", rim: "#59616A", arm: "#5C646D", glow: .8, chip: "rgba(30,36,42,.94)", chipText: "#DCE6E0", chipBorder: "rgba(255,255,255,.12)",
   },
@@ -235,6 +235,11 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
     ctx.beginPath(); walkway.forEach((point, index) => { const p = screen(point, transform); if (index) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y) })
     ctx.strokeStyle = colors.sidewalk; ctx.lineWidth = 2 * WALKWAY_HALF_WIDTH * metres; ctx.stroke()
   }
+  // Site context sits under the kerbs and carriageways, which cross it at the junction mouths.
+  const features = (kind: string) => geometry.siteFeatures.filter((feature) => feature.kind === kind)
+  for (const [kind, fill] of [["plaza", colors.plaza], ["parking", colors.parking], ["concrete", colors.sidewalk], ["service_lane", colors.asphalt]] as const) {
+    for (const feature of features(kind)) path(ctx, feature.shape, transform, fill, fill, 1)
+  }
   band(colors.kerb, .3)
   // A hairline stroke in the fill colour hides the seam where opposing carriageways meet.
   for (const lane of roads) path(ctx, lane.polygon, transform, colors.asphalt, colors.asphalt, 1)
@@ -246,7 +251,25 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
   }
   for (const group of geometry.signalGroups) path(ctx, group.stop_line, transform, undefined, colors.marking, Math.max(1.5, metres * .4))
   for (const junction of geometry.junctions) for (const crosswalk of junction.crosswalks) for (const stripe of crosswalk.stripes) path(ctx, stripe, transform, colors.marking)
+  for (const feature of features("marking")) path(ctx, feature.shape, transform, colors.marking)
+  for (const feature of features("dashes")) path(ctx, feature.shape, transform, undefined, colors.marking, Math.max(1, metres * .35), false, [.6, .6])
+  for (const feature of features("building")) {
+    path(ctx, feature.shape.map((point) => ({ x: point.x + 1.2, y: point.y - 1.4 })), transform, colors.shadow)
+    path(ctx, feature.shape, transform, feature.tone === "green" ? colors.landmarkGreen : colors.landmarkLight, colors.kerb, Math.max(1, metres * .2))
+  }
+  for (const island of geometry.islands ?? []) {
+    path(ctx, island.shape, transform, island.planted ? colors.lawn : colors.sidewalk, colors.kerb, Math.max(1, metres * .25))
+  }
+  for (const feature of features("shed")) path(ctx, feature.shape, transform, colors.shed, colors.kerb, Math.max(.5, metres * .1))
   drawScenery(ctx, scenery, transform, colors, TREE_SCENERY)
+  for (const feature of features("street_light")) {
+    path(ctx, feature.shape, transform, undefined, colors.arm, Math.max(1, metres * .18))
+    const pole = screen(feature.shape[Math.floor(feature.shape.length / 2)], transform)
+    ctx.beginPath(); ctx.arc(pole.x, pole.y, Math.max(1.5, metres * .3), 0, Math.PI * 2); ctx.fillStyle = colors.housing; ctx.fill()
+  }
+  for (const feature of features("building")) if (feature.label) {
+    label(ctx, feature.label, { x: feature.shape.reduce((sum, point) => sum + point.x, 0) / feature.shape.length, y: feature.shape.reduce((sum, point) => sum + point.y, 0) / feature.shape.length }, transform, colors)
+  }
 }
 function pointBeforeEnd(points: readonly VisualPoint[], metres: number) {
   let remaining = metres

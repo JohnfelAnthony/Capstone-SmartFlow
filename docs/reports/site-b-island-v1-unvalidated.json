@@ -1,0 +1,3389 @@
+{
+  "id": "tagum_site_b",
+  "version": 2,
+  "name": "Site B \u2014 CitiHardware and neighboring highway junction",
+  "source": {
+    "provider": "OpenStreetMap",
+    "license": "ODbL-1.0",
+    "attribution": "\u00a9 OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "bbox": [
+      7.434222,
+      125.798481,
+      7.442307,
+      125.806634
+    ],
+    "downloaded_at": "2026-10-31T07:13:33.802365+00:00",
+    "query": "[out:json][timeout:35];way[\"highway\"~\"^(trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street)$\"](7.434222,125.798481,7.442307,125.806634);(._;>;);out body;",
+    "origin": {
+      "lat": 7.4382645,
+      "lon": 125.8025575
+    },
+    "projection": "local equirectangular, metres; study area only",
+    "assumptions": [
+      "Provisional OSM corridor, not field validated",
+      "Carriageways, median, islands, openings and stop lines are estimated from the owner's overhead imagery (scale bar; imagery dated 2025-05-03) and Street View (June-July 2026); check every size in the field",
+      "Service lanes, concrete strips, aprons, sheds, street lights and buildings are drawn only: no simulated traffic uses them",
+      "The median and islands are not engine obstacles; lanes and turn paths are placed around them and acceptance counts any vehicle contact",
+      "No U-turns are simulated at the mid-block median gaps, and their zebras and stop lines are paint only",
+      "The yellow box markings in the 2025 imagery are not drawn: the 2026 Street View shows no yellow, pending confirmation",
+      "Beyond the imagery (more than about 175 m southwest of the study junction) the same layout is assumed",
+      "Side-road bends beyond the junctions are smoothed from the OSM vertices, so their far alignment is approximate",
+      "Only CitiHardware is a candidate signal/RL junction",
+      "Neighboring junction uses first-come no-signal control",
+      "Synthetic demand; no traffic effectiveness claimed",
+      "Unvalidated visual experiment: six one-way highway centrelines shifted right by 2 m; shared endpoint transitions are provisional and require field review.",
+      "EXPERIMENTAL FRONTAGE CANDIDATE: not validated or approved for simulation",
+      "Frontage offsets, boundary extensions and new side-street turns are provisional",
+      "Provisional 2 m island rectangles and 15.25 m frontage offset are review estimates, not surveyed dimensions or enforced obstacles."
+    ]
+  },
+  "nodes": [
+    {
+      "id": "tagum_site_b_j",
+      "x": 4.382,
+      "y": 5.243,
+      "lat": 7.4383116000000005,
+      "lon": 125.80259720000001,
+      "boundary": false,
+      "signal_plan": "experimental",
+      "default_control_mode": "signalized",
+      "label": "CitiHardware study junction",
+      "junction_clearance_m": 22.0,
+      "pedestrian_crossing": [
+        [
+          7.82,
+          26.063
+        ],
+        [
+          23.789,
+          13.529
+        ]
+      ]
+    },
+    {
+      "id": "1115349256",
+      "x": 109.611,
+      "y": 139.314,
+      "lat": 7.439515975,
+      "lon": 125.8035505,
+      "boundary": false,
+      "signal_plan": "experimental",
+      "default_control_mode": "first_come",
+      "label": "Neighboring highway junction (no signal)",
+      "junction_clearance_m": 29.5,
+      "pedestrian_crossing": [
+        [
+          86.005,
+          125.679
+        ],
+        [
+          101.974,
+          113.145
+        ]
+      ]
+    },
+    {
+      "id": "boundary_0",
+      "x": 212.56800718144652,
+      "y": -128.5618662842694,
+      "boundary": true
+    },
+    {
+      "id": "boundary_1",
+      "x": -4.139381894360198,
+      "y": 221.6124894292844,
+      "boundary": true
+    },
+    {
+      "id": "boundary_4",
+      "x": -154.337,
+      "y": -187.991,
+      "boundary": true
+    },
+    {
+      "id": "boundary_5",
+      "x": -145.605,
+      "y": -194.844,
+      "boundary": true
+    },
+    {
+      "id": "boundary_6",
+      "x": 284.62932631848133,
+      "y": -34.46518385913796,
+      "boundary": true
+    },
+    {
+      "id": "boundary_7",
+      "x": 111.71173304304864,
+      "y": 389.2530421733454,
+      "boundary": true
+    },
+    {
+      "id": "boundary_8",
+      "x": 231.284,
+      "y": 285.349,
+      "boundary": true
+    },
+    {
+      "id": "boundary_9",
+      "x": 222.553,
+      "y": 292.202,
+      "boundary": true
+    },
+    {
+      "id": "frontage_study_right",
+      "x": 16.352216341780682,
+      "y": -4.205714079235669,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional study frontage access"
+    },
+    {
+      "id": "frontage_study_left",
+      "x": -3.512311967125123,
+      "y": 19.88477469384234,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional study frontage access"
+    },
+    {
+      "id": "frontage_neighbor_right",
+      "x": 116.93090109061174,
+      "y": 123.94037533490423,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional neighbor frontage access"
+    },
+    {
+      "id": "frontage_neighbor_left",
+      "x": 111.62627522812106,
+      "y": 166.58146024491523,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional neighbor frontage access"
+    },
+    {
+      "id": "frontage_right_south",
+      "x": -107.13045302067025,
+      "y": -161.53349410273827,
+      "boundary": true
+    },
+    {
+      "id": "frontage_right_north",
+      "x": 209.54290311244992,
+      "y": 241.9362103525312,
+      "boundary": true
+    },
+    {
+      "id": "frontage_left_south",
+      "x": -126.99498132957605,
+      "y": -137.44300532966028,
+      "boundary": true
+    },
+    {
+      "id": "frontage_left_north",
+      "x": 204.23827724995925,
+      "y": 284.5772952625422,
+      "boundary": true
+    }
+  ],
+  "roads": [
+    {
+      "id": "road0",
+      "source": "tagum_site_b_j",
+      "target": "frontage_study_right",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          16.352216341780682,
+          -4.205714079235669
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        376307655,
+        1282359346,
+        13926712031,
+        13368396937,
+        1217597311,
+        1217597450,
+        10672313060,
+        13368346131,
+        1217597337,
+        1217597234,
+        10672313061,
+        13368346133,
+        1217597399,
+        1400710199
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 3.45
+    },
+    {
+      "id": "road1",
+      "source": "tagum_site_b_j",
+      "target": "frontage_study_left",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          -3.487,
+          11.737
+        ],
+        [
+          -3.512311967125123,
+          19.88477469384234
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        376307655,
+        1527881952,
+        1217597489,
+        10654283971,
+        13368396935,
+        1402935126,
+        1402917759
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 6.85
+    },
+    {
+      "id": "road2",
+      "source": "1115349256",
+      "target": "tagum_site_b_j",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          106.88329490568533,
+          140.02161942223287
+        ],
+        [
+          95.07249476817181,
+          133.01783400337945
+        ],
+        [
+          7.043926271106459,
+          20.861263851087745
+        ],
+        [
+          3.0465989532877638,
+          7.724494379785623
+        ],
+        [
+          4.382,
+          5.243
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654452,
+      "osm_node_ids": [
+        1115349256,
+        10654284248,
+        13188247937,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road3",
+      "source": "tagum_site_b_j",
+      "target": "1115349256",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          7.109704886355906,
+          4.535380928457312
+        ],
+        [
+          18.92051152927473,
+          11.539173459385244
+        ],
+        [
+          106.94807372889353,
+          123.69573614891225
+        ],
+        [
+          110.94624840382532,
+          136.83241898449606
+        ],
+        [
+          109.611,
+          139.314
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654495,
+      "osm_node_ids": [
+        376307655,
+        13188247938,
+        10654284247,
+        1115349256
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road4",
+      "source": "tagum_site_b_j",
+      "target": "boundary_4",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          1.6548702928376064,
+          5.949649743987667
+        ],
+        [
+          -10.173487534021703,
+          -1.0735637935746778
+        ],
+        [
+          -154.6754619283917,
+          -185.18289978406273
+        ],
+        [
+          -154.337,
+          -187.991
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 288252870,
+      "osm_node_ids": [
+        376307655,
+        13188247941,
+        13370446087,
+        8107640302,
+        2918139394,
+        13370446088,
+        7041424675,
+        9153862744,
+        2918139393,
+        13370437021,
+        1298045148
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road5",
+      "source": "boundary_5",
+      "target": "tagum_site_b_j",
+      "shape": [
+        [
+          -145.605,
+          -194.844
+        ],
+        [
+          -142.79689960473144,
+          -194.50553955632077
+        ],
+        [
+          1.7043003555949525,
+          -10.39659942142478
+        ],
+        [
+          5.7163228848516,
+          2.7618340210873686
+        ],
+        [
+          4.382,
+          5.243
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 678794201,
+      "osm_node_ids": [
+        1298045148,
+        13370437020,
+        1402935125,
+        349713207,
+        13370446089,
+        1400710201,
+        1402935115,
+        1400710226,
+        13370446086,
+        13188247942,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road6",
+      "source": "1115349256",
+      "target": "frontage_neighbor_right",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          116.93090109061174,
+          123.94037533490423
+        ]
+      ],
+      "oneway": false,
+      "name": "Acacia Street",
+      "osm_way_id": 1144654494,
+      "osm_node_ids": [
+        1115349256,
+        1282359345,
+        1217597477,
+        1217597263,
+        1217597371,
+        1217597426,
+        8107793077,
+        8107793078,
+        1217597257,
+        1217597251
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "name": "Acacia Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 4.65
+    },
+    {
+      "id": "road7",
+      "source": "1115349256",
+      "target": "frontage_neighbor_left",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          111.623,
+          158.074
+        ],
+        [
+          111.62627522812106,
+          166.58146024491523
+        ]
+      ],
+      "oneway": false,
+      "name": "Bonifacio Street",
+      "osm_way_id": 96217785,
+      "osm_node_ids": [
+        1115349256,
+        1527881955,
+        13370446083,
+        10654283973,
+        1255345377,
+        1909926638,
+        1217544571,
+        1115349612,
+        1217544505,
+        11821136045,
+        13369868399,
+        1406251605,
+        13369913001,
+        10185207464,
+        13369913002,
+        1217580060,
+        13369913003,
+        13369913006,
+        1115349634,
+        13369912127,
+        13369912129,
+        13369912130,
+        7094451561,
+        13369912131,
+        1115394767
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Bonifacio Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 5.0
+    },
+    {
+      "id": "road8",
+      "source": "1115349256",
+      "target": "boundary_8",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          112.33846050117738,
+          138.60692402662065
+        ],
+        [
+          124.15656070803358,
+          145.6197729925801
+        ],
+        [
+          231.62245834168334,
+          282.54090327671395
+        ],
+        [
+          231.284,
+          285.349
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654495,
+      "osm_node_ids": [
+        1115349256,
+        13370446084,
+        8107640295,
+        13370446081,
+        10654283977
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road9",
+      "source": "boundary_9",
+      "target": "1115349256",
+      "shape": [
+        [
+          222.553,
+          292.202
+        ],
+        [
+          219.74490221926365,
+          291.86355045791146
+        ],
+        [
+          112.27933507561215,
+          154.94235902026458
+        ],
+        [
+          108.27595066645696,
+          141.79525422408753
+        ],
+        [
+          109.611,
+          139.314
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654452,
+      "osm_node_ids": [
+        10654283977,
+        13370446082,
+        8107640297,
+        13370446085,
+        1115349256
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road0_outer",
+      "source": "frontage_study_right",
+      "target": "boundary_0",
+      "shape": [
+        [
+          16.352216341780682,
+          -4.205714079235669
+        ],
+        [
+          21.249,
+          -8.071
+        ],
+        [
+          23.656,
+          -9.945
+        ],
+        [
+          27.266,
+          -12.756
+        ],
+        [
+          29.673,
+          -14.629
+        ],
+        [
+          32.481,
+          -16.816
+        ],
+        [
+          35.69,
+          -19.314
+        ],
+        [
+          39.3,
+          -22.125
+        ],
+        [
+          43.311,
+          -25.248
+        ],
+        [
+          47.724,
+          -28.683
+        ],
+        [
+          52.537,
+          -32.431
+        ],
+        [
+          57.752,
+          -36.491
+        ],
+        [
+          63.368,
+          -40.863
+        ],
+        [
+          69.384,
+          -45.548
+        ],
+        [
+          75.803,
+          -50.544
+        ],
+        [
+          81.889,
+          -55.277
+        ],
+        [
+          87.643,
+          -59.745
+        ],
+        [
+          93.064,
+          -63.948
+        ],
+        [
+          98.154,
+          -67.886
+        ],
+        [
+          102.912,
+          -71.56
+        ],
+        [
+          107.338,
+          -74.97
+        ],
+        [
+          111.432,
+          -78.115
+        ],
+        [
+          115.193,
+          -80.995
+        ],
+        [
+          118.623,
+          -83.611
+        ],
+        [
+          121.72,
+          -85.962
+        ],
+        [
+          124.486,
+          -88.049
+        ],
+        [
+          126.919,
+          -89.871
+        ],
+        [
+          130.79,
+          -92.722
+        ],
+        [
+          133.333,
+          -94.514
+        ],
+        [
+          136.593,
+          -96.723
+        ],
+        [
+          139.771,
+          -98.806
+        ],
+        [
+          142.866,
+          -100.764
+        ],
+        [
+          145.879,
+          -102.596
+        ],
+        [
+          148.809,
+          -104.303
+        ],
+        [
+          151.65,
+          -105.901
+        ],
+        [
+          154.388,
+          -107.42
+        ],
+        [
+          157.025,
+          -108.86
+        ],
+        [
+          160.382,
+          -110.658
+        ],
+        [
+          163.557,
+          -112.317
+        ],
+        [
+          166.809,
+          -113.923
+        ],
+        [
+          170.293,
+          -115.53
+        ],
+        [
+          173.058,
+          -116.736
+        ],
+        [
+          175.954,
+          -117.942
+        ],
+        [
+          178.963,
+          -119.14
+        ],
+        [
+          181.973,
+          -120.27
+        ],
+        [
+          184.966,
+          -121.323
+        ],
+        [
+          187.943,
+          -122.301
+        ],
+        [
+          190.904,
+          -123.202
+        ],
+        [
+          193.848,
+          -124.027
+        ],
+        [
+          197.599,
+          -125.025
+        ],
+        [
+          201.081,
+          -125.916
+        ],
+        [
+          204.294,
+          -126.698
+        ],
+        [
+          207.237,
+          -127.373
+        ],
+        [
+          212.568,
+          -128.562
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        376307655,
+        1282359346,
+        13926712031,
+        13368396937,
+        1217597311,
+        1217597450,
+        10672313060,
+        13368346131,
+        1217597337,
+        1217597234,
+        10672313061,
+        13368346133,
+        1217597399,
+        1400710199
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 3.45
+    },
+    {
+      "id": "road1_outer",
+      "source": "frontage_study_left",
+      "target": "boundary_1",
+      "shape": [
+        [
+          -3.512311967125123,
+          19.88477469384234
+        ],
+        [
+          -4.139,
+          221.612
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        376307655,
+        1527881952,
+        1217597489,
+        10654283971,
+        13368396935,
+        1402935126,
+        1402917759
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 6.85
+    },
+    {
+      "id": "road6_outer",
+      "source": "frontage_neighbor_right",
+      "target": "boundary_6",
+      "shape": [
+        [
+          116.93090109061174,
+          123.94037533490423
+        ],
+        [
+          118.0,
+          121.695
+        ],
+        [
+          120.53,
+          119.782
+        ],
+        [
+          124.326,
+          116.913
+        ],
+        [
+          126.857,
+          115.0
+        ],
+        [
+          129.809,
+          112.768
+        ],
+        [
+          133.183,
+          110.217
+        ],
+        [
+          136.978,
+          107.348
+        ],
+        [
+          141.196,
+          104.159
+        ],
+        [
+          145.835,
+          100.652
+        ],
+        [
+          150.896,
+          96.826
+        ],
+        [
+          156.379,
+          92.682
+        ],
+        [
+          162.283,
+          88.218
+        ],
+        [
+          168.609,
+          83.436
+        ],
+        [
+          175.357,
+          78.334
+        ],
+        [
+          181.785,
+          73.437
+        ],
+        [
+          187.894,
+          68.744
+        ],
+        [
+          193.683,
+          64.256
+        ],
+        [
+          199.153,
+          59.971
+        ],
+        [
+          204.304,
+          55.891
+        ],
+        [
+          209.134,
+          52.014
+        ],
+        [
+          213.646,
+          48.342
+        ],
+        [
+          217.838,
+          44.874
+        ],
+        [
+          221.71,
+          41.61
+        ],
+        [
+          225.263,
+          38.551
+        ],
+        [
+          228.496,
+          35.695
+        ],
+        [
+          231.41,
+          33.044
+        ],
+        [
+          234.004,
+          30.597
+        ],
+        [
+          236.278,
+          28.354
+        ],
+        [
+          239.869,
+          24.48
+        ],
+        [
+          243.112,
+          20.808
+        ],
+        [
+          246.315,
+          17.132
+        ],
+        [
+          249.479,
+          13.452
+        ],
+        [
+          252.604,
+          9.768
+        ],
+        [
+          255.691,
+          6.081
+        ],
+        [
+          258.738,
+          2.389
+        ],
+        [
+          261.746,
+          -1.306
+        ],
+        [
+          264.716,
+          -5.005
+        ],
+        [
+          267.452,
+          -8.45
+        ],
+        [
+          269.89,
+          -11.555
+        ],
+        [
+          272.03,
+          -14.321
+        ],
+        [
+          273.871,
+          -16.746
+        ],
+        [
+          276.074,
+          -19.747
+        ],
+        [
+          277.967,
+          -22.559
+        ],
+        [
+          279.668,
+          -25.495
+        ],
+        [
+          281.316,
+          -28.416
+        ],
+        [
+          282.897,
+          -31.292
+        ],
+        [
+          284.629,
+          -34.465
+        ]
+      ],
+      "oneway": false,
+      "name": "Acacia Street",
+      "osm_way_id": 1144654494,
+      "osm_node_ids": [
+        1115349256,
+        1282359345,
+        1217597477,
+        1217597263,
+        1217597371,
+        1217597426,
+        8107793077,
+        8107793078,
+        1217597257,
+        1217597251
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "name": "Acacia Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 4.65
+    },
+    {
+      "id": "road7_outer",
+      "source": "frontage_neighbor_left",
+      "target": "boundary_7",
+      "shape": [
+        [
+          111.62627522812106,
+          166.58146024491523
+        ],
+        [
+          111.712,
+          389.253
+        ]
+      ],
+      "oneway": false,
+      "name": "Bonifacio Street",
+      "osm_way_id": 96217785,
+      "osm_node_ids": [
+        1115349256,
+        1527881955,
+        13370446083,
+        10654283973,
+        1255345377,
+        1909926638,
+        1217544571,
+        1115349612,
+        1217544505,
+        11821136045,
+        13369868399,
+        1406251605,
+        13369913001,
+        10185207464,
+        13369913002,
+        1217580060,
+        13369913003,
+        13369913006,
+        1115349634,
+        13369912127,
+        13369912129,
+        13369912130,
+        7094451561,
+        13369912131,
+        1115394767
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Bonifacio Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33,
+      "width_per_direction_m": 5.0
+    },
+    {
+      "id": "frontage_right_0",
+      "name": "Provisional right frontage",
+      "source": "frontage_right_south",
+      "target": "frontage_study_right",
+      "oneway": true,
+      "shape": [
+        [
+          -107.13045302067025,
+          -161.53349410273827
+        ],
+        [
+          16.352216341780682,
+          -4.205714079235669
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_right_1",
+      "name": "Provisional right frontage",
+      "source": "frontage_study_right",
+      "target": "frontage_neighbor_right",
+      "oneway": true,
+      "shape": [
+        [
+          16.352216341780682,
+          -4.205714079235669
+        ],
+        [
+          116.93090109061174,
+          123.94037533490423
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_right_2",
+      "name": "Provisional right frontage",
+      "source": "frontage_neighbor_right",
+      "target": "frontage_right_north",
+      "oneway": true,
+      "shape": [
+        [
+          116.93090109061174,
+          123.94037533490423
+        ],
+        [
+          209.54290311244992,
+          241.9362103525312
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_left_0",
+      "name": "Provisional left frontage",
+      "source": "frontage_left_north",
+      "target": "frontage_neighbor_left",
+      "oneway": true,
+      "shape": [
+        [
+          204.23827724995925,
+          284.5772952625422
+        ],
+        [
+          111.62627522812106,
+          166.58146024491523
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_left_1",
+      "name": "Provisional left frontage",
+      "source": "frontage_neighbor_left",
+      "target": "frontage_study_left",
+      "oneway": true,
+      "shape": [
+        [
+          111.62627522812106,
+          166.58146024491523
+        ],
+        [
+          -3.512311967125123,
+          19.88477469384234
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_left_2",
+      "name": "Provisional left frontage",
+      "source": "frontage_study_left",
+      "target": "frontage_left_south",
+      "oneway": true,
+      "shape": [
+        [
+          -3.512311967125123,
+          19.88477469384234
+        ],
+        [
+          -126.99498132957605,
+          -137.44300532966028
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    }
+  ],
+  "prohibited_turns": [
+    [
+      "road5f",
+      "road4f"
+    ],
+    [
+      "road9f",
+      "road8f"
+    ]
+  ],
+  "islands": [
+    {
+      "id": "provisional_south_central",
+      "planted": true,
+      "shape": [
+        [
+          -105.96576352608831,
+          -136.9694153679646
+        ],
+        [
+          -19.527894972372668,
+          -26.839969351512778
+        ],
+        [
+          -21.101172772607693,
+          -25.605142657888265
+        ],
+        [
+          -107.53904132632333,
+          -135.7345886743401
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_south_outer_left",
+      "planted": true,
+      "shape": [
+        [
+          -115.72008588754547,
+          -129.31348986749265
+        ],
+        [
+          -29.282217333829827,
+          -19.18404385104082
+        ],
+        [
+          -30.855495134064853,
+          -17.94921715741631
+        ],
+        [
+          -117.2933636877805,
+          -128.07866317386814
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road4"
+      ]
+    },
+    {
+      "id": "provisional_south_outer_right",
+      "planted": true,
+      "shape": [
+        [
+          -96.21144116463114,
+          -144.62534086843655
+        ],
+        [
+          -9.773572610915506,
+          -34.49589485198473
+        ],
+        [
+          -11.346850411150532,
+          -33.261068158360224
+        ],
+        [
+          -97.78471896486617,
+          -143.39051417481204
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road5"
+      ]
+    },
+    {
+      "id": "provisional_middle_central",
+      "planted": true,
+      "shape": [
+        [
+          29.865172772607696,
+          36.09114265788826
+        ],
+        [
+          79.52697155950479,
+          99.36464164731208
+        ],
+        [
+          77.95369375926977,
+          100.5994683409366
+        ],
+        [
+          28.29189497237267,
+          37.325969351512775
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_middle_outer_left",
+      "planted": true,
+      "shape": [
+        [
+          20.110850411150537,
+          43.74706815836022
+        ],
+        [
+          69.77264919804763,
+          107.02056714778405
+        ],
+        [
+          68.1993713978126,
+          108.25539384140855
+        ],
+        [
+          18.53757261091551,
+          44.981894851984734
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road2"
+      ]
+    },
+    {
+      "id": "provisional_middle_outer_right",
+      "planted": true,
+      "shape": [
+        [
+          39.619495134064856,
+          28.435217157416307
+        ],
+        [
+          89.28129392096196,
+          91.70871614684013
+        ],
+        [
+          87.70801612072692,
+          92.94354284046463
+        ],
+        [
+          38.04621733382983,
+          29.670043851040816
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road3"
+      ]
+    },
+    {
+      "id": "provisional_north_central",
+      "planted": true,
+      "shape": [
+        [
+          141.26830624073023,
+          178.0285316590634
+        ],
+        [
+          190.66137398571058,
+          240.95964366846442
+        ],
+        [
+          189.08809618547556,
+          242.1944703620889
+        ],
+        [
+          139.6950284404952,
+          179.26335835268787
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_north_outer_left",
+      "planted": true,
+      "shape": [
+        [
+          131.51398387927307,
+          185.68445715953533
+        ],
+        [
+          180.90705162425343,
+          248.61556916893636
+        ],
+        [
+          179.3337738240184,
+          249.85039586256087
+        ],
+        [
+          129.94070607903805,
+          186.91928385315984
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road9"
+      ]
+    },
+    {
+      "id": "provisional_north_outer_right",
+      "planted": true,
+      "shape": [
+        [
+          151.02262860218738,
+          170.37260615859142
+        ],
+        [
+          200.41569634716774,
+          233.30371816799246
+        ],
+        [
+          198.84241854693272,
+          234.53854486161697
+        ],
+        [
+          149.44935080195236,
+          171.60743285221594
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road8"
+      ]
+    }
+  ],
+  "site_features": [
+    {
+      "id": "strip_nw",
+      "kind": "concrete",
+      "shape": [
+        [
+          -157.955,
+          -185.15
+        ],
+        [
+          218.934,
+          295.043
+        ],
+        [
+          212.13,
+          300.383
+        ],
+        [
+          -164.76,
+          -179.81
+        ]
+      ]
+    },
+    {
+      "id": "strip_se",
+      "kind": "concrete",
+      "shape": [
+        [
+          -135.418,
+          -202.839
+        ],
+        [
+          241.471,
+          277.354
+        ],
+        [
+          234.903,
+          282.509
+        ],
+        [
+          -141.986,
+          -197.684
+        ]
+      ]
+    },
+    {
+      "id": "service_lane_nw",
+      "kind": "service_lane",
+      "shape": [
+        [
+          -164.76,
+          -179.81
+        ],
+        [
+          212.13,
+          300.383
+        ],
+        [
+          209.691,
+          302.297
+        ],
+        [
+          -167.198,
+          -177.896
+        ]
+      ]
+    },
+    {
+      "id": "service_lane_se",
+      "kind": "service_lane",
+      "shape": [
+        [
+          -133.451,
+          -204.383
+        ],
+        [
+          243.438,
+          275.81
+        ],
+        [
+          241.471,
+          277.354
+        ],
+        [
+          -135.418,
+          -202.839
+        ]
+      ]
+    },
+    {
+      "id": "driveway_se",
+      "kind": "service_lane",
+      "shape": [
+        [
+          -41.867,
+          -76.682
+        ],
+        [
+          -30.754,
+          -62.522
+        ],
+        [
+          -33.939,
+          -60.022
+        ],
+        [
+          -45.053,
+          -74.181
+        ]
+      ]
+    },
+    {
+      "id": "jollibee_lot",
+      "kind": "plaza",
+      "shape": [
+        [
+          -105.843,
+          -27.486
+        ],
+        [
+          -106.144,
+          -10.215
+        ],
+        [
+          -27.63,
+          1.385
+        ],
+        [
+          -52.142,
+          -29.845
+        ]
+      ]
+    },
+    {
+      "id": "citi_lane",
+      "kind": "parking",
+      "shape": [
+        [
+          -26.507,
+          1.52
+        ],
+        [
+          -13.542,
+          18.039
+        ],
+        [
+          -109.932,
+          37.759
+        ],
+        [
+          -119.811,
+          25.173
+        ]
+      ]
+    },
+    {
+      "id": "citi_hardware",
+      "kind": "building",
+      "label": "Citi Hardware",
+      "tone": "light",
+      "shape": [
+        [
+          -14.108,
+          38.697
+        ],
+        [
+          -14.946,
+          83.466
+        ],
+        [
+          -74.925,
+          82.362
+        ],
+        [
+          -74.087,
+          37.593
+        ]
+      ]
+    },
+    {
+      "id": "jollibee",
+      "kind": "building",
+      "label": "Jollibee",
+      "tone": "green",
+      "shape": [
+        [
+          -82.555,
+          -9.153
+        ],
+        [
+          -60.696,
+          -8.512
+        ],
+        [
+          -60.268,
+          -20.925
+        ],
+        [
+          -81.188,
+          -23.446
+        ]
+      ]
+    },
+    {
+      "id": "pavement_study",
+      "kind": "junction_pavement",
+      "junction": "tagum_site_b_j",
+      "zebra_lanes": [
+        "road2f",
+        "road3f",
+        "road4f",
+        "road5f"
+      ],
+      "shape": [
+        [
+          -0.908,
+          -17.936
+        ],
+        [
+          10.144,
+          -3.856
+        ],
+        [
+          20.252,
+          -11.789
+        ],
+        [
+          24.697,
+          -6.126
+        ],
+        [
+          14.589,
+          1.808
+        ],
+        [
+          25.641,
+          15.889
+        ],
+        [
+          9.672,
+          28.422
+        ],
+        [
+          16.155,
+          36.682
+        ],
+        [
+          12.418,
+          39.615
+        ],
+        [
+          6.904,
+          36.315
+        ],
+        [
+          -3.159,
+          23.493
+        ],
+        [
+          -10.253,
+          23.849
+        ],
+        [
+          -10.445,
+          14.211
+        ],
+        [
+          -17.175,
+          5.636
+        ],
+        [
+          -15.365,
+          4.216
+        ],
+        [
+          -32.035,
+          -17.023
+        ],
+        [
+          -28.299,
+          -19.956
+        ],
+        [
+          -16.877,
+          -5.403
+        ]
+      ]
+    },
+    {
+      "id": "pavement_neighbor",
+      "kind": "junction_pavement",
+      "junction": "1115349256",
+      "zebra_lanes": [
+        "road2f",
+        "road3f",
+        "road8f",
+        "road9f"
+      ],
+      "shape": [
+        [
+          100.06,
+          110.707
+        ],
+        [
+          109.321,
+          122.506
+        ],
+        [
+          123.363,
+          111.486
+        ],
+        [
+          129.29,
+          119.037
+        ],
+        [
+          115.249,
+          130.058
+        ],
+        [
+          135.129,
+          155.388
+        ],
+        [
+          119.16,
+          167.921
+        ],
+        [
+          122.988,
+          172.799
+        ],
+        [
+          117.285,
+          177.275
+        ],
+        [
+          112.593,
+          171.296
+        ],
+        [
+          106.242,
+          169.035
+        ],
+        [
+          103.332,
+          159.497
+        ],
+        [
+          105.298,
+          157.953
+        ],
+        [
+          86.159,
+          133.567
+        ],
+        [
+          89.895,
+          130.635
+        ],
+        [
+          84.091,
+          123.24
+        ]
+      ]
+    },
+    {
+      "id": "shed_1",
+      "kind": "shed",
+      "shape": [
+        [
+          -64.909,
+          -61.012
+        ],
+        [
+          -62.069,
+          -57.394
+        ],
+        [
+          -62.934,
+          -56.715
+        ],
+        [
+          -65.774,
+          -60.333
+        ]
+      ]
+    },
+    {
+      "id": "shed_2",
+      "kind": "shed",
+      "shape": [
+        [
+          -52.005,
+          -44.572
+        ],
+        [
+          -48.918,
+          -40.638
+        ],
+        [
+          -49.783,
+          -39.959
+        ],
+        [
+          -52.87,
+          -43.892
+        ]
+      ]
+    },
+    {
+      "id": "shed_3",
+      "kind": "shed",
+      "shape": [
+        [
+          -38.422,
+          -27.266
+        ],
+        [
+          -34.964,
+          -22.86
+        ],
+        [
+          -35.829,
+          -22.181
+        ],
+        [
+          -39.287,
+          -26.586
+        ]
+      ]
+    },
+    {
+      "id": "shed_4",
+      "kind": "shed",
+      "shape": [
+        [
+          46.109,
+          34.274
+        ],
+        [
+          50.801,
+          40.253
+        ],
+        [
+          48.992,
+          41.673
+        ],
+        [
+          44.3,
+          35.694
+        ]
+      ]
+    },
+    {
+      "id": "shed_5",
+      "kind": "shed",
+      "shape": [
+        [
+          55.309,
+          45.995
+        ],
+        [
+          59.569,
+          51.423
+        ],
+        [
+          57.759,
+          52.843
+        ],
+        [
+          53.499,
+          47.415
+        ]
+      ]
+    },
+    {
+      "id": "shed_6",
+      "kind": "shed",
+      "shape": [
+        [
+          64.261,
+          57.402
+        ],
+        [
+          68.583,
+          62.908
+        ],
+        [
+          66.774,
+          64.328
+        ],
+        [
+          62.452,
+          58.822
+        ]
+      ]
+    },
+    {
+      "id": "shed_7",
+      "kind": "shed",
+      "shape": [
+        [
+          73.09,
+          68.651
+        ],
+        [
+          77.535,
+          74.314
+        ],
+        [
+          75.726,
+          75.734
+        ],
+        [
+          71.281,
+          70.071
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_1",
+      "kind": "dashes",
+      "shape": [
+        [
+          -14.815,
+          3.784
+        ],
+        [
+          12.969,
+          39.183
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_2",
+      "kind": "dashes",
+      "shape": [
+        [
+          -16.939,
+          5.451
+        ],
+        [
+          7.14,
+          36.13
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_3",
+      "kind": "dashes",
+      "shape": [
+        [
+          11.612,
+          -8.059
+        ],
+        [
+          22.849,
+          6.258
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_4",
+      "kind": "dashes",
+      "shape": [
+        [
+          13.421,
+          -9.479
+        ],
+        [
+          24.658,
+          4.838
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_5",
+      "kind": "dashes",
+      "shape": [
+        [
+          105.062,
+          158.138
+        ],
+        [
+          119.016,
+          175.916
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_6",
+      "kind": "dashes",
+      "shape": [
+        [
+          103.489,
+          159.373
+        ],
+        [
+          117.443,
+          177.151
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_7",
+      "kind": "dashes",
+      "shape": [
+        [
+          111.485,
+          120.808
+        ],
+        [
+          117.412,
+          128.36
+        ]
+      ]
+    },
+    {
+      "id": "mouth_dashes_8",
+      "kind": "dashes",
+      "shape": [
+        [
+          113.53,
+          119.203
+        ],
+        [
+          119.457,
+          126.755
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_0",
+      "kind": "marking",
+      "shape": [
+        [
+          -41.633,
+          -51.441
+        ],
+        [
+          -39.163,
+          -48.294
+        ],
+        [
+          -39.557,
+          -47.986
+        ],
+        [
+          -42.026,
+          -51.132
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_1",
+      "kind": "marking",
+      "shape": [
+        [
+          -42.42,
+          -50.823
+        ],
+        [
+          -39.95,
+          -47.677
+        ],
+        [
+          -40.343,
+          -47.368
+        ],
+        [
+          -42.813,
+          -50.515
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_2",
+      "kind": "marking",
+      "shape": [
+        [
+          -43.206,
+          -50.206
+        ],
+        [
+          -40.737,
+          -47.06
+        ],
+        [
+          -41.13,
+          -46.751
+        ],
+        [
+          -43.6,
+          -49.897
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_3",
+      "kind": "marking",
+      "shape": [
+        [
+          -43.993,
+          -49.589
+        ],
+        [
+          -41.523,
+          -46.442
+        ],
+        [
+          -41.917,
+          -46.133
+        ],
+        [
+          -44.386,
+          -49.28
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_4",
+      "kind": "marking",
+      "shape": [
+        [
+          -44.78,
+          -48.971
+        ],
+        [
+          -42.31,
+          -45.825
+        ],
+        [
+          -42.703,
+          -45.516
+        ],
+        [
+          -45.173,
+          -48.663
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_5",
+      "kind": "marking",
+      "shape": [
+        [
+          -45.566,
+          -48.354
+        ],
+        [
+          -43.097,
+          -45.207
+        ],
+        [
+          -43.49,
+          -44.899
+        ],
+        [
+          -45.959,
+          -48.045
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_6",
+      "kind": "marking",
+      "shape": [
+        [
+          -46.353,
+          -47.736
+        ],
+        [
+          -43.883,
+          -44.59
+        ],
+        [
+          -44.276,
+          -44.281
+        ],
+        [
+          -46.746,
+          -47.428
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_7",
+      "kind": "marking",
+      "shape": [
+        [
+          -47.139,
+          -47.119
+        ],
+        [
+          -44.67,
+          -43.972
+        ],
+        [
+          -45.063,
+          -43.664
+        ],
+        [
+          -47.533,
+          -46.81
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_nw_8",
+      "kind": "marking",
+      "shape": [
+        [
+          -47.926,
+          -46.502
+        ],
+        [
+          -45.456,
+          -43.355
+        ],
+        [
+          -45.85,
+          -43.046
+        ],
+        [
+          -48.319,
+          -46.193
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_0",
+      "kind": "marking",
+      "shape": [
+        [
+          -32.901,
+          -58.294
+        ],
+        [
+          -30.432,
+          -55.148
+        ],
+        [
+          -30.825,
+          -54.839
+        ],
+        [
+          -33.295,
+          -57.985
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_1",
+      "kind": "marking",
+      "shape": [
+        [
+          -33.688,
+          -57.677
+        ],
+        [
+          -31.218,
+          -54.53
+        ],
+        [
+          -31.612,
+          -54.221
+        ],
+        [
+          -34.081,
+          -57.368
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_2",
+      "kind": "marking",
+      "shape": [
+        [
+          -34.475,
+          -57.059
+        ],
+        [
+          -32.005,
+          -53.913
+        ],
+        [
+          -32.398,
+          -53.604
+        ],
+        [
+          -34.868,
+          -56.751
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_3",
+      "kind": "marking",
+      "shape": [
+        [
+          -35.261,
+          -56.442
+        ],
+        [
+          -32.792,
+          -53.295
+        ],
+        [
+          -33.185,
+          -52.987
+        ],
+        [
+          -35.654,
+          -56.133
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_4",
+      "kind": "marking",
+      "shape": [
+        [
+          -36.048,
+          -55.825
+        ],
+        [
+          -33.578,
+          -52.678
+        ],
+        [
+          -33.971,
+          -52.369
+        ],
+        [
+          -36.441,
+          -55.516
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_5",
+      "kind": "marking",
+      "shape": [
+        [
+          -36.834,
+          -55.207
+        ],
+        [
+          -34.365,
+          -52.061
+        ],
+        [
+          -34.758,
+          -51.752
+        ],
+        [
+          -37.228,
+          -54.898
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_6",
+      "kind": "marking",
+      "shape": [
+        [
+          -37.621,
+          -54.59
+        ],
+        [
+          -35.151,
+          -51.443
+        ],
+        [
+          -35.545,
+          -51.134
+        ],
+        [
+          -38.014,
+          -54.281
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_7",
+      "kind": "marking",
+      "shape": [
+        [
+          -38.408,
+          -53.972
+        ],
+        [
+          -35.938,
+          -50.826
+        ],
+        [
+          -36.331,
+          -50.517
+        ],
+        [
+          -38.801,
+          -53.664
+        ]
+      ]
+    },
+    {
+      "id": "zebra_sw_se_8",
+      "kind": "marking",
+      "shape": [
+        [
+          -39.194,
+          -53.355
+        ],
+        [
+          -36.725,
+          -50.208
+        ],
+        [
+          -37.118,
+          -49.9
+        ],
+        [
+          -39.588,
+          -53.046
+        ]
+      ]
+    },
+    {
+      "id": "stop_sw_nw",
+      "kind": "marking",
+      "shape": [
+        [
+          -38.349,
+          -47.662
+        ],
+        [
+          -38.102,
+          -47.347
+        ],
+        [
+          -45.339,
+          -41.667
+        ],
+        [
+          -45.586,
+          -41.982
+        ]
+      ]
+    },
+    {
+      "id": "stop_sw_se",
+      "kind": "marking",
+      "shape": [
+        [
+          -34.001,
+          -60.1
+        ],
+        [
+          -33.754,
+          -59.786
+        ],
+        [
+          -40.991,
+          -54.106
+        ],
+        [
+          -41.238,
+          -54.42
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_0",
+      "kind": "marking",
+      "shape": [
+        [
+          210.539,
+          269.851
+        ],
+        [
+          213.009,
+          272.997
+        ],
+        [
+          212.615,
+          273.306
+        ],
+        [
+          210.146,
+          270.159
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_1",
+      "kind": "marking",
+      "shape": [
+        [
+          209.753,
+          270.468
+        ],
+        [
+          212.222,
+          273.615
+        ],
+        [
+          211.829,
+          273.923
+        ],
+        [
+          209.359,
+          270.777
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_2",
+      "kind": "marking",
+      "shape": [
+        [
+          208.966,
+          271.085
+        ],
+        [
+          211.436,
+          274.232
+        ],
+        [
+          211.042,
+          274.541
+        ],
+        [
+          208.573,
+          271.394
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_3",
+      "kind": "marking",
+      "shape": [
+        [
+          208.179,
+          271.703
+        ],
+        [
+          210.649,
+          274.849
+        ],
+        [
+          210.256,
+          275.158
+        ],
+        [
+          207.786,
+          272.012
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_4",
+      "kind": "marking",
+      "shape": [
+        [
+          207.393,
+          272.32
+        ],
+        [
+          209.862,
+          275.467
+        ],
+        [
+          209.469,
+          275.776
+        ],
+        [
+          206.999,
+          272.629
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_5",
+      "kind": "marking",
+      "shape": [
+        [
+          206.606,
+          272.938
+        ],
+        [
+          209.076,
+          276.084
+        ],
+        [
+          208.682,
+          276.393
+        ],
+        [
+          206.213,
+          273.246
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_6",
+      "kind": "marking",
+      "shape": [
+        [
+          205.819,
+          273.555
+        ],
+        [
+          208.289,
+          276.702
+        ],
+        [
+          207.896,
+          277.01
+        ],
+        [
+          205.426,
+          273.864
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_7",
+      "kind": "marking",
+      "shape": [
+        [
+          205.033,
+          274.173
+        ],
+        [
+          207.502,
+          277.319
+        ],
+        [
+          207.109,
+          277.628
+        ],
+        [
+          204.639,
+          274.481
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_nw_8",
+      "kind": "marking",
+      "shape": [
+        [
+          204.246,
+          274.79
+        ],
+        [
+          206.716,
+          277.937
+        ],
+        [
+          206.322,
+          278.245
+        ],
+        [
+          203.853,
+          275.099
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_0",
+      "kind": "marking",
+      "shape": [
+        [
+          219.271,
+          262.997
+        ],
+        [
+          221.741,
+          266.144
+        ],
+        [
+          221.347,
+          266.453
+        ],
+        [
+          218.878,
+          263.306
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_1",
+      "kind": "marking",
+      "shape": [
+        [
+          218.484,
+          263.615
+        ],
+        [
+          220.954,
+          266.761
+        ],
+        [
+          220.561,
+          267.07
+        ],
+        [
+          218.091,
+          263.924
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_2",
+      "kind": "marking",
+      "shape": [
+        [
+          217.698,
+          264.232
+        ],
+        [
+          220.167,
+          267.379
+        ],
+        [
+          219.774,
+          267.687
+        ],
+        [
+          217.304,
+          264.541
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_3",
+      "kind": "marking",
+      "shape": [
+        [
+          216.911,
+          264.85
+        ],
+        [
+          219.381,
+          267.996
+        ],
+        [
+          218.987,
+          268.305
+        ],
+        [
+          216.518,
+          265.158
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_4",
+      "kind": "marking",
+      "shape": [
+        [
+          216.124,
+          265.467
+        ],
+        [
+          218.594,
+          268.614
+        ],
+        [
+          218.201,
+          268.922
+        ],
+        [
+          215.731,
+          265.776
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_5",
+      "kind": "marking",
+      "shape": [
+        [
+          215.338,
+          266.084
+        ],
+        [
+          217.807,
+          269.231
+        ],
+        [
+          217.414,
+          269.54
+        ],
+        [
+          214.944,
+          266.393
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_6",
+      "kind": "marking",
+      "shape": [
+        [
+          214.551,
+          266.702
+        ],
+        [
+          217.021,
+          269.848
+        ],
+        [
+          216.627,
+          270.157
+        ],
+        [
+          214.158,
+          267.011
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_7",
+      "kind": "marking",
+      "shape": [
+        [
+          213.764,
+          267.319
+        ],
+        [
+          216.234,
+          270.466
+        ],
+        [
+          215.841,
+          270.775
+        ],
+        [
+          213.371,
+          267.628
+        ]
+      ]
+    },
+    {
+      "id": "zebra_ne_se_8",
+      "kind": "marking",
+      "shape": [
+        [
+          212.978,
+          267.937
+        ],
+        [
+          215.447,
+          271.083
+        ],
+        [
+          215.054,
+          271.392
+        ],
+        [
+          212.584,
+          268.245
+        ]
+      ]
+    },
+    {
+      "id": "stop_ne_nw",
+      "kind": "marking",
+      "shape": [
+        [
+          213.823,
+          273.63
+        ],
+        [
+          214.07,
+          273.944
+        ],
+        [
+          206.833,
+          279.624
+        ],
+        [
+          206.586,
+          279.31
+        ]
+      ]
+    },
+    {
+      "id": "stop_ne_se",
+      "kind": "marking",
+      "shape": [
+        [
+          218.603,
+          261.742
+        ],
+        [
+          218.85,
+          262.056
+        ],
+        [
+          211.613,
+          267.737
+        ],
+        [
+          211.366,
+          267.422
+        ]
+      ]
+    },
+    {
+      "id": "light_1",
+      "kind": "street_light",
+      "shape": [
+        [
+          -141.437,
+          -185.403
+        ],
+        [
+          -143.797,
+          -183.551
+        ],
+        [
+          -146.157,
+          -181.699
+        ]
+      ]
+    },
+    {
+      "id": "light_2",
+      "kind": "street_light",
+      "shape": [
+        [
+          -116.74,
+          -153.937
+        ],
+        [
+          -119.1,
+          -152.085
+        ],
+        [
+          -121.46,
+          -150.233
+        ]
+      ]
+    },
+    {
+      "id": "light_3",
+      "kind": "street_light",
+      "shape": [
+        [
+          -92.044,
+          -122.472
+        ],
+        [
+          -94.404,
+          -120.62
+        ],
+        [
+          -96.764,
+          -118.767
+        ]
+      ]
+    },
+    {
+      "id": "light_4",
+      "kind": "street_light",
+      "shape": [
+        [
+          -67.347,
+          -91.006
+        ],
+        [
+          -69.707,
+          -89.154
+        ],
+        [
+          -72.067,
+          -87.302
+        ]
+      ]
+    },
+    {
+      "id": "light_5",
+      "kind": "street_light",
+      "shape": [
+        [
+          -29.438,
+          -42.706
+        ],
+        [
+          -31.798,
+          -40.854
+        ],
+        [
+          -34.158,
+          -39.002
+        ]
+      ]
+    },
+    {
+      "id": "light_6",
+      "kind": "street_light",
+      "shape": [
+        [
+          25.635,
+          27.462
+        ],
+        [
+          23.275,
+          29.314
+        ],
+        [
+          20.915,
+          31.166
+        ]
+      ]
+    },
+    {
+      "id": "light_7",
+      "kind": "street_light",
+      "shape": [
+        [
+          50.331,
+          58.928
+        ],
+        [
+          47.971,
+          60.78
+        ],
+        [
+          45.611,
+          62.632
+        ]
+      ]
+    },
+    {
+      "id": "light_8",
+      "kind": "street_light",
+      "shape": [
+        [
+          75.028,
+          90.393
+        ],
+        [
+          72.668,
+          92.245
+        ],
+        [
+          70.308,
+          94.098
+        ]
+      ]
+    },
+    {
+      "id": "light_9",
+      "kind": "street_light",
+      "shape": [
+        [
+          134.814,
+          166.568
+        ],
+        [
+          132.455,
+          168.42
+        ],
+        [
+          130.095,
+          170.272
+        ]
+      ]
+    },
+    {
+      "id": "light_10",
+      "kind": "street_light",
+      "shape": [
+        [
+          159.511,
+          198.033
+        ],
+        [
+          157.151,
+          199.885
+        ],
+        [
+          154.791,
+          201.738
+        ]
+      ]
+    },
+    {
+      "id": "light_11",
+      "kind": "street_light",
+      "shape": [
+        [
+          184.207,
+          229.499
+        ],
+        [
+          181.847,
+          231.351
+        ],
+        [
+          179.487,
+          233.203
+        ]
+      ]
+    }
+  ]
+}

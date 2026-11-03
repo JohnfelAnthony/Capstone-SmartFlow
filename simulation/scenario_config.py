@@ -187,6 +187,12 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     if not isinstance(requested, str) or requested != network.id:
         raise ValueError("Unknown road network")
     result.setdefault("controlled_junction", network.intersections[0])
+    for node_id in network.intersections:
+        if network.nodes[node_id].get("default_control_mode") == "first_come":
+            if isinstance(result.get("signal_plans"), dict):
+                result["signal_plans"][node_id] = {"mode": "first_come"}
+            if result["controlled_junction"] == node_id:
+                raise ValueError("This neighboring junction is outside the study control area")
     if result["controlled_junction"] not in network.intersections:
         raise ValueError("Unknown controlled junction")
     for key, allowed in (("traffic_density", {"none", "single", "low", "medium", "high", "very high"}),

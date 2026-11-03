@@ -1,0 +1,65 @@
+{
+  "status": "uninstalled sensitivity trial; not survey or clearance acceptance",
+  "original": {
+    "network_id": "tagum_site_b",
+    "fingerprint": "b2a951536ed1cac8dd575dfc8977d23e7ab422b1060b66942dbe7c04832c2f2e",
+    "status": "diagnostic only; no clearance or field-validation claim",
+    "sample_spacing_m": 0.2,
+    "sampled_sweeps": 360,
+    "limitations": [
+      "Entry lateral positions sampled at centre and lane limits only",
+      "Conservative expanded footprints can yield false positives",
+      "Actual-size contacts are sampled poses, not a continuous trajectory proof",
+      "Lane travel, actual vehicle paths, traffic interactions and dynamics are not checked"
+    ],
+    "conflicts": [
+      {
+        "junction": "tagum_site_b_j",
+        "incoming": "road2f",
+        "outgoing": "road1f",
+        "vehicle_class": "bus",
+        "entry_lateral_m": -3.2499999999999996,
+        "exit_lateral_m": -2.0749999999999997,
+        "island": "median_between",
+        "first_sample_m": 1.272,
+        "actual_size_body_first_sample_m": 1.4
+      },
+      {
+        "junction": "1115349256",
+        "incoming": "road9f",
+        "outgoing": "road7f",
+        "vehicle_class": "bus",
+        "entry_lateral_m": -3.2499999999999996,
+        "exit_lateral_m": -1.15,
+        "island": "median_ne",
+        "first_sample_m": 0.0,
+        "actual_size_body_first_sample_m": 0.0
+      },
+      {
+        "junction": "1115349256",
+        "incoming": "road9f",
+        "outgoing": "road7f",
+        "vehicle_class": "truck",
+        "entry_lateral_m": -3.2499999999999996,
+        "exit_lateral_m": -1.15,
+        "island": "median_ne",
+        "first_sample_m": 0.88,
+        "actual_size_body_first_sample_m": 1.0
+      }
+    ]
+  },
+  "candidate": {
+    "network_id": "tagum_site_b",
+    "fingerprint": "8ec1eeab087b84ee6e91afff0f9abdcb4303e4a2abe024294da4fd8bede17da4",
+    "status": "diagnostic only; no clearance or field-validation claim",
+    "sample_spacing_m": 0.2,
+    "sampled_sweeps": 360,
+    "limitations": [
+      "Entry lateral positions sampled at centre and lane limits only",
+      "Conservative expanded footprints can yield false positives",
+      "Actual-size contacts are sampled poses, not a continuous trajectory proof",
+      "Lane travel, actual vehicle paths, traffic interactions and dynamics are not checked"
+    ],
+    "conflicts": []
+  }
+}

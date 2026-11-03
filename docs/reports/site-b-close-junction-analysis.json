@@ -1,0 +1,80 @@
+{
+  "status": "design analysis only; no simulation behavior changed",
+  "short_links": [
+    {
+      "road_id": "road0",
+      "source": "tagum_site_b_j",
+      "target": "frontage_study_right",
+      "physical_length_m": 14.550118168265117,
+      "current_usable_upper_bound_m": -3.449881831734883,
+      "parser_accepts_length": false,
+      "classes_that_cannot_fit_even_if_empty": [
+        "car",
+        "motorcycle",
+        "tricycle",
+        "bus",
+        "truck"
+      ]
+    },
+    {
+      "road_id": "road1",
+      "source": "tagum_site_b_j",
+      "target": "frontage_study_left",
+      "physical_length_m": 18.196575948047936,
+      "current_usable_upper_bound_m": 0.19657594804793632,
+      "parser_accepts_length": false,
+      "classes_that_cannot_fit_even_if_empty": [
+        "car",
+        "motorcycle",
+        "tricycle",
+        "bus",
+        "truck"
+      ]
+    },
+    {
+      "road_id": "road6",
+      "source": "1115349256",
+      "target": "frontage_neighbor_right",
+      "physical_length_m": 16.24522415362365,
+      "current_usable_upper_bound_m": -1.7547758463763508,
+      "parser_accepts_length": false,
+      "classes_that_cannot_fit_even_if_empty": [
+        "car",
+        "motorcycle",
+        "tricycle",
+        "bus",
+        "truck"
+      ]
+    },
+    {
+      "road_id": "road7",
+      "source": "1115349256",
+      "target": "frontage_neighbor_left",
+      "physical_length_m": 25.48098349340105,
+      "current_usable_upper_bound_m": 7.480983493401052,
+      "parser_accepts_length": false,
+      "classes_that_cannot_fit_even_if_empty": [
+        "car",
+        "bus",
+        "truck"
+      ]
+    }
+  ],
+  "candidate_groups": [
+    [
+      "1115349256",
+      "frontage_neighbor_left",
+      "frontage_neighbor_right"
+    ],
+    [
+      "frontage_study_left",
+      "frontage_study_right",
+      "tagum_site_b_j"
+    ]
+  ],
+  "limitations": [
+    "Groups use link storage only and do not identify every geometric conflict",
+    "An empty-lane upper bound is not a safety or liveness guarantee",
+    "Signals, pedestrians, turns and neighboring vehicle bodies need coordinated handling"
+  ]
+}

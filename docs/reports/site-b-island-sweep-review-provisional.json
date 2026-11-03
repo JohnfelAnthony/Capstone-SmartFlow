@@ -1,0 +1,44 @@
+{
+  "network_id": "tagum_site_b",
+  "fingerprint": "4d4a0064617125dd285c2bacfac1c4edead5ac5911f4d18a6e2fc7dbf7d8e2f7",
+  "status": "diagnostic only; no clearance or field-validation claim",
+  "sample_spacing_m": 0.2,
+  "sampled_sweeps": 360,
+  "limitations": [
+    "Entry lateral positions sampled at centre and lane limits only",
+    "Conservative expanded footprints can yield false positives",
+    "Lane travel, actual vehicle paths, traffic interactions and dynamics are not checked"
+  ],
+  "conflicts": [
+    {
+      "junction": "tagum_site_b_j",
+      "incoming": "road2f",
+      "outgoing": "road1f",
+      "vehicle_class": "bus",
+      "entry_lateral_m": -3.2499999999999996,
+      "exit_lateral_m": -2.0749999999999997,
+      "island": "median_between",
+      "first_sample_m": 1.272
+    },
+    {
+      "junction": "1115349256",
+      "incoming": "road9f",
+      "outgoing": "road7f",
+      "vehicle_class": "bus",
+      "entry_lateral_m": -3.2499999999999996,
+      "exit_lateral_m": -1.15,
+      "island": "median_ne",
+      "first_sample_m": 0.0
+    },
+    {
+      "junction": "1115349256",
+      "incoming": "road9f",
+      "outgoing": "road7f",
+      "vehicle_class": "truck",
+      "entry_lateral_m": -3.2499999999999996,
+      "exit_lateral_m": -1.15,
+      "island": "median_ne",
+      "first_sample_m": 0.88
+    }
+  ]
+}

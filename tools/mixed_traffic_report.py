@@ -17,13 +17,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from simulation.footprints import overlapping_pairs, state_digest  # noqa: E402
+from simulation.footprints import overlapping_pairs, record_rectangle, state_digest  # noqa: E402
 from simulation.road_network import RoadNetwork  # noqa: E402
 from simulation.scenario_config import CARS_ONLY_MIX, TAGUM_PROVISIONAL_MIX  # noqa: E402
 from simulation.traffic_engine import ENGINE_VERSION, TrafficEngine  # noqa: E402
+from tools.road_editor.geometry_checks import polygons_touch_or_overlap  # noqa: E402
 
 NETWORKS = {"5j": ROOT/"data"/"networks"/"tagum_network.json", "2j": ROOT/"data"/"networks"/"tagum_network_2j.json",
-            "siteA": ROOT/"data"/"networks"/"tagum_site_a.json", "siteB": ROOT/"data"/"networks"/"tagum_site_b.json"}
+            "siteA": ROOT/"data"/"networks"/"tagum_site_a.json", "siteB": ROOT/"data"/"networks"/"tagum_site_b.json",
+            "siteB-osm-corridor": ROOT/"data"/"networks"/"history"/"tagum_site_b_osm_corridor.json"}
 CARS_ONLY, TAGUM = CARS_ONLY_MIX, TAGUM_PROVISIONAL_MIX
 MIXES = {"cars": CARS_ONLY, "tagum": TAGUM}
 CASES = {
@@ -98,6 +100,19 @@ def grouped_plan(network_name: str, density: str, mix: dict) -> dict:
     return {junction: plan_from_result(result, {})}
 
 
+def count_island_intrusions(records: list[dict], islands: list[dict]) -> int:
+    """Count vehicle/island body contacts, including contact with polygon edges."""
+    count = 0
+    boxes = [(island["shape"], min(p[0] for p in island["shape"]), min(p[1] for p in island["shape"]), max(p[0] for p in island["shape"]), max(p[1] for p in island["shape"])) for island in islands]
+    for record in records:
+        body = record_rectangle(record)
+        low_x, low_y, high_x, high_y = min(p[0] for p in body), min(p[1] for p in body), max(p[0] for p in body), max(p[1] for p in body)
+        # Checked every tick for every island, so a body clearly outside an island's box skips the exact test.
+        count += sum(1 for shape, left, bottom, right, top in boxes
+                     if low_x <= right and left <= high_x and low_y <= top and bottom <= high_y and polygons_touch_or_overlap(body, shape))
+    return count
+
+
 def build_engine(network_name: str, density: str, mix: dict, seconds: float, seed: int, *, events=None,
                  all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None) -> TrafficEngine:
     network = load_network(network_name)
@@ -126,17 +141,27 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
     incoming = [network.lanes[lane_id] for lane_id in network.incoming[node]]
     signal = engine.signals[node]
     max_overlaps = max_stuck = 0
+    max_island_intrusions = 0 if network.islands else None
     max_gridlock = 0.0
+    # The stuck and gridlock counters only see vehicles inside a junction; this one also catches a frozen queue at its line.
+    longest_completion_gap, last_completion_time, completed_so_far = 0.0, 0.0, 0
     queue_samples, active_samples = [], []
     front_row_total = front_row_motorcycles = queue_total = queue_motorcycles = 0
     discharges, open_discharge = [], None
     was_green = signal.stage == "green"
     while engine.status == "running" and engine.simulation_time < seconds:
         engine.step(1)
-        max_overlaps = max(max_overlaps, len(overlapping_pairs(engine.vehicle_records())))
+        records = engine.vehicle_records()
+        max_overlaps = max(max_overlaps, len(overlapping_pairs(records)))
+        if network.islands:
+            intrusions = count_island_intrusions(records, network.islands)
+            max_island_intrusions = max(max_island_intrusions, intrusions)
         metrics = engine._last_metrics
         max_stuck = max(max_stuck, metrics["stuck_junction_vehicles"])
         max_gridlock = max(max_gridlock, metrics["gridlock_seconds"])
+        if engine.lifetime_completed != completed_so_far or not engine.vehicles:
+            completed_so_far, last_completion_time = engine.lifetime_completed, engine.simulation_time
+        longest_completion_gap = max(longest_completion_gap, engine.simulation_time-last_completion_time)
         is_green = signal.stage == "green"
         if is_green and not was_green and signal.family != "pedestrian":
             green_lanes = [lane.id for lane in incoming if signal.serves(lane.approach)]
@@ -169,11 +194,21 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
     return {
         "runtime_s": round(time.perf_counter()-started, 3),
         "simulated_s": engine.simulation_time,
+        "network_id": network.id,
+        "network_fingerprint": network.fingerprint,
         "max_overlapping_pairs": int(max_overlaps),
+        "island_count": len(network.islands),
+        "max_island_intrusions": max_island_intrusions,
         "max_stuck_junction_vehicles": int(max_stuck),
         "max_gridlock_seconds": float(max_gridlock),
+        "longest_completion_gap_s": round(float(longest_completion_gap), 1),
         "final_vehicle_conservation_error": engine._last_metrics["vehicle_conservation_error"],
         "completed": engine.lifetime_completed,
+        "requested_vehicles": engine.requested_vehicles,
+        "active_vehicles": len(engine.vehicles),
+        "pending_vehicles": len(engine.pending_demand),
+        "dropped_vehicles": engine.deferred_demand,
+        "unfinished_vehicles": len(engine.vehicles) + len(engine.pending_demand),
         "queue_count_p95": percentile_95(queue_samples),
         **queue_distribution(queue_samples),
         "active_count_p95": percentile_95(active_samples),
@@ -247,6 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seeds", default="101,102")
     parser.add_argument("--quick", action="store_true", help="60 s, seed 101, two cases, no benchmarks")
     parser.add_argument("--determinism", action="store_true", help="also check that each selected case gives equal state digests when run twice")
+    parser.add_argument("--acceptance-determinism", action="store_true", help="compare two full-duration state digests for each selected case and seed")
     parser.add_argument("--only", help="comma-separated case-name prefixes (for example siteA,siteB); the benchmarks are skipped")
     args = parser.parse_args(argv)
     seconds, seeds = (60.0, [101]) if args.quick else (args.seconds, [int(seed) for seed in args.seeds.split(",")])
@@ -254,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
     names = QUICK_CASES if args.quick else tuple(name for name in CASES if not prefixes or name.startswith(prefixes))
     if not names:
         parser.error(f"no case starts with {args.only}")
+    if args.out.exists():
+        parser.error("output already exists; choose a new path to preserve prior evidence")
     report = {"engine_version": ENGINE_VERSION, "seconds": seconds, "seeds": seeds, "cases": {}, "benchmarks": {}}
     if not args.quick and not prefixes:
         log("benchmarks: cars-only 900 s run")
@@ -269,13 +307,20 @@ def main(argv: list[str] | None = None) -> int:
         for name in names:
             log(f"determinism {name}")
             report["determinism"][name] = determinism_equal_case(name)
+    if args.acceptance_determinism:
+        report["determinism_full"] = {}
+        for name in names:
+            for seed in seeds:
+                log(f"full determinism {name}@{seed} ({seconds}s)")
+                report["determinism_full"][f"{name}@{seed}"] = {"seconds": seconds, "equal": determinism_equal_case(name, seconds, seed)}
     for name in names:
         network_name, density, mix, options = case_options(name)
         for seed in seeds:
             log(f"case {name}@{seed}")
             report["cases"][f"{name}@{seed}"] = run_case(network_name, density, mix, seconds, seed, **options)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+    with args.out.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(report, indent=2, sort_keys=True)+"\n")
     log(f"wrote {args.out}")
     return 0
 

@@ -1,4 +1,4 @@
-import type { VisualNetwork, VisualPoint, VisualSignalGroup } from "@/api/visual-network"
+import type { VisualNetwork, VisualPoint, VisualSignalGroup, VisualSiteFeature } from "@/api/visual-network"
 
 /** Native metres, X east and Y north. Geometry never extends a supplied lane. */
 export type SceneBounds = { min_x: number; min_y: number; max_x: number; max_y: number }
@@ -33,6 +33,8 @@ export type SceneJunction = {
 }
 export type SceneSignalGroup = VisualSignalGroup & { junctionId: string | null }
 export type SceneGeometry = {
+  islands?: Array<{ id: string; shape: VisualPoint[]; planted?: boolean }>
+  siteFeatures: VisualSiteFeature[]
   networkId: string
   bounds: SceneBounds
   lanes: SceneLane[]
@@ -258,10 +260,13 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
     const opposed = roads.some((other) => other !== lane && distanceToPolyline(middle, leftEdges.get(other)!) < 0.3)
     lane.centreLine = opposed ? leftEdges.get(lane)! : null
   }
+  const siteFeatures = (network.site_features ?? []).map((feature) => ({ ...feature, shape: clonePoints(feature.shape) }))
   const junctions: SceneJunction[] = outlines.map((outline) => {
     const reach = Math.max(...outline.polygon.map((point) => distance(point, outline.center)), 0) + 1
     const ends = roads.filter((lane) => lane.junctionIds.includes(outline.id)).map((lane) => laneEndAt(lane, outline)).filter((end) => distance(end.point, outline.center) <= reach)
-    return { ...outline, kerb: junctionKerbOutline(outline, ends), crosswalks: ends.map((end) => crosswalkAt(end, outline)) }
+    const pavement = siteFeatures.find((feature) => feature.kind === "junction_pavement" && feature.junction === outline.id)
+    const zebraEnds = pavement?.zebra_lanes ? ends.filter((end) => pavement.zebra_lanes!.includes(end.lane.id)) : ends
+    return { ...outline, kerb: pavement ? clonePoints(pavement.shape) : junctionKerbOutline(outline, ends), crosswalks: zebraEnds.map((end) => crosswalkAt(end, outline)) }
   })
   const signalGroups = network.signal_groups.map((group) => {
     const lane = laneById.get(group.lane_id)
@@ -271,7 +276,7 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
   })
   const fallbackBounds = boundsOfPoints([...lanes.flatMap((lane) => lane.polygon), ...junctions.flatMap((junction) => junction.polygon)])
   const bounds = network.bounds && Object.values(network.bounds).every(Number.isFinite) && network.bounds.max_x > network.bounds.min_x && network.bounds.max_y > network.bounds.min_y ? { ...network.bounds } : fallbackBounds
-  return { networkId: metadata.network_id || network.source_net, bounds, lanes, connectors: lanes.filter((lane) => lane.kind === "connector"), junctions, signalGroups, laneById, junctionById: new Map(junctions.map((junction) => [junction.id, junction])) }
+  return { islands: network.islands?.map(island => ({ ...island, shape: clonePoints(island.shape) })), siteFeatures, networkId: metadata.network_id || network.source_net, bounds, lanes, connectors: lanes.filter((lane) => lane.kind === "connector"), junctions, signalGroups, laneById, junctionById: new Map(junctions.map((junction) => [junction.id, junction])) }
 }
 
 /** Clip only the camera fitting sample; the displayed lane geometry remains untouched. */
@@ -353,7 +358,7 @@ type SignalFrame = {
 }
 
 export function hasSignalHead(group: VisualSignalGroup & { junctionId?: string | null }, frame: SignalFrame | null): boolean {
-  return frame?.traffic_lights?.[group.signal_id]?.state !== "n" &&
+  return !group.permanent_no_signal && frame?.traffic_lights?.[group.signal_id]?.state !== "n" &&
     !(group.junctionId && frame?.junction_controls?.[group.junctionId]?.mode === "first_come")
 }
 

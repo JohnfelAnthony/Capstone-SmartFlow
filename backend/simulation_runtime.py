@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from datetime import UTC, datetime
-from threading import Event, RLock, Thread
+from threading import Event, RLock, Thread, get_ident
 from time import monotonic
 from typing import Any
 
@@ -47,6 +48,50 @@ class SimulationRuntime:
         self._owner_name: str | None = None
         self._speed_multiplier = 1.0
         self._workload_lease = None
+
+    @contextmanager
+    def network_revision_guard(self):
+        """Hold runtime and compute admission across a future network switch.
+
+        Lock order matches live-run startup: runtime lock, then workload lease.
+        Playback doesn't own a compute lease, so the runtime lock is needed to
+        prevent it from being started or loaded during a switch. After the
+        registry commits, the caller must immediately invoke the yielded
+        callback to discard stale idle state. This does not authorize or validate
+        a network revision.
+        """
+        with self._lock:
+            if self._engine is not None and self._run_mode == "playback":
+                raise SimulationRuntimeError("Close the loaded playback before changing a road network.")
+            if self._active_run_id is not None or (self._engine is not None and self._engine.status in {"running", "paused"}):
+                raise SimulationRuntimeError("Stop the current simulation before changing a road network.")
+            try:
+                lease = workload_admission.acquire("road network revision")
+            except WorkloadConflict as exc:
+                raise SimulationRuntimeError(str(exc)) from exc
+            active = True
+            owner = get_ident()
+            def invalidate_idle_session():
+                if not active or get_ident() != owner:
+                    raise RuntimeError("The network revision guard is not held by this thread")
+                self._stop_background_runner_locked()
+                self._engine = None
+                self._selected_scenario_id = None
+                self._selected_scenario_name = None
+                self._duration_seconds = DEFAULT_DURATION_SECONDS
+                self._control_mode = "fixed-time"
+                self._run_mode = "live"
+                self._active_run_id = None
+                self._active_run_saved = False
+                self._active_run_user_id = None
+                self._owner_user_id = None
+                self._owner_name = None
+                self._speed_multiplier = 1.0
+            try:
+                yield invalidate_idle_session
+            finally:
+                active = False
+                workload_admission.release(lease)
 
     def _assert_owner(self, user_id: int | None) -> None:
         if user_id is not None and self._owner_user_id is not None and user_id != self._owner_user_id:

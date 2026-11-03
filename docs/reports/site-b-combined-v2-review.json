@@ -1,0 +1,132 @@
+{
+  "status": "unvalidated review only; do not install or use for research",
+  "highway": {
+    "status": "unvalidated experiment; do not install or use for research",
+    "network_fingerprint": "51cefb75eeb90ff5214b76c99e7e265b887cb050a3019d724e8dd4338440a4a4",
+    "changes": [
+      {
+        "road_id": "road2",
+        "right_shift_m": 2.0,
+        "endpoint_transition_m": 2.0
+      },
+      {
+        "road_id": "road3",
+        "right_shift_m": 2.0,
+        "endpoint_transition_m": 2.0
+      },
+      {
+        "road_id": "road4",
+        "right_shift_m": 2.0,
+        "endpoint_transition_m": 2.0
+      },
+      {
+        "road_id": "road5",
+        "right_shift_m": 2.0,
+        "endpoint_transition_m": 2.0
+      },
+      {
+        "road_id": "road8",
+        "right_shift_m": 2.0,
+        "endpoint_transition_m": 2.0
+      },
+      {
+        "road_id": "road9",
+        "right_shift_m": 2.0,
+        "endpoint_transition_m": 2.0
+      }
+    ],
+    "limits": [
+      "Shift is an image-based assumption, not a measurement.",
+      "Frontage roads, island obstacles and full vehicle clearance are not included.",
+      "Endpoint transitions and connector paths need review and traffic acceptance."
+    ]
+  },
+  "frontage": {
+    "status": "unvalidated candidate; do not install",
+    "frontage_center_offset_m": 14.55,
+    "crossings": [
+      {
+        "junction": "study",
+        "side": -1,
+        "id": "frontage_study_right",
+        "point": [
+          15.802812909085253,
+          -3.772041386824039
+        ],
+        "side_road": "road0",
+        "distance_m": 14.550118168265119,
+        "inner_length_m": 14.550118168265117,
+        "required_length_m": 26.0,
+        "shortfall_m": 11.449881831734883
+      },
+      {
+        "junction": "study",
+        "side": 1,
+        "id": "frontage_study_left",
+        "point": [
+          -0.3166925555817235,
+          22.82246712790799
+        ],
+        "side_road": "road1",
+        "distance_m": 18.196575948047936,
+        "inner_length_m": 18.196575948047936,
+        "required_length_m": 26.0,
+        "shortfall_m": 7.803424051952064
+      },
+      {
+        "junction": "neighbor",
+        "side": -1,
+        "id": "frontage_neighbor_right",
+        "point": [
+          116.59468877380633,
+          124.64650536348866
+        ],
+        "side_road": "road6",
+        "distance_m": 16.24522415362365,
+        "inner_length_m": 16.24522415362365,
+        "required_length_m": 26.0,
+        "shortfall_m": 9.75477584637635
+      },
+      {
+        "junction": "neighbor",
+        "side": 1,
+        "id": "frontage_neighbor_left",
+        "point": [
+          111.08002486026626,
+          164.75260227588961
+        ],
+        "side_road": "road7",
+        "distance_m": 25.480983493401038,
+        "inner_length_m": 25.48098349340105,
+        "required_length_m": 26.0,
+        "shortfall_m": 0.5190165065989483
+      }
+    ],
+    "directions": [
+      {
+        "side": -1,
+        "adjacent_highway": "road5",
+        "axis_sign": 1
+      },
+      {
+        "side": 1,
+        "adjacent_highway": "road4",
+        "axis_sign": -1
+      }
+    ],
+    "limitations": [
+      "Island geometry and vehicle clearance are not enforced",
+      "New movements are provisional",
+      "Field measurement and traffic acceptance remain outstanding"
+    ]
+  },
+  "native_structure": {
+    "accepted": false,
+    "reason": "Road road0 too short for junction clearance"
+  },
+  "limits": [
+    "Islands and their physical enforcement are not included.",
+    "Dimensions, frontage turns and endpoint transitions require field review.",
+    "The native engine cannot currently model the short links safely."
+  ]
+}
