@@ -1,7 +1,7 @@
 # SmartFlow Windows desktop implementation guide
 
 Date: 2026-11-01 (Asia/Singapore)
-Status: STARTED. Path-seeding and study-gate foundations exist; this is not yet a working desktop package.
+Status (2026-11-04): development prototype integrated with main `1f3e6a5` (native-8). Source desktop suite 101 passed; frozen worker/backend/restore tests 7 passed on `desktop-shell-experiment-2e58fd33cde4`. NOT done: native-window acceptance, installer build, clean-profile install/offline/update/uninstall. Not LGU-ready. Unchecked boxes are unverified or open.
 Branch: `codex/desktop-version`
 Starting revision: `5de043a86781f7a94e77b946ea6f5996dc7af553`
 
@@ -129,7 +129,7 @@ All tasks below are initially unchecked. Implement in dependency order and recor
 ### D1 — Freeze a packaging baseline and build environment
 
 - [ ] Inventory resource files, external downloads, output paths, dynamic imports and all worker commands.
-- [ ] Record the chosen source SHA and whether tracked changes are present.
+- [x] Record the chosen source SHA and whether tracked changes are present. _(verified 2026-11-04, see progress record)_
 - [ ] Create a dedicated desktop virtual environment and pinned requirements; do not install into the other checkout's environment.
 - [ ] Verify compatible Windows wheels for the selected Python version, ML stack, pywebview and PyInstaller.
 - [ ] Use CPU-only PyTorch dependencies intentionally; do not silently pull a CUDA distribution.
@@ -141,10 +141,10 @@ Acceptance: a documented baseline, resource inventory and reproducible environme
 
 Proposed module: `desktop/paths.py`; shared path helpers may live in services where appropriate.
 
-- [ ] Resolve application resources, persistent data and scratch files independently of cwd.
-- [ ] Apply startup configuration before importing modules that cache configuration at import time.
+- [x] Resolve application resources, persistent data and scratch files independently of cwd. _(verified 2026-11-04, see progress record)_
+- [x] Apply startup configuration before importing modules that cache configuration at import time. _(verified 2026-11-04, see progress record)_
 - [ ] Preserve existing web defaults unless the desktop launcher explicitly selects its profile.
-- [ ] Resolve database, imports, models, recordings, job logs, backups, network registry and study evidence consistently.
+- [x] Resolve database, imports, models, recordings, job logs, backups, network registry and study evidence consistently. _(verified 2026-11-04, see progress record)_
 - [ ] Make fresh initialization idempotent and upgrades non-destructive.
 - [ ] Prefer explicit desktop data-root selection for acceptance tests.
 
@@ -168,11 +168,11 @@ Acceptance: package with mappings absent, evidence missing, mismatched identity,
 
 Proposed module: `desktop/server.py`.
 
-- [ ] Serve the built frontend and static assets using the same origin as API and WebSocket routes.
+- [x] Serve the built frontend and static assets using the same origin as API and WebSocket routes. _(verified 2026-11-04, see progress record)_
 - [ ] Preserve API errors; SPA fallback must not turn /api or asset failures into index.html.
 - [ ] Make API and WebSocket URL resolution support the runtime desktop origin while preserving Vite and hosted configurations.
 - [ ] Keep normal authentication and permissions.
-- [ ] Add a desktop-only loopback profile with exact Host/Origin checks, bounded allowed origins and no wildcard CORS.
+- [x] Add a desktop-only loopback profile with exact Host/Origin checks, bounded allowed origins and no wildcard CORS. _(verified 2026-11-04, see progress record)_
 - [ ] Use a private launch handshake and authenticated application routes; guard state-changing endpoints against foreign web origins.
 - [ ] Never expose a client-readable session secret or administrative token in bundled JavaScript.
 - [ ] Keep remote production HTTPS requirements unchanged. Document and test cookie behavior for the loopback profile.
@@ -183,21 +183,21 @@ Acceptance: login, authenticated API requests and WebSockets work on a non-8000 
 
 Proposed modules: `desktop/launcher.py`, `desktop/lifecycle.py`.
 
-- [ ] Start the backend hidden, with reload disabled and exactly one worker.
+- [x] Start the backend hidden, with reload disabled and exactly one worker. _(verified 2026-11-04, see progress record)_
 - [ ] Wait for the authenticated readiness handshake with a bounded timeout.
 - [ ] Open pywebview using EdgeChromium; do not fall back silently to the obsolete renderer.
 - [ ] Detect missing WebView2 and show actionable installation guidance.
-- [ ] Use a per-data-root single-instance lock; a second launch should focus the existing instance or show a clear message.
+- [x] Use a per-data-root single-instance lock; a second launch should focus the existing instance or show a clear message. _(verified 2026-11-04, see progress record)_
 - [ ] Handle startup failure, backend crash, stale locks and log location visibly.
 - [ ] Opening external links must not navigate the privileged application window to untrusted sites.
 - [ ] Closing during simulation/training offers a clear choice to continue or stop safely; bounded shutdown must stop only the app's own process tree.
-- [ ] Use a Windows job object or another tested lifecycle mechanism to prevent orphaned workers if the shell crashes.
+- [x] Use a Windows job object or another tested lifecycle mechanism to prevent orphaned workers if the shell crashes. _(verified 2026-11-04, see progress record)_
 
 Acceptance: startup, duplicate launch, crash recovery and closure leave no unwanted server/worker. Never kill arbitrary python.exe processes.
 
 ### D6 — First-run setup and durable user data
 
-- [ ] Generate a unique persistent installation secret.
+- [x] Generate a unique persistent installation secret. _(verified 2026-11-04, see progress record)_
 - [ ] Provide first-run administrator setup without distributing the development password.
 - [ ] Restrict setup to a private one-time bootstrap flow; never expose an unprotected general admin-creation endpoint.
 - [ ] Decide and test persistent login/session behavior, especially across dynamic port changes.
@@ -220,15 +220,15 @@ Acceptance: record the source SHA, package hash, test environment, startup time 
 
 ### D8 — Adapt training and evaluation workers
 
-- [ ] Introduce an allowlisted command factory for source and frozen execution.
+- [x] Introduce an allowlisted command factory for source and frozen execution. _(verified 2026-11-04, see progress record)_
 - [ ] Dispatch named worker modes to the existing training/evaluation entry points. Do not execute arbitrary scripts passed from the UI.
 - [ ] Preserve flags, scenario snapshots, cancellation, progress parsing, checkpoints, artifact registration and study gates.
-- [ ] Initialize multiprocessing.freeze_support early in frozen entry points and verify child processes do not recursively launch the desktop shell.
+- [x] Initialize multiprocessing.freeze_support early in frozen entry points and verify child processes do not recursively launch the desktop shell. _(verified 2026-11-04, see progress record)_
 - [ ] Give worker processes console-capable stdout/stderr for log capture, while hiding their windows.
 - [ ] Audit Python module discovery, Torch/SB3 dependencies, device selection and CPU checkpoint loading.
 - [ ] Preserve one-compute-workload admission and state ownership.
 - [ ] On a synthetic non-study fixture, run tiny QL, DQL and PPO jobs, load their models, evaluate, cancel and resume where supported.
-- [ ] Confirm unvalidated study jobs still fail through all packaged entry points.
+- [x] Confirm unvalidated study jobs still fail through all packaged entry points. _(verified 2026-11-04, see progress record)_
 
 Acceptance: real frozen worker paths pass, not just source-mode tests or mocked subprocess calls. Long training and final study evaluation are not needed for packaging acceptance.
 
@@ -237,7 +237,7 @@ Acceptance: real frozen worker paths pass, not just source-mode tests or mocked 
 - [ ] Test CSV/JSON exports, backup downloads and save dialogs in WebView2.
 - [ ] Test import file selection and browser permission/error flows.
 - [ ] Verify manifest, model and recording paths survive installation-root changes.
-- [ ] Restore a backup into a separate desktop data root, then reopen scenarios, users, models, recordings and study evidence.
+- [x] Restore a backup into a separate desktop data root, then reopen scenarios, users, models, recordings and study evidence. _(verified 2026-11-04, see progress record)_
 - [ ] Maintain version/network/phase compatibility checks and resource containment.
 - [ ] Test insufficient disk, corrupt imports and interrupted writes without replacing existing research evidence.
 
@@ -260,8 +260,8 @@ Acceptance: install, first launch, update and uninstall on a clean target. No cl
 
 ### D11 — Upgrade and rollback
 
-- [ ] Back up before schema migrations; stage changes so an interruption cannot leave the only database copy unusable.
-- [ ] Reject incompatible downgrades clearly; restoring old binaries alone is not database rollback.
+- [x] Back up before schema migrations; stage changes so an interruption cannot leave the only database copy unusable. _(verified 2026-11-04, see progress record)_
+- [x] Reject incompatible downgrades clearly; restoring old binaries alone is not database rollback. _(verified 2026-11-04, see progress record)_
 - [ ] Preserve edited networks and reports while versioning new bundled defaults.
 - [ ] Reconcile orphaned jobs using existing recovery behavior.
 - [ ] Test upgrade with populated synthetic records and restore to a compatible prior version.
