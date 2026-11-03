@@ -52,6 +52,14 @@ def _windows_long_path(path: Path) -> str:
     return "\\\\?\\" + value
 
 
+def display_path(path: Path) -> str:
+    """Plain path for people and API clients; the extended form stays internal to file operations."""
+    value = str(path)
+    if value.startswith("\\\\?\\UNC\\"):
+        return "\\\\" + value[8:]
+    return value[4:] if value.startswith("\\\\?\\") else value
+
+
 def _member(path: Path) -> str:
     resolved = Path(_windows_long_path(path)).resolve()
     project = Path(_windows_long_path(ROOT)).resolve()

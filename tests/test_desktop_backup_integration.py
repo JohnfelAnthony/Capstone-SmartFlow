@@ -147,6 +147,8 @@ def test_desktop_api_backup_and_staging_keep_networks_and_evidence(tmp_path, mon
     finally:
         backend.stop()
     from services.backup_bundle import _windows_long_path, _write_restore_seal, prepare_desktop_restore
+    assert not str(stage).startswith("\\\\?\\")  # the API shows a plain path
+    stage = Path(_windows_long_path(stage))  # internal restore code takes the extended form
     staged_db = Path(restored["SMARTFLOW_DB_PATH"])
     with closing(sqlite3.connect(staged_db)) as connection, connection:
         original_path = connection.execute("SELECT timeline_path FROM simulation_runs WHERE timeline_path IS NOT NULL").fetchone()[0]

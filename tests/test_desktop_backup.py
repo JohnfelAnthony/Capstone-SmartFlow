@@ -47,3 +47,11 @@ def test_restore_rejects_unsafe_desktop_evidence_names(tmp_path, name):
     manifest = {"desktop_evidence": {name: member}, "files": {member: {}}}
     with pytest.raises(ValueError):
         backup_bundle._desktop_evidence_layout(tmp_path, manifest, {})
+
+
+def test_display_path_drops_only_the_extended_prefix():
+    from pathlib import Path
+    from services.backup_bundle import display_path
+    assert display_path(Path("\\\\?\\C:\\data\\restore-1")) == "C:\\data\\restore-1"
+    assert display_path(Path("\\\\?\\UNC\\host\\share\\x")) == "\\\\host\\share\\x"
+    assert display_path(Path(r"C:\data")) == r"C:\data"

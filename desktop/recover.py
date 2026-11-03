@@ -36,6 +36,10 @@ def recover(root: Path, snapshot: Path) -> Path:
         live = data / "smartflow.db"
         token = uuid.uuid4().hex
         kept = data / f"smartflow.db.replaced-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{token}"
+        if not live.exists() and (Path(str(live) + "-wal").exists() or Path(str(live) + "-shm").exists()):
+            # An interrupted run already moved the database; put its WAL/SHM beside that copy.
+            earlier = sorted(p for p in data.glob("smartflow.db.replaced-*") if not p.name.endswith(("-wal", "-shm")))
+            kept = earlier[-1] if earlier else kept
         staged = data / f".recovery-{token}.db"
         moved = []
         try:
@@ -76,7 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         # Match the launcher's lock and selection, including after restore.
         with InstanceLock(paths.root / "config" / "supervisor"):
             switch = RestoreSwitch(paths.root, paths.resources, paths.resources / "dist")
-            return _recover_selected(switch.active_root(), args)
+            # The launcher still refuses a missing database; recovery is how it comes back.
+            return _recover_selected(switch.active_root(require_database=False), args)
     except InstanceInUse:
         print("SmartFlow is running on this data folder. Close it and try again.", file=sys.stderr)
         return 1

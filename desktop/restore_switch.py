@@ -33,14 +33,14 @@ class RestoreSwitch:
             raise ValueError("The selected desktop data root is outside restore storage")
         return root
 
-    def active_root(self) -> Path:
+    def active_root(self, *, require_database: bool = True) -> Path:
         if not self.pointer.exists():
             return self.control_root
         raw = json.loads(self.pointer.read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or raw.get("version") != 1 or not isinstance(raw.get("root"), str):
             raise ValueError("Invalid desktop data-root selection")
         root = self._validate_root(Path(raw["root"]))
-        if not (root / "data" / "smartflow.db").is_file():
+        if require_database and not (root / "data" / "smartflow.db").is_file():
             raise ValueError("The selected desktop database is missing; the previous data has not been removed")
         return root
 

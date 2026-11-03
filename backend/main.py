@@ -799,7 +799,7 @@ def admin_restore_backup(
         database.log_audit_event(user_id=user["id"], action="api_admin_restore_legacy_database",
                                  target="backups", details=f"Staged legacy SQLite-only backup '{backup['filename']}' at '{restored}'.")
         return BackupActionResponse(message="Legacy SQLite backup copied to a separate directory. Referenced artifacts were not included.",
-                                    backup=backup_model(backup), restore_path=str(restored))
+                                    backup=backup_model(backup), restore_path=backup_bundle.display_path(restored))
     try:
         restored = backup_bundle.restore_bundle_to_stage(backup_id)
     except FileNotFoundError as exc:
@@ -813,7 +813,7 @@ def admin_restore_backup(
     return BackupActionResponse(
         message="Backup restored and verified in a separate directory. The live application was not replaced.",
         backup=backup_model(backup),
-        restore_path=str(restored),
+        restore_path=backup_bundle.display_path(restored),
     )
 
 

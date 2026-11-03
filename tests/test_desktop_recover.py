@@ -117,3 +117,45 @@ def test_recover_refuses_while_running_and_foreign_files(tmp_path, capsys):
     except ValueError:
         pass
     assert value(data / "smartflow.db") == "good"
+
+
+def test_recovery_restores_into_selected_root_whose_database_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    control = tmp_path / "SmartFlow"
+    control.mkdir()
+    make_root(control, "inactive")
+    active = control / "desktop-restored" / "restore-test"
+    active.mkdir(parents=True)
+    data = make_root(active, "good")
+    snapshot_before_start(data / "smartflow.db", data)
+    (data / "smartflow.db").unlink()
+    (control / "config").mkdir()
+    (control / "config" / "active-data-root.json").write_text(json.dumps({"version": 1, "root": str(active)}))
+    assert main(["--yes"]) == 0
+    assert value(data / "smartflow.db") == "good"
+
+
+def test_recovery_still_validates_the_selected_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    control = tmp_path / "SmartFlow"
+    (control / "config").mkdir(parents=True)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    make_root(outside, "x")
+    (control / "config" / "active-data-root.json").write_text(json.dumps({"version": 1, "root": str(outside)}))
+    assert main(["--yes"]) == 1
+
+
+def test_rerun_after_crash_between_renames_keeps_the_set_together(tmp_path):
+    data = make_root(tmp_path, "snapshot")
+    snapshot = snapshot_before_start(data / "smartflow.db", data)
+    code = "import sqlite3,sys,os; c=sqlite3.connect(sys.argv[1]); c.execute('PRAGMA journal_mode=WAL'); c.execute('PRAGMA wal_autocheckpoint=0'); c.execute(\"UPDATE t SET v='committed'\"); c.commit(); os._exit(0)"
+    subprocess.run([sys.executable, "-c", code, str(data / "smartflow.db")], check=True)
+    first = data / "smartflow.db.replaced-20260101T000000Z-aaaa"
+    (data / "smartflow.db").rename(first)  # simulated crash: the WAL is still at the live name
+    kept = recover(tmp_path, snapshot)
+    assert kept == first
+    assert (data / (first.name + "-wal")).is_file()
+    assert value(first) == "committed"
+    assert all("aaaa" in p.name for p in data.glob("smartflow.db.replaced-*"))  # no second, split kept set
+    assert value(data / "smartflow.db") == "snapshot"
