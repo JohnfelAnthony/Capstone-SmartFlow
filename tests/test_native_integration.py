@@ -36,7 +36,7 @@ class NativeIntegrationTests(unittest.TestCase):
         database.create_user("Verification", "native_test", None, auth.hash_password("NativeTestUser42!"), role_id=1)
         response = self.client.post("/api/auth/login", json={"username": "native_test", "password": "NativeTestUser42!"})
         self.assertEqual(response.status_code, 200, response.text)
-        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
+        self.scenario = database.get_scenario_by_id(database.create_scenario("Single car", engine_config={"traffic_density": "single", "pedestrian_density": "none"}))
 
     def tearDown(self):
         simulation_runtime.reset()

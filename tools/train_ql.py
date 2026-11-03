@@ -19,6 +19,7 @@ from simulation.rl_reward import REWARD_VERSION
 from simulation.rl_state import OBSERVATION_VERSION
 from simulation.traffic_engine import RL_SERVICE_ACTIONS
 from tools.training_inputs import cumulative_training_seeds, load_training_scenario
+from services.data_paths import data_directory
 
 
 def _parse_seed_set(raw_seed_set: str) -> tuple[int, ...]:
@@ -34,7 +35,7 @@ def _parse_seed_set(raw_seed_set: str) -> tuple[int, ...]:
 
 def _default_output_path() -> Path:
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    return ROOT / "data" / "models" / "ql" / f"ql_{timestamp}.json"
+    return data_directory() / "models" / "ql" / f"ql_{timestamp}.json"
 
 
 def _checkpoint_path(output_path: Path, episode: int) -> Path:

@@ -100,12 +100,15 @@ class Signal:
 
     def serves(self, approach: str) -> bool:
         """True when the current phase gives this approach (or "pedestrian") its green; a group serves every member."""
-        family = self.family
+        family = self.approaches[self.index]
         return approach == family or ("+" in family and approach in family.split("+"))
 
     def key_for(self, approach: str) -> str | None:
         """The phase key that serves an approach, or None when the plan has none."""
-        return next((key for key in self.approaches if approach == key or ("+" in key and approach in key.split("+"))), None)
+        keys = self.__dict__.get("_key_by_approach")
+        if keys is None:  # the phase list never changes after construction
+            keys = self.__dict__["_key_by_approach"] = {name: key for key in self.approaches for name in key.split("+")}
+        return keys.get(approach)
 
     def share_a_phase(self, first: str | None, second: str | None) -> bool:
         return first is not None and second is not None and (first == second or any(
@@ -610,7 +613,8 @@ class TrafficEngine:
             if signal.mode != "signalized" or signal.stage != "green":
                 continue
             self.last_served[node][signal.family] = self.simulation_time
-            demanded = {signal.key_for(self.network.lanes[v.route[0]].approach) for v in self.vehicles.values() if not v.connector and self.network.lanes[v.route[0]].target == node} - {None}
+            waiting_approaches = {self.network.lanes[v.route[0]].approach for v in self.vehicles.values() if not v.connector and self.network.lanes[v.route[0]].target == node}
+            demanded = {signal.key_for(approach) for approach in waiting_approaches} - {None}
             oldest = min(demanded, key=lambda a: (self.last_served[node][a], a), default=None)
             overdue_approach = oldest is not None and self.simulation_time-self.last_served[node][oldest] >= signal.maximum_red
             overdue_pedestrians = any(p.junction == node and not p.crossing and p.wait >= self.config["pedestrian_max_wait"] for p in self.pedestrians.values())
@@ -1463,9 +1467,9 @@ class TrafficEngine:
             # Never commit behind an uncommitted vehicle that could still be held at the line.
             clear_ahead = leader is None or leader.reserved_junction == lane.target
             # The sweep test is the costliest, so it runs only at the moment the vehicle would otherwise commit.
-            # Approaches sharing a green (and a first-come junction) also keep apart from each other's committed paths.
-            meets_committed = self._meets_committed_path if signal.mode == "first_come" or "+" in signal.family else self._meets_own_approach_path
-            if may_proceed and must_decide and clear_ahead and (self._sweep_blocked(vehicle, lane.target) or meets_committed(vehicle)):
+            if may_proceed and must_decide and clear_ahead and (self._sweep_blocked(vehicle, lane.target) or (
+                    # Approaches sharing a green (and a first-come junction) also keep apart from each other's committed paths.
+                    self._meets_committed_path if signal.mode == "first_come" or "+" in signal.family else self._meets_own_approach_path)(vehicle)):
                 may_proceed = False
             if may_proceed and must_decide and clear_ahead:
                 self._reserve(vehicle, lane.target, lane.approach)
@@ -1527,7 +1531,8 @@ class TrafficEngine:
             for node, signal in self.signals.items():
                 signal.step(STEP_LENGTH, self._crossing_occupied(node), self._pedestrians_waiting(node))
             self._step_pedestrians()
-            for vehicle in self.vehicles.values():
+            has_first_come = any(signal.mode == "first_come" for signal in self.signals.values())
+            for vehicle in (self.vehicles.values() if has_first_come else ()):
                 lane = self.network.lanes[vehicle.route[0]]
                 if (vehicle.connector is None and len(vehicle.route) > 1 and vehicle.reserved_junction is None
                         and lane.target in self.signals and self.signals[lane.target].mode == "first_come"

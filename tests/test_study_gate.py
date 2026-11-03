@@ -10,6 +10,14 @@ from services import site_validation as sv
 from services.study_gate import is_study_site, require_study_gate, study_gate
 from simulation.network_registry import engine_for_scenario, load_registered_network
 
+
+def test_known_study_sites_fail_closed_when_mapping_missing(tmp_path):
+    for site in ("tagum_site_a", "tagum_site_b"):
+        assert is_study_site(site, root=tmp_path)
+        engine = type("Engine", (), {"network": type("Network", (), {"id": site})()})()
+        with pytest.raises(ValueError, match="no site mapping"):
+            require_study_gate(engine, root=tmp_path)
+    assert not is_study_site("tagum_network", root=tmp_path)
 ROOT = Path(__file__).resolve().parents[1]
 SITE = "tagum_site_a"
 CRITERIA = {"development_seeds": [101, 102, 103, 104, 105], "tolerances": {"queue": {"abs": 2.0}, "discharge": {"rel": 0.2}, "travel_time": {"rel": 0.25},

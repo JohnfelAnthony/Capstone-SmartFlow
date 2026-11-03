@@ -15,6 +15,25 @@ from simulation.traffic_engine import TrafficEngine
 from tests.mixed_traffic_helpers import busy_engine, junction_network
 
 
+def test_validation_report_write_is_atomic_and_never_overwrites(tmp_path, monkeypatch):
+    from services import site_validation as sv
+    report = {"report_id": "synthetic-test", "site": "tagum_site_a", "purpose": "calibration", "status": "INCONCLUSIVE"}
+    original_dump = sv.json.dump
+    def fail_after_partial_write(_report, stream, **_kwargs):
+        stream.write('{"partial":')
+        raise OSError("simulated disk failure")
+    monkeypatch.setattr(sv.json, "dump", fail_after_partial_write)
+    with pytest.raises(OSError, match="simulated"):
+        sv.write_report(report, tmp_path)
+    assert list(tmp_path.iterdir()) == []
+    monkeypatch.setattr(sv.json, "dump", original_dump)
+    path = sv.write_report(report, tmp_path)
+    with pytest.raises(FileExistsError):
+        sv.write_report({**report, "status": "PASS"}, tmp_path)
+    assert json.loads(path.read_text(encoding="utf-8"))["status"] == "INCONCLUSIVE"
+    assert not list(tmp_path.glob("*.tmp"))
+
+
 def calibration(site="tagum_site_a", **changes):
     value = {"schema_version": 1, "network_id": site, "first_come_approach_speed_mps": 5.5, "approach_zone_m": 35.0,
              "turn_speed_mps": 4.0, "class_speed_factors": {name: spec["speed_factor"] for name, spec in VEHICLE_TYPES.items()}}

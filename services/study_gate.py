@@ -1,6 +1,7 @@
 """The validation gate in front of study-site training and final evaluation.
 
-A network is a study site when `data/sites/<id>_mapping.json` exists. Training or evaluating one needs a current,
+The two known study sites remain study sites even if their mapping files are missing. Other networks with a
+`data/sites/<id>_mapping.json` are also treated as study sites. Training or evaluating one needs a current,
 independent PASS (services.site_validation.validation_gate) for the identical physical model; a filename or a
 scenario-level flag is never trusted. `--synthetic-smoke-test` on the command-line tools skips the gate for code checks
 and marks the scenario so the artifact cannot be mistaken for study evidence.
@@ -8,16 +9,18 @@ and marks the scenario so the artifact cannot be mistaken for study evidence.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 from services import site_validation as sv
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(os.environ.get("SMARTFLOW_STUDY_ROOT") or Path(__file__).resolve().parents[1])
+KNOWN_STUDY_SITES = frozenset({"tagum_site_a", "tagum_site_b"})
 
 
 def is_study_site(network_id: str | None, root: Path | None = None) -> bool:
-    return bool(network_id) and ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists()
+    return bool(network_id) and (network_id in KNOWN_STUDY_SITES or ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists())
 
 
 def _load_json(path: Path, label: str, reasons: list[str]):

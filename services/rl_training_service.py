@@ -17,6 +17,7 @@ from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES
 from services.training_settings import prepare_settings, validate_advanced, validate_model_for_settings
 from services.observation_identity import validate_observed_holdout
 from services.workload_admission import workload_admission
+from desktop.worker_commands import worker_prefix
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,10 +99,7 @@ def _setting(settings: dict, key: str, default):
 def build_training_command(algorithm: str, settings: dict, advanced: dict | None = None) -> list[str]:
     algorithm = _normalize_algorithm(algorithm)
     advanced = advanced or {}
-    command = [
-        _python_executable(),
-        "-u",
-        TRAINING_SCRIPT[algorithm],
+    command = worker_prefix(f"train-{algorithm}", _python_executable()) + [
         "--episodes", str(int(_setting(settings, "episodes", DEFAULT_TRAINING_EPISODES))),
         "--warmup-seconds", str(float(_setting(settings, "warmup_seconds", DEFAULT_WARMUP_SECONDS))),
         "--evaluation-seconds", str(float(_setting(settings, "evaluation_seconds", DEFAULT_EPISODE_SECONDS))),
@@ -157,10 +155,7 @@ def build_evaluation_command(algorithms: list[str], settings: dict, model_paths:
     controllers = list(REFERENCE_CONTROLLERS) + [
         algorithm for algorithm in algorithms if algorithm in model_paths and model_paths[algorithm]
     ]
-    command = [
-        _python_executable(),
-        "-u",
-        "tools/evaluate_controllers.py",
+    command = worker_prefix("evaluate", _python_executable()) + [
         "--controllers", ",".join(controllers),
         "--seeds", str(_setting(settings, "evaluation_seeds", "101,102,103,104,105")),
         "--duration-seconds", str(float(_setting(settings, "evaluation_seconds", DEFAULT_EPISODE_SECONDS))),

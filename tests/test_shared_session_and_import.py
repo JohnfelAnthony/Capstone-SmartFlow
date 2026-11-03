@@ -39,7 +39,7 @@ class SharedSessionAndImportTests(unittest.TestCase):
         for client, username in ((self.a, "operator_a"), (self.b, "operator_b")):
             response = client.post("/api/auth/login", json={"username": username, "password": "SharedSessionUser42!"})
             self.assertEqual(response.status_code, 200, response.text)
-        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
+        self.scenario = database.get_scenario_by_id(database.create_scenario("Single car", engine_config={"traffic_density": "single", "pedestrian_density": "none"}))
 
     def tearDown(self):
         simulation_runtime.reset()

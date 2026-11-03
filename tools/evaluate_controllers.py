@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.training_inputs import load_training_scenario
+from services.data_paths import data_directory
 from simulation.training_control import check_training_cancelled
 
 import config
@@ -69,7 +70,7 @@ def _parse_controller_set(raw_controllers: str) -> tuple[str, ...]:
 
 
 def _latest_model_path(controller: str) -> Path | None:
-    model_dir = ROOT / "data" / "models" / controller
+    model_dir = data_directory() / "models" / controller
     if not model_dir.exists():
         return None
     if controller == "ql":
@@ -548,8 +549,7 @@ def main() -> int:
             )
 
     output_path = args.output or (
-        ROOT
-        / "data"
+        data_directory()
         / "generated"
         / "evaluations"
         / f"controller_eval_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"

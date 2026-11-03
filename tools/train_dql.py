@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.training_inputs import cumulative_training_seeds, load_training_scenario
+from services.data_paths import data_directory
 
 from simulation.dql_training import (
     ACTION_SPACE_VERSION,
@@ -41,7 +42,7 @@ def _parse_seed_set(raw_seed_set: str) -> tuple[int, ...]:
 
 def _default_output_path() -> Path:
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    return ROOT / "data" / "models" / "dql" / f"dql_{timestamp}.zip"
+    return data_directory() / "models" / "dql" / f"dql_{timestamp}.zip"
 
 
 def _format_duration(seconds: float) -> str:

@@ -39,9 +39,9 @@ class NativeCleanupTests(unittest.TestCase):
 
     def test_canonical_seed_restart_and_strict_public_fields(self):
         scenarios = self.client.get('/api/scenarios').json()['scenarios']
-        self.assertEqual(len(scenarios), 2)
+        # One ready-made scenario per study site; the old test networks get none.
+        self.assertEqual(sorted(scenario['network_id'] for scenario in scenarios), ['tagum_site_a', 'tagum_site_b'])
         for scenario in scenarios:
-            self.assertEqual(scenario['network_id'], 'tagum_network')
             self.assertIsNone(scenario['migration_error'])
             self.assertIn('controlled_junction', scenario['engine_config'])
             self.assertNotIn('traffic_density', scenario)

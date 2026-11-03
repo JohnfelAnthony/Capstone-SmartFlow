@@ -1,6 +1,8 @@
 """Atomic admission for one compute workload in this API process."""
 from threading import Lock
 
+DESKTOP_SHUTDOWN = "desktop shutdown"
+
 
 class WorkloadConflict(RuntimeError):
     pass
@@ -27,6 +29,12 @@ class WorkloadAdmission:
         with self._lock:
             if lease is not None and lease is self._lease:
                 self._lease = self._kind = None
+
+    def check_replay_allowed(self):
+        """Replay is non-compute work, but may not start during final shutdown."""
+        with self._lock:
+            if self._kind == DESKTOP_SHUTDOWN:
+                raise WorkloadConflict("SmartFlow is shutting down; replay cannot start.")
 
 
 workload_admission = WorkloadAdmission()

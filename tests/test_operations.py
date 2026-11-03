@@ -42,7 +42,7 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/auth/login", json={
             "username": "admin", "password": "OperationsAdmin42!"}).status_code, 200)
         simulation_runtime.reset()
-        self.scenario = next(row for row in database.get_scenarios() if json.loads(row["engine_config"])["traffic_density"] == "single")
+        self.scenario = database.get_scenario_by_id(database.create_scenario("Single car", engine_config={"traffic_density": "single", "pedestrian_density": "none"}))
 
     def tearDown(self):
         simulation_runtime.reset()
@@ -152,6 +152,16 @@ class OperationsTests(unittest.TestCase):
         rejected = self.client.put("/api/admin/roles/2/permissions", json={"updates": [
             {"page": "admin-backup", "action": "view", "enabled": True}]})
         self.assertEqual(rejected.status_code, 422, rejected.text)
+
+    def test_password_change_clears_required_change_flag(self):
+        user_id = database.create_user("Fresh", "fresh", None, auth.hash_password("FreshStart42!"), must_change_password=1)
+        with TestClient(app) as fresh:
+            self.assertTrue(fresh.post("/api/auth/login", json={"username": "fresh", "password": "FreshStart42!"}).json()["user"]["must_change_password"])
+            changed = fresh.post("/api/auth/change-password", json={
+                "current_password": "FreshStart42!", "new_password": "FreshNext42!", "confirm_password": "FreshNext42!"})
+            self.assertEqual(changed.status_code, 200)
+            self.assertFalse(fresh.get("/api/auth/me").json()["must_change_password"])
+        self.assertFalse(database.get_user_by_id(user_id)["must_change_password"])
 
     def test_expired_session_and_restart_reconciliation(self):
         user_id = database.create_user("Operator", "operator", None, auth.hash_password("OperatorPassword42!"), role_id=2)

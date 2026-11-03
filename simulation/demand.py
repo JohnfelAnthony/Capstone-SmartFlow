@@ -34,7 +34,7 @@ def build_schedule(config: dict, network, seed: int, duration: float) -> list[Ar
         od = window.get("od") or [{"source": a, "destination": b, "weight": 1} for a, b in pairs]
         while time < min(window["end"], duration):
             pair = rng.choices(od, [item["weight"] for item in od])[0]
-            kind = rng.choices(list(mix), list(mix.values()))[0]
+            kind = window.get("vehicle_type") or rng.choices(list(mix), list(mix.values()))[0]  # a classed stream draws no mix sample
             arrivals.append(Arrival(round(time, 6), pair["source"], pair["destination"], kind))
             time += rng.expovariate(rate)
             if len(arrivals) > 100000:

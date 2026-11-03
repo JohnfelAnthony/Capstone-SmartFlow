@@ -176,6 +176,11 @@ class SimulationRuntime:
     def resume(self, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
             self._assert_owner(user_id)
+            if self._run_mode == "playback":
+                try:
+                    workload_admission.check_replay_allowed()
+                except WorkloadConflict as exc:
+                    raise SimulationRuntimeError(str(exc)) from exc
             self._get_engine().resume()
             if self._active_run_id is not None:
                 database.update_run(self._active_run_id, status="running")
@@ -288,6 +293,10 @@ class SimulationRuntime:
             self._assert_owner(user_id)
             if self._run_mode != "playback" or self._engine is None:
                 raise SimulationRuntimeError("Load a recorded run before playback.")
+            try:
+                workload_admission.check_replay_allowed()
+            except WorkloadConflict as exc:
+                raise SimulationRuntimeError(str(exc)) from exc
             self._engine.start(self._duration_seconds)
             if self._engine.status == "running":
                 self._start_background_runner_locked()

@@ -7,6 +7,7 @@ import json
 import secrets
 import shutil
 import string
+import subprocess
 import threading
 from pathlib import Path
 
@@ -45,6 +46,7 @@ from backend.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    MovementCountsRequest,
     ObservationImportRequest,
     ObservationImportResponse,
     Permission,
@@ -153,6 +155,9 @@ def require_any_permission(user: dict, permissions: list[tuple[str, str]]) -> No
 def require_admin(user: dict) -> None:
     if str(user.get("role_name") or user.get("role") or "").lower() != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required.")
+
+
+FIELD_OBSERVER_LAUNCHER = Path(config.BASE_DIR) / "tools" / "field_observer" / "Start Field Observer.cmd"
 
 
 def simulation_presentation_response(simulation: SimulationStateResponse) -> SimulationStateResponse:
@@ -485,6 +490,7 @@ def change_password(
         user["id"],
         invalidate_sessions=False,
         password_hash=auth.hash_password(payload.new_password),
+        must_change_password=0,
     )
     database.log_audit_event(
         user_id=user["id"],
@@ -1021,7 +1027,8 @@ def run_record_model(row: dict) -> SimulationRunRecord:
 
 
 def report_export_directory() -> Path:
-    directory = Path(config.BASE_DIR) / "data" / "generated" / "reports"
+    from services.data_paths import data_directory
+    directory = data_directory() / "generated" / "reports"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
@@ -1455,6 +1462,26 @@ def import_scenario_observations(payload: ObservationImportRequest, user: dict =
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return ObservationImportResponse(**result)
+
+
+@app.post("/api/tools/field-observer/open", response_model=MessageResponse)
+def open_field_observer(user: dict = Depends(require_current_user)) -> MessageResponse:
+    require_admin(user)
+    if not FIELD_OBSERVER_LAUNCHER.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field Observer is not installed in tools/field_observer.")
+    # shortcut: the tool opens on the computer running this API, which is the only computer while SmartFlow runs locally.
+    subprocess.Popen(["cmd", "/c", "start", "Field Observer", str(FIELD_OBSERVER_LAUNCHER)], cwd=FIELD_OBSERVER_LAUNCHER.parent)
+    return MessageResponse(message="Field Observer is starting. It opens in a new browser tab; keep its helper window open.")
+
+
+@app.post("/api/scenarios/movement-counts")
+def import_movement_counts(payload: MovementCountsRequest, user: dict = Depends(require_current_user)) -> dict:
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from services.movement_counts import import_movement_counts as convert
+    try:
+        return convert(**payload.model_dump())
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
 
 
 @app.put("/api/scenarios/{scenario_id}", response_model=Scenario)

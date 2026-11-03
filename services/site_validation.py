@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import subprocess
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,6 +40,9 @@ def criteria_sha256(criteria: dict) -> str:
 
 def engine_content_sha256() -> str:
     """Hash of the simulation source, so any code change makes an earlier pass stale."""
+    if getattr(sys, "frozen", False):
+        from desktop.engine_manifest import verify_manifest
+        return verify_manifest(Path(__file__).resolve().parents[1])["engine_content_sha256"]
     digest = hashlib.sha256()
     for path in sorted((Path(__file__).resolve().parents[1] / "simulation").glob("*.py")):
         digest.update(path.name.encode("utf-8"))
@@ -223,8 +228,19 @@ def write_report(report: dict, directory: Path) -> Path:
     report = {**report, "report_id": report_id}
     path = Path(directory) / f"site-validation-{report['site']}-{report['purpose']}-{report_id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "x", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2, sort_keys=True)
+    temporary = path.parent / f".site-validation-{uuid.uuid4().hex}.tmp"
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            json.dump(report, handle, indent=2, sort_keys=True, allow_nan=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        # Do not overwrite a report if the same report ID was already used.
+        if os.name == "nt":
+            os.rename(temporary, path)
+        else:
+            os.link(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return path
 
 
@@ -246,6 +262,14 @@ def _file_sha256(path: Path) -> str | None:
 
 
 def _source_revision() -> str | None:
+    if getattr(sys, "frozen", False):
+        from desktop.engine_manifest import verify_manifest
+        manifest = verify_manifest(Path(__file__).resolve().parents[1])
+        revision = manifest.get("source_revision")
+        if not isinstance(revision, str) or not revision:
+            return None
+        state = manifest.get("tracked_changes")
+        return revision + ("" if state is False else "+tracked-changes" if state is True else "+unverified-tree")
     try:
         return subprocess.run(["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=10, check=True).stdout.strip() or None
     except (OSError, subprocess.SubprocessError):

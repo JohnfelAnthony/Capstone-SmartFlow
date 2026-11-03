@@ -42,14 +42,25 @@ def _within(path: Path, parent: Path) -> bool:
     return path == parent or parent in path.parents
 
 
+def _windows_long_path(path: Path) -> str:
+    """Use extended Windows paths for deep restore trees without changing saved paths."""
+    value = str(path)
+    if os.name != "nt" or value.startswith("\\\\?\\"):
+        return value
+    if value.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + value[2:]
+    return "\\\\?\\" + value
+
+
 def _member(path: Path) -> str:
-    resolved = path.resolve()
-    if _within(resolved, ROOT):
-        return "files/project/" + resolved.relative_to(ROOT).as_posix()
-    storage = Path(config.DB_PATH).resolve().parent
+    resolved = Path(_windows_long_path(path)).resolve()
+    project = Path(_windows_long_path(ROOT)).resolve()
+    if _within(resolved, project):
+        return "files/project/" + resolved.relative_to(project).as_posix()
+    storage = Path(_windows_long_path(Path(config.DB_PATH).resolve().parent)).resolve()
     if _within(resolved, storage):
         return "files/storage/" + resolved.relative_to(storage).as_posix()
-    if resolved == road_network.NETWORK_PATH.resolve():
+    if resolved == Path(_windows_long_path(road_network.NETWORK_PATH)).resolve():
         return "files/network/" + resolved.name
     raise ValueError(f"Referenced artifact is outside the project and database storage: {path}")
 
@@ -123,17 +134,92 @@ def _files_for_references(references: set[str]) -> dict[str, Path]:
     return files
 
 
+def _desktop_evidence() -> tuple[dict[str, Path], dict[str, str]]:
+    """Include only explicitly selected desktop study evidence and preferences."""
+    raw = os.environ.get("SMARTFLOW_STUDY_ROOT")
+    if not raw:
+        return {}, {}
+    root = Path(_windows_long_path(Path(raw).resolve()))
+    candidates = [root / "config" / "preferences.json"]
+    candidates.extend((root / "data" / "sites").glob("*.json"))
+    candidates.extend((root / "docs" / "reports").glob("site-validation-*.json"))
+    from desktop.site_validation_jobs import JOB_ID
+    for path in (root / "data" / "validation-jobs").glob("*.json"):
+        if path.is_symlink() or not JOB_ID.fullmatch(path.stem):
+            raise ValueError("Unsafe desktop validation-job record")
+        candidates.append(path)
+    from services.reviewed_revision_store import REVISION_ID, SAFE_NAME, revision_path
+    reviewed = root / "data" / "reviewed-revisions"
+    if reviewed.exists():
+        for revision in reviewed.iterdir():
+            if revision.is_symlink():
+                raise ValueError("Reviewed revision cannot be a symbolic link")
+            if revision.is_dir() and REVISION_ID.fullmatch(revision.name):
+                revision_path(root, revision.name)
+                manifest = json.loads((revision / "manifest.json").read_text(encoding="utf-8"))
+                if {item.name for item in revision.iterdir()} != {"manifest.json", *(manifest.get("artifact_sha256") or {})}:
+                    raise ValueError("Reviewed revision files do not match its manifest")
+                for item in revision.iterdir():
+                    if item.is_symlink() or not item.is_file() or not SAFE_NAME.fullmatch(item.name):
+                        raise ValueError("Reviewed revision contains an unsafe file")
+                    candidates.append(item)
+    files, logical = {}, {}
+    for candidate in sorted(candidates):
+        if not candidate.exists():
+            continue
+        resolved = candidate.resolve()
+        if not _within(resolved, root) or not resolved.is_file():
+            raise ValueError("Desktop evidence must be a file inside the desktop data root")
+        name = candidate.relative_to(root).as_posix()
+        member = "files/desktop/" + name
+        files[member] = resolved
+        logical[name] = member
+    return files, logical
+
+
+def _desktop_evidence_layout(staged: Path, manifest: dict, restored: dict[str, Path]) -> Path | None:
+    entries = manifest.get("desktop_evidence")
+    if entries is None:
+        return None
+    if not isinstance(entries, dict):
+        raise ValueError("Invalid desktop evidence manifest")
+    destination_root = staged / "desktop"
+    from services.reviewed_revision_store import REVISION_ID, SAFE_NAME
+    from desktop.site_validation_jobs import JOB_ID
+    for name, member in entries.items():
+        if not isinstance(name, str) or not isinstance(member, str):
+            raise ValueError("Invalid desktop evidence entry")
+        parts = name.split("/")
+        allowed = (name == "config/preferences.json" or
+                   (len(parts) == 3 and parts[:2] == ["data", "sites"] and parts[2].endswith(".json")) or
+                   (len(parts) == 3 and parts[:2] == ["data", "validation-jobs"] and parts[2].endswith(".json") and JOB_ID.fullmatch(parts[2][:-5])) or
+                   (len(parts) == 3 and parts[:2] == ["docs", "reports"] and parts[2].startswith("site-validation-") and parts[2].endswith(".json")) or
+                   (len(parts) == 4 and parts[:2] == ["data", "reviewed-revisions"] and REVISION_ID.fullmatch(parts[2]) and SAFE_NAME.fullmatch(parts[3])))
+        if not allowed or any(part in ("", ".", "..") or "\\" in part or ":" in part for part in parts):
+            raise ValueError("Unsafe desktop evidence path")
+        if member != "files/desktop/" + name or member not in manifest["files"]:
+            raise ValueError("Desktop evidence is missing from the verified bundle")
+        destination = (destination_root / name).resolve()
+        if not _within(destination, destination_root.resolve()):
+            raise ValueError("Desktop evidence escapes the restore directory")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(restored[member], destination)
+    return destination_root
+
+
 def create_bundle(created_by: int) -> str:
-    backup_dir = database._backups_directory()
+    backup_dir = Path(_windows_long_path(database._backups_directory()))
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     filename = f"smartflow_backup_{timestamp}.zip"
-    final_path = database._resolve_backup_path(filename)
+    final_path = Path(_windows_long_path(database._resolve_backup_path(filename)))
     with tempfile.TemporaryDirectory(prefix="bundle-", dir=backup_dir) as temporary:
         snapshot = Path(temporary) / "smartflow.db"
         with closing(database.get_connection()) as source, closing(sqlite3.connect(snapshot)) as destination:
             source.backup(destination)
         references = _referenced_paths(snapshot)
         files = _files_for_references(references)
+        desktop_files, desktop_evidence = _desktop_evidence()
+        files.update(desktop_files)
         mapping = {value: _member(_source_path(value)) for value in sorted(references)}
         archive = Path(temporary) / filename
         manifest = {"format": 1, "created_at": datetime.now(UTC).isoformat(),
@@ -144,6 +230,8 @@ def create_bundle(created_by: int) -> str:
         from simulation.network_registry import REGISTRY_PATH
         if REGISTRY_PATH.exists():
             manifest['network_registry'] = _member(REGISTRY_PATH)
+        if desktop_evidence:
+            manifest['desktop_evidence'] = desktop_evidence
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
             bundle.write(snapshot, "smartflow.db")
             for member, path in sorted(files.items()):
@@ -229,17 +317,131 @@ def _restore_layout(staged: Path, manifest: dict) -> dict[str, Path]:
     return layout
 
 
+def _stage_inventory(root: Path) -> dict:
+    files = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("Restore stage contains a symbolic link")
+        if path.is_file() and path != root / "restore_seal.json":
+            files[path.relative_to(root).as_posix()] = {"size": path.stat().st_size, "sha256": _digest(path)}
+    return files
+
+
+def _write_restore_seal(root: Path) -> None:
+    (root / "restore_seal.json").write_text(json.dumps(_stage_inventory(root), sort_keys=True), encoding="utf-8")
+
+
+def prepare_desktop_restore(staged: Path, destination: Path, secret_file: Path) -> Path:
+    """Create an independent candidate root from an already verified restore stage.
+
+    The destination is its final path: moving it later invalidates stored absolute
+    artifact paths. This function neither selects it nor stops a running backend.
+    """
+    staged = Path(staged).resolve(strict=True)
+    destination = Path(destination).resolve()
+    secret_file = Path(secret_file).resolve(strict=True)
+    if destination == staged or _within(destination, staged) or _within(staged, destination):
+        raise ValueError("Restore candidate and verification stage must be separate directories")
+    secret = secret_file.read_text(encoding="ascii").strip()
+    if len(secret) < 40:
+        raise ValueError("The existing desktop installation secret is invalid")
+    if destination.exists():
+        raise FileExistsError("Restore candidate already exists")
+    destination.mkdir(parents=True, exist_ok=False)
+    try:
+        artifacts = destination / "data" / "restored"
+        shutil.copytree(_windows_long_path(staged), _windows_long_path(artifacts), symlinks=True)
+        extended_artifacts = Path(_windows_long_path(artifacts))
+        seal = json.loads((extended_artifacts / "restore_seal.json").read_text(encoding="utf-8"))
+        if not isinstance(seal, dict) or _stage_inventory(extended_artifacts) != seal:
+            raise ValueError("Verified restore stage changed before candidate preparation")
+        environment = json.loads((artifacts / "restore_environment.json").read_text(encoding="utf-8"))
+        layout = json.loads((artifacts / "restore_layout.json").read_text(encoding="utf-8"))
+        if not isinstance(layout, dict) or not environment.get("SMARTFLOW_NETWORK_REGISTRY_PATH"):
+            raise ValueError("A complete verified desktop bundle and network registry are required")
+
+        def copied_path(value: str) -> Path:
+            if not isinstance(value, str):
+                raise ValueError("Invalid staged artifact path")
+            original = Path(value).resolve()
+            if not _within(original, staged):
+                raise ValueError("Staged artifact escapes the verification directory")
+            result = artifacts / original.relative_to(staged)
+            resolved = Path(_windows_long_path(result)).resolve(strict=True)
+            if not _within(resolved, extended_artifacts.resolve()):
+                raise ValueError("Copied artifact escapes the candidate directory")
+            return result
+
+        snapshot = copied_path(environment["SMARTFLOW_DB_PATH"])
+        active_network = copied_path(environment["SMARTFLOW_NETWORK_PATH"])
+        registry = copied_path(environment["SMARTFLOW_NETWORK_REGISTRY_PATH"])
+        evidence = copied_path(environment["SMARTFLOW_STUDY_ROOT"]) if environment.get("SMARTFLOW_STUDY_ROOT") else None
+        entries = json.loads(registry.read_text(encoding="utf-8")).get("networks")
+        if not isinstance(entries, list):
+            raise ValueError("Invalid restored network registry")
+        site_files = []
+        ids, filenames = set(), {"registry.json", "tagum_network.json"}
+        for entry in entries:
+            name, network_id = entry.get("file"), entry.get("id")
+            if (not isinstance(name, str) or not name or Path(name).name != name or "/" in name or "\\" in name
+                    or name.casefold() in filenames or not isinstance(network_id, str) or not network_id or network_id in ids):
+                raise ValueError("Invalid restored network registry entry")
+            ids.add(network_id)
+            filenames.add(name.casefold())
+            site = (registry.parent / name).resolve(strict=True)
+            if not _within(site, artifacts) or road_network.load_network(site).id != network_id:
+                raise ValueError("Restored network does not match its registry id")
+            site_files.append(site)
+        road_network.load_network(active_network)
+        mappings = {}
+        for relative in layout.values():
+            source = (staged / relative).resolve()
+            copied = copied_path(str(source))
+            # Persist the extended form only when necessary; shorter paths stay
+            # human-readable and long paths remain usable by Windows consumers.
+            mappings[str(source)] = _windows_long_path(copied) if os.name == "nt" and len(str(copied)) >= 240 else str(copied)
+        data = destination / "data"
+        # The verification database may still have a WAL; copying only its main
+        # file would silently drop committed changes.
+        with closing(sqlite3.connect(snapshot)) as source, closing(sqlite3.connect(data / "smartflow.db")) as target:
+            source.backup(target)
+        network_dir = data / "networks"
+        network_dir.mkdir()
+        shutil.copyfile(active_network, network_dir / "tagum_network.json")
+        shutil.copyfile(registry, network_dir / "registry.json")
+        for site in site_files:
+            shutil.copyfile(site, network_dir / site.name)
+        if evidence:
+            shutil.copytree(_windows_long_path(evidence), _windows_long_path(destination), dirs_exist_ok=True)
+        config_dir = destination / "config"
+        config_dir.mkdir(exist_ok=True)
+        shutil.copyfile(secret_file, config_dir / "installation-secret")
+        candidate_db = data / "smartflow.db"
+        _rewrite_database(candidate_db, mappings)
+        extended_destination = Path(_windows_long_path(destination)).resolve()
+        for value in _referenced_paths(candidate_db):
+            candidate = Path(_windows_long_path(Path(value))).resolve()
+            if not _within(candidate, extended_destination) or not candidate.exists():
+                raise ValueError(f"Restored artifact is not contained in the candidate: {value}")
+        return destination
+    except BaseException:
+        # The copied evidence can exceed the legacy Windows path limit even
+        # when the candidate root itself is short.
+        shutil.rmtree(_windows_long_path(destination))
+        raise
+
+
 def restore_bundle_to_stage(backup_id: int) -> Path:
     with database.get_db() as conn:
         row = conn.execute("SELECT filename FROM backups WHERE id = ?", (backup_id,)).fetchone()
     if not row:
         raise ValueError("Backup not found")
-    archive = database._resolve_backup_path(row["filename"])
+    archive = Path(_windows_long_path(database._resolve_backup_path(row["filename"])))
     if archive.suffix != ".zip":
         raise ValueError("This legacy database-only backup cannot verify models and recordings")
     if not archive.is_file():
         raise FileNotFoundError(f"Backup file is missing: {archive.name}")
-    restore_root = database._backups_directory() / "restores"
+    restore_root = Path(_windows_long_path(database._backups_directory() / "restores"))
     restore_root.mkdir(parents=True, exist_ok=True)
     staged = Path(tempfile.mkdtemp(prefix="restore-", dir=restore_root)).resolve()
     try:
@@ -262,6 +464,7 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
                 destination.write_bytes(bundle.read(member))
                 if destination.stat().st_size != info["size"] or _digest(destination) != info["sha256"]:
                     raise ValueError(f"Backup artifact checksum mismatch: {member}")
+            desktop_root = _desktop_evidence_layout(staged, manifest, restored_members)
             paths = {}
             for original, member in manifest["references"].items():
                 if not isinstance(original, str) or not isinstance(member, str) or not member.startswith("files/"):
@@ -291,8 +494,10 @@ def restore_bundle_to_stage(backup_id: int) -> Path:
                 "SMARTFLOW_DB_PATH": str(snapshot),
                 "SMARTFLOW_NETWORK_PATH": str(restored_members[network_member]),
                 **({"SMARTFLOW_NETWORK_REGISTRY_PATH": str(restored_registry)} if registry_member else {}),
+                **({"SMARTFLOW_STUDY_ROOT": str(desktop_root)} if desktop_root else {}),
                 "note": "Start a separate SmartFlow API process with these environment variables and its own secret key."
             }, indent=2), encoding="utf-8")
+            _write_restore_seal(staged)
         return staged
     except Exception as exc:
         if not _within(staged, restore_root.resolve()):
