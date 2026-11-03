@@ -11,6 +11,16 @@ from pathlib import Path
 from desktop.paths import extended_path
 
 
+KEEP_SNAPSHOTS = 10
+
+
+def prune_snapshots(directory: Path, keep: int = KEEP_SNAPSHOTS) -> None:
+    """Delete only our own named snapshots beyond the newest `keep`; names sort by UTC time."""
+    old = sorted(directory.glob("pre-start-*.db"))[:-keep]
+    for path in old:
+        path.unlink(missing_ok=True)
+
+
 def snapshot_before_start(database: Path, data_root: Path) -> Path:
     database = extended_path(Path(database).absolute()).resolve()
     data_root = extended_path(Path(data_root).absolute()).resolve()
@@ -34,6 +44,7 @@ def snapshot_before_start(database: Path, data_root: Path) -> Path:
         with temporary.open("r+b") as stream:
             os.fsync(stream.fileno())
         os.rename(temporary, final)
+        prune_snapshots(directory)
         return final
     finally:
         temporary.unlink(missing_ok=True)

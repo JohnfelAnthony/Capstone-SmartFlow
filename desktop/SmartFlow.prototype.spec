@@ -14,7 +14,7 @@ files += [(str(root / "data" / "networks" / name), "data/networks") for name in
 
 a = Analysis([str(root / "desktop" / "frozen_shell.py"), str(root / "desktop" / "worker_entry.py")],
              pathex=[str(root)], binaries=[], datas=files,
-             hiddenimports=["desktop.serve", "desktop.bootstrap", "tools.train_ql", "tools.train_dql", "tools.train_ppo", "tools.evaluate_controllers"],
+             hiddenimports=["desktop.serve", "desktop.bootstrap", "desktop.recover", "tools.train_ql", "tools.train_dql", "tools.train_ppo", "tools.evaluate_controllers"],
              excludes=[] if os.environ.get("SMARTFLOW_PROTOTYPE_FULL_ML") == "1" else ["torch", "stable_baselines3"], hookspath=[], runtime_hooks=[])
 pyz = PYZ(a.pure)
 shell_scripts = [item for item in a.scripts if item[0] != "worker_entry"]

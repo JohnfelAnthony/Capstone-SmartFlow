@@ -7,7 +7,7 @@ import sys
 
 WORKERS = {"train-ql": "tools.train_ql", "train-dql": "tools.train_dql", "train-ppo": "tools.train_ppo",
            "evaluate": "tools.evaluate_controllers"}
-SERVICES = {"serve": "desktop.serve", "bootstrap": "desktop.bootstrap"}
+SERVICES = {"serve": "desktop.serve", "bootstrap": "desktop.bootstrap", "recover": "desktop.recover"}
 
 
 def dispatch(arguments: list[str]) -> None:
