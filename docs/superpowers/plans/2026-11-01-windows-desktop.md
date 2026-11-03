@@ -1,15 +1,17 @@
 # SmartFlow Windows desktop implementation guide
 
 Date: 2026-11-01 (Asia/Singapore)
-Status: PLANNED. This branch contains a guide, not a working desktop package.
+Status: STARTED. Path-seeding and study-gate foundations exist; this is not yet a working desktop package.
 Branch: `codex/desktop-version`
 Starting revision: `5de043a86781f7a94e77b946ea6f5996dc7af553`
+
+Implementation requirements clarified November 2: collect the initial administrator credentials in a private native setup step before the normal backend starts; provide desktop workflows for reviewed-observation import and independent validation, after reconciling the stable study branch; verify a backup before stopping owned workloads and activating a restored data root, with restart and rollback on failure; and persist desktop preferences outside origin-scoped local storage so they survive port changes. These are required implementation and acceptance items, not completed features.
 
 ## 1. Goal and scope
 
 Deliver an installable Windows application that opens the existing SmartFlow interface in its own window, starts its local Python backend automatically, and keeps user data across restarts and upgrades. The receiving PC must not need Git, Node, a separately installed Python interpreter, or developer commands.
 
-Keep one codebase for browser and desktop use. React/Three.js still handles presentation; FastAPI and the native engine still own simulation and learning. Packaging does not establish field validity or complete the two-site study.
+Keep one codebase for browser and desktop use. React and the 2D canvas handle presentation; FastAPI and the native engine own simulation and learning. The owner removed 3D rendering from the current application. Packaging does not establish field validity or complete the two-site study.
 
 This is a separate workstream while another agent implements and tests the study plan. Do not switch branches, install dependencies, build, stop servers, or edit files in that agent's checkout.
 
@@ -209,10 +211,10 @@ Acceptance: fresh install creates an account securely; second launch does not re
 Proposed outputs: `desktop/SmartFlow.spec`, `desktop/worker_entry.py`.
 
 - [ ] Build on Windows as a one-folder distribution first.
-- [ ] Bundle compiled React, 3D assets, fonts, metric definitions, networks/registry and necessary study resources explicitly.
+- [ ] Bundle compiled React, 2D assets, fonts, metric definitions, networks/registry and necessary study resources explicitly.
 - [ ] Keep developer databases, credentials, raw field recordings, .git, node_modules, caches and unrelated test artifacts out.
 - [ ] Install/run the folder on a clean Windows user profile without Python/Node/Git.
-- [ ] Verify login, a clearly synthetic scenario, 2D/3D simulation, saved recording and replay with internet disconnected.
+- [ ] Verify login, a clearly synthetic scenario, 2D simulation, saved recording and replay with internet disconnected.
 
 Acceptance: record the source SHA, package hash, test environment, startup time and measured disk/RAM usage. This slice does not certify the full installer or ML functionality.
 
@@ -326,7 +328,7 @@ Final acceptance matrix:
 | Check | Required evidence |
 | --- | --- |
 | Fresh standard Windows user, no developer tools | Installer and first login succeed |
-| Offline installed runtime | Site selection, simulation, 2D/3D, recording/replay and local exports work |
+| Offline installed runtime | Site selection, 2D simulation, recording/replay and local exports work |
 | WebView2 missing | Installation handles prerequisite or explains the blocking condition |
 | API origin / WebSocket | Actual runtime port works; unrelated local/remote origins do not gain access |
 | Duplicate launch / port conflict | No competing backend writes the same data |

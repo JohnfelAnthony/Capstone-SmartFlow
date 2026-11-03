@@ -1,10 +1,12 @@
 # SmartFlow
 
+**November 1 — 2D-only scope:** the owner removed 3D rendering, models, camera/quality controls and Three.js dependencies. The interactive Canvas map is the only simulation view. Earlier dated 3D descriptions are historical. The pre-removal source is saved in branch and tag `before-removing-3d`.
+
 Documentation reviewed: **2026-10-24** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend. Application checks retain their individual dates and scopes in progress.
 
-SmartFlow is a capstone traffic simulation and decision-support project for a bounded study area in Tagum City. It is intended to compare traffic signal strategies and adaptive routes under ordinary traffic, peak demand and road disruptions. The active application uses **React/TypeScript/Vite, a custom Python/FastAPI traffic engine, and shared 2D/Three.js visualization**. Inactive SUMO/Dash material was archived and removed in the October cleanup; it remains part of the recorded project history.
+SmartFlow is a capstone traffic simulation and decision-support project for a bounded study area in Tagum City. It is intended to compare traffic signal strategies and adaptive routes under ordinary traffic, peak demand and road disruptions. The active application uses **React/TypeScript/Vite, a custom Python/FastAPI traffic engine, and Canvas 2D visualization**. Inactive SUMO/Dash material was archived and removed in the October cleanup; it remains part of the recorded project history.
 
-**Current status pointer:** the integrated native prototype includes saved scenarios, timed disruptions and adaptive routing, selected-junction QL/DQL/PPO workflows, recording/replay, reports, research comparisons and shared 2D/3D views. The [October 21 progress report](docs/reports/SMARTFLOW_PROGRESS_REPORT_2026-10-21.docx) reviews source revision `30da696` and milestones through October 12; it records 101 frontend tests in eight suites and API compilation passing on October 21. That limited check did not rerun full backend or browser acceptance. Exact dated results and remaining work are in [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md). The September 23 [implementation handoff](IMPLEMENTATION_HANDOFF.md) preserves the original interruption and backlog; its maintained section 11 maps current source paths. Final site mapping, independently audited observations, faithful conversion, baseline calibration/validation and final comparative research remain open. Synthetic software checks do not establish Tagum controller effectiveness.
+**Current status pointer:** the integrated native prototype includes saved scenarios, timed disruptions and adaptive routing, selected-junction QL/DQL/PPO workflows, recording/replay, reports, research comparisons and an interactive 2D map. The [October 21 progress report](docs/reports/SMARTFLOW_PROGRESS_REPORT_2026-10-21.docx) reviews source revision `30da696` and milestones through October 12; it records 101 frontend tests in eight suites and API compilation passing on October 21. That limited check did not rerun full backend or browser acceptance. Exact dated results and remaining work are in [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md). The September 23 [implementation handoff](IMPLEMENTATION_HANDOFF.md) preserves the original interruption and backlog; its maintained section 11 maps current source paths. Final site mapping, independently audited observations, faithful conversion, baseline calibration/validation and final comparative research remain open. Synthetic software checks do not establish Tagum controller effectiveness.
 
 ## Start a new implementation chat here
 
@@ -46,14 +48,13 @@ The four foundation documents remain README, overview, architecture and progress
 
 ## Codex skills
 
-The repository includes eleven development and research skills under `.agents/skills`, alongside the existing shadcn skill. Codex can select them when their descriptions match a task; name a skill explicitly when you want a particular workflow. They are available on the next turn after installation. If the skill selector has not refreshed, restart Codex.
+The repository includes development and research skills under `.agents/skills`, alongside the existing shadcn skill. Codex can select them when their descriptions match a task; name a skill explicitly when you want a particular workflow. They are available on the next turn after installation. If the skill selector has not refreshed, restart Codex.
 
 | Skill | Use |
 | --- | --- |
 | [systematic-debugging](.agents/skills/systematic-debugging/SKILL.md) | Reproduce a failure, trace its cause and verify the fix. |
 | [code-review](.agents/skills/code-review/SKILL.md) | Review correctness, API contracts, security, performance and test coverage. |
 | [webapp-testing](.agents/skills/webapp-testing/SKILL.md) | Inspect browser workflows, screenshots and console logs; author Playwright checks. |
-| [three-best-practices](.agents/skills/three-best-practices/SKILL.md) | Review rendering performance, resource disposal and scene organization. |
 | [verification-before-completion](.agents/skills/verification-before-completion/SKILL.md) | Require fresh verification evidence before reporting completion. |
 | [find-skills](.agents/skills/find-skills/SKILL.md) | Discover relevant skills through the skills.sh CLI and check their sources. |
 | [vercel-react-best-practices](.agents/skills/vercel-react-best-practices/SKILL.md) | Review React rendering, data fetching and bundle performance. |
@@ -62,9 +63,9 @@ The repository includes eleven development and research skills under `.agents/sk
 | [experimental-design](.agents/skills/experimental-design/SKILL.md) | Plan fixed-time/RL comparisons: seeds, repetitions, blocking and the true independent unit. |
 | [statistical-analysis](.agents/skills/statistical-analysis/SKILL.md) | Analyze waiting and queue results with uncertainty, effect sizes and cautious claims. |
 
-For example: `Use $three-best-practices to review the traffic visualization for memory leaks.` Exact upstream repository revisions are recorded in [.agents/skills/smartflow-sources.json](.agents/skills/smartflow-sources.json); supporting files are retained with each skill.
+For example: `Use $webapp-testing to check map navigation and replay.` Exact upstream repository revisions are recorded in [.agents/skills/smartflow-sources.json](.agents/skills/smartflow-sources.json); supporting files are retained with each skill.
 
-Apply these workflows within [AGENTS.md](AGENTS.md) and the current project contracts. Use `.venv/Scripts/python.exe`, existing test commands and isolated test data. The debugging skill refers to another upstream `test-driven-development` skill, which is not part of the installed set; follow the existing regression-test conventions when it is unavailable. Three.js guidance applies to rendering, while Python remains authoritative for traffic behavior. Keep Vite imports and judge suggested performance budgets through measurements on the target machine.
+Apply these workflows within [AGENTS.md](AGENTS.md) and the current project contracts. Use `.venv/Scripts/python.exe`, existing test commands and isolated test data. The debugging skill refers to another upstream `test-driven-development` skill, which is not part of the installed set; follow the existing regression-test conventions when it is unavailable. Canvas 2D handles rendering; Python remains authoritative for traffic behavior. Keep Vite imports and judge suggested performance budgets through measurements on the target machine.
 
 Apply the React rules that fit this Vite application; Next.js-specific APIs require a different stack. Check new FastAPI features against the project's pinned version and keep the existing startup commands and single-worker runtime. Profile Python before changing it, preserving simulation determinism and saved `engine_config` settings. Skill discovery can suggest additional packages; installing or updating them remains a separate requested action with an explicit scope.
 
@@ -96,7 +97,7 @@ Start React in another terminal:
 npm run dev
 ```
 
-The API defaults to `http://127.0.0.1:8000`. Open the URL printed by Vite, normally `http://localhost:5173`. Sign in, select **Tagum — Single Car Demo**, apply its settings, and start. The basic demonstration is five connected junctions, roads, signal heads and one active car. Camera controls include orbit, pan, zoom, follow car and reset camera.
+The API defaults to `http://127.0.0.1:8000`. Open the URL printed by Vite, normally `http://localhost:5173`. Sign in, select **Tagum — Single Car Demo**, apply its settings, and start. The basic demonstration is five connected junctions, roads, signal heads and one active car. Map controls include pan, zoom, selection and reset view.
 
 `run_api.py` supplies development bootstrap defaults when environment variables are absent. On a fresh database the administrator username is `admin` and its initial development password is `SmartFlowAdmin1`. Existing databases keep their existing credentials; environment overrides also take precedence. This is development setup, not the production credential policy.
 
@@ -152,7 +153,7 @@ To repeat the synthetic native capacity measurement on the machine that will run
 .venv/Scripts/python.exe -m tools.measure_native_capacity --duration-seconds 300 --densities 'high,very high' --output tmp/capacity-stress.json
 ```
 
-The command reports step and frame cost, simulation/wall ratio, process memory, recording size and demand conservation. Add `?perf=1` to the app URL to show the 3D render-loop fps and draw calls during a visible production-build run. Hidden tabs and Vite hot reload can distort browser fps. The local September 27 measurements and limits are in the progress document; they do not certify other hardware or real-world traffic capacity.
+The command reports step and frame cost, simulation/wall ratio, process memory, recording size and demand conservation. Add `?perf=1` to the app URL to show the 2D paint rate and frame intervals during a visible production-build run. Hidden tabs and Vite hot reload can distort browser fps. The local September 27 measurements and limits are in the progress document; they do not certify other hardware or real-world traffic capacity.
 
 ## Headless experiments
 
@@ -171,7 +172,6 @@ The Q-learning, DQL and PPO entry points are `tools/train_ql.py`, `tools/train_d
 | Path | Responsibility |
 | --- | --- |
 | `src/` | React/TypeScript pages, API clients, state consumption and visualization. |
-| `src/simulation/SimulationScene3D.tsx` | Procedural roads, signals, vehicles and camera controls. |
 | `backend/` | FastAPI routes, request schemas, security bridge and live runtime. |
 | `simulation/traffic_engine.py` | **Current authoritative traffic engine.** |
 | `simulation/road_network.py`, `scenario_config.py`, `demand.py` | Native road graph, input validation and scheduled demand. |
