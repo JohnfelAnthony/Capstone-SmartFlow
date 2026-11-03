@@ -1,0 +1,1359 @@
+{
+  "id": "tagum_site_b",
+  "version": 2,
+  "name": "Site B \u2014 CitiHardware and neighboring highway junction",
+  "source": {
+    "provider": "OpenStreetMap",
+    "license": "ODbL-1.0",
+    "attribution": "\u00a9 OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "endpoint": "https://overpass-api.de/api/interpreter",
+    "bbox": [
+      7.434222,
+      125.798481,
+      7.442307,
+      125.806634
+    ],
+    "downloaded_at": "2026-10-31T07:13:33.802365+00:00",
+    "query": "[out:json][timeout:35];way[\"highway\"~\"^(trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|living_street)$\"](7.434222,125.798481,7.442307,125.806634);(._;>;);out body;",
+    "origin": {
+      "lat": 7.4382645,
+      "lon": 125.8025575
+    },
+    "projection": "local equirectangular, metres; study area only",
+    "assumptions": [
+      "Provisional OSM corridor, not field validated",
+      "Only CitiHardware is a candidate signal/RL junction",
+      "Neighboring junction uses first-come no-signal control",
+      "Nearby median nodes joined within 25 m; divided-road reconstruction remains outstanding",
+      "Unnamed local links omitted; frontage topology remains outstanding",
+      "Boundary legs extend up to 250 m, stopping before the next mapped junction",
+      "Synthetic demand; no traffic effectiveness claimed",
+      "Unvalidated visual experiment: six one-way highway centrelines shifted right by 2 m; shared endpoint transitions are provisional and require field review.",
+      "EXPERIMENTAL FRONTAGE CANDIDATE: not validated or approved for simulation",
+      "Frontage offsets, boundary extensions and new side-street turns are provisional",
+      "Historical OSM corridor experiment: provisional 2 m island rectangles and 15.25 m frontage offset are review estimates, not surveyed dimensions or enforced obstacles."
+    ]
+  },
+  "nodes": [
+    {
+      "id": "tagum_site_b_j",
+      "x": 4.382214389395285,
+      "y": 5.243172000070437,
+      "lat": 7.4383116000000005,
+      "lon": 125.80259720000001,
+      "boundary": false,
+      "signal_plan": "experimental",
+      "default_control_mode": "signalized",
+      "label": "CitiHardware study junction"
+    },
+    {
+      "id": "1115349256",
+      "x": 109.61055134546022,
+      "y": 139.31419700001257,
+      "lat": 7.439515975,
+      "lon": 125.8035505,
+      "boundary": false,
+      "signal_plan": "experimental",
+      "default_control_mode": "first_come",
+      "label": "Neighboring highway junction (no signal)"
+    },
+    {
+      "id": "boundary_0",
+      "x": 212.56800718144652,
+      "y": -128.5618662842694,
+      "boundary": true
+    },
+    {
+      "id": "boundary_1",
+      "x": -4.139381894360198,
+      "y": 221.6124894292844,
+      "boundary": true
+    },
+    {
+      "id": "boundary_4",
+      "x": -151.98424788578862,
+      "y": -189.35012117711443,
+      "boundary": true
+    },
+    {
+      "id": "boundary_5",
+      "x": -144.99459688693184,
+      "y": -194.67311422486154,
+      "boundary": true
+    },
+    {
+      "id": "boundary_6",
+      "x": 284.62932631848133,
+      "y": -34.46518385913796,
+      "boundary": true
+    },
+    {
+      "id": "boundary_7",
+      "x": 111.71173304304864,
+      "y": 389.2530421733454,
+      "boundary": true
+    },
+    {
+      "id": "boundary_8",
+      "x": 228.08991859276452,
+      "y": 287.5868662984759,
+      "boundary": true
+    },
+    {
+      "id": "boundary_9",
+      "x": 224.9640483091671,
+      "y": 290.0031588407786,
+      "boundary": true
+    },
+    {
+      "id": "frontage_study_right",
+      "x": 16.35226546726674,
+      "y": -4.205752856535803,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional study frontage access"
+    },
+    {
+      "id": "frontage_study_left",
+      "x": -0.542747463255683,
+      "y": 23.668218317531128,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional study frontage access"
+    },
+    {
+      "id": "frontage_neighbor_right",
+      "x": 116.93068475950376,
+      "y": 123.94082968438471,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional neighbor frontage access"
+    },
+    {
+      "id": "frontage_neighbor_left",
+      "x": 111.15069729077364,
+      "y": 165.97641264164594,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "label": "Provisional neighbor frontage access"
+    },
+    {
+      "id": "frontage_right_south",
+      "x": -107.12990818132585,
+      "y": -161.53392195227923,
+      "boundary": true
+    },
+    {
+      "id": "frontage_right_north",
+      "x": 209.54231499594817,
+      "y": 241.93695650619225,
+      "boundary": true
+    },
+    {
+      "id": "frontage_left_south",
+      "x": -124.02492111184826,
+      "y": -133.6599507782123,
+      "boundary": true
+    },
+    {
+      "id": "frontage_left_north",
+      "x": 203.76232752721808,
+      "y": 283.9725394634535,
+      "boundary": true
+    }
+  ],
+  "roads": [
+    {
+      "id": "road0",
+      "source": "tagum_site_b_j",
+      "target": "frontage_study_right",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          16.35226546726674,
+          -4.205752856535803
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        376307655,
+        1282359346,
+        13926712031,
+        13368396937,
+        1217597311,
+        1217597450,
+        10672313060,
+        13368346131,
+        1217597337,
+        1217597234,
+        10672313061,
+        13368346133,
+        1217597399,
+        1400710199
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road1",
+      "source": "tagum_site_b_j",
+      "target": "frontage_study_left",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          -0.542747463255683,
+          23.668218317531128
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        376307655,
+        1527881952,
+        1217597489,
+        10654283971,
+        13368396935,
+        1402935126,
+        1402917759
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road2",
+      "source": "1115349256",
+      "target": "tagum_site_b_j",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          106.79401360709831,
+          139.5455862121027
+        ],
+        [
+          91.72720345672332,
+          126.75014362101184
+        ],
+        [
+          15.644764763400321,
+          29.786940462663782
+        ],
+        [
+          3.5968513208286783,
+          7.959302883705639
+        ],
+        [
+          4.382,
+          5.243
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654452,
+      "osm_node_ids": [
+        1115349256,
+        10654284248,
+        13188247937,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road3",
+      "source": "tagum_site_b_j",
+      "target": "1115349256",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          7.206945965905115,
+          5.123159937035013
+        ],
+        [
+          25.47874809924027,
+          21.918997937704233
+        ],
+        [
+          101.78237943919505,
+          119.06060881732421
+        ],
+        [
+          110.51357755289689,
+          136.6355816436544
+        ],
+        [
+          109.611,
+          139.314
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654495,
+      "osm_node_ids": [
+        376307655,
+        13188247938,
+        10654284247,
+        1115349256
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road4",
+      "source": "tagum_site_b_j",
+      "target": "boundary_4",
+      "shape": [
+        [
+          4.382,
+          5.243
+        ],
+        [
+          1.5609793293392837,
+          5.429067898711774
+        ],
+        [
+          -13.53718622791193,
+          -7.8127073479122116
+        ],
+        [
+          -46.436898641511775,
+          -50.770032112148904
+        ],
+        [
+          -50.61802525467895,
+          -56.23040296644706
+        ],
+        [
+          -119.7526037073117,
+          -144.4534225948397
+        ],
+        [
+          -152.34101764871124,
+          -186.54419598391132
+        ],
+        [
+          -151.984,
+          -189.35
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 288252870,
+      "osm_node_ids": [
+        376307655,
+        13188247941,
+        13370446087,
+        8107640302,
+        2918139394,
+        13370446088,
+        7041424675,
+        9153862744,
+        2918139393,
+        13370437021,
+        1298045148
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road5",
+      "source": "boundary_5",
+      "target": "tagum_site_b_j",
+      "shape": [
+        [
+          -144.995,
+          -194.673
+        ],
+        [
+          -142.18901860933096,
+          -194.3173805016282
+        ],
+        [
+          -108.33408832628217,
+          -150.6357421547052
+        ],
+        [
+          -40.24119456312072,
+          -64.087700314788
+        ],
+        [
+          -35.748676610321866,
+          -58.38153175077313
+        ],
+        [
+          -3.5582982338063527,
+          -15.649495765487448
+        ],
+        [
+          5.306224684392248,
+          2.5711010014934956
+        ],
+        [
+          4.382,
+          5.243
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 678794201,
+      "osm_node_ids": [
+        1298045148,
+        13370437020,
+        1402935125,
+        349713207,
+        13370446089,
+        1400710201,
+        1402935115,
+        1400710226,
+        13370446086,
+        13188247942,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road6",
+      "source": "1115349256",
+      "target": "frontage_neighbor_right",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          116.93068475950376,
+          123.94082968438471
+        ]
+      ],
+      "oneway": false,
+      "name": "Acacia Street",
+      "osm_way_id": 1144654494,
+      "osm_node_ids": [
+        1115349256,
+        1282359345,
+        1217597477,
+        1217597263,
+        1217597371,
+        1217597426,
+        8107793077,
+        8107793078,
+        1217597257,
+        1217597251
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "name": "Acacia Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road7",
+      "source": "1115349256",
+      "target": "frontage_neighbor_left",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          111.15069729077364,
+          165.97641264164594
+        ]
+      ],
+      "oneway": false,
+      "name": "Bonifacio Street",
+      "osm_way_id": 96217785,
+      "osm_node_ids": [
+        1115349256,
+        1527881955,
+        13370446083,
+        10654283973,
+        1255345377,
+        1909926638,
+        1217544571,
+        1115349612,
+        1217544505,
+        11821136045,
+        13369868399,
+        1406251605,
+        13369913001,
+        10185207464,
+        13369913002,
+        1217580060,
+        13369913003,
+        13369913006,
+        1115349634,
+        13369912127,
+        13369912129,
+        13369912130,
+        7094451561,
+        13369912131,
+        1115394767
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Bonifacio Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road8",
+      "source": "1115349256",
+      "target": "boundary_8",
+      "shape": [
+        [
+          109.611,
+          139.314
+        ],
+        [
+          112.43536687704608,
+          139.18253205632934
+        ],
+        [
+          130.28578334581323,
+          155.4566427637299
+        ],
+        [
+          197.7277482450292,
+          241.6586077975713
+        ],
+        [
+          224.93226275011463,
+          276.7472377964135
+        ],
+        [
+          228.99213252648187,
+          284.9097823225645
+        ],
+        [
+          228.09,
+          287.587
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654495,
+      "osm_node_ids": [
+        1115349256,
+        13370446084,
+        8107640295,
+        13370446081,
+        10654283977
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road9",
+      "source": "boundary_9",
+      "target": "1115349256",
+      "shape": [
+        [
+          224.964,
+          290.003
+        ],
+        [
+          222.14575239867503,
+          290.2017944296071
+        ],
+        [
+          214.57958543169883,
+          283.61779394849054
+        ],
+        [
+          171.45153059898453,
+          228.61530697933077
+        ],
+        [
+          119.91998410100027,
+          162.77168275917552
+        ],
+        [
+          108.79288797917671,
+          142.0205103341562
+        ],
+        [
+          109.611,
+          139.314
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "osm_way_id": 1144654452,
+      "osm_node_ids": [
+        10654283977,
+        13370446082,
+        8107640297,
+        13370446085,
+        1115349256
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road0_outer",
+      "source": "frontage_study_right",
+      "target": "boundary_0",
+      "shape": [
+        [
+          16.35226546726674,
+          -4.205752856535803
+        ],
+        [
+          21.249,
+          -8.071
+        ],
+        [
+          42.718,
+          -25.025
+        ],
+        [
+          69.851,
+          -46.443
+        ],
+        [
+          73.747,
+          -49.526
+        ],
+        [
+          123.938,
+          -88.021
+        ],
+        [
+          141.622,
+          -100.244
+        ],
+        [
+          156.954,
+          -108.904
+        ],
+        [
+          169.383,
+          -115.328
+        ],
+        [
+          185.521,
+          -121.762
+        ],
+        [
+          201.196,
+          -126.025
+        ],
+        [
+          212.568,
+          -128.562
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        376307655,
+        1282359346,
+        13926712031,
+        13368396937,
+        1217597311,
+        1217597450,
+        10672313060,
+        13368346131,
+        1217597337,
+        1217597234,
+        10672313061,
+        13368346133,
+        1217597399,
+        1400710199
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road1_outer",
+      "source": "frontage_study_left",
+      "target": "boundary_1",
+      "shape": [
+        [
+          -0.542747463255683,
+          23.668218317531128
+        ],
+        [
+          -2.152,
+          29.689
+        ],
+        [
+          -3.455,
+          47.144
+        ],
+        [
+          -3.963,
+          61.271
+        ],
+        [
+          -3.897,
+          84.592
+        ],
+        [
+          -3.587,
+          96.581
+        ],
+        [
+          -4.139,
+          221.612
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        376307655,
+        1527881952,
+        1217597489,
+        10654283971,
+        13368396935,
+        1402935126,
+        1402917759
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road6_outer",
+      "source": "frontage_neighbor_right",
+      "target": "boundary_6",
+      "shape": [
+        [
+          116.93068475950376,
+          123.94082968438471
+        ],
+        [
+          118.0,
+          121.695
+        ],
+        [
+          173.423,
+          79.794
+        ],
+        [
+          225.966,
+          40.075
+        ],
+        [
+          252.137,
+          10.72
+        ],
+        [
+          275.815,
+          -18.88
+        ],
+        [
+          280.407,
+          -26.728
+        ],
+        [
+          284.629,
+          -34.465
+        ]
+      ],
+      "oneway": false,
+      "name": "Acacia Street",
+      "osm_way_id": 1144654494,
+      "osm_node_ids": [
+        1115349256,
+        1282359345,
+        1217597477,
+        1217597263,
+        1217597371,
+        1217597426,
+        8107793077,
+        8107793078,
+        1217597257,
+        1217597251
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "name": "Acacia Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road7_outer",
+      "source": "frontage_neighbor_left",
+      "target": "boundary_7",
+      "shape": [
+        [
+          111.15069729077364,
+          165.97641264164594
+        ],
+        [
+          111.73,
+          176.008
+        ],
+        [
+          111.73,
+          181.997
+        ],
+        [
+          111.73,
+          224.878
+        ],
+        [
+          111.712,
+          389.253
+        ]
+      ],
+      "oneway": false,
+      "name": "Bonifacio Street",
+      "osm_way_id": 96217785,
+      "osm_node_ids": [
+        1115349256,
+        1527881955,
+        13370446083,
+        10654283973,
+        1255345377,
+        1909926638,
+        1217544571,
+        1115349612,
+        1217544505,
+        11821136045,
+        13369868399,
+        1406251605,
+        13369913001,
+        10185207464,
+        13369913002,
+        1217580060,
+        13369913003,
+        13369913006,
+        1115349634,
+        13369912127,
+        13369912129,
+        13369912130,
+        7094451561,
+        13369912131,
+        1115394767
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lanes": "2",
+        "name": "Bonifacio Street",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "frontage_right_0",
+      "name": "Provisional right frontage",
+      "source": "frontage_right_south",
+      "target": "frontage_study_right",
+      "oneway": true,
+      "shape": [
+        [
+          -107.12990818132585,
+          -161.53392195227923
+        ],
+        [
+          16.35226546726674,
+          -4.205752856535803
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_right_1",
+      "name": "Provisional right frontage",
+      "source": "frontage_study_right",
+      "target": "frontage_neighbor_right",
+      "oneway": true,
+      "shape": [
+        [
+          16.35226546726674,
+          -4.205752856535803
+        ],
+        [
+          116.93068475950376,
+          123.94082968438471
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_right_2",
+      "name": "Provisional right frontage",
+      "source": "frontage_neighbor_right",
+      "target": "frontage_right_north",
+      "oneway": true,
+      "shape": [
+        [
+          116.93068475950376,
+          123.94082968438471
+        ],
+        [
+          209.54231499594817,
+          241.93695650619225
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_left_0",
+      "name": "Provisional left frontage",
+      "source": "frontage_left_north",
+      "target": "frontage_neighbor_left",
+      "oneway": true,
+      "shape": [
+        [
+          203.76232752721808,
+          283.9725394634535
+        ],
+        [
+          111.15069729077364,
+          165.97641264164594
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_left_1",
+      "name": "Provisional left frontage",
+      "source": "frontage_neighbor_left",
+      "target": "frontage_study_left",
+      "oneway": true,
+      "shape": [
+        [
+          111.15069729077364,
+          165.97641264164594
+        ],
+        [
+          -0.542747463255683,
+          23.668218317531128
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    },
+    {
+      "id": "frontage_left_2",
+      "name": "Provisional left frontage",
+      "source": "frontage_study_left",
+      "target": "frontage_left_south",
+      "oneway": true,
+      "shape": [
+        [
+          -0.542747463255683,
+          23.668218317531128
+        ],
+        [
+          -124.02492111184826,
+          -133.6599507782123
+        ]
+      ],
+      "width_per_direction_m": 3.3,
+      "speed_mps": 8.333333333333334,
+      "osm_tags": {
+        "lanes": "1"
+      }
+    }
+  ],
+  "islands": [
+    {
+      "id": "provisional_south_central",
+      "planted": true,
+      "shape": [
+        [
+          -105.96510104885931,
+          -136.96959105434158
+        ],
+        [
+          -19.527579494844513,
+          -26.839872687321208
+        ],
+        [
+          -21.10086118580195,
+          -25.60505095083528
+        ],
+        [
+          -107.53838273981674,
+          -135.73476931785567
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road4"
+      ]
+    },
+    {
+      "id": "provisional_south_outer_left",
+      "planted": true,
+      "shape": [
+        [
+          -115.7194475327954,
+          -129.31369628812885
+        ],
+        [
+          -29.281925978780606,
+          -19.183977921108468
+        ],
+        [
+          -30.855207669738043,
+          -17.94915618462254
+        ],
+        [
+          -117.29272922375283,
+          -128.0788745516429
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_south_outer_right",
+      "planted": true,
+      "shape": [
+        [
+          -96.21075456492322,
+          -144.62548582055433
+        ],
+        [
+          -9.773233010908422,
+          -34.495767453533944
+        ],
+        [
+          -11.346514701865857,
+          -33.260945717048024
+        ],
+        [
+          -97.78403625588065,
+          -143.3906640840684
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road5"
+      ]
+    },
+    {
+      "id": "provisional_middle_central",
+      "planted": true,
+      "shape": [
+        [
+          29.865289964592517,
+          36.09139495097616
+        ],
+        [
+          79.5266487787908,
+          99.36474385783376
+        ],
+        [
+          77.95336708783337,
+          100.59956559431967
+        ],
+        [
+          28.29200827363508,
+          37.326216687462086
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_middle_outer_left",
+      "planted": true,
+      "shape": [
+        [
+          20.110943480656424,
+          43.7472897171889
+        ],
+        [
+          69.77230229485471,
+          107.0206386240465
+        ],
+        [
+          68.19902060389728,
+          108.25546036053242
+        ],
+        [
+          18.537661789698987,
+          44.982111453674825
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_middle_outer_right",
+      "planted": true,
+      "shape": [
+        [
+          39.61963644852861,
+          28.43550018476342
+        ],
+        [
+          89.28099526272689,
+          91.708849091621
+        ],
+        [
+          87.70771357176946,
+          92.94367082810693
+        ],
+        [
+          38.04635475757117,
+          29.670321921249347
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_north_central",
+      "planted": true,
+      "shape": [
+        [
+          141.2677356030871,
+          178.02882840570547
+        ],
+        [
+          190.66060506252413,
+          240.96009604400285
+        ],
+        [
+          189.08732337156667,
+          242.19491778048877
+        ],
+        [
+          139.69445391212963,
+          179.26365014219138
+        ]
+      ],
+      "review_pavement_conflicts": []
+    },
+    {
+      "id": "provisional_north_outer_left",
+      "planted": true,
+      "shape": [
+        [
+          131.513389119151,
+          185.6847231719182
+        ],
+        [
+          180.90625857858802,
+          248.61599081021558
+        ],
+        [
+          179.3329768876306,
+          249.85081254670152
+        ],
+        [
+          129.94010742819356,
+          186.91954490840413
+        ]
+      ],
+      "review_pavement_conflicts": [
+        "road9"
+      ]
+    },
+    {
+      "id": "provisional_north_outer_right",
+      "planted": true,
+      "shape": [
+        [
+          151.02208208702316,
+          170.37293363949271
+        ],
+        [
+          200.4149515464602,
+          233.3042012777901
+        ],
+        [
+          198.84166985550277,
+          234.53902301427604
+        ],
+        [
+          149.44880039606574,
+          171.60775537597866
+        ]
+      ],
+      "review_pavement_conflicts": []
+    }
+  ]
+}

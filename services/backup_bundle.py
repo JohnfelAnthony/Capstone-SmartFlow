@@ -114,11 +114,27 @@ def _files_for_references(references: set[str]) -> dict[str, Path]:
     if not network.is_file():
         raise ValueError(f"Configured network source is missing: {network}")
     files[_member(network)] = network
-    from simulation.network_registry import REGISTRY_PATH, registered_networks
+    from simulation.network_registry import REGISTRY_PATH, _entries, registered_networks
     if REGISTRY_PATH.exists():
         for entry in registered_networks()[1:]:
             site = (REGISTRY_PATH.parent / entry['file']).resolve()
             files[_member(site)] = site
+        # Keep explicitly listed immutable revisions needed for rollback. Never
+        # glob the directory: it can also contain unrelated research artifacts.
+        for entry in _entries(REGISTRY_PATH):
+            history = entry.get("revision_history", [])
+            if not isinstance(history, list):
+                raise ValueError("Invalid network revision history")
+            for revision in history:
+                if not isinstance(revision, dict) or not isinstance(revision.get("file"), str) or Path(revision["file"]).name != revision["file"] or not isinstance(revision.get("sha256"), str):
+                    raise ValueError("Invalid network revision history entry")
+                site = REGISTRY_PATH.parent / revision["file"]
+                if site.is_symlink() or not site.is_file() or site.resolve().parent != REGISTRY_PATH.parent.resolve():
+                    raise ValueError("Network revision history file is missing or unsafe")
+                historical = road_network.RoadNetwork(json.loads(site.read_text(encoding="utf-8")))
+                if historical.id != entry["id"] or historical.fingerprint != revision["sha256"]:
+                    raise ValueError("Network revision history fingerprint mismatch")
+                files[_member(site)] = site
         files[_member(REGISTRY_PATH)] = REGISTRY_PATH
     return files
 

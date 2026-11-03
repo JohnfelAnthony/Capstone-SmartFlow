@@ -4,7 +4,7 @@ import math
 import unittest
 from pathlib import Path
 
-from simulation.road_network import (JUNCTION_CLEARANCE_M, RoadNetwork, clip, distance, lanes_per_direction, length, offset,
+from simulation.road_network import (JUNCTION_CLEARANCE_M, RoadNetwork, clip, distance, lanes_per_direction, length, widest_arc, offset,
                                      width_per_direction)
 from tests.mixed_traffic_helpers import junction_network
 
@@ -43,6 +43,91 @@ class RoadWidthTests(unittest.TestCase):
     def test_wide_crossing_roads_push_the_stop_line_back(self):
         network = junction_network(arm_widths={"n": 12.0, "s": 12.0})
         self.assertAlmostEqual(network.lanes["wf"].shape[-1][0], -13.5)
+
+    def test_a_junction_can_set_its_own_stop_line_setback(self):
+        payload = junction_network(lanes_tag="4").payload
+        payload["nodes"][0]["junction_clearance_m"] = 22.0
+        network = RoadNetwork(payload)
+        self.assertAlmostEqual(network.lanes["wf"].shape[-1][0], -22.0)
+        self.assertAlmostEqual(network.lanes["ef"].shape[-1][0], 22.0)
+
+    def test_out_of_range_junction_setback_is_rejected(self):
+        for bad in (2.0, 41.0, "far", True):
+            payload = junction_network().payload
+            payload["nodes"][0]["junction_clearance_m"] = bad
+            with self.assertRaisesRegex(ValueError, "junction_clearance_m"):
+                RoadNetwork(payload)
+
+    def test_a_setback_junction_holds_its_turn_line_longer(self):
+        plain = junction_network(lanes_tag="4")
+        payload = junction_network(lanes_tag="4").payload
+        payload["nodes"][0]["junction_clearance_m"] = 22.0
+        wide = RoadNetwork(payload)
+        # A right-angle turn: how far has the path curved by a third of the way along?
+        def drift(network):
+            path = network.connector("wf", "nr")
+            return abs(path[7][1]-path[0][1])/abs(path[-1][1]-path[0][1])
+        self.assertLess(drift(wide), drift(plain))
+
+    def test_a_sharp_turn_takes_the_widest_arc_that_fits(self):
+        # 135 degrees left round a corner 20 m ahead of the lane end and 15 m before the exit lane starts.
+        turn = math.radians(135)
+        corner = (20.0, 0.0)
+        exit_start = (corner[0]+15*math.cos(turn), corner[1]+15*math.sin(turn))
+        path = widest_arc((0.0, 0.0), 0.0, exit_start, turn)
+        radius = 15/math.tan(turn/2)
+        centre = (5.0, radius)
+        self.assertEqual(tuple(path[0]), (0.0, 0.0))
+        self.assertAlmostEqual(path[1][0], 5.0)
+        self.assertAlmostEqual(path[1][1], 0.0)
+        self.assertAlmostEqual(path[-1][0], exit_start[0])
+        self.assertAlmostEqual(path[-1][1], exit_start[1])
+        for point in path[1:]:
+            self.assertAlmostEqual(distance(point, centre), radius, delta=.01*radius)
+
+    def test_only_a_sharp_turn_whose_lines_meet_takes_an_arc(self):
+        self.assertIsNone(widest_arc((0.0, 0.0), 0.0, (20.0, 20.0), math.radians(90)))
+        self.assertIsNone(widest_arc((0.0, 0.0), 0.0, (-20.0, 5.0), math.radians(135)))
+
+    def test_a_setback_junction_keeps_a_straight_path_straight(self):
+        payload = junction_network(lanes_tag="4").payload
+        payload["nodes"][0]["junction_clearance_m"] = 22.0
+        path = RoadNetwork(payload).connector("wf", "er")
+        self.assertTrue(all(abs(point[1]-path[0][1]) < 1e-6 for point in path))
+
+    def test_networks_without_a_setback_keep_their_turn_paths(self):
+        network = junction_network(lanes_tag="4")
+        path = network.connector("wf", "nr")
+        a, b = path[0], path[-1]
+        limit = min(10.0, distance(a, b)*.65)
+        t = .5
+        expected_x = (1-t)**3*a[0]+3*(1-t)**2*t*(a[0]+limit)+3*(1-t)*t*t*b[0]+t**3*b[0]
+        self.assertAlmostEqual(path[10][0], expected_x)
+
+    def test_site_features_are_validated_and_reach_the_visual_payload(self):
+        payload = junction_network().payload
+        payload["site_features"] = [{"id": "lot", "kind": "concrete", "shape": [[0, 40], [10, 40], [10, 50]]}]
+        visual = RoadNetwork(payload).visual()
+        self.assertEqual(visual["site_features"][0]["shape"][1], {"x": 10, "y": 40})
+        for bad in ({"id": "", "kind": "concrete", "shape": [[0, 0], [1, 1]]}, {"id": "x", "kind": "spaceship", "shape": [[0, 0], [1, 1]]},
+                    {"id": "x", "kind": "concrete", "shape": [[0, 0]]}, {"id": "x", "kind": "concrete", "shape": [[0, 0], [1, float("nan")]]}):
+            payload["site_features"] = [bad]
+            with self.assertRaises(ValueError):
+                RoadNetwork(payload)
+
+    def test_pedestrians_can_follow_an_explicit_crossing(self):
+        from tests.mixed_traffic_helpers import started_engine
+        payload = junction_network().payload
+        payload["nodes"][0]["pedestrian_crossing"] = [[30.0, 10.0], [30.0, -10.0]]
+        engine = started_engine(RoadNetwork(payload))
+        self.assertEqual(engine.pedestrian_paths()[0]["shape"], [{"x": 30.0, "y": 10.0}, {"x": 30.0, "y": -10.0}])
+
+    def test_clipping_to_the_full_length_never_repeats_the_last_point(self):
+        # A repeated point has no direction, so offsetting the lane would throw its end sideways.
+        shape = [(0.1*index, 0.3*index) for index in range(40)]
+        clipped = clip(shape, 1.0, length(shape)+1e-9)
+        self.assertNotEqual(clipped[-1], clipped[-2])
+        self.assertEqual(clipped[-1], shape[-1])
 
     def test_existing_networks_only_change_their_four_lane_roads(self):
         payload = json.loads(NETWORK_5J.read_text(encoding="utf-8"))

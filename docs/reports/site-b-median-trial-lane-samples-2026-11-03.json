@@ -1,0 +1,13 @@
+{
+  "network_id": "tagum_site_b",
+  "fingerprint": "8ec1eeab087b84ee6e91afff0f9abdcb4303e4a2abe024294da4fd8bede17da4",
+  "status": "sampled lane-body diagnostic only; no clearance or field-validation claim",
+  "sample_spacing_m": 0.5,
+  "sampled_positions": 82710,
+  "conflicts": [],
+  "limitations": [
+    "Only centre and lane-edge lateral positions are sampled",
+    "Finite samples do not establish continuous clearance",
+    "Lateral motion, traffic interactions and junction behavior are not simulated"
+  ]
+}

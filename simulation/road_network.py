@@ -19,6 +19,11 @@ Point = tuple[float, float]
 LANE_WIDTH_M = 3.3
 JUNCTION_CLEARANCE_M = 9.0
 STOP_LINE_SETBACK_M = 1.5
+MAX_JUNCTION_CLEARANCE_M = 40.0
+# A turn this sharp at a junction with its own setback takes the widest arc that fits and goes one vehicle at a time.
+SHARP_TURN_DEGREES = 120.0
+TURN_CONTROL_LIMIT_M = 10.0
+SITE_FEATURE_KINDS = {"concrete", "service_lane", "parking", "plaza", "junction_pavement", "building", "shed", "marking", "dashes", "street_light"}
 
 
 def assign_approach_names(headings: dict[str, float]) -> dict[str, str]:
@@ -100,6 +105,30 @@ def sample(shape: list[Point], position: float) -> tuple[float, float, float]:
     return *shape[-1], 0.0
 
 
+def widest_arc(a: Point, a_heading: float, b: Point, b_heading: float) -> list[Point] | None:
+    """A sharp turn on the widest circular arc that fits, holding the farther lane's line until the arc begins.
+
+    None for a gentler turn, or when the lines do not meet ahead of a and behind b. A symmetric curve this sharp between
+    lane ends at different distances has a corner so tight that the inside of a wide lane folds back on itself.
+    """
+    ax, ay, bx, by = math.cos(a_heading), math.sin(a_heading), math.cos(b_heading), math.sin(b_heading)
+    cross = ax*by-ay*bx
+    turn = abs(math.atan2(cross, ax*bx+ay*by))
+    if turn < math.radians(SHARP_TURN_DEGREES) or abs(cross) < 1e-6:
+        return None
+    dx, dy = b[0]-a[0], b[1]-a[1]
+    a_to_corner, b_to_corner = (dx*by-dy*bx)/cross, (ax*dy-ay*dx)/cross
+    if a_to_corner <= 0 or b_to_corner <= 0:
+        return None
+    tangent = min(a_to_corner, b_to_corner)
+    radius = tangent/math.tan(turn/2)
+    side = math.copysign(1, cross)
+    start = (a[0]+ax*(a_to_corner-tangent), a[1]+ay*(a_to_corner-tangent))
+    centre = (start[0]-side*ay*radius, start[1]+side*ax*radius)
+    arc = [(centre[0]+side*radius*math.sin(a_heading+side*turn*i/20), centre[1]-side*radius*math.cos(a_heading+side*turn*i/20)) for i in range(21)]
+    return [*([a] if a_to_corner > tangent else []), *arc, *([b] if b_to_corner > tangent else [])]
+
+
 def clip(shape: list[Point], start: float, end: float) -> list[Point]:
     points = [sample(shape, start)[:2]]
     accumulated = 0.0
@@ -107,7 +136,9 @@ def clip(shape: list[Point], start: float, end: float) -> list[Point]:
         accumulated += distance(a, b)
         if start < accumulated < end:
             points.append(b)
-    points.append(sample(shape, end)[:2])
+    last = sample(shape, end)[:2]
+    if last != points[-1]:
+        points.append(last)
     return points
 
 
@@ -165,7 +196,35 @@ class RoadNetwork:
         self.payload = payload
         self.fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         self.id = payload["id"]
+        self.islands = copy.deepcopy(payload.get("islands", []))
+        island_ids = set()
+        for island in self.islands:
+            if not isinstance(island.get("id"), str) or not island["id"] or island["id"] in island_ids:
+                raise ValueError("Island IDs must be nonempty and unique")
+            island_ids.add(island["id"])
+            shape = island.get("shape", [])
+            if len(shape) < 3 or any(len(point) != 2 or any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in point) for point in shape):
+                raise ValueError("Island shape needs at least three finite metric points")
+            area = sum(a[0]*b[1]-b[0]*a[1] for a, b in zip(shape, shape[1:]+shape[:1]))
+            if abs(area) < 1e-6:
+                raise ValueError("Island shape must enclose a nonzero area")
+        self.site_features = copy.deepcopy(payload.get("site_features", []))
+        feature_ids = set()
+        for feature in self.site_features:
+            if not isinstance(feature.get("id"), str) or not feature["id"] or feature["id"] in feature_ids or feature.get("kind") not in SITE_FEATURE_KINDS:
+                raise ValueError("Site features need a unique ID and a known kind")
+            feature_ids.add(feature["id"])
+            shape = feature.get("shape", [])
+            if len(shape) < 2 or any(len(point) != 2 or any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in point) for point in shape):
+                raise ValueError("Site feature shape needs at least two finite metric points")
         self.nodes = {node["id"]: node for node in payload["nodes"]}
+        for node in self.nodes.values():
+            setback = node.get("junction_clearance_m")
+            if setback is not None and (isinstance(setback, bool) or not isinstance(setback, (int, float)) or not JUNCTION_CLEARANCE_M <= setback <= MAX_JUNCTION_CLEARANCE_M):
+                raise ValueError(f"junction_clearance_m must be between {JUNCTION_CLEARANCE_M:g} and {MAX_JUNCTION_CLEARANCE_M:g} metres")
+            crossing = node.get("pedestrian_crossing")
+            if crossing is not None and (len(crossing) != 2 or any(len(point) != 2 or not all(math.isfinite(value) for value in point) for point in crossing)):
+                raise ValueError("pedestrian_crossing needs two finite metric points")
         self.intersections = [node_id for node_id, node in self.nodes.items() if not node.get("boundary")]
         self.lanes: dict[str, Lane] = {}
         self.outgoing: dict[str, list[str]] = {node: [] for node in self.nodes}
@@ -176,7 +235,7 @@ class RoadNetwork:
             total_width = width_per_direction(road) * (1 if road.get("oneway") else 2)
             for node_id in (road.get("source"), road.get("target")):
                 widest_at[node_id] = max(widest_at.get(node_id, 0.0), total_width)
-        clearance = {node_id: max(JUNCTION_CLEARANCE_M, widest/2 + STOP_LINE_SETBACK_M) for node_id, widest in widest_at.items()}
+        clearance = {node_id: max(self.nodes.get(node_id, {}).get("junction_clearance_m", JUNCTION_CLEARANCE_M), widest/2 + STOP_LINE_SETBACK_M) for node_id, widest in widest_at.items()}
         for road in payload["roads"]:
             if road.get("source") not in self.nodes or road.get("target") not in self.nodes or road["source"] == road["target"]:
                 raise ValueError("Road endpoints must reference distinct nodes")
@@ -250,7 +309,12 @@ class RoadNetwork:
             raise ValueError("Disconnected or prohibited turn")
         a, b = first.shape[-1], second.shape[0]
         ah, bh = sample(first.shape, first.length)[2], sample(second.shape, 0)[2]
-        control_distance = min(10.0, distance(a, b) * 0.65)
+        if "junction_clearance_m" in self.nodes[first.target]:
+            arc = widest_arc(a, ah, b, bh)
+            if arc:
+                return arc
+        # A junction with its own setback is that much wider, so its turns may hold their line longer before curving.
+        control_distance = min(self.nodes[first.target].get("junction_clearance_m", TURN_CONTROL_LIMIT_M), distance(a, b) * 0.65)
         c = (a[0] + math.cos(ah) * control_distance, a[1] + math.sin(ah) * control_distance)
         d = (b[0] - math.cos(bh) * control_distance, b[1] - math.sin(bh) * control_distance)
         return [tuple((1-t)**3*a[k] + 3*(1-t)**2*t*c[k] + 3*(1-t)*t*t*d[k] + t**3*b[k] for k in (0, 1)) for t in (i / 20 for i in range(21))]
@@ -309,7 +373,10 @@ class RoadNetwork:
                 corners.extend((x + sign*math.sin(heading)*corner, y-sign*math.cos(heading)*corner) for sign in (-1, 1))
             polygon = [point_dict(point) for point in convex_hull(corners)]
             signals.append({"id": node_id, "kind": "traffic_light", "x": node["x"], "y": node["y"], "shape": polygon})
-        return {"version": 2, "network_id": self.id, "source_net": "OpenStreetMap cached study network", "scope": {"mode": "connected-network"}, "bounds": {"min_x": min(p[0] for p in points)-20, "max_x": max(p[0] for p in points)+20, "min_y": min(p[1] for p in points)-20, "max_y": max(p[1] for p in points)+20}, "roads": roads, "internal_lanes": internal_lanes, "crossings": [], "walking_areas": [], "signals": signals, "signal_groups": signal_groups, "polygons": [], "source": self.payload["source"], "junctions": [self.nodes[node_id] for node_id in self.intersections]}
+        for group in signal_groups:
+            lane = self.lanes[group["lane_id"]]
+            group["permanent_no_signal"] = self.nodes[lane.target].get("default_control_mode") == "first_come"
+        return {"version": 2, "network_id": self.id, "source_net": "OpenStreetMap cached study network", "scope": {"mode": "connected-network"}, "bounds": {"min_x": min(p[0] for p in points)-20, "max_x": max(p[0] for p in points)+20, "min_y": min(p[1] for p in points)-20, "max_y": max(p[1] for p in points)+20}, "roads": roads, "internal_lanes": internal_lanes, "crossings": [], "walking_areas": [], "signals": signals, "signal_groups": signal_groups, "polygons": [], "islands": [{**island, "shape": [point_dict(point) for point in island["shape"]]} for island in self.islands], "site_features": [{**feature, "shape": [point_dict(point) for point in feature["shape"]]} for feature in self.site_features], "source": self.payload["source"], "junctions": [self.nodes[node_id] for node_id in self.intersections]}
 
 
 def load_network(path: Path = NETWORK_PATH) -> RoadNetwork:

@@ -9,7 +9,8 @@ from simulation.network_registry import engine_for_scenario, load_registered_net
 def test_configuration_options_follow_selected_network():
     options = configuration_options("tagum_site_b")
     assert options["network_id"] == "tagum_site_b"
-    assert len(options["junctions"]) == 1
+    assert len(options["junctions"]) == 2
+    assert options["junctions"][1]["default_plan"]["mode"] == "first_come"
 
 
 def test_changed_network_fingerprint_refuses_scenario():

@@ -5,7 +5,9 @@ from tools.mixed_traffic_report import QUICK_CASES, main
 
 CASE_FIELDS = {"runtime_s", "max_overlapping_pairs", "max_stuck_junction_vehicles", "max_gridlock_seconds",
                "final_vehicle_conservation_error", "completed", "queue_count_p95", "active_count_p95",
-               "front_row_motorcycle_share", "queue_motorcycle_share", "mean_discharge_first_10s"}
+               "front_row_motorcycle_share", "queue_motorcycle_share", "mean_discharge_first_10s",
+               "network_id", "network_fingerprint", "island_count", "max_island_intrusions", "requested_vehicles",
+               "active_vehicles", "pending_vehicles", "dropped_vehicles", "unfinished_vehicles", "longest_completion_gap_s"}
 
 
 def test_quick_report_has_both_cases_and_every_field(tmp_path):
@@ -18,6 +20,41 @@ def test_quick_report_has_both_cases_and_every_field(tmp_path):
         # Not asserted to be 0: native-5 can overlap vehicles of different movements inside a junction (Task 7 fixes it).
         assert isinstance(case["max_overlapping_pairs"], int)
         assert case["final_vehicle_conservation_error"] == 0
+        assert case["unfinished_vehicles"] == case["active_vehicles"] + case["pending_vehicles"]
+        assert case["requested_vehicles"] == case["completed"] + case["unfinished_vehicles"] + case["dropped_vehicles"]
+        if not case["island_count"]:
+            assert case["max_island_intrusions"] is None
+
+
+def test_island_intrusion_counts_bodies_and_touching_edges():
+    from tools.mixed_traffic_report import count_island_intrusions
+    records = [{"x": 0, "y": 0, "angle": 90, "length": 4, "width": 2}]
+    islands = [{"shape": [[1, -1], [3, -1], [3, 1], [1, 1]]},
+               {"shape": [[2, -1], [4, -1], [4, 1], [2, 1]]},
+               {"shape": [[10, 10], [11, 10], [11, 11], [10, 11]]}]
+    assert count_island_intrusions(records, islands) == 2
+    assert count_island_intrusions(records, []) == 0
+
+
+def test_full_determinism_covers_every_seed_and_requested_duration(tmp_path, monkeypatch):
+    import tools.mixed_traffic_report as report_tool
+    calls = []
+    monkeypatch.setattr(report_tool, "determinism_equal_case", lambda name, seconds, seed: calls.append((name, seconds, seed)) or True)
+    monkeypatch.setattr(report_tool, "run_case", lambda *args, **kwargs: {})
+    out = tmp_path / "report.json"
+    assert main(["--only", "siteB-medium-nosignal", "--seconds", "60", "--seeds", "101,102", "--acceptance-determinism", "--out", str(out)]) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert calls == [("siteB-medium-nosignal", 60., 101), ("siteB-medium-nosignal", 60., 102)]
+    assert report["determinism_full"] == {"siteB-medium-nosignal@101": {"seconds": 60., "equal": True}, "siteB-medium-nosignal@102": {"seconds": 60., "equal": True}}
+
+
+def test_report_never_replaces_existing_evidence(tmp_path):
+    import pytest
+    out = tmp_path / "report.json"
+    out.write_text("prior evidence", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        main(["--quick", "--out", str(out)])
+    assert out.read_text(encoding="utf-8") == "prior evidence"
 
 
 def test_site_cases_use_their_networks_and_control():

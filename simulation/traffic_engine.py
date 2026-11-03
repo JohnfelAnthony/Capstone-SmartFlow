@@ -21,13 +21,15 @@ from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, 
                             MAX_YAW_DEGREES, MOTORCYCLE_SHUFFLE_MPS, MOVE_COOLDOWN_SECONDS, MOVE_COST_PER_M, MOVE_GAIN_THRESHOLD_M,
                             ROOM_HORIZON_M, SIDE_CLEARANCE_M, TURN_SIDE_DISTANCE_M, TURN_SIDE_WEIGHT_PER_M, bands_overlap, body_box,
                             candidate_laterals, keeping_position, lateral_bounds, sample_driver, sub_lane_of)
-from .road_network import NETWORK_ID, RoadNetwork, length, load_network, sample
+from .road_network import NETWORK_ID, SHARP_TURN_DEGREES, RoadNetwork, length, load_network, sample
 
 STEP_LENGTH = 0.1
 # A turning body sweeps across the centre line beside the opposite stop line; vehicles this close to their stop line
 # yield to committed sweeps, and a vehicle may not commit while its sweep would hit one of them.
 SWEEP_ZONE_M = 15.0
 SWEEP_SAMPLE_M = 0.2
+SWEEP_BLOCK_SAMPLES = 16  # conflict searches skip whole runs of samples that a body cannot reach
+SWEEP_CACHE_LIMIT = 1000  # sweeps are keyed by a vehicle's lateral position, so without a limit a long run keeps them all
 # A stop line sits far enough back that no class turning from another approach sweeps over a body waiting at it;
 # bodies up to this deep are kept clear, and a line never moves back more than half its lane.
 STOP_SETBACK_DEPTH_M = 12.0
@@ -35,7 +37,7 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-7"
+ENGINE_VERSION = "native-8"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
@@ -275,6 +277,7 @@ class TrafficEngine:
         self._sweeps: dict[str, list] = {}
         self._sweep_cache: dict[tuple, list] = {}
         self._sweep_bounds_cache: dict[int, tuple[list, tuple[float, float, float, float]]] = {}
+        self._sweep_block_cache: dict[int, tuple[list, list]] = {}
         self._conflict_point_cache: dict[tuple[int, int], tuple[list, list, float | None]] = {}
         self.pedestrians: dict[str, Pedestrian] = {}
         # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
@@ -832,11 +835,20 @@ class TrafficEngine:
         """Fixed order between vehicles of one approach whose paths merge or cross, so none waits for another in the junction."""
         node = self.network.lanes[vehicle.route[0]].target
         own_order = (math.inf if vehicle.stop_arrival is None else vehicle.stop_arrival, vehicle.id)
+        sharp_setback_turn = ("junction_clearance_m" in self.network.nodes[node]
+                              and abs(self._turn_angle(vehicle.route[0], vehicle.route[1])) >= SHARP_TURN_DEGREES)
         for other in self._candidates(("turning_off", vehicle.route[0]), ("on_lane", vehicle.route[0])):
             if other is vehicle or other.route[0] != vehicle.route[0] or len(other.route) < 2:
                 continue
             # A vehicle commits while still moving and then skips the line, so committed counts as already inside.
             inside_or_committed = other.connector is not None or other.reserved_junction == node
+            if sharp_setback_turn and other.route[1] == vehicle.route[1]:
+                # Round a corner this sharp, vehicles apart along the path stand side by side and can block each other for
+                # good, so one goes at a time. Of those still at the line whichever has a clear path goes: the kerb-side one
+                # always has, whereas keeping arrival order can close a loop with a vehicle standing in the next one's path.
+                if inside_or_committed:
+                    return True
+                continue
             if self._paths_cross(vehicle, other):
                 # Crossing paths go through one at a time: once both are inside, each body can stand in the other's next
                 # step, so a gap at the line does not keep them apart. Order: first stopped at the line, then front first.
@@ -1110,6 +1122,10 @@ class TrafficEngine:
         """The vehicle's drawn bodies along its whole connector, sampled every SWEEP_SAMPLE_M (cached: pure geometry)."""
         key = (vehicle.route[0], vehicle.route[1], entry_lateral, exit_lateral, vehicle.length, vehicle.width)
         if key not in self._sweep_cache:
+            if len(self._sweep_cache) >= SWEEP_CACHE_LIMIT:
+                # Pure geometry, so dropping it only costs a rebuild; the keyed-by-id caches would otherwise keep every sweep alive.
+                for cache in (self._sweep_cache, self._sweep_bounds_cache, self._sweep_block_cache, self._conflict_point_cache):
+                    cache.clear()
             self._sweep_cache[key] = self._build_sweep(vehicle.route[0], vehicle.route[1], entry_lateral, exit_lateral, vehicle.length, vehicle.width)
         return self._sweep_cache[key]
 
@@ -1208,6 +1224,19 @@ class TrafficEngine:
             self._sweep_bounds_cache[id(samples)] = entry
         return entry[1]
 
+    def _sweep_blocks(self, samples: list) -> list:
+        """(box, samples) per run of consecutive samples, in path order."""
+        entry = self._sweep_block_cache.get(id(samples))
+        if entry is None or entry[0] is not samples:
+            blocks = []
+            for start in range(0, len(samples), SWEEP_BLOCK_SAMPLES):
+                run = samples[start:start+SWEEP_BLOCK_SAMPLES]
+                boxes = [box for _, _, box in run]
+                blocks.append(((min(box[0] for box in boxes), min(box[1] for box in boxes), max(box[2] for box in boxes), max(box[3] for box in boxes)), run))
+            entry = (samples, blocks)
+            self._sweep_block_cache[id(samples)] = entry
+        return entry[1]
+
     @staticmethod
     def _hits_sweep(body, sweeps) -> bool:
         """sweeps: (samples, progress, bounds); only samples at or beyond progress count."""
@@ -1297,12 +1326,14 @@ class TrafficEngine:
         key = (id(own), id(other))
         entry = self._conflict_point_cache.get(key)
         if entry is None or entry[0] is not own or entry[1] is not other:
-            own_bounds = self._sweep_bounds(own)
+            own_bounds, own_blocks = self._sweep_bounds(own), self._sweep_blocks(own)
             # Samples are in path order, so the first touched one from the far end is the furthest.
-            last_conflict = next((point for point, corners, box in reversed(other)
+            last_conflict = next((point for other_box, run in reversed(self._sweep_blocks(other)) if _boxes_overlap(other_box, own_bounds)
+                                  for point, corners, box in reversed(run)
                                   if _boxes_overlap(box, own_bounds)
-                                  and any(_boxes_overlap(box, own_box) and rectangles_overlap(own_corners, corners)
-                                          for _, own_corners, own_box in own)), None)
+                                  and any(_boxes_overlap(box, block_box) and any(_boxes_overlap(box, own_box) and rectangles_overlap(own_corners, corners)
+                                                                                 for _, own_corners, own_box in block)
+                                          for block_box, block in own_blocks)), None)
             entry = (own, other, last_conflict)
             self._conflict_point_cache[key] = entry
         return entry[2]
@@ -1330,6 +1361,11 @@ class TrafficEngine:
             if lane.target != node or lane.approach == self.network.lanes[vehicle.route[0]].approach or other.approach_arrival is None:
                 continue
             if (other.approach_arrival, other.id) >= order or not self._sweeps_intersect(vehicle, other):
+                continue
+            # Behind an uncommitted vehicle it cannot go first. Yielding to it could close a cycle (it waits for its leader,
+            # which waits for a vehicle waiting on this one) that freezes the whole junction with nobody inside it.
+            leader = self._lane_obstacle(other, lane)[0]
+            if leader is not None and leader.reserved_junction != node:
                 continue
             # Skip only an earlier vehicle that cannot go for a lasting reason. Traffic already inside the junction
             # clears, so yielding past an earlier vehicle held by it would starve a side road under steady flow.
@@ -1696,8 +1732,9 @@ class TrafficEngine:
         paths = []
         for junction in self.signals:
             x, y = self._pedestrian_path_origin(junction)
+            crossing = self.network.nodes[junction].get("pedestrian_crossing")
             paths.append({"id": f"pedestrian-path:{junction}", "junction_id": junction,
-                          "shape": [{"x": x, "y": y}, {"x": x+self.config["crossing_length"], "y": y}],
+                          "shape": [{"x": point[0], "y": point[1]} for point in crossing] if crossing else [{"x": x, "y": y}, {"x": x+self.config["crossing_length"], "y": y}],
                           "provenance": "illustrative"})
         return paths
 
@@ -1705,7 +1742,12 @@ class TrafficEngine:
         records = []
         for pedestrian in self.pedestrians.values():
             x, y = self._pedestrian_path_origin(pedestrian.junction)
-            records.append({"id": pedestrian.id, "x": x+pedestrian.progress, "y": y,
+            x += pedestrian.progress
+            crossing = self.network.nodes[pedestrian.junction].get("pedestrian_crossing")
+            if crossing:
+                share = pedestrian.progress/self.config["crossing_length"]
+                x, y = crossing[0][0]+(crossing[1][0]-crossing[0][0])*share, crossing[0][1]+(crossing[1][1]-crossing[0][1])*share
+            records.append({"id": pedestrian.id, "x": x, "y": y,
                             "speed": self.config["pedestrian_speed"] if pedestrian.crossing else 0,
                             "lane_id": pedestrian.junction, "stopped": not pedestrian.crossing,
                             "wait_time": pedestrian.wait})

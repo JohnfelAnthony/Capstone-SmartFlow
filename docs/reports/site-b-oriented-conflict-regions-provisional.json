@@ -1,0 +1,319 @@
+{
+  "status": "experimental review only; not an operational reservation or safety certification",
+  "network_id": "tagum_site_b",
+  "network_fingerprint": "dfae73ca17c7669450237a20d071ccd1c006289388fd86b5ac49e1a91a74e624",
+  "cell_max_m": 4.0,
+  "body_radius_m": 5.153882032022076,
+  "conflicts": [
+    {
+      "first_lane": "road0f",
+      "second_lane": "road0r",
+      "first_ranges_m": [
+        [
+          0.0,
+          241.74028271065967
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          240.26001021411037
+        ]
+      ]
+    },
+    {
+      "first_lane": "road0f",
+      "second_lane": "road5f",
+      "first_ranges_m": [
+        [
+          0.0,
+          3.1220802803159007
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          237.75269482270144,
+          240.99988484352116
+        ]
+      ]
+    },
+    {
+      "first_lane": "road0r",
+      "second_lane": "road3f",
+      "first_ranges_m": [
+        [
+          237.13780963203254,
+          240.26001021411037
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          3.5104106658525014
+        ]
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road1r",
+      "first_ranges_m": [
+        [
+          0.0,
+          207.44376793336883
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          209.13659103506455
+        ]
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road2f",
+      "first_ranges_m": [
+        [
+          0.0,
+          11.989271968598448
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          139.0883595357276,
+          153.22180619209325
+        ]
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road3f",
+      "first_ranges_m": [
+        [
+          0.0,
+          7.9928479790656315
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          7.020821331705003
+        ]
+      ]
+    },
+    {
+      "first_lane": "road1r",
+      "second_lane": "road2f",
+      "first_ranges_m": [
+        [
+          202.48754257191575,
+          209.13659103506455
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          149.68844452800184,
+          153.22180619209325
+        ]
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road3f",
+      "first_ranges_m": [
+        [
+          0.0,
+          153.22180619209325
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          153.23473813626634
+        ]
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road6f",
+      "first_ranges_m": [
+        [
+          0.0,
+          3.1057278275226063
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          3.7281291002494252
+        ]
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road6f",
+      "first_ranges_m": [
+        [
+          147.09767792209064,
+          153.23473813626634
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          7.4562582004988505
+        ]
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road6r",
+      "first_ranges_m": [
+        [
+          150.1662080291785,
+          153.23473813626634
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          237.6461570966561,
+          240.92814318507376
+        ]
+      ]
+    },
+    {
+      "first_lane": "road4f",
+      "second_lane": "road5f",
+      "first_ranges_m": [
+        [
+          0.0,
+          240.99953097753757
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          240.99988484352116
+        ]
+      ]
+    },
+    {
+      "first_lane": "road6f",
+      "second_lane": "road6r",
+      "first_ranges_m": [
+        [
+          0.0,
+          241.0723264894049
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          240.92814318507376
+        ]
+      ]
+    },
+    {
+      "first_lane": "road7f",
+      "second_lane": "road7r",
+      "first_ranges_m": [
+        [
+          0.0,
+          241.09546348292298
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          240.90480493248836
+        ]
+      ]
+    },
+    {
+      "first_lane": "road7f",
+      "second_lane": "road8f",
+      "first_ranges_m": [
+        [
+          0.0,
+          7.934862904044405
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          6.7535132201586565
+        ]
+      ]
+    },
+    {
+      "first_lane": "road7f",
+      "second_lane": "road9f",
+      "first_ranges_m": [
+        [
+          0.0,
+          15.86972580808881
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          165.07192664000547,
+          181.35378070571832
+        ]
+      ]
+    },
+    {
+      "first_lane": "road7r",
+      "second_lane": "road8f",
+      "first_ranges_m": [
+        [
+          236.94219840331377,
+          240.90480493248836
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          3.3767566100793283
+        ]
+      ]
+    },
+    {
+      "first_lane": "road7r",
+      "second_lane": "road9f",
+      "first_ranges_m": [
+        [
+          229.01698534496455,
+          240.90480493248836
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          171.5846682662906,
+          181.35378070571832
+        ]
+      ]
+    },
+    {
+      "first_lane": "road8f",
+      "second_lane": "road9f",
+      "first_ranges_m": [
+        [
+          0.0,
+          181.37680978634026
+        ]
+      ],
+      "second_ranges_m": [
+        [
+          0.0,
+          181.35378070571832
+        ]
+      ]
+    }
+  ],
+  "assumptions": [
+    "Vehicle centres remain on the reported lane with their body contained in its lateral width.",
+    "Straight segments use heading-aligned envelopes grown along the path by the maximum body radius.",
+    "Turn connectors, vehicles transitioning between paths, and pedestrians are excluded.",
+    "Ranges need dynamic, liveness, and field validation before use."
+  ]
+}

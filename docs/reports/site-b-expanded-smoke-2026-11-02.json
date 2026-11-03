@@ -1,0 +1,81 @@
+{
+  "benchmarks": {},
+  "cases": {
+    "siteB-medium-nosignal@101": {
+      "active_count_p95": 7.0,
+      "active_vehicles": 22,
+      "completed": 0,
+      "dropped_vehicles": 0,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": null,
+      "front_row_samples": 1,
+      "green_onsets_measured": 0,
+      "island_count": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_island_intrusions": null,
+      "max_overlapping_pairs": 0,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "network_fingerprint": "dfae73ca17c7669450237a20d071ccd1c006289388fd86b5ac49e1a91a74e624",
+      "network_id": "tagum_site_b",
+      "nonzero_samples": 3,
+      "nonzero_share_above_8": 0.0,
+      "pending_vehicles": 0,
+      "queue_count_p50": 0.0,
+      "queue_count_p75": 0.0,
+      "queue_count_p90": 0.0,
+      "queue_count_p95": 0.0,
+      "queue_motorcycle_share": null,
+      "requested_vehicles": 22,
+      "runtime_s": 1.043,
+      "simulated_s": 60.0,
+      "unfinished_vehicles": 22
+    },
+    "siteB-medium-nosignal@102": {
+      "active_count_p95": 3.0,
+      "active_vehicles": 17,
+      "completed": 0,
+      "dropped_vehicles": 0,
+      "final_vehicle_conservation_error": 0,
+      "front_row_motorcycle_share": null,
+      "front_row_samples": 9,
+      "green_onsets_measured": 0,
+      "island_count": 0,
+      "max_gridlock_seconds": 0.0,
+      "max_island_intrusions": null,
+      "max_overlapping_pairs": 1,
+      "max_stuck_junction_vehicles": 0,
+      "mean_discharge_first_10s": null,
+      "network_fingerprint": "dfae73ca17c7669450237a20d071ccd1c006289388fd86b5ac49e1a91a74e624",
+      "network_id": "tagum_site_b",
+      "nonzero_samples": 9,
+      "nonzero_share_above_8": 0.0,
+      "pending_vehicles": 0,
+      "queue_count_p50": 0.0,
+      "queue_count_p75": 0.0,
+      "queue_count_p90": 0.0,
+      "queue_count_p95": 0.0,
+      "queue_motorcycle_share": null,
+      "requested_vehicles": 17,
+      "runtime_s": 0.517,
+      "simulated_s": 60.0,
+      "unfinished_vehicles": 17
+    }
+  },
+  "determinism_full": {
+    "siteB-medium-nosignal@101": {
+      "equal": true,
+      "seconds": 60.0
+    },
+    "siteB-medium-nosignal@102": {
+      "equal": true,
+      "seconds": 60.0
+    }
+  },
+  "engine_version": "native-7",
+  "seconds": 60.0,
+  "seeds": [
+    101,
+    102
+  ]
+}

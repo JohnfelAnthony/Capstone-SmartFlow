@@ -37,6 +37,7 @@ export type VisualSignal = {
 }
 
 export type VisualSignalGroup = {
+  permanent_no_signal?: boolean
   id: string
   signal_id: string
   lane_id: string
@@ -58,7 +59,21 @@ export type VisualPolygon = {
   shape: VisualPoint[]
 }
 
+/** Drawn-only site context from the network file; no simulated traffic uses it. Absent on other networks and older recordings. */
+export type VisualSiteFeature = {
+  id: string
+  kind: "concrete" | "service_lane" | "parking" | "plaza" | "junction_pavement" | "building" | "shed" | "marking" | "dashes" | "street_light"
+  shape: VisualPoint[]
+  label?: string
+  tone?: string
+  junction?: string
+  zebra_lanes?: string[]
+}
+
 export type VisualNetwork = {
+  site_features?: VisualSiteFeature[]
+  /** Physical raised islands, in native metres. Absent on older embedded recordings. */
+  islands?: Array<{ id: string; shape: VisualPoint[]; planted?: boolean }>
   network_id?: string
   junctions?: Array<{ id: string; x: number; y: number; name?: string; label?: string }>
   source?: { [key: string]: unknown }

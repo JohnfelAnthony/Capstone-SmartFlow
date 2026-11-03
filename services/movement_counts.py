@@ -6,7 +6,7 @@ import hashlib
 import io
 import math
 
-from services.site_simulation import _lanes_at
+from services.study_gate import is_study_site
 from simulation.network_registry import load_registered_network
 from simulation.scenario_config import DEFAULTS, VEHICLE_TYPES, number, validate_config
 
@@ -15,27 +15,47 @@ MAX_CSV_BYTES = 1_000_000
 DEMAND_END_SECONDS = 86400.0  # the longest run a scenario can record
 
 
+def _heading(lane, at_start: bool) -> float:
+    a, b = lane.shape[:2] if at_start else lane.shape[-2:]
+    return math.atan2(b[1]-a[1], b[0]-a[0])
+
+
+def _turn(first: float, second: float) -> float:
+    return abs((first-second+math.pi) % (2*math.pi)-math.pi)
+
+
+def _leg_boundary(network, lane, upstream: bool) -> str:
+    """The boundary node a leg reaches, going straight on through any neighboring junction."""
+    node = lane.source if upstream else lane.target
+    while not network.nodes[node].get("boundary"):
+        if upstream:
+            candidates = [network.lanes[other] for other in network.incoming[node] if network.turn_allowed(other, lane.id)]
+            lane = min(candidates, key=lambda other: _turn(_heading(other, False), _heading(lane, True)))
+            node = lane.source
+        else:
+            candidates = [network.lanes[other] for other in network.outgoing[node] if network.turn_allowed(lane.id, other)]
+            lane = min(candidates, key=lambda other: _turn(_heading(lane, False), _heading(other, True)))
+            node = lane.target
+    return node
+
+
 def approach_boundaries(network) -> dict[str, tuple[str, str]]:
-    """Each approach name's (entry boundary, exit boundary) at a single-junction site."""
-    if len(network.intersections) != 1:
-        raise ValueError("Movement counts need a single-junction study site")
-    incoming, outgoing = _lanes_at(network, network.intersections[0])
-
-    def bearing(boundary):
-        node = network.nodes[boundary]
-        return math.atan2(node["x"], node["y"])
-
-    def angle_gap(first, second):
-        return abs((bearing(first) - bearing(second) + math.pi) % (2 * math.pi) - math.pi)
-
-    # A split carriageway leaves through a different boundary node, so each exit joins the entry leg nearest its direction.
-    exits = {}
-    for exit_boundary in outgoing:
-        entry = min(incoming, key=lambda boundary: angle_gap(boundary, exit_boundary))
-        if entry in exits:
-            raise ValueError("Two exits match one approach; the site needs an explicit approach mapping")
-        exits[entry] = exit_boundary
-    return {lane.approach: (entry, exits[entry]) for entry, lane in incoming.items() if entry in exits}
+    """Each approach of the study junction (the network's first) as its (entry boundary, exit boundary)."""
+    if not is_study_site(network.id):
+        raise ValueError("Movement counts need a study site")
+    junction = network.intersections[0]
+    outgoing = [network.lanes[lane_id] for lane_id in network.outgoing[junction]]
+    result, used = {}, set()
+    for lane_id in network.incoming[junction]:
+        incoming = network.lanes[lane_id]
+        # A split carriageway leaves on a different road, so the leg's exit is the lane running back the way the entry came.
+        backward = _heading(incoming, False)+math.pi
+        exit_lane = min(outgoing, key=lambda lane: _turn(_heading(lane, True), backward))
+        if exit_lane.id in used:
+            raise ValueError("Two approaches match one exit; the site needs an explicit approach mapping")
+        used.add(exit_lane.id)
+        result[incoming.approach] = (_leg_boundary(network, incoming, True), _leg_boundary(network, exit_lane, False))
+    return result
 
 
 def import_movement_counts(*, csv_text: str, network_id: str, engine_config: dict) -> dict:

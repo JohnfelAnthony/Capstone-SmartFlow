@@ -176,3 +176,28 @@ describe("street illustration geometry", () => {
     expect(walkSignalState("J", null)).toBeNull()
   })
 })
+
+describe("explicit junction pavement", () => {
+  const pavement = [{ x: -30, y: -30 }, { x: 30, y: -30 }, { x: 30, y: 30 }, { x: -30, y: 30 }]
+  const withPavement = (zebra_lanes?: string[]) => {
+    const network = crossNetwork(60)
+    const junction = network.signals[0].id
+    network.site_features = [{ id: "pave", kind: "junction_pavement", junction, shape: pavement, ...(zebra_lanes ? { zebra_lanes } : {}) }]
+    return normalizeSceneGeometry(network)
+  }
+  it("replaces the computed kerb, while picking keeps the native polygon", () => {
+    const plain = normalizeSceneGeometry(crossNetwork(60)).junctions[0], site = withPavement().junctions[0]
+    expect(site.kerb).toEqual(pavement)
+    expect(site.polygon).toEqual(plain.polygon)
+  })
+  it("keeps every crosswalk unless the site lists its zebra lanes", () => {
+    const all = withPavement().junctions[0].crosswalks
+    expect(all.length).toBeGreaterThan(2)
+    const listed = all.slice(0, 2).map((crosswalk) => crosswalk.laneId)
+    expect(withPavement(listed).junctions[0].crosswalks.map((crosswalk) => crosswalk.laneId)).toEqual(listed)
+  })
+  it("exposes site features, and none for older recordings", () => {
+    expect(withPavement().siteFeatures.map((feature) => feature.id)).toEqual(["pave"])
+    expect(normalizeSceneGeometry(crossNetwork(60)).siteFeatures).toEqual([])
+  })
+})

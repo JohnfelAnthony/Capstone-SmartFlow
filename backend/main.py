@@ -47,6 +47,8 @@ from backend.schemas import (
     LoginResponse,
     MessageResponse,
     MovementCountsRequest,
+    NetworkRevisionPreviewRequest,
+    NetworkRevisionApplyRequest,
     ObservationImportRequest,
     ObservationImportResponse,
     Permission,
@@ -155,6 +157,36 @@ def require_any_permission(user: dict, permissions: list[tuple[str, str]]) -> No
 def require_admin(user: dict) -> None:
     if str(user.get("role_name") or user.get("role") or "").lower() != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required.")
+
+
+@app.post("/api/admin/networks/{network_id}/preview")
+def preview_network_revision(network_id: str, payload: NetworkRevisionPreviewRequest,
+                             user: dict = Depends(require_current_user)) -> dict:
+    """Review an editor draft without modifying the registered network or scenarios."""
+    require_admin(user)
+    from services.network_revision_preview import preview_revision
+    try:
+        return preview_revision(network_id, payload.network, database.get_scenarios(include_archived=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/networks/{network_id}/apply")
+def apply_network_revision(network_id: str, payload: NetworkRevisionApplyRequest,
+                           user: dict = Depends(require_current_user)) -> dict:
+    require_admin(user)
+    from services.network_revision_apply import apply_revision
+    from services.network_revision_storage import RevisionConflict
+    from simulation.network_registry import REGISTRY_PATH
+    try:
+        return apply_revision(registry_path=REGISTRY_PATH, runtime=simulation_runtime, network_id=network_id,
+                              expected_sha256=payload.expected_sha256, candidate=payload.network,
+                              scenarios=database.get_scenarios(include_archived=True), user_id=user["id"],
+                              audit=database.log_audit_event)
+    except (RevisionConflict, SimulationRuntimeError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
 FIELD_OBSERVER_LAUNCHER = Path(config.BASE_DIR) / "tools" / "field_observer" / "Start Field Observer.cmd"

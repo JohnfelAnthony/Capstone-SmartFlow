@@ -9,6 +9,10 @@ export const STREET_EDGE = { sidewalk: 3, verge: 1.2 }
 /** Paving under the engine's illustrative pedestrian path, so people never wait inside a block. */
 export const WALKWAY_HALF_WIDTH = 1.1
 const CELL = 6, LOT = 3, REGION = 6, LOT_MARGIN = 1.5
+/** Site features with an area; paint and street lights take no ground from the generated blocks. */
+const OCCUPYING_FEATURES = new Set(["concrete", "service_lane", "parking", "plaza", "junction_pavement", "building", "shed"])
+const NARROW_ISLAND_M = 3
+const PALM_SPACING_M = { narrow: 8, wide: 4.5 }, PALM_RADIUS_M = { narrow: 1.3, wide: 1.8 }
 
 export type SceneryRoof = "flat" | "hip" | "light" | "terrace"
 export type SceneryItem =
@@ -34,7 +38,8 @@ function dominantAngle(geometry: SceneGeometry) {
 
 /** Metres from the nearest engine pavement (negative inside it); a pedestrian walkway counts as sidewalk. */
 export function sceneryClearance(geometry: SceneGeometry, walkways: readonly VisualPoint[][]) {
-  const roads = geometry.lanes.filter((lane) => lane.kind === "road"), rings = geometry.junctions.map((junction) => [...junction.kerb, junction.kerb[0]])
+  const roads = geometry.lanes.filter((lane) => lane.kind === "road")
+  const rings = [...geometry.junctions.map((junction) => junction.kerb), ...geometry.siteFeatures.filter((feature) => OCCUPYING_FEATURES.has(feature.kind)).map((feature) => feature.shape)].map((shape) => [...shape, shape[0]])
   return (point: VisualPoint) => {
     let clearance = Infinity
     for (const lane of roads) clearance = Math.min(clearance, distanceToPolyline(point, lane.centerline) - lane.width / 2)
@@ -96,7 +101,30 @@ export function cityScenery(geometry: SceneGeometry, walkways: readonly VisualPo
       if (kind !== "parking") tree(u, v, `c${i}:${j}`, kind === "park" ? 3 : 7)
     }
   }
-  return [...items, ...trees, ...streetTrees(geometry, clearance)]
+  return [...items, ...trees, ...streetTrees(geometry, clearance), ...islandPalms(geometry)]
+}
+
+/** A palm row along each planted island's long axis: sparse on a narrow median, close on a wide side island. */
+function islandPalms(geometry: SceneGeometry): SceneryItem[] {
+  const palms: SceneryItem[] = []
+  for (const island of geometry.islands ?? []) {
+    if (!island.planted) continue
+    let start = island.shape[0], end = island.shape[0], longest = 0
+    for (const a of island.shape) for (const b of island.shape) {
+      const span = Math.hypot(b.x - a.x, b.y - a.y)
+      if (span > longest) { longest = span; start = a; end = b }
+    }
+    if (longest < 1) continue
+    const along = { x: (end.x - start.x) / longest, y: (end.y - start.y) / longest }, across = { x: -along.y, y: along.x }
+    const offsets = island.shape.map((point) => (point.x - start.x) * across.x + (point.y - start.y) * across.y)
+    const low = Math.min(...offsets), high = Math.max(...offsets), middle = (low + high) / 2, size = high - low < NARROW_ISLAND_M ? "narrow" : "wide"
+    const count = Math.floor(longest / PALM_SPACING_M[size])
+    for (let index = 0; index < count; index++) {
+      const distance = (index + .5) * longest / count, hash = stableHash(`${island.id}:${index}`)
+      palms.push({ kind: "tree", center: { x: start.x + along.x * distance + across.x * middle, y: start.y + along.y * distance + across.y * middle }, radius: PALM_RADIUS_M[size], tone: hash % 3 })
+    }
+  }
+  return palms
 }
 
 /** A tree row along every verge, kept clear of junction corners and of other streets. */

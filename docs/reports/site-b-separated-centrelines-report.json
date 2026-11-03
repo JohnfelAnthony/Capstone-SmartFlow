@@ -1,0 +1,41 @@
+{
+  "status": "unvalidated experiment; do not install or use for research",
+  "network_fingerprint": "51cefb75eeb90ff5214b76c99e7e265b887cb050a3019d724e8dd4338440a4a4",
+  "changes": [
+    {
+      "road_id": "road2",
+      "right_shift_m": 2.0,
+      "endpoint_transition_m": 2.0
+    },
+    {
+      "road_id": "road3",
+      "right_shift_m": 2.0,
+      "endpoint_transition_m": 2.0
+    },
+    {
+      "road_id": "road4",
+      "right_shift_m": 2.0,
+      "endpoint_transition_m": 2.0
+    },
+    {
+      "road_id": "road5",
+      "right_shift_m": 2.0,
+      "endpoint_transition_m": 2.0
+    },
+    {
+      "road_id": "road8",
+      "right_shift_m": 2.0,
+      "endpoint_transition_m": 2.0
+    },
+    {
+      "road_id": "road9",
+      "right_shift_m": 2.0,
+      "endpoint_transition_m": 2.0
+    }
+  ],
+  "limits": [
+    "Shift is an image-based assumption, not a measurement.",
+    "Frontage roads, island obstacles and full vehicle clearance are not included.",
+    "Endpoint transitions and connector paths need review and traffic acceptance."
+  ]
+}

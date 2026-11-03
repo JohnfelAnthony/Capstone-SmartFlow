@@ -1,6 +1,7 @@
 """Permission, restart, and portable artifact backup workflows."""
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -87,6 +88,40 @@ class OperationsTests(unittest.TestCase):
         missing = self.root / "missing-run.jsonl"
         self.assertEqual(resolve_artifact_path(str(missing)), missing)
         self.assertEqual(TimelinePlaybackEngine._resolve_timeline_path(1, str(missing)), missing)
+
+    def test_backup_and_restore_keep_network_revision_history(self):
+        from services.network_revision_storage import store_revision
+        import simulation.network_registry as registry_module
+
+        network_dir = self.root / "networks"
+        network_dir.mkdir()
+        original_dir = Path(__file__).resolve().parents[1] / "data" / "networks"
+        for name in ("registry.json", "tagum_site_a.json", "tagum_site_b.json"):
+            shutil.copyfile(original_dir / name, network_dir / name)
+        registry = network_dir / "registry.json"
+        original = json.loads((network_dir / "tagum_site_a.json").read_text(encoding="utf-8"))
+        old = registry_module.load_registered_network("tagum_site_a", registry_path=registry)
+        candidate = json.loads(json.dumps(original))
+        candidate["roads"][0]["width_per_direction_m"] = 5.0
+        revision = store_revision(registry, "tagum_site_a", old.fingerprint, candidate)
+        list_networks = registry_module.registered_networks
+        with patch.object(registry_module, "REGISTRY_PATH", registry), patch.object(registry_module, "registered_networks", lambda: list_networks(registry)):
+            created = self.client.post("/api/admin/backups")
+            self.assertEqual(created.status_code, 200, created.text)
+            restored = self.client.post(f"/api/admin/backups/{created.json()['backup']['id']}/restore")
+            self.assertEqual(restored.status_code, 200, restored.text)
+        stage = Path(restored.json()["restore_path"])
+        env = json.loads((stage / "restore_environment.json").read_text(encoding="utf-8"))
+        restored_registry = Path(env["SMARTFLOW_NETWORK_REGISTRY_PATH"])
+        restored_network = registry_module.load_registered_network("tagum_site_a", registry_path=restored_registry)
+        self.assertEqual(restored_network.fingerprint, revision["new_sha256"])
+        restored_history = json.loads(restored_registry.read_text(encoding="utf-8"))["networks"][0]["revision_history"]
+        self.assertEqual(restored_history[0]["sha256"], old.fingerprint)
+        restored_previous = restored_registry.parent / restored_history[0]["file"]
+        self.assertEqual(json.loads(restored_previous.read_text(encoding="utf-8")), original)
+        rollback = store_revision(restored_registry, "tagum_site_a", revision["new_sha256"], original)
+        self.assertEqual(rollback["new_sha256"], old.fingerprint)
+        self.assertTrue((restored_registry.parent / revision["file"]).is_file())
 
     def test_backup_keeps_configured_replacement_network(self):
         replacement = self.root / "replacement-network.json"

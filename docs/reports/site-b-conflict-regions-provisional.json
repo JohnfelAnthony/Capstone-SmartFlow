@@ -1,0 +1,541 @@
+{
+  "status": "review only; no reservation or safety certification",
+  "network_id": "tagum_site_b",
+  "network_fingerprint": "dfae73ca17c7669450237a20d071ccd1c006289388fd86b5ac49e1a91a74e624",
+  "body_radius_m": 5.153882032022076,
+  "conflicts": [
+    {
+      "first_lane": "road0f",
+      "second_lane": "road0r",
+      "first_range_m": [
+        0.0,
+        241.74028271065967
+      ],
+      "second_range_m": [
+        0.0,
+        240.26001021411037
+      ]
+    },
+    {
+      "first_lane": "road0f",
+      "second_lane": "road2f",
+      "first_range_m": [
+        0.0,
+        12.488321121263603
+      ],
+      "second_range_m": [
+        135.55499787163617,
+        153.22180619209325
+      ]
+    },
+    {
+      "first_lane": "road0f",
+      "second_lane": "road3f",
+      "first_range_m": [
+        0.0,
+        12.488321121263603
+      ],
+      "second_range_m": [
+        0.0,
+        17.552053329262506
+      ]
+    },
+    {
+      "first_lane": "road0f",
+      "second_lane": "road4f",
+      "first_range_m": [
+        0.0,
+        12.488321121263603
+      ],
+      "second_range_m": [
+        0.0,
+        12.800642398791831
+      ]
+    },
+    {
+      "first_lane": "road0f",
+      "second_lane": "road5f",
+      "first_range_m": [
+        0.0,
+        12.488321121263603
+      ],
+      "second_range_m": [
+        228.01112476024227,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road0r",
+      "second_lane": "road2f",
+      "first_range_m": [
+        227.7712078857991,
+        240.26001021411037
+      ],
+      "second_range_m": [
+        135.55499787163617,
+        153.22180619209325
+      ]
+    },
+    {
+      "first_lane": "road0r",
+      "second_lane": "road3f",
+      "first_range_m": [
+        227.7712078857991,
+        240.26001021411037
+      ],
+      "second_range_m": [
+        0.0,
+        17.552053329262506
+      ]
+    },
+    {
+      "first_lane": "road0r",
+      "second_lane": "road4f",
+      "first_range_m": [
+        227.7712078857991,
+        240.26001021411037
+      ],
+      "second_range_m": [
+        0.0,
+        12.800642398791831
+      ]
+    },
+    {
+      "first_lane": "road0r",
+      "second_lane": "road5f",
+      "first_range_m": [
+        227.7712078857991,
+        240.26001021411037
+      ],
+      "second_range_m": [
+        228.01112476024227,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road1r",
+      "first_range_m": [
+        0.0,
+        207.44376793336883
+      ],
+      "second_range_m": [
+        0.0,
+        209.13659103506455
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road2f",
+      "first_range_m": [
+        0.0,
+        33.135767773294226
+      ],
+      "second_range_m": [
+        12.422911310090425,
+        153.22180619209325
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road3f",
+      "first_range_m": [
+        0.0,
+        15.985695958131263
+      ],
+      "second_range_m": [
+        0.0,
+        17.552053329262506
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road4f",
+      "first_range_m": [
+        0.0,
+        15.985695958131263
+      ],
+      "second_range_m": [
+        0.0,
+        12.800642398791831
+      ]
+    },
+    {
+      "first_lane": "road1f",
+      "second_lane": "road5f",
+      "first_range_m": [
+        0.0,
+        15.985695958131263
+      ],
+      "second_range_m": [
+        228.01112476024227,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road1r",
+      "second_lane": "road2f",
+      "first_range_m": [
+        192.51396987719255,
+        209.13659103506455
+      ],
+      "second_range_m": [
+        135.55499787163617,
+        153.22180619209325
+      ]
+    },
+    {
+      "first_lane": "road1r",
+      "second_lane": "road3f",
+      "first_range_m": [
+        192.51396987719255,
+        209.13659103506455
+      ],
+      "second_range_m": [
+        0.0,
+        17.552053329262506
+      ]
+    },
+    {
+      "first_lane": "road1r",
+      "second_lane": "road4f",
+      "first_range_m": [
+        192.51396987719255,
+        209.13659103506455
+      ],
+      "second_range_m": [
+        0.0,
+        12.800642398791831
+      ]
+    },
+    {
+      "first_lane": "road1r",
+      "second_lane": "road5f",
+      "first_range_m": [
+        192.51396987719255,
+        209.13659103506455
+      ],
+      "second_range_m": [
+        228.01112476024227,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road3f",
+      "first_range_m": [
+        0.0,
+        153.22180619209325
+      ],
+      "second_range_m": [
+        0.0,
+        153.23473813626634
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road4f",
+      "first_range_m": [
+        135.55499787163617,
+        153.22180619209325
+      ],
+      "second_range_m": [
+        0.0,
+        12.800642398791831
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road5f",
+      "first_range_m": [
+        135.55499787163617,
+        153.22180619209325
+      ],
+      "second_range_m": [
+        228.01112476024227,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road6f",
+      "first_range_m": [
+        0.0,
+        12.422911310090425
+      ],
+      "second_range_m": [
+        0.0,
+        11.184387300748275
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road6r",
+      "first_range_m": [
+        0.0,
+        12.422911310090425
+      ],
+      "second_range_m": [
+        231.08218491982075,
+        240.92814318507376
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road7r",
+      "first_range_m": [
+        0.0,
+        12.422911310090425
+      ],
+      "second_range_m": [
+        213.16655922826615,
+        240.90480493248836
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road8f",
+      "first_range_m": [
+        0.0,
+        12.422911310090425
+      ],
+      "second_range_m": [
+        0.0,
+        16.88378305039664
+      ]
+    },
+    {
+      "first_lane": "road2f",
+      "second_lane": "road9f",
+      "first_range_m": [
+        0.0,
+        12.422911310090425
+      ],
+      "second_range_m": [
+        165.07192664000547,
+        181.35378070571832
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road4f",
+      "first_range_m": [
+        0.0,
+        17.552053329262506
+      ],
+      "second_range_m": [
+        0.0,
+        12.800642398791831
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road5f",
+      "first_range_m": [
+        0.0,
+        17.552053329262506
+      ],
+      "second_range_m": [
+        228.01112476024227,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road6f",
+      "first_range_m": [
+        17.552053329262506,
+        153.23473813626634
+      ],
+      "second_range_m": [
+        0.0,
+        80.76522598684679
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road6r",
+      "first_range_m": [
+        140.96061770791493,
+        153.23473813626634
+      ],
+      "second_range_m": [
+        161.70399741934332,
+        240.92814318507376
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road8f",
+      "first_range_m": [
+        140.96061770791493,
+        153.23473813626634
+      ],
+      "second_range_m": [
+        0.0,
+        16.88378305039664
+      ]
+    },
+    {
+      "first_lane": "road3f",
+      "second_lane": "road9f",
+      "first_range_m": [
+        140.96061770791493,
+        153.23473813626634
+      ],
+      "second_range_m": [
+        165.07192664000547,
+        181.35378070571832
+      ]
+    },
+    {
+      "first_lane": "road4f",
+      "second_lane": "road5f",
+      "first_range_m": [
+        0.0,
+        240.99953097753757
+      ],
+      "second_range_m": [
+        0.0,
+        240.99988484352116
+      ]
+    },
+    {
+      "first_lane": "road6f",
+      "second_lane": "road6r",
+      "first_range_m": [
+        0.0,
+        241.0723264894049
+      ],
+      "second_range_m": [
+        0.0,
+        240.92814318507376
+      ]
+    },
+    {
+      "first_lane": "road6f",
+      "second_lane": "road8f",
+      "first_range_m": [
+        0.0,
+        11.184387300748275
+      ],
+      "second_range_m": [
+        0.0,
+        16.88378305039664
+      ]
+    },
+    {
+      "first_lane": "road6f",
+      "second_lane": "road9f",
+      "first_range_m": [
+        0.0,
+        11.184387300748275
+      ],
+      "second_range_m": [
+        165.07192664000547,
+        181.35378070571832
+      ]
+    },
+    {
+      "first_lane": "road6r",
+      "second_lane": "road8f",
+      "first_range_m": [
+        231.08218491982075,
+        240.92814318507376
+      ],
+      "second_range_m": [
+        0.0,
+        16.88378305039664
+      ]
+    },
+    {
+      "first_lane": "road6r",
+      "second_lane": "road9f",
+      "first_range_m": [
+        231.08218491982075,
+        240.92814318507376
+      ],
+      "second_range_m": [
+        165.07192664000547,
+        181.35378070571832
+      ]
+    },
+    {
+      "first_lane": "road7f",
+      "second_lane": "road7r",
+      "first_range_m": [
+        0.0,
+        241.09546348292298
+      ],
+      "second_range_m": [
+        0.0,
+        240.90480493248836
+      ]
+    },
+    {
+      "first_lane": "road7f",
+      "second_lane": "road8f",
+      "first_range_m": [
+        0.0,
+        27.772020164155418
+      ],
+      "second_range_m": [
+        0.0,
+        126.26651706267118
+      ]
+    },
+    {
+      "first_lane": "road7f",
+      "second_lane": "road9f",
+      "first_range_m": [
+        0.0,
+        33.83928181296197
+      ],
+      "second_range_m": [
+        81.54123689066843,
+        181.35378070571832
+      ]
+    },
+    {
+      "first_lane": "road7r",
+      "second_lane": "road8f",
+      "first_range_m": [
+        213.16655922826615,
+        240.90480493248836
+      ],
+      "second_range_m": [
+        0.0,
+        16.88378305039664
+      ]
+    },
+    {
+      "first_lane": "road7r",
+      "second_lane": "road9f",
+      "first_range_m": [
+        213.16655922826615,
+        240.90480493248836
+      ],
+      "second_range_m": [
+        81.54123689066843,
+        181.35378070571832
+      ]
+    },
+    {
+      "first_lane": "road8f",
+      "second_lane": "road9f",
+      "first_range_m": [
+        0.0,
+        181.37680978634026
+      ],
+      "second_range_m": [
+        0.0,
+        181.35378070571832
+      ]
+    }
+  ],
+  "limitations": [
+    "Whole intersecting segments are included, so ranges may be substantially too large.",
+    "Connector paths and dynamic trajectories require additional conflict checks.",
+    "Do not use these ranges as accepted geometry or field measurements."
+  ]
+}

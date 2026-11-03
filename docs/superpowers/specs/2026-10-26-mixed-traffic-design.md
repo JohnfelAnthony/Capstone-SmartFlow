@@ -1,6 +1,8 @@
 # Mixed traffic: side-by-side vehicles and motorcycle filtering — design
 
-Date: **2026-10-26** (Asia/Singapore). Status: **approved by the owner on 2026-10-26**, revised during planning (2026-10-26) and after an external review (2026-10-27). Nothing described here is implemented yet.
+> **Current status, November 1:** This is the historical design. The core mixed-traffic implementation was released as `native-6` and carried forward into `native-7`. The current application uses 2D only, and the scenario editor no longer provides the mix selector. Site B has a known overlap failure and the provisional geometry and traffic parameters still require field review. See [progress](../../PROGRESS_AND_HANDOFF.md).
+
+Date: **2026-10-26** (Asia/Singapore). Status at the time: **approved by the owner on 2026-10-26**, revised during planning (2026-10-26) and after an external review (2026-10-27).
 
 The owner chose **option 2, the "mixed-traffic engine"**: real road width, vehicles side by side, motorcycles filtering to the stop line, and varied drivers. The cheap visible parts come first. Calls marked **(my call)** were made by the assistant after the owner handed those decisions over; everything else follows the owner's choice or the existing project rules.
 

@@ -12,17 +12,18 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from simulation.road_network import clip, length, NETWORK_PATH, RoadNetwork
+from tools.site_b_layout import site_b_layout
 
 
 COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
 
 
-def build_study_network(source_path: Path, count: int = 5, junction_ids: list[str] | None = None, name: str = "Tagum connected study network") -> dict:
+def build_study_network(source_path: Path, count: int = 5, junction_ids: list[str] | None = None, name: str = "Tagum connected study network", *, source_payload: dict | None = None, boundary_m: float = 110) -> dict:
     if junction_ids:
         count = len(junction_ids)
     if not 2 <= count <= 6:
         raise ValueError("Study network must have 2–6 intersections")
-    raw = json.loads(source_path.read_text(encoding="utf-8"))
+    raw = source_payload if source_payload is not None else json.loads(source_path.read_text(encoding="utf-8"))
     raw_nodes = {entry["id"]: entry for entry in raw["elements"] if entry["type"] == "node"}
     south, west, north, east = raw["smartflow_source"]["bbox"]
     latitude, longitude = (south+north)/2, (west+east)/2
@@ -97,7 +98,7 @@ def build_study_network(source_path: Path, count: int = 5, junction_ids: list[st
             reverse_shape = a not in selected
             if reverse_shape:
                 shape = list(reversed(shape))
-            shape = clip(shape, 0, min(length(shape)-10, 110))
+            shape = clip(shape, 0, min(length(shape)-10, boundary_m))
             boundary = f"boundary_{len(roads)}"
             nodes[boundary] = {"id": boundary, "x": shape[-1][0], "y": shape[-1][1], "boundary": True}
             if reverse_shape:
@@ -236,13 +237,17 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="Tagum connected study network")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--site", help="Site centre LAT,LON")
+    parser.add_argument("--site-b-corridor", action="store_true", help="Expand Site B to the next highway junction using cached OSM")
     parser.add_argument("--network-id")
     parser.add_argument("--source", type=Path, default=NETWORK_PATH.with_name("tagum_osm.json"))
     parser.add_argument("--approach-m", type=float, default=250.0)
     parser.add_argument("--approach", action="append", default=[])
     parser.add_argument("--assumption", action="append", default=[])
     args = parser.parse_args()
-    if args.site:
+    if args.site_b_corridor:
+        from tools.site_b_corridor import build_site_b_corridor
+        payload = build_site_b_corridor(args.source)
+    elif args.site:
         if not args.network_id:
             parser.error("--network-id is required with --site")
         try:

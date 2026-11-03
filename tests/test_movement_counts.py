@@ -31,10 +31,16 @@ class MovementCountTests(unittest.TestCase):
                                    (boundaries["west"][0], boundaries["east"][1], "truck", 36.0)])
 
     def test_split_highway_exits_match_their_leg_by_direction(self):
-        # Site B's highway legs enter and leave through different boundary nodes.
-        self.assertEqual(approach_boundaries(load_registered_network("tagum_site_b")),
-                         {"south": ("boundary_0", "boundary_0"), "west": ("boundary_2", "boundary_5"),
-                          "north": ("boundary_3", "boundary_3"), "east": ("boundary_4", "boundary_1")})
+        # Site B's highway legs enter and leave through different boundary nodes, and one leg runs through the neighboring junction.
+        mapping = approach_boundaries(load_registered_network("tagum_site_b"))
+        self.assertEqual(sorted(mapping.values()), sorted([("boundary_0", "boundary_0"), ("boundary_1", "boundary_1"), ("boundary_5", "boundary_4"), ("boundary_9", "boundary_8")]))
+
+    def test_site_b_counts_route_through_the_corridor(self):
+        network = load_registered_network("tagum_site_b")
+        names = {entry: name for name, (entry, _) in approach_boundaries(network).items()}
+        csv_text = f"from,to,vehicle_type,count\n{names['boundary_9']},{names['boundary_5']},car,300\n{names['boundary_0']},{names['boundary_1']},motorcycle,60\n"
+        windows = import_movement_counts(csv_text=csv_text, network_id="tagum_site_b", engine_config={})["engine_config"]["demand_windows"]
+        self.assertEqual([(w["od"][0]["source"], w["od"][0]["destination"]) for w in windows], [("boundary_9", "boundary_4"), ("boundary_0", "boundary_1")])
 
     def test_schedule_keeps_each_stream_class(self):
         config = import_movement_counts(csv_text=SITE_A_CSV, network_id="tagum_site_a", engine_config={})["engine_config"]
@@ -61,7 +67,7 @@ class MovementCountTests(unittest.TestCase):
                 import_movement_counts(csv_text=csv_text, network_id="tagum_site_a", engine_config={})
 
     def test_multi_junction_networks_are_refused(self):
-        with self.assertRaisesRegex(ValueError, "single-junction"):
+        with self.assertRaisesRegex(ValueError, "study site"):
             import_movement_counts(csv_text=SITE_A_CSV, network_id="tagum_network", engine_config={})
 
 
