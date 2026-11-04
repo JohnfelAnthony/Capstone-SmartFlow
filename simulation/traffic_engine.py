@@ -458,11 +458,17 @@ class TrafficEngine:
         self._add_event("constraint", f"Lane {lane_id} {'closed to entry' if closed else 'reopened'}")
 
     def _refresh_dead_phases(self):
-        """Mark each signal phase whose approach lanes are all closed, so it is never given a green."""
+        """Mark each signal phase whose approach lanes are all closed and empty, so it is never given a green. Vehicles
+        already on a closed approach still get their green until they have left it."""
+        if not self.closed_lanes:
+            for signal in self.signals.values():
+                signal.dead = frozenset()
+            return
+        occupied = {vehicle.route[0] for vehicle in self.vehicles.values() if vehicle.connector is None and vehicle.reserved_junction is None}
         for node, signal in self.signals.items():
             signal.dead = frozenset(
-                key for key in signal.approaches if key != "pedestrian" and self.closed_lanes
-                and all(lane in self.closed_lanes for lane in self.network.incoming[node] if self.network.lanes[lane].approach in key.split("+")))
+                key for key in signal.approaches if key != "pedestrian"
+                and all(lane in self.closed_lanes and lane not in occupied for lane in self.network.incoming[node] if self.network.lanes[lane].approach in key.split("+")))
 
     def _best_open_exit(self, node: str, previous: str | None, costs: dict | None) -> list[str]:
         """Lanes from `node` to the cheapest exit still open, for a vehicle whose own destination can no longer be reached."""
@@ -647,7 +653,7 @@ class TrafficEngine:
                 continue
             self.last_served[node][signal.family] = self.simulation_time
             waiting_approaches = {self.network.lanes[v.route[0]].approach for v in self.vehicles.values() if not v.connector and self.network.lanes[v.route[0]].target == node}
-            demanded = {signal.key_for(approach) for approach in waiting_approaches} - {None}
+            demanded = {signal.key_for(approach) for approach in waiting_approaches} - {None} - signal.dead  # a closed approach is never served
             oldest = min(demanded, key=lambda a: (self.last_served[node][a], a), default=None)
             overdue_approach = oldest is not None and self.simulation_time-self.last_served[node][oldest] >= signal.maximum_red
             overdue_pedestrians = any(p.junction == node and not p.crossing and p.wait >= self.config["pedestrian_max_wait"] for p in self.pedestrians.values())
@@ -1607,6 +1613,8 @@ class TrafficEngine:
             if self.status != "running":
                 break
             self._apply_scheduled_events()
+            if self.closed_lanes:
+                self._refresh_dead_phases()
             self._control_signals()
             for node, signal in self.signals.items():
                 signal.step(STEP_LENGTH, self._crossing_occupied(node), self._pedestrians_waiting(node))

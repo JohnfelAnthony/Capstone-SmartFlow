@@ -311,6 +311,7 @@ class ObservationImportRequest(BaseModel):
 
 class ClosureCheckRequest(BaseModel):
     closed_lanes: list[str] = Field(default_factory=list)
+    events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MovementCountsRequest(BaseModel):

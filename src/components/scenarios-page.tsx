@@ -32,7 +32,9 @@ import {
 import { configureSimulation, generateTimeline, startSimulation } from "@/api/simulation"
 import { listRLModels, type RLModelRecord } from "@/api/rl"
 import { getNativeScenarioOptions, importMovementCounts, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
+import { ClosurePicker } from "@/components/closure-picker"
 import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
+import { closureLines, closureProblem, readClosures } from "@/lib/closures"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
@@ -144,6 +146,12 @@ function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
     migrationError: scenario.migration_error,
     engineConfig: scenario.engine_config ?? {},
   }
+}
+
+function closedRoadsText(config: NativeScenarioConfig) {
+  const { rules, locked } = readClosures(config)
+  const count = Object.keys(rules).length + locked.length
+  return count ? `${count} direction${count === 1 ? "" : "s"} closed` : "None"
 }
 
 function formatDate(value: string) {
@@ -277,6 +285,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
   const [nativeOptions, setNativeOptions] = React.useState<NativeScenarioOptions | null>(null)
   const [networks, setNetworks] = React.useState<NetworkSummary[]>([])
   const [formError, setFormError] = React.useState("")
+  const [serverClosureProblem, setServerClosureProblem] = React.useState<string | null>(null)
   const [importNotice, setImportNotice] = React.useState("")
   const [isImporting, setIsImporting] = React.useState(false)
   const [isResolving, setIsResolving] = React.useState(false)
@@ -332,6 +341,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     )
   }, [category, density, scenarios, search, sort, stateFilter, typeFilter])
 
+  const closureIssue = closureProblem(draft.engineConfig) ?? serverClosureProblem
   const hasCsvDemand = (draft.engineConfig.demand_windows?.length ?? 0) > 0
   const requiresLegacyMapping = Boolean(scenarios.find((scenario) => scenario.id === editingScenarioId)?.migrationError)
 
@@ -355,6 +365,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     if (!permissions.create) return
     editRequest.current += 1
     setFormError("")
+    setServerClosureProblem(null)
     setEditConfigReady(true)
     setIsResolving(false)
     setFormMode("create")
@@ -372,6 +383,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     setEditingScenarioId(scenario.id)
     setDraft(draftFromScenario(scenario))
     setFormError("")
+    setServerClosureProblem(null)
     setEditConfigReady(false)
     if (scenario.migrationError) {
       setFormError(scenario.migrationError)
@@ -400,6 +412,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     setIsResolving(true)
     setEditConfigReady(false)
     setFormError("")
+    setServerClosureProblem(null)
     try {
       const options = await getNativeScenarioOptions(networkId)
       if (request !== editRequest.current) return
@@ -423,6 +436,10 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     setFormError("")
     if (!draft.name.trim()) {
       setFormError("Scenario name is required.")
+      return
+    }
+    if (closureIssue) {
+      setFormError(closureIssue)
       return
     }
     setIsSaving(true)
@@ -776,12 +793,15 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
                 {isImporting && <p role="status" className="text-sm">Reading CSV...</p>}
                 {importNotice && <p role="status" className="text-sm">{importNotice}</p>}
               </Field>
+              {nativeOptions && nativeOptions.network_id === draft.intersectionId && editConfigReady && !isResolving
+                && <ClosurePicker options={nativeOptions} config={draft.engineConfig} disabled={isSaving}
+                  onChange={(engineConfig) => setDraft((current) => ({ ...current, engineConfig }))} onProblem={setServerClosureProblem} />}
               {isResolving && <p role="status">Loading site settings...</p>}
             </FieldGroup>
           </div>
           <SheetFooter className="scenario-sheet-footer">
             <Button variant="outline" onClick={() => setFormMode(null)}>Cancel</Button>
-            <Button onClick={() => void saveScenarioDraft()} disabled={isSaving || isResolving || !nativeOptions || !editConfigReady ||
+            <Button onClick={() => void saveScenarioDraft()} disabled={isSaving || isResolving || !nativeOptions || !editConfigReady || Boolean(closureIssue) ||
               (formMode === "edit" ? !permissions.edit : !permissions.create)}>
               {isSaving ? "Saving..." : "Save Scenario"}
             </Button>
@@ -874,6 +894,7 @@ function ScenarioCard({
           <ScenarioMeta icon={MapPinnedIcon} label="Intersection" value={formatIntersection(scenario.intersectionId)} />
           <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
           <ScenarioMeta icon={UserRoundIcon} label="Pedestrians" value={scenario.pedestrianDensity} />
+          <ScenarioMeta icon={SlidersHorizontalIcon} label="Closed roads" value={closedRoadsText(scenario.engineConfig)} />
         </div>
         <div className="scenario-card-actions">
           <Button size="sm" disabled={isScenarioRunBlocked(scenario, permissions.run)} onClick={() => onLaunch(scenario, "load")}>
@@ -1006,6 +1027,16 @@ function ScenarioMeta({
   )
 }
 
+function useLaneOptions(networkId: string) {
+  const [loaded, setLoaded] = React.useState<{ networkId: string; options: NativeScenarioOptions } | null>(null)
+  React.useEffect(() => {
+    let current = true
+    getNativeScenarioOptions(networkId).then((options) => { if (current) setLoaded({ networkId, options }) }).catch(() => undefined)
+    return () => { current = false }
+  }, [networkId])
+  return loaded?.networkId === networkId ? loaded.options : null
+}
+
 function ScenarioDetailSheet({
   scenario,
   permissions,
@@ -1019,6 +1050,8 @@ function ScenarioDetailSheet({
   onEdit: (scenario: ScenarioRecord) => void
   onLaunch: (scenario: ScenarioRecord, action: "load" | "live" | "record") => void
 }) {
+  const laneOptions = useLaneOptions(scenario.intersectionId)
+  const closures = closureLines(scenario.engineConfig, laneOptions?.lanes ?? [])
   return (
     <>
       <SheetHeader>
@@ -1032,17 +1065,28 @@ function ScenarioDetailSheet({
           <div className="scenario-detail-grid">
             <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
             <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={scenario.pedestrianDensity} />
-            <ScenarioMeta icon={SlidersHorizontalIcon} label="Native road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
+            <ScenarioMeta icon={SlidersHorizontalIcon} label="Road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />
           </div>
           <ScenarioPhoto networkId={scenario.intersectionId} />
           <Card>
             <CardHeader>
+              <CardTitle>Closed roads</CardTitle>
+              <CardDescription>Roads closed to new entry, in this scenario.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {closures.length
+                ? <ul className="flex flex-col gap-1.5 text-sm" aria-label="Closed roads">{closures.map((line) => <li key={line}>{line}</li>)}</ul>
+                : <p className="text-sm text-muted-foreground">No road is closed.</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
               <CardTitle>Disruptions</CardTitle>
               <CardDescription>Native disruption schedule and controller configuration.</CardDescription>
             </CardHeader>
-            <CardContent><NativeScenarioSummary config={scenario.engineConfig} options={null} /></CardContent>
+            <CardContent><NativeScenarioSummary config={scenario.engineConfig} options={laneOptions} /></CardContent>
           </Card>
           <Card>
             <CardHeader>

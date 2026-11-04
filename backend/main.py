@@ -2085,7 +2085,7 @@ def closure_check(network_id: str, payload: ClosureCheckRequest, user: dict = De
     from services.closure_check import closure_report
     from simulation.network_registry import load_registered_network
     try:
-        return closure_report(load_registered_network(network_id), payload.closed_lanes)
+        return closure_report(load_registered_network(network_id), payload.closed_lanes, payload.events)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

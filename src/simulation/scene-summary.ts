@@ -19,7 +19,7 @@ export function laneDisplayLabel(geometry: SceneGeometry, laneId: string) {
 export const TURN_ARROW_EXTENSION_M = 6.5
 
 /** One readable arrow per allowed turn (connector ids are `incoming->outgoing`). Illustrative: arrows start apart, left turn on the left, and meet the real connector by its end. */
-function turnArrows(geometry: SceneGeometry, junction: SceneJunction, laneId: string) {
+function turnArrows(geometry: SceneGeometry, junction: SceneJunction, laneId: string): { points: VisualPoint[]; target: string }[] {
   const approach = geometry.laneById.get(laneId)
   const tail = approach ? immediateApproach(approach.centerline, junction, TURN_ARROW_EXTENSION_M).reverse() : []
   if (!approach || tail.length < 2) return []
@@ -37,14 +37,18 @@ function turnArrows(geometry: SceneGeometry, junction: SceneJunction, laneId: st
   return connectors.map((connector, index) => {
     const leftShift = spacing * ((connectors.length - 1) / 2 - index)
     const shifted = (point: VisualPoint, amount: number) => ({ x: point.x - travel.y * leftShift * amount, y: point.y + travel.x * leftShift * amount })
-    const exit = geometry.laneById.get(connector.id.slice(laneId.length + 2))
+    const target = connector.id.slice(laneId.length + 2)
+    const exit = geometry.laneById.get(target)
     const head = exit ? immediateApproach(exit.centerline, junction, TURN_ARROW_EXTENSION_M) : []
     const last = connector.centerline.length - 1
-    return [
-      ...tail.map(point => shifted(point, 1)),
-      ...connector.centerline.slice(1).map((point, step) => { const t = (step + 1) / last; return shifted(point, 1 - t * t * (3 - 2 * t)) }),
-      ...head.slice(1),
-    ]
+    return {
+      target,
+      points: [
+        ...tail.map(point => shifted(point, 1)),
+        ...connector.centerline.slice(1).map((point, step) => { const t = (step + 1) / last; return shifted(point, 1 - t * t * (3 - 2 * t)) }),
+        ...head.slice(1),
+      ],
+    }
   })
 }
 
@@ -52,11 +56,40 @@ function turnArrows(geometry: SceneGeometry, junction: SceneJunction, laneId: st
 export function signalMovements(geometry: SceneGeometry, junctionId: string, frame: Parameters<typeof signalAppearance>[1]) {
   const junction = geometry.junctionById.get(junctionId)
   if (!junction) return []
-  return geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => ({
-    laneId: group.lane_id,
-    color: signalAppearance(group, frame).color,
-    turns: turnArrows(geometry, junction, group.lane_id),
-  }))
+  return geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => {
+    const arrows = turnArrows(geometry, junction, group.lane_id)
+    return { laneId: group.lane_id, color: signalAppearance(group, frame).color, turns: arrows.map(arrow => arrow.points), turnTargets: arrows.map(arrow => arrow.target) }
+  })
+}
+
+/** Lanes closed to entry right now: those set from the start and those a scheduled event has closed so far. */
+export function closedLaneIds(frame: { visual?: { closed_lanes?: string[] }; lane_metrics?: Record<string, { closed?: boolean }> } | null | undefined) {
+  const closed = new Set(frame?.visual?.closed_lanes ?? [])
+  for (const [laneId, metrics] of Object.entries(frame?.lane_metrics ?? {})) if (metrics.closed) closed.add(laneId)
+  return closed
+}
+
+/** Which of this junction's approaches and exits are closed, and every turn that cannot be made because of it. */
+export function junctionClosures(geometry: SceneGeometry, junctionId: string, closed: ReadonlySet<string>) {
+  const approaches = new Set(geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => group.lane_id))
+  const turns = geometry.connectors.filter(connector => connector.id.includes("->") && approaches.has(connector.id.split("->")[0]))
+    .map(connector => { const [from, to] = connector.id.split("->"); return { from, to } })
+  return {
+    closedApproaches: [...approaches].filter(laneId => closed.has(laneId)),
+    closedExits: [...new Set(turns.map(turn => turn.to))].filter(laneId => closed.has(laneId)),
+    unavailableTurns: turns.filter(turn => closed.has(turn.from) || closed.has(turn.to)).sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
+  }
+}
+
+/** Compass side a leaving road heads towards, from the lane's first heading (+y is north). */
+export function departureDirection(geometry: SceneGeometry, laneId: string) {
+  const points = geometry.laneById.get(laneId)?.centerline ?? []
+  if (points.length < 2) return null
+  const end = points[points.length - 1], start = points[0]
+  const dx = end.x - start.x, dy = end.y - start.y
+  if (dx === 0 && dy === 0) return null
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "To east" : "To west"
+  return dy > 0 ? "To north" : "To south"
 }
 
 /** Compass side a vehicle approach comes from, using the lane's final travel direction (+y is north). */

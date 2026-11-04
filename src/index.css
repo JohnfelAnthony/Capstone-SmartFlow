@@ -1746,6 +1746,10 @@
 .sf-mini-road { fill:color-mix(in srgb, var(--muted-foreground) 35%, var(--card)); transition:fill .2s; }
 .sf-mini-road[data-color="green"] { fill:color-mix(in srgb, #22c55e 40%, var(--card)); }
 .sf-mini-road[data-color="yellow"] { fill:color-mix(in srgb, #f59e0b 40%, var(--card)); }
+.sf-mini-road[data-closed="true"] { fill:color-mix(in srgb, #ef4444 38%, var(--card)); stroke:#ef4444; stroke-width:.35; stroke-dasharray:1.2 .9; }
+.sf-mini-turn-unavailable { fill:none; stroke:#ef4444; stroke-linecap:round; stroke-dasharray:1.1 1.1; opacity:.9; }
+.sf-closure-list { display:flex; flex-direction:column; gap:4px; margin:0; padding:0; list-style:none; }
+.sf-closure-list li { font-size:12px; padding:4px 8px; border-radius:6px; background:color-mix(in srgb, #ef4444 14%, transparent); }
 .sf-mini-zebra { fill:color-mix(in srgb, var(--foreground) 70%, transparent); }
 .sf-mini-zebra[data-lit="true"] { fill:#22c55e; }
 .sf-mini-turn, .sf-mini-turn-casing, .sf-mini-turn-flow { fill:none; stroke-linecap:round; stroke-linejoin:round; }

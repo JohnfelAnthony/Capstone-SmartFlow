@@ -211,3 +211,5 @@ python -m tools.build_study_network
 ```
 
 Refreshing may change geometry and invalidate model/recording compatibility. Preserve the exact network snapshot used in capstone experiments.
+
+The installed Site A (with its provisional West → North side-street loop) is reproduced from the cached `data/networks/osm_site_a.json`, with no download, by `python tools/build_study_network.py --site-a --output data/networks/tagum_site_a.json`; `tests/test_build_site_network.py` checks that it matches the installed file. The earlier one-junction Site A is kept in `data/networks/history/`.

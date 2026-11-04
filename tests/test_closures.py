@@ -168,3 +168,14 @@ def test_closing_and_reopening_a_lane_by_hand_updates_the_dead_phases():
     assert engine.signals["j"].dead == {"west"}
     engine.close_lane("wf", False)
     assert engine.signals["j"].dead == frozenset()
+
+
+def test_a_phase_stays_alive_until_vehicles_already_on_its_closed_approach_have_left():
+    from tests.mixed_traffic_helpers import place, started_engine
+    engine = started_engine(junction_network())
+    place(engine, ["wf", "er"], "car", from_stop_line=2, lateral=0)
+    engine.close_lane("wf")
+    assert engine.signals["j"].dead == frozenset()
+    engine.step(1200)
+    assert engine._last_metrics["throughput"] == 1
+    assert engine.signals["j"].dead == {"west"}

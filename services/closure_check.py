@@ -4,7 +4,7 @@ from __future__ import annotations
 from simulation.scenario_config import DEFAULTS, validate_config
 
 
-def closure_report(network, closed_lanes: list[str]) -> dict:
+def closure_report(network, closed_lanes: list[str], events: list[dict] | None = None) -> dict:
     """Per lane: how many entry-to-exit trips normally use it and how many would have no route if only it were closed.
 
     `has_detour` is False when any such trip would lose every route, which is always the case for an entry road (nothing
@@ -24,7 +24,7 @@ def closure_report(network, closed_lanes: list[str]) -> dict:
         pieces[lane_id] = {"has_detour": not unreachable, "trips_using": len(using), "trips_without_route": len(unreachable)}
     closed = set(closed_lanes)
     try:
-        validate_config(DEFAULTS, {"closed_lanes": sorted(closed)}, network)
+        validate_config(DEFAULTS, {"closed_lanes": sorted(closed), "events": events or []}, network)
         message = None
     except ValueError as exc:
         message = str(exc)

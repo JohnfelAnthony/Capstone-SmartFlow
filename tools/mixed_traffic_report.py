@@ -46,6 +46,14 @@ for _site in ("siteA", "siteB"):
     for _density in ("medium", "high"):
         for _control, _extras in SITE_CONTROLS.items():
             CASES[f"{_site}-{_density}-{_control}"] = (_site, _density, "tagum", dict(_extras))
+# Closure acceptance (design D33): Site A under static routing, which only reroutes around closures, with and without the
+# study junction's west inbound piece closed from 300 s to 1,200 s so West traffic must use the side-street loop. Synthetic demand.
+LOOP_CLOSURE_EVENTS = [{"time": 300.0, "lane_id": "road2r", "closed": True}, {"time": 1200.0, "lane_id": "road2r", "closed": False}]
+LOOP_LANES = ("road6f", "road6r")
+for _density in ("medium", "high"):
+    for _control, _extras in (("nosignal", {"no_signal": True}), ("fixed", {})):
+        CASES[f"siteA-static-{_density}-{_control}"] = ("siteA", _density, "tagum", {**_extras, "static": True})
+        CASES[f"siteA-static-{_density}-{_control}-closure"] = ("siteA", _density, "tagum", {**_extras, "static": True, "loop_closure": True})
 GROUPED_PHASES = [["north", "south"], ["east", "west"], "pedestrian"]
 SYNTHETIC_VEHICLES_PER_HOUR = {"low": 432, "medium": 1080, "high": 2340, "very high": 3420}  # simulation/demand.py, spread evenly over boundaries
 QUICK_CASES = ("2j-medium-tagum", "5j-medium-cars")
@@ -114,12 +122,15 @@ def count_island_intrusions(records: list[dict], islands: list[dict]) -> int:
 
 
 def build_engine(network_name: str, density: str, mix: dict, seconds: float, seed: int, *, events=None,
-                 all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None) -> TrafficEngine:
+                 all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None,
+                 routing_mode: str | None = None) -> TrafficEngine:
     network = load_network(network_name)
     engine = (TrafficEngine if sideways_decisions else NoFilteringEngine)(seed=seed, network=network)
     settings = {"traffic_density": density, "pedestrian_density": "medium", "vehicle_mix": dict(mix)}
     if events:
         settings["events"] = events
+    if routing_mode:
+        settings["routing_mode"] = routing_mode
     if all_way_stop:
         settings["signal_plans"] = {node: {"mode": "all_way_stop"} for node in network.intersections}
     if signal_plans:
@@ -132,17 +143,18 @@ def build_engine(network_name: str, density: str, mix: dict, seconds: float, see
 
 
 def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: int, *, events=None,
-             all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None) -> dict:
+             all_way_stop: bool = False, sideways_decisions: bool = True, no_signal: bool = False, signal_plans: dict | None = None,
+             routing_mode: str | None = None) -> dict:
     started = time.perf_counter()
     engine = build_engine(network_name, density, mix, seconds, seed, events=events, all_way_stop=all_way_stop,
-                          sideways_decisions=sideways_decisions, no_signal=no_signal, signal_plans=signal_plans)
+                          sideways_decisions=sideways_decisions, no_signal=no_signal, signal_plans=signal_plans, routing_mode=routing_mode)
     network = engine.network
     node = engine.controlled_junction
     incoming = [network.lanes[lane_id] for lane_id in network.incoming[node]]
     signal = engine.signals[node]
     max_overlaps = max_stuck = 0
     max_island_intrusions = 0 if network.islands else None
-    max_gridlock = 0.0
+    max_gridlock = max_held = 0.0
     # The stuck and gridlock counters only see vehicles inside a junction; this one also catches a frozen queue at its line.
     longest_completion_gap, last_completion_time, completed_so_far = 0.0, 0.0, 0
     queue_samples, active_samples = [], []
@@ -159,6 +171,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         metrics = engine._last_metrics
         max_stuck = max(max_stuck, metrics["stuck_junction_vehicles"])
         max_gridlock = max(max_gridlock, metrics["gridlock_seconds"])
+        max_held = max(max_held, metrics["closure_held_vehicles"])
         if engine.lifetime_completed != completed_so_far or not engine.vehicles:
             completed_so_far, last_completion_time = engine.lifetime_completed, engine.simulation_time
         longest_completion_gap = max(longest_completion_gap, engine.simulation_time-last_completion_time)
@@ -203,6 +216,9 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         "max_gridlock_seconds": float(max_gridlock),
         "longest_completion_gap_s": round(float(longest_completion_gap), 1),
         "final_vehicle_conservation_error": engine._last_metrics["vehicle_conservation_error"],
+        "reroutes": engine.reroutes, "diverted_vehicles": engine.diverted_vehicles,
+        "closure_blocked_vehicles": engine._last_metrics["closure_blocked_vehicles"], "max_closure_held_vehicles": int(max_held),
+        "loop_exits": {lane: engine.lane_exits.get(lane, 0) for lane in LOOP_LANES},
         "completed": engine.lifetime_completed,
         "requested_vehicles": engine.requested_vehicles,
         "active_vehicles": len(engine.vehicles),
@@ -226,6 +242,10 @@ def case_options(name: str) -> tuple[str, str, dict, dict]:
                "no_signal": extras.get("no_signal", False)}
     if extras.get("grouped"):
         options["signal_plans"] = grouped_plan(network_name, density, MIXES[mix_name])
+    if extras.get("static"):
+        options["routing_mode"] = "static"
+    if extras.get("loop_closure"):
+        options["events"] = [dict(event) for event in LOOP_CLOSURE_EVENTS]
     if extras.get("closure"):
         lane_id = load_network(network_name).incoming[TrafficEngine(seed=1, network=load_network(network_name)).controlled_junction][0]
         options["events"] = [{"time": 200, "lane_id": lane_id, "closed": True}, {"time": 500, "lane_id": lane_id, "closed": False}]

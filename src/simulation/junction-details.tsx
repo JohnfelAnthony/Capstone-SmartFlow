@@ -10,7 +10,7 @@ import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { JunctionMetrics, RenderFrame } from "@/simulation/frame-types"
 import { boundsOfPoints, walkSignalState, type SceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService, signalMovements } from "@/simulation/scene-summary"
+import { approachDirection, closedLaneIds, departureDirection, junctionClosures, junctionShortLabel, laneDisplayLabel, phaseService, signalMovements } from "@/simulation/scene-summary"
 import { timingLabel } from "@/simulation/render-frame-adapter"
 
 // Same bands as the map: 0 clear · 1–4 low · 5–9 moderate · 10+ high.
@@ -40,6 +40,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
   const streets = junction.label.replace(/^J\d+:\s*/, "").split(" / ")
   const approaches = [...new Set(geometry.signalGroups.filter(group => group.kind === "vehicle" && group.junctionId === junctionId).map(group => group.lane_id))]
   const approachName = (laneId: string) => [approachDirection(geometry, laneId)?.replace("From ", "").replace(/^\w/, letter => letter.toUpperCase()), laneStreets[laneId]].filter(Boolean).join(" · ") || laneDisplayLabel(geometry, laneId)
+  const roadName = (laneId: string) => laneStreets[laneId] ?? laneDisplayLabel(geometry, laneId)
   return <Card size="sm">
     <CardHeader><CardTitle>{streets.join(" × ")}</CardTitle></CardHeader>
     <CardContent className="flex flex-col gap-3">
@@ -50,7 +51,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
           <TabsTrigger value="queues">Queue info</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
-        <TabsContent value="phases"><SignalPhases control={control} frame={running ? frame ?? null : null} geometry={geometry} junctionId={junctionId} approachName={approachName} /></TabsContent>
+        <TabsContent value="phases"><SignalPhases control={control} frame={running ? frame ?? null : null} geometry={geometry} junctionId={junctionId} approachName={approachName} roadName={roadName} /></TabsContent>
         <TabsContent value="queues"><QueueInfo frame={running ? frame : null} geometry={geometry} junctionId={junctionId} approaches={approaches} approachName={approachName} laneStreets={laneStreets} /></TabsContent>
         <TabsContent value="performance"><Performance frame={running ? frame : null} approaches={approaches} metric={metric} /></TabsContent>
       </Tabs>
@@ -65,6 +66,8 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
   const junction = geometry.junctionById.get(junctionId)
   if (!junction) return null
   const movements = signalMovements(geometry, junctionId, frame)
+  const closed = closedLaneIds(frame)
+  const unavailable = new Set(junctionClosures(geometry, junctionId, closed).unavailableTurns.map(turn => `${turn.from}->${turn.to}`))
   const colorByLane = new Map(movements.map(movement => [movement.laneId, movement.color]))
   const roads = geometry.lanes.filter(lane => lane.kind === "road" && lane.junctionIds.includes(junctionId))
   // Frame what the arrows need, not the whole pavement, so a large junction zooms in as far as a small one.
@@ -83,10 +86,13 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
     </defs>
     <g transform="scale(1 -1)">
       <polygon className="sf-mini-road" points={svgPoints(junction.kerb)} />
-      {roads.map(road => <polygon key={road.id} className="sf-mini-road" data-color={colorByLane.get(road.id)} points={svgPoints(road.polygon)} />)}
+      {roads.map(road => <polygon key={road.id} className="sf-mini-road" data-color={colorByLane.get(road.id)} data-closed={closed.has(road.id) || undefined} points={svgPoints(road.polygon)} />)}
       {junction.crosswalks.flatMap(crosswalk => crosswalk.stripes.map((stripe, index) =>
         <polygon key={`${crosswalk.laneId}-${index}`} className="sf-mini-zebra" data-lit={walkLit} points={svgPoints(stripe)} />))}
+      {movements.flatMap(movement => movement.turns.map((turn, index) => unavailable.has(`${movement.laneId}->${movement.turnTargets[index]}`)
+        ? <polyline key={`${movement.laneId}-x${index}`} className="sf-mini-turn-unavailable" points={svgPoints(turn)} strokeWidth={lineWidth * 0.8}><title>Unavailable: closed</title></polyline> : null))}
       {servedMovements.flatMap(movement => movement.turns.map((turn, index) => {
+        if (unavailable.has(`${movement.laneId}->${movement.turnTargets[index]}`)) return null
         const points = svgPoints(turn)
         return <g key={`${movement.laneId}-${index}`}>
           <polyline className="sf-mini-turn-casing" points={points} strokeWidth={lineWidth * 1.9} />
@@ -98,10 +104,28 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
   </svg>
 }
 
-function SignalPhases({ control, frame, geometry, junctionId, approachName }: {
-  control: RenderFrame["junction_controls"][string] | undefined; frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string; approachName: (laneId: string) => string
+/** Closed roads at this junction in words: entries that stop, exits that are shut, and the turns lost with them. */
+function ClosureNotes({ control, frame, geometry, junctionId, approachName, roadName }: {
+  control: RenderFrame["junction_controls"][string] | undefined; frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string
+  approachName: (laneId: string) => string; roadName: (laneId: string) => string
 }) {
-  const signalMap = <JunctionSignalMap frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} />
+  const { closedApproaches, closedExits, unavailableTurns } = junctionClosures(geometry, junctionId, closedLaneIds(frame))
+  if (!unavailableTurns.length && !closedApproaches.length && !closedExits.length) return null
+  const skipped = control?.mode === "signalized" && closedApproaches.length > 0
+  const exitName = (laneId: string) => [roadName(laneId), departureDirection(geometry, laneId)?.toLowerCase()].filter(Boolean).join(" ")
+  return <ul className="sf-closure-list" aria-label="Closed roads">
+    {closedApproaches.map(laneId => <li key={`in-${laneId}`}>Closed to entry: {approachName(laneId)}{skipped ? " — the signal skips it once the vehicles already on it have left" : ""}</li>)}
+    {closedExits.map(laneId => <li key={`out-${laneId}`}>Closed exit: {exitName(laneId)}</li>)}
+    {unavailableTurns.length ? <li>{unavailableTurns.length} turn{unavailableTurns.length === 1 ? " is" : "s are"} unavailable: {unavailableTurns.map(turn => `${approachName(turn.from)} → ${exitName(turn.to)}`).join("; ")}</li> : null}
+  </ul>
+}
+
+function SignalPhases({ control, frame, geometry, junctionId, approachName, roadName }: {
+  control: RenderFrame["junction_controls"][string] | undefined; frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string
+  approachName: (laneId: string) => string; roadName: (laneId: string) => string
+}) {
+  const signalMap = <><JunctionSignalMap frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} />
+    <ClosureNotes control={control} frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} roadName={roadName} /></>
   const unsignalledNote = !control ? "Start a simulation to see the signal phases."
     : control.mode === "first_come" ? "No signal — first come, first served."
     : control.mode === "all_way_stop" ? "All-way stop: this junction has no signal phases." : null

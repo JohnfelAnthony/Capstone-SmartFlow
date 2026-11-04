@@ -48,3 +48,15 @@ def test_closure_check_endpoint(monkeypatch):
         assert client.post("/api/networks/tagum_site_a/closure-check", json={"closed_lanes": ["nope"]}).status_code == 422
     finally:
         main.app.dependency_overrides.pop(main.require_current_user, None)
+
+
+def test_timed_closures_are_checked_with_the_selection():
+    events = [{"time": 50, "lane_id": lane, "closed": True} for lane in ("er", "nr", "sr", "wr")]
+    report = closure_report(junction_network(), [], events)
+    assert report["valid"] is False and "at 50 s" in report["message"]
+
+
+def test_options_say_where_each_road_piece_lies():
+    from services.native_scenario_service import configuration_options
+    where = {lane["road_id"]: lane["where"] for lane in configuration_options("tagum_site_a")["lanes"]}
+    assert where["road2"].startswith("west, 0–226") and where["road4"].startswith("west, 226–2")
