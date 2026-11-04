@@ -1,5 +1,7 @@
-import { ImageOffIcon, PersonStandingIcon } from "lucide-react"
+import type { CSSProperties } from "react"
+import { ImageOffIcon } from "lucide-react"
 
+import type { VisualPoint } from "@/api/visual-network"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress, ProgressLabel } from "@/components/ui/progress"
@@ -7,14 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { JunctionMetrics, RenderFrame } from "@/simulation/frame-types"
-import { walkSignalState, type SceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService, signalArms } from "@/simulation/scene-summary"
+import { boundsOfPoints, walkSignalState, type SceneGeometry } from "@/simulation/scene-geometry"
+import { approachDirection, junctionShortLabel, laneDisplayLabel, phaseService, signalMovements } from "@/simulation/scene-summary"
 import { timingLabel } from "@/simulation/render-frame-adapter"
 
 // Same bands as the map: 0 clear · 1–4 low · 5–9 moderate · 10+ high.
 const queueBand = (queue: number) => queue >= 10 ? "High" : queue >= 5 ? "Moderate" : queue >= 1 ? "Low" : "Clear"
 const readable = (text: string | null | undefined) => text ? text.replaceAll("_", " ").toLowerCase().replace(/^\w/, letter => letter.toUpperCase()) : "Unavailable"
 const seconds = (value: number | undefined) => value === undefined ? "—" : `${Math.round(value)} s`
+const svgPoints = (points: readonly VisualPoint[]) => points.map(point => `${point.x},${point.y}`).join(" ")
 
 function JunctionPhoto({ networkId, shortLabel }: { networkId: string; shortLabel: string }) {
   const photo = sitePhoto(networkId)
@@ -47,7 +50,7 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
           <TabsTrigger value="queues">Queue info</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
-        <TabsContent value="phases"><SignalPhases control={control} frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} /></TabsContent>
+        <TabsContent value="phases"><SignalPhases control={control} frame={running ? frame ?? null : null} geometry={geometry} junctionId={junctionId} approachName={approachName} /></TabsContent>
         <TabsContent value="queues"><QueueInfo frame={running ? frame : null} geometry={geometry} junctionId={junctionId} approaches={approaches} approachName={approachName} laneStreets={laneStreets} /></TabsContent>
         <TabsContent value="performance"><Performance frame={running ? frame : null} approaches={approaches} metric={metric} /></TabsContent>
       </Tabs>
@@ -55,33 +58,63 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
   </Card>
 }
 
+/** The junction's real roads and crossings; a served approach and its allowed turns light up with that lane's own engine state. */
+function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
+  frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string; approachName: (laneId: string) => string
+}) {
+  const junction = geometry.junctionById.get(junctionId)
+  if (!junction) return null
+  const movements = signalMovements(geometry, junctionId, frame)
+  const colorByLane = new Map(movements.map(movement => [movement.laneId, movement.color]))
+  const roads = geometry.lanes.filter(lane => lane.kind === "road" && lane.junctionIds.includes(junctionId))
+  // Frame what the arrows need, not the whole pavement, so a large junction zooms in as far as a small one.
+  const arrowPoints = movements.flatMap(movement => movement.turns.flat())
+  const bounds = boundsOfPoints(arrowPoints.length ? arrowPoints : junction.kerb, 0.12)
+  const lineWidth = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y) / 70
+  const flowStyle = { "--sf-turn-period": `${lineWidth * 4}px` } as CSSProperties
+  const walkLit = walkSignalState(junctionId, frame) === "walk"
+  const servedMovements = movements.filter(movement => movement.color === "green" || movement.color === "yellow")
+  const summary = servedMovements.length ? `Served: ${servedMovements.map(movement => approachName(movement.laneId)).join(", ")}` : walkLit ? "Pedestrians crossing" : "No approach is being served"
+  return <svg className="sf-mini-intersection" viewBox={`${bounds.min_x} ${-bounds.max_y} ${bounds.max_x - bounds.min_x} ${bounds.max_y - bounds.min_y}`} role="img" aria-label={summary}>
+    <defs>
+      {["green", "yellow"].map(color => <marker key={color} id={`sf-turn-arrow-${color}`} viewBox="0 0 4 4" refX="1.5" refY="2" markerWidth="3.6" markerHeight="3.6" orient="auto">
+        <path className="sf-mini-arrow" data-color={color} d="M0 0 L4 2 L0 4 Z" />
+      </marker>)}
+    </defs>
+    <g transform="scale(1 -1)">
+      <polygon className="sf-mini-road" points={svgPoints(junction.kerb)} />
+      {roads.map(road => <polygon key={road.id} className="sf-mini-road" data-color={colorByLane.get(road.id)} points={svgPoints(road.polygon)} />)}
+      {junction.crosswalks.flatMap(crosswalk => crosswalk.stripes.map((stripe, index) =>
+        <polygon key={`${crosswalk.laneId}-${index}`} className="sf-mini-zebra" data-lit={walkLit} points={svgPoints(stripe)} />))}
+      {servedMovements.flatMap(movement => movement.turns.map((turn, index) => {
+        const points = svgPoints(turn)
+        return <g key={`${movement.laneId}-${index}`}>
+          <polyline className="sf-mini-turn-casing" points={points} strokeWidth={lineWidth * 1.9} />
+          <polyline className="sf-mini-turn" data-color={movement.color} points={points} strokeWidth={lineWidth} markerEnd={`url(#sf-turn-arrow-${movement.color})`} />
+          <polyline className="sf-mini-turn-flow" points={points} strokeWidth={lineWidth * 0.5} strokeDasharray={`${lineWidth * 0.6} ${lineWidth * 3.4}`} style={flowStyle} />
+        </g>
+      }))}
+    </g>
+  </svg>
+}
+
 function SignalPhases({ control, frame, geometry, junctionId, approachName }: {
   control: RenderFrame["junction_controls"][string] | undefined; frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string; approachName: (laneId: string) => string
 }) {
-  if (!control) return <p className="sf-junction-note">Start a simulation to see the signal phases.</p>
-  if (control.mode === "first_come") return <p className="sf-junction-note">No signal — first come, first served.</p>
-  if (control.mode === "all_way_stop") return <p className="sf-junction-note">All-way stop: this junction has no signal phases.</p>
+  const signalMap = <JunctionSignalMap frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} />
+  const unsignalledNote = !control ? "Start a simulation to see the signal phases."
+    : control.mode === "first_come" ? "No signal — first come, first served."
+    : control.mode === "all_way_stop" ? "All-way stop: this junction has no signal phases." : null
+  if (!control || unsignalledNote) return <div className="flex flex-col gap-3">{signalMap}<p className="sf-junction-note">{unsignalledNote}</p></div>
   const current = phaseService(control.phase)
   const stageLength = (control.elapsed_seconds ?? 0) + (control.remaining_seconds ?? 0)
   const isRlControlled = Boolean(control.external_control)
-  const arms = signalArms(geometry, junctionId, frame)
-  const walkLit = walkSignalState(junctionId, frame) === "walk"
   return <div className="flex flex-col gap-3">
     <Progress value={stageLength > 0 ? (control.elapsed_seconds ?? 0) / stageLength * 100 : 0}>
       <ProgressLabel>Current: {current ? `${readable(current)} ${control.stage ?? ""}` : "All red (clearance)"}</ProgressLabel>
       <span className="ml-auto text-sm tabular-nums">{seconds(control.elapsed_seconds)} / {seconds(stageLength)}</span>
     </Progress>
-    <svg className="sf-mini-intersection" viewBox="-60 -60 120 120" role="img"
-      aria-label={arms.map(arm => `${approachName(arm.laneId)}: ${arm.color}`).join(", ")}>
-      {arms.map(arm => <line key={arm.laneId} className="sf-mini-road" data-color={arm.color} x1={0} y1={0} x2={arm.x * 58} y2={arm.y * 58} />)}
-      <circle className="sf-mini-junction" r={13} />
-      {arms.map(arm => <circle key={arm.laneId} className="sf-mini-light" data-color={arm.color} cx={arm.x * 28} cy={arm.y * 28} r={5}>
-        <title>{approachName(arm.laneId)}: {arm.color}</title>
-      </circle>)}
-      {control.phase_order?.includes("pedestrian")
-        ? <PersonStandingIcon className="sf-mini-walk" data-lit={walkLit} x={-8} y={-8} width={16} height={16} aria-hidden />
-        : null}
-    </svg>
+    {signalMap}
     <p className="sf-junction-note">
       {isRlControlled ? `RL-timed green: ${seconds(control.minimum_green)}–${seconds(control.maximum_green)}` : `Plan green: ${seconds(control.green_seconds)}`}
       {` · yellow ${seconds(control.yellow_seconds)} · all-red ${seconds(control.all_red_seconds)}`}

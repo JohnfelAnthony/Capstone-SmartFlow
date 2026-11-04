@@ -280,7 +280,7 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
 }
 
 /** Clip only the camera fitting sample; the displayed lane geometry remains untouched. */
-function immediateApproach(points: readonly VisualPoint[], junction: SceneJunction, distanceMetres: number) {
+export function immediateApproach(points: readonly VisualPoint[], junction: SceneJunction, distanceMetres: number) {
   if (!points.length) return []
   const ordered = distance(points[0], junction.center) <= distance(points[points.length - 1], junction.center) ? points : [...points].reverse()
   const result = [{ ...ordered[0] }]
