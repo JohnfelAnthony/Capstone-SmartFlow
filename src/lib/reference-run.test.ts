@@ -3,7 +3,7 @@ import type { SimulationRunRecord } from "@/api/simulation"
 import { comparisonKey, pickReferenceRun } from "./reference-run"
 
 const config = { traffic_density: "low", routing_mode: "adaptive", signal_plans: {} }
-const experiment = { engine_version: "native-8", network_sha256: "n1", seed: 1, duration_seconds: 300, measurement_start: 0, demand_sha256: "d1", config }
+const experiment = { engine_version: "native-9", network_sha256: "n1", seed: 1, duration_seconds: 300, measurement_start: 0, demand_sha256: "d1", config }
 const current = { experiment, activeRunId: 9 as number | null }
 
 function run(id: number, control_mode: string, changes: Record<string, unknown> = {}): SimulationRunRecord {
@@ -15,7 +15,7 @@ const noSignal = (id: number, changes: Record<string, unknown> = {}) => run(id, 
 
 describe("comparisonKey", () => {
   it("is the same for any key order and ignores only the routing mode", () => {
-    const reordered = { demand_sha256: "d1", config: { signal_plans: {}, routing_mode: "static", traffic_density: "low" }, measurement_start: 0, duration_seconds: 300, seed: 1, network_sha256: "n1", engine_version: "native-8" }
+    const reordered = { demand_sha256: "d1", config: { signal_plans: {}, routing_mode: "static", traffic_density: "low" }, measurement_start: 0, duration_seconds: 300, seed: 1, network_sha256: "n1", engine_version: "native-9" }
     expect(comparisonKey(reordered)).toBe(comparisonKey(experiment))
     expect(comparisonKey({ ...experiment, config: { ...config, traffic_density: "high" } })).not.toBe(comparisonKey(experiment))
   })

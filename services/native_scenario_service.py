@@ -1,5 +1,6 @@
 """Network-derived choices for native scenario controls; no hard-coded study IDs."""
 import copy
+import math
 
 from simulation.scenario_config import VEHICLE_MIX_PRESETS
 from simulation.traffic_engine import TrafficEngine
@@ -15,6 +16,12 @@ def network_display_labels(network):
     for index, node in enumerate(network.boundaries, 1):
         node_labels[node] = f"Boundary {index}"
     return road_names, node_labels
+
+
+def lane_direction(lane) -> str:
+    """Compass direction of travel along the lane, from its overall start to end."""
+    (x1, y1), (x2, y2) = lane.shape[0], lane.shape[-1]
+    return ("eastbound", "northbound", "westbound", "southbound")[round(math.atan2(y2-y1, x2-x1)/(math.pi/2)) % 4]
 
 
 def configuration_options(network_id: str | None = None):
@@ -38,7 +45,8 @@ def configuration_options(network_id: str | None = None):
         "network_sha256": network.fingerprint, "defaults": copy.deepcopy(engine.config),
         "junctions": junctions,
         "boundaries": [{"id": node, "label": node_labels[node]} for node in network.boundaries],
-        "lanes": [{"id": lane.id, "source": lane.source, "target": lane.target,
+        "lanes": [{"id": lane.id, "source": lane.source, "target": lane.target, "road_id": lane.id[:-1], "direction": lane_direction(lane),
+                   "kind": "entry" if lane.source in network.boundaries else "exit" if lane.target in network.boundaries else "link",
                    "road_name": road_names[lane.id[:-1]], "speed_mps": lane.speed,
                    "label": f"{road_names[lane.id[:-1]]}: {node_labels[lane.source]} to {node_labels[lane.target]} ({lane.id})"}
                   for lane in network.lanes.values()],

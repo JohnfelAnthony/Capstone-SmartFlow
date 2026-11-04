@@ -54,7 +54,8 @@ def test_no_signal_and_fixed_time_have_matching_experiment_keys():
 def test_blocked_no_signal_traffic_is_counted_by_gridlock_watchdog():
     engine = started_engine(junction_network(), signal_plans={"j": {"mode": "first_come"}})
     place(engine, ["wf", "er"], "car", from_stop_line=3, lateral=0, speed=0)
-    engine.close_lane("er", True)
+    for exit_lane in ("er", "nr", "sr"):  # with an open exit left the vehicle would divert (native-9), so close every way out
+        engine.close_lane(exit_lane, True)
     engine.step(650)
     assert engine._last_metrics["gridlock_seconds"] > 0
 

@@ -20,6 +20,12 @@ def is_study_site(network_id: str | None, root: Path | None = None) -> bool:
     return bool(network_id) and ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists()
 
 
+def study_routing_mode(network_id: str | None) -> str | None:
+    """Validation and reference runs at a study site use static routing, which only reroutes around closures. Congestion
+    rerouting could otherwise send traffic onto side streets that the field data never observed."""
+    return "static" if is_study_site(network_id) else None
+
+
 def _load_json(path: Path, label: str, reasons: list[str]):
     if not path.exists():
         reasons.append(f"no {label} ({path.name})")

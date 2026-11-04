@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import heapq
 import json
 import math
 import sys
@@ -142,10 +143,115 @@ def straighten_mouth(shape: list, mouth_m: float = JUNCTION_MOUTH_STRAIGHT_M) ->
     return kept if len(kept) >= 2 else [shape[0], shape[-1]]
 
 
+def nearest_on_shape(shape: list, point: tuple) -> tuple[float, tuple[float, float], float]:
+    """(distance along the shape, nearest point on it, how far the point is from the shape)."""
+    best, walked = None, 0.0
+    for (x1, y1), (x2, y2) in zip(shape, shape[1:]):
+        dx, dy = x2-x1, y2-y1
+        run = math.hypot(dx, dy)
+        share = max(0.0, min(1.0, ((point[0]-x1)*dx+(point[1]-y1)*dy)/(run*run)))
+        found = (x1+share*dx, y1+share*dy)
+        gap = math.dist(found, point)
+        if best is None or gap < best[2]:
+            best = (walked+share*run, found, gap)
+        walked += run
+    return best
+
+
+LOOP_CORNER_TANGENT_M = 25.0  # Provisional: drawn rounding of a sharp corner on a two-way side street; opposing bodies overlap at a square corner.
+
+
+def round_corners(shape: list, tangent_m: float = LOOP_CORNER_TANGENT_M) -> list:
+    """Replace each bend of more than 5 degrees by a smooth curve starting `tangent_m` (at most 45% of the shorter side) before it."""
+    points = [tuple(shape[0])]
+    for before, corner, after in zip(shape, shape[1:], shape[2:]):
+        to_before, to_after = math.dist(corner, before), math.dist(corner, after)
+        heading_in = math.atan2(corner[1]-before[1], corner[0]-before[0])
+        heading_out = math.atan2(after[1]-corner[1], after[0]-corner[0])
+        turn = abs(math.atan2(math.sin(heading_out-heading_in), math.cos(heading_out-heading_in)))
+        if turn < math.radians(5):
+            points.append(tuple(corner))
+            continue
+        reach = min(tangent_m, 0.45*to_before, 0.45*to_after)
+        start = (corner[0]+(before[0]-corner[0])*reach/to_before, corner[1]+(before[1]-corner[1])*reach/to_before)
+        end = (corner[0]+(after[0]-corner[0])*reach/to_after, corner[1]+(after[1]-corner[1])*reach/to_after)
+        for step in range(9):
+            t = step/8
+            points.append(tuple((1-t)**2*start[k]+2*t*(1-t)*corner[k]+t*t*end[k] for k in (0, 1)))
+    points.append(tuple(shape[-1]))
+    return points
+
+
+LOOP_ATTACH_TOLERANCE_M = 5.0  # the leg is drawn straight, so an OSM junction may sit this far off the drawn road
+LOOP_MINOR_CLASSES = frozenset({"residential", "unclassified", "living_street", "service"})
+
+
+def add_detour_loop(roads: list, nodes: list, raw: dict, coords: dict, loop: dict, *, network_id: str, number: int) -> dict:
+    """Join two legs by a side-street loop. Each end splits its leg at a new first-come junction; the leg's road nearest
+    the study junction keeps its id. Minor streets along the loop are drawn as one plain two-way road."""
+    osm_nodes = {entry["id"]: entry for entry in raw["elements"] if entry["type"] == "node"}
+    adjacency = defaultdict(dict)
+    for way in raw["elements"]:
+        tags = way.get("tags", {}) if way["type"] == "way" else {}
+        if way["type"] == "way" and tags.get("highway") in LOOP_MINOR_CLASSES and tags.get("access") not in {"private", "no"}:
+            for a, b in zip(way["nodes"], way["nodes"][1:]):
+                adjacency[a][b] = adjacency[b][a] = math.dist(coords[a], coords[b])
+    # Each stretch between the chosen OSM nodes follows the shortest minor streets, so the loop is a fixed list of nodes.
+    chain = [loop["osm_nodes"][0]]
+    for start, goal in zip(loop["osm_nodes"], loop["osm_nodes"][1:]):
+        distance, previous, queue = {start: 0.0}, {}, [(0.0, start)]
+        while queue:
+            cost, node = heapq.heappop(queue)
+            if node == goal:
+                break
+            if cost > distance[node]:
+                continue
+            for neighbour, step in adjacency[node].items():
+                if cost+step < distance.get(neighbour, math.inf):
+                    distance[neighbour], previous[neighbour] = cost+step, node
+                    heapq.heappush(queue, (cost+step, neighbour))
+        if goal not in previous:
+            raise ValueError(f"Detour loop {loop['name']!r}: no minor-street path from OSM node {start} to {goal}")
+        stretch = [goal]
+        while stretch[-1] != start:
+            stretch.append(previous[stretch[-1]])
+        chain.extend(reversed(stretch[:-1]))
+    attached = []
+    for position, osm_id in enumerate((chain[0], chain[-1])):
+        host = next((road for road in roads if osm_id in road["osm_node_ids"]), None)
+        if host is None:
+            raise ValueError(f"Detour loop {loop['name']!r}: OSM node {osm_id} is not on any modelled leg")
+        along, point, gap = nearest_on_shape([tuple(p) for p in host["shape"]], coords[osm_id])
+        if host["source"] != nodes[0]["id"]:
+            raise ValueError(f"Detour loop {loop['name']!r}: leg {host['id']} does not start at the study junction")
+        if gap > LOOP_ATTACH_TOLERANCE_M:
+            raise ValueError(f"Detour loop {loop['name']!r}: OSM node {osm_id} is {gap:.1f} m from the drawn leg")
+        junction = f"{network_id}_j{number+position}"
+        lat = nodes[0]["lat"]+point[1]/111320
+        lon = nodes[0]["lon"]+point[0]/(111320*math.cos(math.radians(nodes[0]["lat"])))
+        nodes.append({"id": junction, "x": round(point[0], 3), "y": round(point[1], 3), "lat": lat, "lon": lon, "boundary": False, "default_control_mode": "first_come"})
+        shape = [tuple(p) for p in host["shape"]]
+        inner, outer = clip(shape, 0, along), clip(shape, along, length(shape))
+        inner[-1] = outer[0] = point
+        outer_index = host["osm_node_ids"].index(osm_id)
+        roads.append({**host, "id": f"road{len(roads)}", "source": junction, "target": host["target"], "shape": [[round(x, 3), round(y, 3)] for x, y in outer],
+                      "osm_node_ids": host["osm_node_ids"][outer_index:]})
+        host.update(target=junction, shape=[[round(x, 3), round(y, 3)] for x, y in inner], osm_node_ids=host["osm_node_ids"][:outer_index+1])
+        attached.append((junction, point))
+    shape = round_corners([attached[0][1], *[coords[osm_id] for osm_id in chain[1:-1]], attached[1][1]])
+    way_ids = [next(way["id"] for way in raw["elements"] if way["type"] == "way" and a in way["nodes"] and b in way["nodes"] and way.get("tags", {}).get("highway") in LOOP_MINOR_CLASSES)
+               for a, b in zip(chain, chain[1:])]
+    roads.append({"id": f"road{len(roads)}", "source": attached[0][0], "target": attached[1][0], "shape": [[round(x, 3), round(y, 3)] for x, y in shape],
+                  "oneway": False, "name": loop["name"], "osm_way_id": way_ids[0], "osm_node_ids": chain,
+                  "osm_tags": {"highway": "residential/unclassified", "note": "minor streets joined as one plain road; OSM ways " + ", ".join(str(w) for w in dict.fromkeys(way_ids))},
+                  "speed_mps": 8.33})
+    return {"junctions": [junction for junction, _ in attached], "length_m": round(length(shape), 1)}
+
+
 def build_site_network(source_path: Path, centre: tuple[float, float], *, network_id: str, name: str,
                        join_radius_m: float = 25.0, approach_m: float = 250.0,
                        approach_overrides_m: dict[str, float] | None = None,
-                       extra_assumptions: list[str] | None = None) -> dict:
+                       extra_assumptions: list[str] | None = None, detour_loops: list[dict] | None = None) -> dict:
     """Build a provisional, isolated junction; geometry and restrictions need field review."""
     if not network_id or join_radius_m <= 0 or approach_m <= 0:
         raise ValueError("A network id and positive distances are required")
@@ -224,11 +330,30 @@ def build_site_network(source_path: Path, centre: tuple[float, float], *, networ
                           "shape": [[round(x, 3), round(y, 3)] for x, y in shape],
                           "oneway": not (forward and reverse), "name": tags.get("name", "Unnamed road"),
                           "osm_way_id": first_way["id"], "osm_node_ids": chain, "osm_tags": tags, "speed_mps": 8.33})
+    loop_assumptions = []
+    for loop in detour_loops or []:
+        added = add_detour_loop(roads, output_nodes, raw, coords, loop, network_id=network_id, number=2+len(loop_assumptions))
+        loop_assumptions += [f"Detour loop '{loop['name']}' ({added['length_m']:g} m, new junctions {' and '.join(added['junctions'])}) is provisional geometry from OpenStreetMap, not field-checked; "
+                             f"its minor streets are drawn as one plain two-way road with corners rounded over {LOOP_CORNER_TANGENT_M:g} m, and its two junctions use first-come right-of-way, not a signal.",
+                             "The loop's side streets start empty: no traffic was observed there and none is generated on them; only road closures send vehicles onto the loop."]
     assumptions = ["Lane counts from OSM lanes tags; carriageway widths need field measurement", "30 km/h study speed; not a verified posted limit", "Driveways, service roads and minor side streets along approaches are not modelled", "No traffic signal exists today; signal plans are proposals", f"Approach length {approach_m:g} m per leg unless field queue reach needs more", "Synthetic demand until Field Observer counts are imported", f"The first {JUNCTION_MOUTH_STRAIGHT_M:g} m of every leg is drawn straight from the junction, and map bends under {LEG_SIMPLIFY_TOLERANCE_M:g} m are drawn straight; check both against the road"]
-    source = {**raw["smartflow_source"], "origin": {"lat": lat, "lon": lon}, "projection": "local equirectangular, metres; study area only", "assumptions": assumptions + (extra_assumptions or [])}
+    source = {**raw["smartflow_source"], "origin": {"lat": lat, "lon": lon}, "projection": "local equirectangular, metres; study area only", "assumptions": assumptions + loop_assumptions + (extra_assumptions or [])}
     payload = {"id": network_id, "version": 1, "name": name, "source": source, "nodes": output_nodes, "roads": roads}
     RoadNetwork(payload)
     return payload
+
+
+SITE_A_CENTRE = (7.4617375, 125.8026196)
+SITE_A_NAME = "Site A — Capitol Circumferential Rd × Dalisay Gante Rd"
+# OSM nodes found by the loop survey: the Capitol Circumferential Road junction 226 m west of the study junction, the corner
+# of the residential/unclassified street, its junction with the short residential link, and the Dalisay Gante Road junction 67 m north.
+SITE_A_WEST_NORTH_LOOP = {"name": "Unnamed side street", "osm_nodes": [1387566813, 1527791811, 7116314100, 1402951602]}
+
+
+def build_site_a_network(source_path: Path, *, with_loop: bool = True) -> dict:
+    """Site A as installed (`with_loop`) or as it was with one junction (kept under data/networks/history)."""
+    return build_site_network(source_path, SITE_A_CENTRE, network_id="tagum_site_a", name=SITE_A_NAME,
+                              detour_loops=[SITE_A_WEST_NORTH_LOOP] if with_loop else None)
 
 
 if __name__ == "__main__":
@@ -243,8 +368,11 @@ if __name__ == "__main__":
     parser.add_argument("--approach-m", type=float, default=250.0)
     parser.add_argument("--approach", action="append", default=[])
     parser.add_argument("--assumption", action="append", default=[])
+    parser.add_argument("--site-a", action="store_true", help="Rebuild the installed Site A (with its West-North loop) from the cached OSM extract")
     args = parser.parse_args()
-    if args.site_b_corridor:
+    if args.site_a:
+        payload = build_site_a_network(args.source if args.source != NETWORK_PATH.with_name("tagum_osm.json") else NETWORK_PATH.with_name("osm_site_a.json"))
+    elif args.site_b_corridor:
         from tools.site_b_corridor import build_site_b_corridor
         payload = build_site_b_corridor(args.source)
     elif args.site:

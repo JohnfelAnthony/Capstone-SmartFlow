@@ -37,7 +37,7 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-8"
+ENGINE_VERSION = "native-9"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
@@ -91,6 +91,8 @@ class Signal:
     walk_interval: float = math.inf
     # One green per phase_order item; None means every phase uses green_seconds.
     phase_greens: list[float] | None = None
+    # Phase keys whose approaches are all closed to entry; the engine keeps this current and no such phase gets a green.
+    dead: frozenset = frozenset()
 
     @property
     def family(self):
@@ -128,6 +130,8 @@ class Signal:
     def request(self, family: str):
         if family not in self.approaches:
             return {"applied": False, "reason": "unavailable_approach"}
+        if family in self.dead:
+            return {"applied": False, "reason": "closed_approach"}
         if self.stage != "green":
             return {"applied": False, "reason": "clearance_in_progress"}
         self.pending = family if family != self.family else None
@@ -149,6 +153,8 @@ class Signal:
             next_index = self.approaches.index(self.pending) if self.pending else (self.index+1) % len(self.approaches)
             skip_walk = self.approaches[next_index] == "pedestrian" and self.pedestrian_phase == "on_call" and not pedestrians_waiting
             self.index = (next_index+1) % len(self.approaches) if skip_walk else next_index
+            while self.approaches[self.index] in self.dead:  # never "pedestrian", so this ends
+                self.index = (self.index+1) % len(self.approaches)
             self.stage, self.elapsed, self.pending = "green", 0, None
             self.switches += 1
 
@@ -186,6 +192,8 @@ class Vehicle:
     yaw: float = 0.0
     lateral_target: float = 0.0
     lateral_cooldown_until: float = 0.0
+    # Set once when closures leave the destination unreachable and the vehicle is sent to the best open exit.
+    diverted: bool = False
     # Sideways positions where the vehicle entered its connector and will join the exit lane; it blends between them.
     connector_entry_lateral: float = 0.0
     connector_exit_lateral: float = 0.0
@@ -327,13 +335,15 @@ class TrafficEngine:
         self.next_vehicle_time, self.next_pedestrian_time = 0.0, 6.0
         self.vehicle_serial = self.pedestrian_serial = 0
         self.pending_demand: list[Arrival] = []
-        self.completed = self.completed_pedestrians = self.reroutes = self.deferred_demand = 0
+        self.completed = self.completed_pedestrians = self.reroutes = self.deferred_demand = self.diverted_vehicles = 0
         self.completed_wait = self.completed_travel = self.completed_pedestrian_wait = 0.0
+        self._blocked_sources: tuple[frozenset, frozenset] = (frozenset(), frozenset())
         self.queue_integral = self.max_queue = 0.0
         self.metric_ticks = 0
         self.charts = {key: [] for key in ("traffic_flow", "wait_time", "queue_length", "throughput")}
         self.applied_events: set[int] = set()
         self._metrics_pending, self._metrics_snapshot = False, {}
+        self._refresh_dead_phases()
         self._refresh_metrics()
 
     @property
@@ -444,7 +454,20 @@ class TrafficEngine:
             self.closed_lanes.discard(lane_id)
         for vehicle in self.vehicles.values():
             vehicle.reroute_at = 0
+        self._refresh_dead_phases()
         self._add_event("constraint", f"Lane {lane_id} {'closed to entry' if closed else 'reopened'}")
+
+    def _refresh_dead_phases(self):
+        """Mark each signal phase whose approach lanes are all closed, so it is never given a green."""
+        for node, signal in self.signals.items():
+            signal.dead = frozenset(
+                key for key in signal.approaches if key != "pedestrian" and self.closed_lanes
+                and all(lane in self.closed_lanes for lane in self.network.incoming[node] if self.network.lanes[lane].approach in key.split("+")))
+
+    def _best_open_exit(self, node: str, previous: str | None, costs: dict | None) -> list[str]:
+        """Lanes from `node` to the cheapest exit still open, for a vehicle whose own destination can no longer be reached."""
+        exits = {boundary for boundary in self.network.boundaries if self.network.incoming[boundary]}
+        return self.network.route(node, exits - {node}, closed=self.closed_lanes, costs=costs, previous=previous)
 
     def _travel_costs(self):
         queues = self._lane_queues()
@@ -581,8 +604,15 @@ class TrafficEngine:
             if costs is None and self.config["routing_mode"] == "adaptive":
                 costs = self._travel_costs()
             route = self.network.route(arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None)
-            if route and self.add_vehicle(route, vehicle_type=arrival.vehicle_type, requested_at=arrival.time):
+            diverting = not route and bool(self.closed_lanes)
+            if diverting:
+                route = self._best_open_exit(arrival.source, None, costs if self.config["routing_mode"] == "adaptive" else None)
+            vehicle = self.add_vehicle(route, vehicle_type=arrival.vehicle_type, requested_at=arrival.time) if route else None
+            if vehicle:
                 self.pending_demand.remove(arrival)
+                if diverting:
+                    vehicle.diverted = True
+                    self.diverted_vehicles += 1
         while self.pedestrian_arrival_index < len(self.pedestrian_arrivals) and self.pedestrian_arrivals[self.pedestrian_arrival_index]["time"] <= self.simulation_time:
             trip = self.pedestrian_arrivals[self.pedestrian_arrival_index]
             self.pedestrian_arrival_index += 1
@@ -625,7 +655,12 @@ class TrafficEngine:
             walk_overdue = (signal.external and signal.pedestrian_phase == "every_cycle" and signal.family != "pedestrian"
                             and self.simulation_time-self.last_served[node]["pedestrian"] >= signal.walk_interval)
             # Bound service starvation even when a policy repeatedly asks for the same phase.
-            if signal.elapsed >= signal.maximum_green:
+            if signal.family in signal.dead:
+                next_open = next((key for key in (signal.approaches[(signal.index+step) % len(signal.approaches)] for step in range(1, len(signal.approaches)))
+                                  if key not in signal.dead), None)
+                if next_open is not None:
+                    self._request_safety_service(node, next_open, "closed_approach")
+            elif signal.elapsed >= signal.maximum_green:
                 self._request_safety_service(node, signal.approaches[(signal.index+1) % len(signal.approaches)], "maximum_green")
             elif overdue_pedestrians and signal.family != "pedestrian":
                 self._request_safety_service(node, "pedestrian", "pedestrian_wait")
@@ -1450,12 +1485,21 @@ class TrafficEngine:
         current = self.network.lanes[vehicle.route[0]]
         costs = self._travel_costs()
         alternative = self.network.route(current.target, vehicle.destination, closed=self.closed_lanes, costs=costs, previous=current.id)
+        # The destination can no longer be reached (also from the last junction before it): go to the best open exit.
+        diverting = route_blocked and not alternative
+        if diverting:
+            alternative = self._best_open_exit(current.target, current.id, costs)
         if alternative and alternative != vehicle.route[1:]:
             current_cost = sum(costs[lane] for lane in vehicle.route[1:])
             alternative_cost = sum(costs[lane] for lane in alternative)
             if route_blocked or alternative_cost < current_cost*(1-self.config["reroute_improvement"]):
                 vehicle.route = [current.id]+alternative
                 self.reroutes += 1
+                if diverting:
+                    vehicle.destination = self.network.lanes[alternative[-1]].target
+                    if not vehicle.diverted:
+                        vehicle.diverted = True
+                        self.diverted_vehicles += 1
 
     def _move_vehicle(self, vehicle: Vehicle):
         if vehicle.connector:
@@ -1611,12 +1655,30 @@ class TrafficEngine:
         signal = self.signals.get(lane.target)
         if signal is None:
             return False
+        if self._held_at_closed_exit(vehicle):
+            return True
         if signal.mode == "first_come":
             return vehicle.speed <= 0.1 and self._near_line(vehicle, lane, vehicle.position)
         if vehicle.stop_arrival is None:
             return False
         has_green = signal.mode == "signalized" and signal.stage == "green" and signal.serves(lane.approach)
         return has_green or signal.mode == "all_way_stop"
+
+    def _held_at_closed_exit(self, vehicle: Vehicle) -> bool:
+        """Stopped at its stop line because the lane it must take next is closed and no other route was found."""
+        if vehicle.connector or len(vehicle.route) < 2 or vehicle.reserved_junction or vehicle.route[1] not in self.closed_lanes or vehicle.speed > 0.1:
+            return False
+        return self._near_line(vehicle, self.network.lanes[vehicle.route[0]], vehicle.position)
+
+    def _closure_blocked_sources(self) -> frozenset:
+        """Entries whose demand cannot start at all: the entry road is closed, or no exit can be reached from it."""
+        closed = frozenset(self.closed_lanes)
+        if self._blocked_sources[0] != closed:
+            blocked = frozenset(source for source in self.network.boundaries if self.network.outgoing[source]
+                                and (all(lane in closed for lane in self.network.outgoing[source])
+                                     or not self.network.route(source, self.network.open_exits(source), closed=closed)))
+            self._blocked_sources = (closed, blocked)
+        return self._blocked_sources[1]
 
     def _gridlock_seconds(self):
         """Time with no vehicle movement while someone holds a green; normal red waits do not count."""
@@ -1692,7 +1754,11 @@ class TrafficEngine:
             "vehicle_conservation_error": self.requested_vehicles-self.lifetime_completed-len(self.vehicles)-len(self.pending_demand)-self.deferred_demand,
             "pedestrian_conservation_error": self.pedestrian_serial-self.lifetime_pedestrians_completed-len(self.pedestrians)-self.dropped_pedestrians,
             "dropped_pedestrians": self.dropped_pedestrians,
-            "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.reserved_junction and vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS),
+            "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS
+                                           and (vehicle.reserved_junction or self.closed_lanes and self._held_at_closed_exit(vehicle))),
+            "diverted_vehicles": self.diverted_vehicles,
+            "closure_blocked_vehicles": sum(1 for item in self.pending_demand if item.source in self._closure_blocked_sources()) if self.closed_lanes else 0,
+            "closure_held_vehicles": sum(1 for vehicle in self.vehicles.values() if self._held_at_closed_exit(vehicle)) if self.closed_lanes else 0,
             "gridlock_seconds": self._gridlock_seconds(),
             "boundary_wait_seconds": sum(self.simulation_time-item.time for item in self.pending_demand),
             "avg_admitted_boundary_wait": external_wait/max(1, self.completed+len(self.vehicles)),
@@ -1830,6 +1896,11 @@ class TrafficEngine:
         signal.external = True
         key = phase_slots(signal)[RL_SERVICE_ACTIONS.index(action_name)]
         result = {"applied": False, "reason": "unavailable_phase"} if key is None else signal.request(key)
+        if result["reason"] == "closed_approach":
+            # Safe by construction: the signal stays where it is. It counts as an override like the other refusals.
+            self.safety_overrides += 1
+            self.last_safety_override = {"time": self.simulation_time, "junction_id": node, "service": key, "reason": "closed_approach"}
+            self._add_event("safety", f"{node}: closed_approach refused a request for {key}")
         self.policy_decisions += 1
         self.last_policy_decision = {"time": self.simulation_time, "junction_id": node,
                                      "action": action_name, **result}

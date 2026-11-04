@@ -181,3 +181,44 @@ class LegSimplificationTests(JunctionMouthTests):
     def test_a_real_bend_keeps_its_shape(self):
         north = next(road for road in self.wobbly(12.0)["roads"] if road["osm_way_id"] == 101)
         self.assertGreater(len(north["shape"]), 2)
+
+
+class SiteALoopTests(unittest.TestCase):
+    """Site A as installed is the single-junction network plus the West-North side-street loop, and is reproducible."""
+
+    SOURCE = ROOT / "data" / "networks" / "osm_site_a.json"
+    NETWORKS = ROOT / "data" / "networks"
+
+    def build(self, **options):
+        from tools.build_study_network import build_site_a_network
+        return build_site_a_network(self.SOURCE, **options)
+
+    def test_generator_reproduces_the_installed_network(self):
+        installed = json.loads((self.NETWORKS / "tagum_site_a.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.build(), installed)
+
+    def test_generator_reproduces_the_kept_single_junction_network(self):
+        kept = json.loads((self.NETWORKS / "history" / "tagum_site_a_single_junction.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.build(with_loop=False), kept)
+
+    def test_loop_adds_two_first_come_junctions_and_keeps_the_study_junction_first(self):
+        payload = self.build()
+        network = RoadNetwork(payload)
+        self.assertEqual(network.intersections, ["tagum_site_a_j", "tagum_site_a_j2", "tagum_site_a_j3"])
+        modes = {node["id"]: node.get("default_control_mode") for node in payload["nodes"] if not node["boundary"]}
+        self.assertEqual(modes, {"tagum_site_a_j": None, "tagum_site_a_j2": "first_come", "tagum_site_a_j3": "first_come"})
+        self.assertEqual([road["id"] for road in payload["roads"][:4]], ["road0", "road1", "road2", "road3"])
+
+    def test_loop_street_is_about_275_metres_and_labelled_provisional(self):
+        payload = self.build()
+        loop = next(road for road in payload["roads"] if road["name"] == "Unnamed side street")
+        self.assertAlmostEqual(length(loop["shape"]), 275.0, delta=30)
+        assumptions = " ".join(payload["source"]["assumptions"])
+        for phrase in ("provisional", "not field-checked", "start empty", "no traffic was observed"):
+            self.assertIn(phrase, assumptions)
+
+    def test_loop_end_off_the_drawn_leg_is_refused(self):
+        from tools.build_study_network import build_site_network, SITE_A_CENTRE
+        loop = {"name": "x", "osm_nodes": [1387566813, 1527791811]}
+        with self.assertRaises(ValueError):
+            build_site_network(self.SOURCE, SITE_A_CENTRE, network_id="tagum_site_a", name="x", detour_loops=[loop])

@@ -255,7 +255,8 @@ def _run_controller_once(
     total_duration_seconds = float(warmup_seconds) + float(duration_seconds)
     if scenario.get("network_id"):
         from simulation.network_registry import engine_for_scenario
-        engine = engine_for_scenario(scenario, seed=seed)
+        from services.study_gate import study_routing_mode
+        engine = engine_for_scenario(scenario, seed=seed, routing_mode=study_routing_mode(scenario["network_id"]))
     else:
         engine = TrafficEngine(seed=seed)
         engine.configure_from_scenario(scenario)

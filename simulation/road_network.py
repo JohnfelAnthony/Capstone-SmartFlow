@@ -319,13 +319,15 @@ class RoadNetwork:
         d = (b[0] - math.cos(bh) * control_distance, b[1] - math.sin(bh) * control_distance)
         return [tuple((1-t)**3*a[k] + 3*(1-t)**2*t*c[k] + 3*(1-t)*t*t*d[k] + t**3*b[k] for k in (0, 1)) for t in (i / 20 for i in range(21))]
 
-    def route(self, source: str, destination: str, *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None) -> list[str]:
+    def route(self, source: str, destination: str | set[str], *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None) -> list[str]:
+        """Cheapest lane list to a node, or to the cheapest of several nodes; [] when none can be reached."""
         closed, costs = closed or set(), costs or {}
+        targets = {destination} if isinstance(destination, str) else destination
         queue = [(0.0, source, previous or "", [])]
         visited = set()
         while queue:
             cost, node, incoming, path = heapq.heappop(queue)
-            if node == destination:
+            if node in targets:
                 return path
             key = (node, incoming)
             if key in visited:
@@ -338,6 +340,14 @@ class RoadNetwork:
                     continue
                 heapq.heappush(queue, (cost + max(0.01, costs.get(lane_id, lane.length / lane.speed)), lane.target, lane_id, path + [lane_id]))
         return []
+
+    def open_exits(self, source: str) -> set[str]:
+        """Boundary nodes a vehicle entering at `source` could leave by: every exit but its own."""
+        return {node for node in self.boundaries if self.incoming[node] and node != source}
+
+    def has_legal_movement(self, closed: set[str]) -> bool:
+        """True when some entry can still reach some exit; U-turns are not allowed, so a few closed roads can strand everything."""
+        return any(self.route(source, self.open_exits(source), closed=closed) for source in self.boundaries if self.outgoing[source])
 
     def visual(self) -> dict:
         roads, internal_lanes, signal_groups, signals = [], [], [], []

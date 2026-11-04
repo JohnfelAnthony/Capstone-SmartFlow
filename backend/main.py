@@ -46,6 +46,7 @@ from backend.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    ClosureCheckRequest,
     MovementCountsRequest,
     NetworkRevisionPreviewRequest,
     NetworkRevisionApplyRequest,
@@ -2074,6 +2075,19 @@ def design_signal_plan(payload: SignalDesignRequest, user: dict = Depends(requir
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"network_id": network.id, "junction": junction, "plan": plan, "result": asdict(result)}
+
+
+@app.post("/api/networks/{network_id}/closure-check")
+def closure_check(network_id: str, payload: ClosureCheckRequest, user: dict = Depends(require_current_user)) -> dict:
+    """Detour status per road piece and whether the chosen closures leave any legal movement."""
+    require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
+                                  ("dashboard", "view"), ("rl-training", "view")])
+    from services.closure_check import closure_report
+    from simulation.network_registry import load_registered_network
+    try:
+        return closure_report(load_registered_network(network_id), payload.closed_lanes)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/networks")

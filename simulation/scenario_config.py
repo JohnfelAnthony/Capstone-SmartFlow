@@ -228,6 +228,16 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         if "speed_factor" in event:
             event["speed_factor"] = number(event["speed_factor"], "speed factor", .05, 1)
     result["events"].sort(key=lambda event: event["time"])
+    closed_now = set(result["closed_lanes"])
+    states = [("from the start", set(closed_now))]
+    for event in result["events"]:
+        if "closed" in event:
+            (closed_now.add if event["closed"] else closed_now.discard)(event["lane_id"])
+            states.append((f"at {event['time']:g} s", set(closed_now)))
+    for when, closed in states:
+        if closed and not network.has_legal_movement(closed):
+            raise ValueError(f"These closures leave no legal movement anywhere {when}: no vehicle could get from an entry road to an exit "
+                             "(U-turns are not allowed). Open at least one more road or direction.")
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")

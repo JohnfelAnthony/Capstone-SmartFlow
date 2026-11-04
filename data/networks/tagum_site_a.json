@@ -28,7 +28,9 @@
       "No traffic signal exists today; signal plans are proposals",
       "Approach length 250 m per leg unless field queue reach needs more",
       "Synthetic demand until Field Observer counts are imported",
-      "The first 30 m of every leg is drawn straight from the junction, and map bends under 5 m are drawn straight; check both against the road"
+      "The first 30 m of every leg is drawn straight from the junction, and map bends under 5 m are drawn straight; check both against the road",
+      "Detour loop 'Unnamed side street' (286.7 m, new junctions tagum_site_a_j2 and tagum_site_a_j3) is provisional geometry from OpenStreetMap, not field-checked; its minor streets are drawn as one plain two-way road with corners rounded over 25 m, and its two junctions use first-come right-of-way, not a signal.",
+      "The loop's side streets start empty: no traffic was observed there and none is generated on them; only road closures send vehicles onto the loop."
     ]
   },
   "nodes": [
@@ -63,6 +65,24 @@
       "x": 249.93917327948043,
       "y": 0.6840036257571019,
       "boundary": true
+    },
+    {
+      "id": "tagum_site_a_j2",
+      "x": -225.713,
+      "y": 12.814,
+      "lat": 7.461852610565219,
+      "lon": 125.80057467503833,
+      "boundary": false,
+      "default_control_mode": "first_come"
+    },
+    {
+      "id": "tagum_site_a_j3",
+      "x": 2.664,
+      "y": 67.422,
+      "lat": 7.462343160076632,
+      "lon": 125.80264373093861,
+      "boundary": false,
+      "default_control_mode": "first_come"
     }
   ],
   "roads": [
@@ -104,15 +124,15 @@
     {
       "id": "road1",
       "source": "tagum_site_a_j",
-      "target": "boundary_1",
+      "target": "tagum_site_a_j3",
       "shape": [
         [
           0.0,
           0.0
         ],
         [
-          8.469,
-          214.378
+          2.664,
+          67.422
         ]
       ],
       "oneway": false,
@@ -120,11 +140,7 @@
       "osm_way_id": 1225836056,
       "osm_node_ids": [
         1204232054,
-        1402951602,
-        6883729067,
-        14273132698,
-        14273132700,
-        1387566832
+        1402951602
       ],
       "osm_tags": {
         "alt_name": "Dalisay Gante Avenue",
@@ -143,15 +159,15 @@
     {
       "id": "road2",
       "source": "tagum_site_a_j",
-      "target": "boundary_2",
+      "target": "tagum_site_a_j2",
       "shape": [
         [
           0.0,
           0.0
         ],
         [
-          -249.579,
-          14.169
+          -225.713,
+          12.814
         ]
       ],
       "oneway": false,
@@ -161,9 +177,7 @@
         1204232054,
         7116314099,
         7116314126,
-        1387566813,
-        7883137505,
-        1282385603
+        1387566813
       ],
       "osm_tags": {
         "designation": "national_secondary_road",
@@ -264,6 +278,153 @@
         "ref": "908",
         "source:maxspeed": "PH:urban",
         "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road4",
+      "source": "tagum_site_a_j2",
+      "target": "boundary_2",
+      "shape": [
+        [
+          -225.713,
+          12.814
+        ],
+        [
+          -249.579,
+          14.169
+        ]
+      ],
+      "oneway": false,
+      "name": "Capitol Circumferential Road",
+      "osm_way_id": 1225667612,
+      "osm_node_ids": [
+        1387566813,
+        7883137505,
+        1282385603
+      ],
+      "osm_tags": {
+        "designation": "national_secondary_road",
+        "highway": "secondary",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Capitol Circumferential Road",
+        "oneway": "no",
+        "ref": "908",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road5",
+      "source": "tagum_site_a_j3",
+      "target": "boundary_1",
+      "shape": [
+        [
+          2.664,
+          67.422
+        ],
+        [
+          8.469,
+          214.378
+        ]
+      ],
+      "oneway": false,
+      "name": "Dalisay Gante Road",
+      "osm_way_id": 1225836056,
+      "osm_node_ids": [
+        1402951602,
+        6883729067,
+        14273132698,
+        14273132700,
+        1387566832
+      ],
+      "osm_tags": {
+        "alt_name": "Dalisay Gante Avenue",
+        "highway": "secondary",
+        "lane_markings": "no",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Dalisay Gante Road",
+        "old_name": "Doña Regina Dalisay Avenue",
+        "short_name": "Gante Road",
+        "source:maxspeed": "PH:urban",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road6",
+      "source": "tagum_site_a_j2",
+      "target": "tagum_site_a_j3",
+      "shape": [
+        [
+          -225.713,
+          12.814
+        ],
+        [
+          -221.845,
+          62.645
+        ],
+        [
+          -221.125,
+          67.613
+        ],
+        [
+          -219.79,
+          71.866
+        ],
+        [
+          -217.841,
+          75.405
+        ],
+        [
+          -215.278,
+          78.229
+        ],
+        [
+          -212.101,
+          80.338
+        ],
+        [
+          -208.309,
+          81.733
+        ],
+        [
+          -203.903,
+          82.413
+        ],
+        [
+          -198.883,
+          82.378
+        ],
+        [
+          -172.84,
+          80.462
+        ],
+        [
+          -44.548,
+          71.022
+        ],
+        [
+          2.664,
+          67.422
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed side street",
+      "osm_way_id": 126583128,
+      "osm_node_ids": [
+        1387566813,
+        1527791811,
+        7116314125,
+        7116314100,
+        1402951602
+      ],
+      "osm_tags": {
+        "highway": "residential/unclassified",
+        "note": "minor streets joined as one plain road; OSM ways 126583128, 126583134"
       },
       "speed_mps": 8.33
     }

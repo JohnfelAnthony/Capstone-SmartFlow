@@ -1,5 +1,5 @@
 {
-  "version": "native-metric-interpretation-4",
+  "version": "native-metric-interpretation-5",
   "scope": "Native network; per-junction telemetry is separate from whole-network summaries.",
   "window": "Metrics have different windows. Read each definition: measurement reset affects stopped waits/completions/queues, while demand accounting remains cumulative since run start.",
   "unsupported": {
@@ -464,7 +464,7 @@
       "unit": "vehicles",
       "aliases": [],
       "population": "Active vehicles holding a junction reservation.",
-      "definition": "Vehicles that hold a junction reservation and have been stopped for more than 30 s. The entry rule guarantees room to clear the junction, so any non-zero value indicates an engine fault, not traffic.",
+      "definition": "Vehicles that hold a junction reservation and have been stopped for more than 30 s, plus (from native-9) vehicles held at their stop line for more than 30 s because every lane they could take next is closed. The entry rule guarantees room to clear the junction, so a non-zero count of reserved vehicles indicates an engine fault; a non-zero count held at a closed exit means the closures stranded them.",
       "population_keys": [],
       "requires_ticks": false,
       "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
@@ -509,7 +509,46 @@
       "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
       "unavailable": "Missing or non-finite values are unavailable.",
       "requires_elapsed": false
+    },
+    {
+      "key": "diverted_vehicles",
+      "label": "Vehicles diverted by a closure",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Admitted vehicles whose destination became unreachable because of closed lanes.",
+      "definition": "Cumulative count since run start of vehicles sent to the best open exit instead of their own destination, at spawn or mid-trip, including a vehicle already past its last turn-off. Each vehicle is counted once. These trips end at a different boundary than the demand asked for.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "closure_blocked_vehicles",
+      "label": "Demand blocked by a closure",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Pending boundary requests that cannot start.",
+      "definition": "Current count of waiting requests whose entry road is closed, or from whose entry no exit can be reached. They stay pending (and in unfinished_vehicles) until the closure ends; they are not dropped or hidden.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "closure_held_vehicles",
+      "label": "Vehicles held at a closed exit",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Active vehicles stopped at a stop line whose next lane is closed.",
+      "definition": "Current count of vehicles standing at their stop line because the lane they must take next is closed and no other route was found. Held for more than 30 s they also count in stuck_junction_vehicles.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
     }
   ],
-  "engine_version": "native-8"
+  "engine_version": "native-9"
 }

@@ -136,3 +136,24 @@ def with_exit_distances(mapping):
         if item["role"] == "exit":
             item["distance_from_junction_m"] = 100.0
     return mapping
+
+
+def test_measures_follow_a_leg_through_the_loop_junction_at_site_a():
+    """Site A's west leg passes a first-come loop junction before the study junction; the leg is still keyed by its boundary."""
+    from simulation.network_registry import load_registered_network
+    network = load_registered_network("tagum_site_a")
+    mapping = {"locations": {
+        "arrival_w": {"role": "arrival", "boundary": "boundary_2", "approach_id": "west", "distance_from_junction_m": 100.0},
+        "stop_w": {"role": "stopline", "boundary": "boundary_2", "approach_id": "west"},
+        "priority_w": {"role": "priority", "boundary": "boundary_2", "approach_id": "west", "distance_from_junction_m": 30.0},
+        "exit_e": {"role": "exit", "boundary": "boundary_3", "distance_from_junction_m": 100.0}},
+        "lead_out_s": 120.0, "movement_conflicts": {"identity": "v1", "pairs": []}}
+    criteria = {**CRITERIA, "approaches": ["boundary_2"]}
+
+    def make(seed):
+        engine = TrafficEngine(seed=seed, network=network)
+        engine.configure(traffic_density="none", pedestrian_density="none", trips=[trip(1, "boundary_2", "boundary_3")], routing_mode="static")
+        return engine
+    result = sv.simulated_measures({}, mapping, seeds=(101,), origin_s=0.0, start_s=0.0, end_s=150.0, criteria=criteria, engine_factory=make)
+    assert sum(item["value"] for item in result["discharge"]["boundary_2"].values()) == 1
+    assert (result["travel_time"]["count"], result["travel_time"]["unfinished"]) == (1, 0)
