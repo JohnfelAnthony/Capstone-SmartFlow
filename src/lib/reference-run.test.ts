@@ -14,9 +14,10 @@ const fixed = (id: number, changes: Record<string, unknown> = {}) => run(id, "fi
 const noSignal = (id: number, changes: Record<string, unknown> = {}) => run(id, "no-signal", changes)
 
 describe("comparisonKey", () => {
-  it("is the same for any key order and ignores only the routing mode", () => {
+  it("is the same for any key order and differs by routing mode", () => {
     const reordered = { demand_sha256: "d1", config: { signal_plans: {}, routing_mode: "static", traffic_density: "low" }, measurement_start: 0, duration_seconds: 300, seed: 1, network_sha256: "n1", engine_version: "native-9" }
-    expect(comparisonKey(reordered)).toBe(comparisonKey(experiment))
+    expect(comparisonKey(reordered)).not.toBe(comparisonKey(experiment))
+    expect(comparisonKey({ ...reordered, config: { ...reordered.config, routing_mode: "adaptive" } })).toBe(comparisonKey(experiment))
     expect(comparisonKey({ ...experiment, config: { ...config, traffic_density: "high" } })).not.toBe(comparisonKey(experiment))
   })
 })
@@ -31,8 +32,8 @@ describe("pickReferenceRun", () => {
     expect(pickReferenceRun([noSignal(4, { demand_sha256: "before-edit" }), fixed(3, { config: { ...config, traffic_density: "high" } })], current)).toBeNull())
   it("ignores a different measurement window or duration", () =>
     expect(pickReferenceRun([noSignal(4, { measurement_start: 60 }), noSignal(5, { duration_seconds: 600 })], current)).toBeNull())
-  it("routing mode alone does not break the match", () =>
-    expect(pickReferenceRun([noSignal(4, { config: { ...config, routing_mode: "static" } })], current)?.run.id).toBe(4))
+  it("never pairs a run that routed differently", () =>
+    expect(pickReferenceRun([noSignal(4, { config: { ...config, routing_mode: "static" } })], current)).toBeNull())
   it("never offers an RL run as a reference", () => expect(pickReferenceRun([run(3, "ql:7")], current)).toBeNull())
   it("finds nothing without a saved experiment on the current run", () => expect(pickReferenceRun([fixed(5)], { experiment: {}, activeRunId: null })).toBeNull())
 })

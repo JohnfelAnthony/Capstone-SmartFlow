@@ -158,26 +158,30 @@ def nearest_on_shape(shape: list, point: tuple) -> tuple[float, tuple[float, flo
     return best
 
 
-LOOP_CORNER_TANGENT_M = 25.0  # Provisional: drawn rounding of a sharp corner on a two-way side street; opposing bodies overlap at a square corner.
+LOOP_BEND_RADIUS_M = 25.0  # Provisional: radius of a circular bend on a two-way side street. A 10 m bus on a 3.3 m lane swings its ends sideways by about length^2/(8 x radius); tests/test_site_a_loop.py checks that opposing bodies still clear.
 
 
-def round_corners(shape: list, tangent_m: float = LOOP_CORNER_TANGENT_M) -> list:
-    """Replace each bend of more than 5 degrees by a smooth curve starting `tangent_m` (at most 45% of the shorter side) before it."""
+def round_corners(shape: list, radius_m: float = LOOP_BEND_RADIUS_M) -> list:
+    """Replace each bend of more than 5 degrees by a circular arc of `radius_m`, or the largest radius that fits within 90% of the shorter side."""
     points = [tuple(shape[0])]
     for before, corner, after in zip(shape, shape[1:], shape[2:]):
         to_before, to_after = math.dist(corner, before), math.dist(corner, after)
-        heading_in = math.atan2(corner[1]-before[1], corner[0]-before[0])
-        heading_out = math.atan2(after[1]-corner[1], after[0]-corner[0])
-        turn = abs(math.atan2(math.sin(heading_out-heading_in), math.cos(heading_out-heading_in)))
+        into = ((corner[0]-before[0])/to_before, (corner[1]-before[1])/to_before)
+        out = ((after[0]-corner[0])/to_after, (after[1]-corner[1])/to_after)
+        turn = math.acos(max(-1.0, min(1.0, into[0]*out[0]+into[1]*out[1])))
         if turn < math.radians(5):
             points.append(tuple(corner))
             continue
-        reach = min(tangent_m, 0.45*to_before, 0.45*to_after)
-        start = (corner[0]+(before[0]-corner[0])*reach/to_before, corner[1]+(before[1]-corner[1])*reach/to_before)
-        end = (corner[0]+(after[0]-corner[0])*reach/to_after, corner[1]+(after[1]-corner[1])*reach/to_after)
-        for step in range(9):
-            t = step/8
-            points.append(tuple((1-t)**2*start[k]+2*t*(1-t)*corner[k]+t*t*end[k] for k in (0, 1)))
+        side = 1 if into[0]*out[1]-into[1]*out[0] > 0 else -1
+        reach = min(radius_m*math.tan(turn/2), 0.9*to_before, 0.9*to_after)
+        radius = reach/math.tan(turn/2)
+        start = (corner[0]-into[0]*reach, corner[1]-into[1]*reach)
+        centre = (start[0]-side*into[1]*radius, start[1]+side*into[0]*radius)
+        steps = math.ceil(turn/math.radians(5))
+        for step in range(steps+1):
+            angle = side*turn*step/steps
+            points.append((centre[0]+(start[0]-centre[0])*math.cos(angle)-(start[1]-centre[1])*math.sin(angle),
+                           centre[1]+(start[0]-centre[0])*math.sin(angle)+(start[1]-centre[1])*math.cos(angle)))
     points.append(tuple(shape[-1]))
     return points
 
@@ -334,7 +338,7 @@ def build_site_network(source_path: Path, centre: tuple[float, float], *, networ
     for loop in detour_loops or []:
         added = add_detour_loop(roads, output_nodes, raw, coords, loop, network_id=network_id, number=2+len(loop_assumptions))
         loop_assumptions += [f"Detour loop '{loop['name']}' ({added['length_m']:g} m, new junctions {' and '.join(added['junctions'])}) is provisional geometry from OpenStreetMap, not field-checked; "
-                             f"its minor streets are drawn as one plain two-way road with corners rounded over {LOOP_CORNER_TANGENT_M:g} m, and its two junctions use first-come right-of-way, not a signal.",
+                             f"its minor streets are drawn as one plain two-way road with bends drawn as circular arcs of {LOOP_BEND_RADIUS_M:g} m radius, and its two junctions use first-come right-of-way, not a signal.",
                              "The loop's side streets start empty: no traffic was observed there and none is generated on them; only road closures send vehicles onto the loop."]
     assumptions = ["Lane counts from OSM lanes tags; carriageway widths need field measurement", "30 km/h study speed; not a verified posted limit", "Driveways, service roads and minor side streets along approaches are not modelled", "No traffic signal exists today; signal plans are proposals", f"Approach length {approach_m:g} m per leg unless field queue reach needs more", "Synthetic demand until Field Observer counts are imported", f"The first {JUNCTION_MOUTH_STRAIGHT_M:g} m of every leg is drawn straight from the junction, and map bends under {LEG_SIMPLIFY_TOLERANCE_M:g} m are drawn straight; check both against the road"]
     source = {**raw["smartflow_source"], "origin": {"lat": lat, "lon": lon}, "projection": "local equirectangular, metres; study area only", "assumptions": assumptions + loop_assumptions + (extra_assumptions or [])}

@@ -12,18 +12,7 @@ import sys
 from pathlib import Path
 
 from services import site_validation as sv
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def is_study_site(network_id: str | None, root: Path | None = None) -> bool:
-    return bool(network_id) and ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists()
-
-
-def study_routing_mode(network_id: str | None) -> str | None:
-    """Validation and reference runs at a study site use static routing, which only reroutes around closures. Congestion
-    rerouting could otherwise send traffic onto side streets that the field data never observed."""
-    return "static" if is_study_site(network_id) else None
+from simulation.scenario_config import ROOT, is_study_site  # noqa: F401  (is_study_site is re-exported)
 
 
 def _load_json(path: Path, label: str, reasons: list[str]):

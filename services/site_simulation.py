@@ -182,9 +182,8 @@ def _aggregate(runs: list[dict]) -> dict:
 
 def validation_engine(scenario: dict, seed: int):
     """The scenario's engine with static routing, so only closures (never congestion) move traffic onto side streets."""
-    from services.study_gate import study_routing_mode  # imported here: study_gate imports this module
     from simulation.network_registry import engine_for_scenario
-    return engine_for_scenario(scenario, seed=seed, routing_mode=study_routing_mode(scenario.get("network_id")) or "static")
+    return engine_for_scenario(scenario, seed=seed, routing_mode="static")
 
 
 def simulated_measures(scenario: dict, mapping: dict, *, seeds, origin_s: float, start_s: float, end_s: float, criteria: dict, engine_factory=None) -> dict:

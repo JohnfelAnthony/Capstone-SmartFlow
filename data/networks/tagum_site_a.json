@@ -29,7 +29,7 @@
       "Approach length 250 m per leg unless field queue reach needs more",
       "Synthetic demand until Field Observer counts are imported",
       "The first 30 m of every leg is drawn straight from the junction, and map bends under 5 m are drawn straight; check both against the road",
-      "Detour loop 'Unnamed side street' (286.7 m, new junctions tagum_site_a_j2 and tagum_site_a_j3) is provisional geometry from OpenStreetMap, not field-checked; its minor streets are drawn as one plain two-way road with corners rounded over 25 m, and its two junctions use first-come right-of-way, not a signal.",
+      "Detour loop 'Unnamed side street' (284.2 m, new junctions tagum_site_a_j2 and tagum_site_a_j3) is provisional geometry from OpenStreetMap, not field-checked; its minor streets are drawn as one plain two-way road with bends drawn as circular arcs of 25 m radius, and its two junctions use first-come right-of-way, not a signal.",
       "The loop's side streets start empty: no traffic was observed there and none is generated on them; only road closures send vehicles onto the loop."
     ]
   },
@@ -364,40 +364,80 @@
           12.814
         ],
         [
-          -221.845,
-          62.645
+          -222.119,
+          59.121
         ],
         [
-          -221.125,
-          67.613
+          -221.856,
+          61.281
         ],
         [
-          -219.79,
-          71.866
+          -221.407,
+          63.409
         ],
         [
-          -217.841,
-          75.405
+          -220.774,
+          65.491
         ],
         [
-          -215.278,
-          78.229
+          -219.963,
+          67.509
         ],
         [
-          -212.101,
-          80.338
+          -218.979,
+          69.45
         ],
         [
-          -208.309,
-          81.733
+          -217.831,
+          71.297
         ],
         [
-          -203.903,
-          82.413
+          -216.526,
+          73.038
         ],
         [
-          -198.883,
-          82.378
+          -215.075,
+          74.658
+        ],
+        [
+          -213.488,
+          76.147
+        ],
+        [
+          -211.778,
+          77.491
+        ],
+        [
+          -209.958,
+          78.682
+        ],
+        [
+          -208.041,
+          79.711
+        ],
+        [
+          -206.042,
+          80.568
+        ],
+        [
+          -203.976,
+          81.249
+        ],
+        [
+          -201.858,
+          81.748
+        ],
+        [
+          -199.705,
+          82.06
+        ],
+        [
+          -197.534,
+          82.184
+        ],
+        [
+          -195.359,
+          82.119
         ],
         [
           -172.84,

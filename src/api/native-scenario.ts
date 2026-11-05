@@ -61,6 +61,8 @@ export type NativeScenarioOptions = {
   network_name: string
   network_sha256: string
   defaults: NativeScenarioConfig
+  /** Set when the network fixes the routing mode (study sites reroute around closures only, never around congestion). */
+  fixed_routing_mode?: "static" | null
   junctions: Array<{ id: string; label: string; approaches: string[]; default_plan: SignalPlan }>
   boundaries: Array<{ id: string; label: string }>
   lanes: Array<{ id: string; label: string; road_name: string; source: string; target: string; speed_mps: number

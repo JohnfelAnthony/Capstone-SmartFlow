@@ -17,11 +17,11 @@ from .scenario_config import (DEFAULT_PEDESTRIAN_PHASE, DEFAULTS, SITE_CALIBRATI
                               validate_config, walk_red_seconds)
 from .demand import Arrival, build_schedule, schedule_hash
 from .footprints import rectangle, rectangles_overlap
-from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, KEEPING_WEIGHT_PER_M, LANE_KEEPING_CLASSES, LATERAL_DECISION_TICKS,
+from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, EDGE_CLEARANCE_M, KEEPING_WEIGHT_PER_M, LANE_KEEPING_CLASSES, LATERAL_DECISION_TICKS,
                             MAX_YAW_DEGREES, MOTORCYCLE_SHUFFLE_MPS, MOVE_COOLDOWN_SECONDS, MOVE_COST_PER_M, MOVE_GAIN_THRESHOLD_M,
                             ROOM_HORIZON_M, SIDE_CLEARANCE_M, TURN_SIDE_DISTANCE_M, TURN_SIDE_WEIGHT_PER_M, bands_overlap, body_box,
                             candidate_laterals, keeping_position, lateral_bounds, sample_driver, sub_lane_of)
-from .road_network import NETWORK_ID, SHARP_TURN_DEGREES, RoadNetwork, length, load_network, sample
+from .road_network import NETWORK_ID, SHARP_TURN_DEGREES, RoadNetwork, body_swing, length, load_network, sample
 
 STEP_LENGTH = 0.1
 # A turning body sweeps across the centre line beside the opposite stop line; vehicles this close to their stop line
@@ -238,6 +238,9 @@ class TrafficEngine:
             raise ValueError("Seed must be an integer")
         self.seed = int(validated_seed)
         self.network = network or load_network()
+        # Width left for a body's sideways positions: a lane with a bend gives up 'swing / 2' each side (see lateral_limits).
+        longest_body = max(spec["length"] for spec in VEHICLE_TYPES.values())
+        self._room_width = {lane_id: lane.width-2*max(0.0, body_swing(lane.shape, longest_body)/2-EDGE_CLEARANCE_M) for lane_id, lane in self.network.lanes.items()}
         self.intersection_id = self.network.id
         self.controlled_junction = self.network.intersections[0]
         self.traffic_density = "single"
@@ -547,10 +550,15 @@ class TrafficEngine:
         """Lane -> (rear, lateral, width) of vehicles on lanes, so spawn checks skip a scan of every vehicle."""
         occupancy: dict[str, list[tuple[float, float, float]]] = {}
         for other in self.vehicles.values():
-            if not other.connector:
-                other_length, other_width = self._box(other)
-                occupancy.setdefault(other.route[0], []).append((other.position-other_length/2, other.lateral, other_width))
+            occupancy.setdefault(other.route[0], []).append(self._entry_occupant(other))
         return occupancy
+
+    def _entry_occupant(self, other: Vehicle) -> tuple[float, float, float]:
+        """(rear, lateral, width) of a vehicle on its lane; one in the junction still has its rear on the lane until it has moved half its length along the connector."""
+        other_length, other_width = self._box(other)
+        if other.connector is None:
+            return other.position-other_length/2, other.lateral, other_width
+        return other.position+other.connector_position-other_length/2, other.lateral, other_width
 
     def _entry_lateral(self, lane_id: str, vehicle_type: str) -> float | None:
         """Sideways entry position with room at the lane start, or None when every allowed position is blocked."""
@@ -561,18 +569,17 @@ class TrafficEngine:
         if self._spawn_occupancy is not None:
             occupancy = self._spawn_occupancy.get(lane_id, [])
         else:
-            occupancy = [(other.position-self._box(other)[0]/2, other.lateral, self._box(other)[1])
-                         for other in self.vehicles.values() if not other.connector and other.route[0] == lane_id]
+            occupancy = [self._entry_occupant(other) for other in self.vehicles.values() if other.route[0] == lane_id]
 
         def room(lateral):
             return min((rear for rear, other_lateral, other_width in occupancy
                         if bands_overlap(lateral, spec["width"], other_lateral, other_width)), default=math.inf)
         if vehicle_type in LANE_KEEPING_CLASSES:
-            positions = [keeping_position(vehicle_type, spec["width"], lane.width, lane.lane_count, sub_lane) for sub_lane in range(lane.lane_count)]
+            positions = [keeping_position(vehicle_type, spec["width"], self._room_width[lane.id], lane.lane_count, sub_lane) for sub_lane in range(lane.lane_count)]
             candidates = [positions[index] for index in sorted(range(len(positions)), key=lambda index: (-room(positions[index]), index))]
         else:
             # Tricycles and motorcycles take the free position nearest the kerb.
-            candidates = list(reversed(candidate_laterals(lane.width, spec["width"])))
+            candidates = list(reversed(candidate_laterals(self._room_width[lane.id], spec["width"])))
         return next((lateral for lateral in candidates if room(lateral) >= needed), None)
 
     def _spawn_demand(self):
@@ -842,11 +849,15 @@ class TrafficEngine:
             return vehicle.connector_position
         return vehicle.position-self.network.lanes[vehicle.route[0]].length
 
+    def lateral_limits(self, lane_id: str, vehicle_width: float) -> tuple[float, float]:
+        """Sideways range of a body's centre across the lane. A bend makes the straight bodies of the two opposing lanes swing their ends toward each other, so a lane with one keeps its bodies further from its edges."""
+        return lateral_bounds(self._room_width[lane_id], vehicle_width)
+
     def _exit_lateral(self, vehicle: Vehicle) -> float:
         """Where the vehicle joins its exit lane: its own sideways position, limited to that lane's width."""
         if vehicle.connector is not None:
             return vehicle.connector_exit_lateral
-        low, high = lateral_bounds(self.network.lanes[vehicle.route[1]].width, vehicle.width)
+        low, high = self.lateral_limits(vehicle.route[1], vehicle.width)
         return min(high, max(low, vehicle.lateral))
 
     def _paths_merge(self, a: Vehicle, b: Vehicle) -> bool:
@@ -1109,11 +1120,11 @@ class TrafficEngine:
         neighbours = self._lane_neighbours(vehicle, lane)
         front = vehicle.position+self._box(vehicle)[0]/2
         cap = ROOM_HORIZON_M if self._may_proceed_now(vehicle, lane) else min(ROOM_HORIZON_M, lane.length-front)
-        low, high = lateral_bounds(lane.width, vehicle.width)
+        low, high = self.lateral_limits(lane.id, vehicle.width)
         turn_side = self._turn_side(lane.id, vehicle.route[1]) if len(vehicle.route) > 1 else 0
         near_line = lane.length-(vehicle.position+vehicle.length/2) <= TURN_SIDE_DISTANCE_M
         # With full room ahead, at its keeping position and no turn-side pull, no candidate can gain the threshold.
-        keep_here = keeping_position(vehicle.vehicle_type, vehicle.width, lane.width, lane.lane_count, sub_lane_of(vehicle.lateral, lane.width, lane.lane_count))
+        keep_here = keeping_position(vehicle.vehicle_type, vehicle.width, self._room_width[lane.id], lane.lane_count, sub_lane_of(vehicle.lateral, self._room_width[lane.id], lane.lane_count))
         if not (turn_side and near_line) and (keep_here is None or keep_here == vehicle.lateral):
             # Nothing can beat the current position when it already has all the room the line allows, or when its
             # nearest obstacle also blocks the bands at both lane edges (and so every candidate band between them).
@@ -1130,13 +1141,13 @@ class TrafficEngine:
 
         def score(lateral):
             value = self._lateral_room(vehicle, lane, lateral, rears=rears, cap=cap)-MOVE_COST_PER_M*abs(lateral-vehicle.lateral)
-            keep = keeping_position(vehicle.vehicle_type, vehicle.width, lane.width, lane.lane_count, sub_lane_of(lateral, lane.width, lane.lane_count))
+            keep = keeping_position(vehicle.vehicle_type, vehicle.width, self._room_width[lane.id], lane.lane_count, sub_lane_of(lateral, self._room_width[lane.id], lane.lane_count))
             if keep is not None:
                 value -= KEEPING_WEIGHT_PER_M*abs(lateral-keep)
             if turn_side and near_line:
                 value -= TURN_SIDE_WEIGHT_PER_M*abs(lateral-(low if turn_side < 0 else high))
             return value
-        scores = {lateral: score(lateral) for lateral in candidate_laterals(lane.width, vehicle.width)}
+        scores = {lateral: score(lateral) for lateral in candidate_laterals(self._room_width[lane.id], vehicle.width)}
         best = max(scores, key=lambda lateral: (scores[lateral], -abs(lateral-vehicle.lateral)))
         current = scores[vehicle.lateral] if vehicle.lateral in scores else score(vehicle.lateral)
         if best != vehicle.lateral and scores[best] >= current+MOVE_GAIN_THRESHOLD_M and self._side_clear(vehicle, lane, vehicle.lateral, best, neighbours):
@@ -1146,7 +1157,7 @@ class TrafficEngine:
         """The body turned by yaw at lateral stays on the road, keeps ALONGSIDE_GAP_M from every neighbour alongside it, does not become the
         leader of a committed follower and enters no sweep."""
         along, across = body_box(vehicle.length, vehicle.width, yaw)
-        low, high = lateral_bounds(lane.width, across, edge_clearance=0)
+        low, high = lateral_bounds(self._room_width[lane.id], across, edge_clearance=0)
         if not low-1e-9 <= lateral <= high+1e-9:
             return False
         if any(abs(position-vehicle.position) < (along+other_length)/2 and bands_overlap(lateral, across, other_lateral, other_width, clearance=ALONGSIDE_GAP_M)
@@ -1244,8 +1255,8 @@ class TrafficEngine:
                     if not self.network.turn_allowed(incoming, outgoing):
                         continue
                     for spec in VEHICLE_TYPES.values():
-                        entry_low, entry_high = lateral_bounds(self.network.lanes[incoming].width, spec["width"])
-                        exit_low, exit_high = lateral_bounds(self.network.lanes[outgoing].width, spec["width"])
+                        entry_low, entry_high = self.lateral_limits(incoming, spec["width"])
+                        exit_low, exit_high = self.lateral_limits(outgoing, spec["width"])
                         for entry in {entry_low, entry_high, min(entry_high, max(entry_low, 0.0))}:
                             bodies += [(incoming, corners, box) for _, corners, box in self._build_sweep(
                                 incoming, outgoing, entry, min(exit_high, max(exit_low, entry)), spec["length"], spec["width"])]

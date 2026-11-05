@@ -8,6 +8,14 @@ import json
 import math
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def is_study_site(network_id: str | None, root: Path | None = None) -> bool:
+    """A network is a study site when `data/sites/<id>_mapping.json` exists."""
+    return bool(network_id) and ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists()
+
+
 VEHICLE_TYPES = {
     "car": {"length": 4.5, "width": 1.8, "speed_factor": 1.0},
     "motorcycle": {"length": 2.0, "width": 0.8, "speed_factor": 1.0},
@@ -202,6 +210,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             raise ValueError(f"Unsupported {key}")
     if not isinstance(result["routing_mode"], str) or result["routing_mode"] not in {"adaptive", "static"}:
         raise ValueError("routing_mode must be adaptive or static")
+    if is_study_site(network.id):
+        # Every path (live, training, evaluation, validation, recording) validates through here. At a study site "adaptive" would mean
+        # congestion rerouting onto side streets no field data has observed, so only closures reroute traffic.
+        result["routing_mode"] = "static"
     for key, low, high in (("green_seconds", 5, 180), ("reroute_interval", 1, 300),
                            ("reroute_improvement", 0, .9), ("pedestrian_speed", .3, 3),
                            ("crossing_length", 2, 50), ("pedestrian_max_wait", 10, 600),

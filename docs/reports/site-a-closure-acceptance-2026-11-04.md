@@ -1,5 +1,7 @@
 # Site A West → North loop and road closures: acceptance, 4 November 2026
 
+> **Superseded by [`site-a-closure-acceptance-2026-11-05.md`](site-a-closure-acceptance-2026-11-05.md).** The "zero overlaps" below holds only for the 16 runs listed (seeds 101 and 102, static routing). Other seeds overlapped on the loop street, and the loop's bend, the engine's sideways room on a bent lane and the entry check were then changed, so the network fingerprint `50d5d78b…` and these numbers describe a network that is no longer installed. Kept unchanged below as the record of what was run.
+
 **Evidence kind: synthetic demand only.** Seeded demand with the provisional Tagum vehicle mix; no field counts. Site A's loop is provisional OpenStreetMap geometry, not field-checked, and its side streets start empty (no traffic observed or generated there). Nothing here is field validation or a claim about real traffic.
 
 - Engine `native-9`, source commit `fb6e3f9` (code unchanged since; later commits add only this report and documentation).

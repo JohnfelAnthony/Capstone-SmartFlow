@@ -7,7 +7,6 @@ boundary stub beyond it, road1 is study junction -> north loop junction, road5 t
 import pytest
 
 from services.movement_counts import approach_boundaries
-from services.study_gate import study_routing_mode
 from simulation.network_registry import engine_for_scenario, load_registered_network
 from simulation.scenario_config import DEFAULTS, validate_config
 from simulation.traffic_engine import TrafficEngine
@@ -94,11 +93,9 @@ def test_the_loop_has_a_detour_for_each_piece_it_bypasses():
     assert not pieces["road3f"]["has_detour"] and not pieces["road4r"]["has_detour"]
 
 
-def test_study_site_validation_and_reference_runs_use_static_routing():
-    assert study_routing_mode(SITE) == "static" and study_routing_mode("tagum_network") is None
+def test_every_engine_at_the_study_site_uses_static_routing():
     scenario = {"network_id": SITE, "engine_config": {"routing_mode": "adaptive"}}
-    assert engine_for_scenario(scenario, seed=101).config["routing_mode"] == "adaptive"
-    assert engine_for_scenario(scenario, seed=101, routing_mode="static").config["routing_mode"] == "static"
+    assert engine_for_scenario(scenario, seed=101).config["routing_mode"] == "static"
 
 
 def test_site_validation_builds_its_engines_with_static_routing():
@@ -113,3 +110,64 @@ def test_static_routing_never_sends_open_road_traffic_onto_the_loop():
     engine.step(6000)
     assert engine._last_metrics["reroutes"] == 0
     assert engine._last_metrics["lanes"]["road6f"]["exits"] == 0 and engine._last_metrics["lanes"]["road6r"]["exits"] == 0
+
+
+def test_opposing_bodies_never_overlap_anywhere_on_the_loop_street_bend():
+    """Straight bodies on a curved lane swing their ends sideways; at every stagger and every sideways position the engine allows, two opposing bodies must still be apart."""
+    import math
+    from simulation.footprints import rectangle, rectangles_overlap
+    from simulation.road_network import sample
+    from simulation.traffic_engine import VEHICLE_TYPES
+
+    engine = TrafficEngine(network=load_registered_network(SITE))
+    forward, backward = engine.network.lanes["road6f"], engine.network.lanes["road6r"]
+    across = [(q, *sample(backward.shape, q)[:2]) for q in (index*0.25 for index in range(int(backward.length/0.25)+1))]
+
+    def body(lane, position, spec, lateral):
+        x, y, heading = sample(lane.shape, position)
+        return rectangle(x+math.sin(heading)*lateral, y-math.cos(heading)*lateral, heading, spec["length"], spec["width"])
+
+    overlaps = []
+    kinds = sorted(VEHICLE_TYPES)
+    for index, first in enumerate(kinds):
+        for second in kinds[index:]:
+            a_spec, b_spec = VEHICLE_TYPES[first], VEHICLE_TYPES[second]
+            a_low = engine.lateral_limits("road6f", a_spec["width"])[0]
+            b_low = engine.lateral_limits("road6r", b_spec["width"])[0]
+            for a_lateral, b_lateral in ((a_low, b_low), (0.0, 0.0), (a_low, 0.0), (0.0, b_low)):
+                for position in range(3, int(forward.length), 3):
+                    x, y, _ = sample(forward.shape, position)
+                    opposite = min(across, key=lambda row: (row[1]-x)**2+(row[2]-y)**2)[0]
+                    for stagger in range(-12, 13):
+                        if 0 <= opposite+stagger <= backward.length and rectangles_overlap(
+                                body(forward, position, a_spec, a_lateral), body(backward, opposite+stagger, b_spec, b_lateral)):
+                            overlaps.append((first, second, a_lateral, b_lateral, position, stagger))
+    assert overlaps == [], f"{len(overlaps)} overlapping placements, first {overlaps[:3]}"
+
+
+def test_only_a_bent_lane_gives_up_sideways_room():
+    from simulation.road_network import body_swing
+    assert body_swing([(0, 0), (50, 0), (100, 0)], 10.0) == 0.0
+    import math
+    arc = [(25*math.sin(angle/200*1.5), 25-25*math.cos(angle/200*1.5)) for angle in range(201)]
+    assert body_swing(arc, 10.0) == pytest.approx(10.0**2/(8*25), rel=0.1)
+    for site in ("tagum_site_b", "tagum_network"):
+        engine = TrafficEngine(network=load_registered_network(site))
+        assert all(engine._room_width[lane_id] == lane.width for lane_id, lane in engine.network.lanes.items())
+    engine = TrafficEngine(network=load_registered_network(SITE))
+    assert engine._room_width["road6f"] < engine.network.lanes["road6f"].width and engine._room_width["road2r"] == engine.network.lanes["road2r"].width
+
+
+def test_a_bus_entering_the_short_west_stub_waits_for_a_bus_still_leaving_it_through_the_junction():
+    """road4r is 15 m long, so the entry spot is within one body length of the junction: a vehicle in the connector with its rear still on the lane blocks the entry."""
+    from tests.mixed_traffic_helpers import started_engine
+    engine = started_engine(load_registered_network(SITE), routing_mode="static")
+    leader = engine.add_vehicle(["road4r", "road6f", "road5f"], vehicle_type="bus", speed=3.0)
+    leader.position = engine.network.lanes["road4r"].length-8
+    for _ in range(300):
+        engine.step(1)
+        if leader.connector is not None and leader.connector_position > 0.3:
+            break
+    assert leader.connector is not None and leader.connector_position-leader.length/2 < 0
+    lateral = engine._entry_lateral("road4r", "bus")
+    assert lateral is None or abs(lateral-leader.lateral) >= 2.5+0.3  # never in the leader's band

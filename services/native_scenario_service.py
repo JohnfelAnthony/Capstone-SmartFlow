@@ -2,7 +2,7 @@
 import copy
 import math
 
-from simulation.scenario_config import VEHICLE_MIX_PRESETS
+from simulation.scenario_config import VEHICLE_MIX_PRESETS, is_study_site
 from simulation.traffic_engine import TrafficEngine
 
 
@@ -54,6 +54,7 @@ def configuration_options(network_id: str | None = None):
     return {
         "network_id": network.id, "network_name": network.payload.get("name", network.id),
         "network_sha256": network.fingerprint, "defaults": copy.deepcopy(engine.config),
+        "fixed_routing_mode": "static" if is_study_site(network.id) else None,
         "junctions": junctions,
         "boundaries": [{"id": node, "label": node_labels[node]} for node in network.boundaries],
         "lanes": [{"id": lane.id, "source": lane.source, "target": lane.target, "road_id": lane.id[:-1], "direction": lane_direction(lane), "where": road_whereabouts(network, roads[lane.id[:-1]]),
