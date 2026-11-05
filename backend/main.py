@@ -46,6 +46,7 @@ from backend.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    ClosureCheckRequest,
     MovementCountsRequest,
     NetworkRevisionPreviewRequest,
     NetworkRevisionApplyRequest,
@@ -1227,26 +1228,27 @@ def compare_signature(run: SimulationRunRecord, timeline: CompareTimelineMeta) -
     return (run.scenario_id, timeline.intersection_id, run.seed, duration)
 
 
-def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta, manifest: dict) -> str:
+def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta, manifest: dict, *, with_routing: bool = True) -> str:
     import hashlib
     experiment = manifest.get("experiment", {})
     if not experiment:
         return f"legacy-unverified-{run.id}"
-    # Group runs with identical exogenous inputs. Routing mode is the single
-    # permitted configuration difference for a routing comparison; the pair
-    # validator below checks controller identity before accepting that case.
+    # Runs with identical exogenous inputs share a key, routing mode included, so a routing mismatch never pairs silently.
+    # compare_kind alone asks for the key without it: a routing comparison is the one pairing that is meant to differ in routing.
     settings = dict(experiment.get("config") or {})
-    settings.pop("routing_mode", None)
+    if not with_routing:
+        settings.pop("routing_mode", None)
     signature = {key: experiment.get(key) for key in ("engine_version", "network_sha256", "seed", "duration_seconds", "measurement_start", "demand_sha256")}
-    signature["config_except_routing_mode"] = settings
+    signature["config" if with_routing else "config_except_routing_mode"] = settings
     return hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
 
 
 def compare_kind(left: CompareRunOption, right: CompareRunOption) -> str | None:
-    if left.compatibility_key != right.compatibility_key:
+    left_manifest, right_manifest = compare_manifest(left.run.timeline_path), compare_manifest(right.run.timeline_path)
+    if (compare_key(left.run, left.timeline, left_manifest, with_routing=False)
+            != compare_key(right.run, right.timeline, right_manifest, with_routing=False)):
         return None
-    left_experiment = compare_manifest(left.run.timeline_path).get("experiment") or {}
-    right_experiment = compare_manifest(right.run.timeline_path).get("experiment") or {}
+    left_experiment, right_experiment = left_manifest.get("experiment") or {}, right_manifest.get("experiment") or {}
     if not left_experiment or not right_experiment:
         return None
     left_config = left_experiment.get("config") or {}
@@ -2074,6 +2076,19 @@ def design_signal_plan(payload: SignalDesignRequest, user: dict = Depends(requir
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"network_id": network.id, "junction": junction, "plan": plan, "result": asdict(result)}
+
+
+@app.post("/api/networks/{network_id}/closure-check")
+def closure_check(network_id: str, payload: ClosureCheckRequest, user: dict = Depends(require_current_user)) -> dict:
+    """Detour status per road piece and whether the chosen closures leave any legal movement."""
+    require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
+                                  ("dashboard", "view"), ("rl-training", "view")])
+    from services.closure_check import closure_report
+    from simulation.network_registry import load_registered_network
+    try:
+        return closure_report(load_registered_network(network_id), payload.closed_lanes, payload.events)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/networks")

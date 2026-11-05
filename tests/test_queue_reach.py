@@ -51,7 +51,7 @@ class QueueReachTests(unittest.TestCase):
         catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
         entry = next(metric for metric in catalog["metrics"] if metric["key"] == "max_queue_reach_m")
         self.assertEqual((entry["unit"], entry["requires_ticks"], entry["label"]), ("metres", False, "Longest current queue reach"))
-        self.assertEqual(catalog["version"], "native-metric-interpretation-4")
+        self.assertEqual(catalog["version"], "native-metric-interpretation-5")
 
 
 if __name__ == "__main__":

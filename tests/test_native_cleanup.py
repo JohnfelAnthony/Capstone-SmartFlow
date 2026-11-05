@@ -100,7 +100,7 @@ class NativeCleanupTests(unittest.TestCase):
         self.assertEqual(snapshot.observation[11+index],.5)
         self.assertEqual(snapshot.observation[15+index],.028571)
         self.assertEqual(snapshot.observation[19],.05)
-        self.assertEqual(native_contract()['engine'],'native-8')
+        self.assertEqual(native_contract()['engine'],'native-9')
         self.assertEqual(native_contract()['observation'],'native-local-20-v4')
         self.assertEqual(native_contract()['actions'],'phase-service-5-v2')
 

@@ -78,6 +78,7 @@ class NativeRegressionTests(unittest.TestCase):
         engine = TrafficEngine(network=network)
         engine.configure(traffic_density="none", closed_lanes=["eastf"], signal_plans={"j": {"mode": "all_way_stop"}})
         engine.start(10)
+        engine._reroute = lambda vehicle: None  # this tests the stop-priority rule; native-9 would divert the blocked car
         blocked = engine.add_vehicle(["westf", "eastf"])
         free = engine.add_vehicle(["northf", "southf"])
         for car in (blocked, free):

@@ -12,12 +12,7 @@ import sys
 from pathlib import Path
 
 from services import site_validation as sv
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def is_study_site(network_id: str | None, root: Path | None = None) -> bool:
-    return bool(network_id) and ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists()
+from simulation.scenario_config import ROOT, is_study_site  # noqa: F401  (is_study_site is re-exported)
 
 
 def _load_json(path: Path, label: str, reasons: list[str]):

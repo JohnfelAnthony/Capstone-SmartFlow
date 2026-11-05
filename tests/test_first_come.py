@@ -60,7 +60,8 @@ def test_blocked_earlier_exit_does_not_hold_conflicting_car():
     engine = started_engine(junction_network(), routing_mode="static", **FIRST_COME)
     first = place(engine, ["nf", "er"], "car", from_stop_line=12, lateral=0, speed=3)
     second = place(engine, ["sf", "nr"], "car", from_stop_line=20, lateral=0, speed=3)
-    engine.close_lane("er", True)
+    for exit_lane in ("er", "sr", "wr"):  # every way out of the first car's approach, so (native-9) it has nowhere to divert
+        engine.close_lane(exit_lane, True)
     for _ in range(300):
         engine.step()
         if second.reserved_junction == "j":

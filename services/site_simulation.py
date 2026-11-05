@@ -20,8 +20,11 @@ SAFETY_CHECK_EVERY_TICKS = 10
 
 
 def _lanes_at(network, node: str):
-    incoming = {lane.source: lane for lane in network.lanes.values() if lane.target == node and lane.source in network.boundaries}
-    outgoing = {lane.target: lane for lane in network.lanes.values() if lane.source == node and lane.target in network.boundaries}
+    """The study junction's lanes keyed by the boundary each leg reaches, straight on through any neighbouring junction
+    (Site A's loop junctions are first-come and drawn as plain road for these measures)."""
+    from services.movement_counts import _leg_boundary
+    incoming = {_leg_boundary(network, lane, True): lane for lane in network.lanes.values() if lane.target == node}
+    outgoing = {_leg_boundary(network, lane, False): lane for lane in network.lanes.values() if lane.source == node}
     return incoming, outgoing
 
 
@@ -46,8 +49,6 @@ def _decision_readiness(engine, entering) -> dict[str, bool]:
 
 def _run_seed(engine, seed: int, mapping: dict, criteria: dict, *, origin_s: float, start_s: float, end_s: float) -> dict:
     network = engine.network
-    if len(network.intersections) != 1:
-        raise ValueError("Site validation measures a single-junction site network")
     node = network.intersections[0]
     incoming, outgoing = _lanes_at(network, node)
     lead_out_s = float(mapping["lead_out_s"])
@@ -56,6 +57,10 @@ def _run_seed(engine, seed: int, mapping: dict, criteria: dict, *, origin_s: flo
                    for line in locations_with_role(mapping, "arrival").values()}
     exit_pos = {line["boundary"]: float(line["distance_from_junction_m"]) for line in locations_with_role(mapping, "exit").values()}
     stop_boundaries = [line["boundary"] for line in locations_with_role(mapping, "stopline").values()]
+    too_far = [boundary for boundary, position in arrival_pos.items() if position < 0]
+    if too_far:
+        raise ValueError(f"Arrival line farther from the junction than the approach lane at {', '.join(too_far)}")
+    exit_boundary = {lane.id: boundary for boundary, lane in outgoing.items()}
 
     engine.enable_no_signal_control()
     engine.start(end_s + lead_out_s - origin_s)
@@ -88,7 +93,7 @@ def _run_seed(engine, seed: int, mapping: dict, criteria: dict, *, origin_s: flo
                     record["arrival"] = video_time
                 if record["stop"] is None and (vehicle.connector is not None or front >= engine.stop_line(lane.id)):
                     record["stop"] = video_time
-            elif lane.target in exit_pos and lane.source == node and vehicle.connector is None and record["exit"] is None and front >= exit_pos[lane.target]:
+            elif lane.id in exit_boundary and exit_boundary[lane.id] in exit_pos and vehicle.connector is None and record["exit"] is None and front >= exit_pos[exit_boundary[lane.id]]:
                 record["exit"] = video_time
             if record["priority"] is None and vehicle.approach_arrival is not None:
                 record["priority"] = vehicle.approach_arrival + origin_s
@@ -175,14 +180,19 @@ def _aggregate(runs: list[dict]) -> dict:
             "safety": safety}
 
 
+def validation_engine(scenario: dict, seed: int):
+    """The scenario's engine with static routing, so only closures (never congestion) move traffic onto side streets."""
+    from simulation.network_registry import engine_for_scenario
+    return engine_for_scenario(scenario, seed=seed, routing_mode="static")
+
+
 def simulated_measures(scenario: dict, mapping: dict, *, seeds, origin_s: float, start_s: float, end_s: float, criteria: dict, engine_factory=None) -> dict:
     """Run the scenario under no-signal control for each development seed and measure it like the video."""
     seeds = list(seeds)
     if not seeds or any(isinstance(seed, bool) or seed not in DEVELOPMENT_SEEDS for seed in seeds):
         raise ValueError("Validation runs use the development seeds 101-110; final seeds 201-220 are reserved for the final study")
     if engine_factory is None:
-        from simulation.network_registry import engine_for_scenario
-        engine_factory = lambda seed: engine_for_scenario(scenario, seed=seed)  # noqa: E731
+        engine_factory = lambda seed: validation_engine(scenario, seed)  # noqa: E731
     runs = [_run_seed(engine_factory(seed), seed, mapping, criteria, origin_s=origin_s, start_s=start_s, end_s=end_s) for seed in seeds]
     metadata = runs[0]["metadata"]
     result = _aggregate(runs)

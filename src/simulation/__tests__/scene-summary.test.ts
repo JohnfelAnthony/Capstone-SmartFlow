@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, junctionShortLabel, junctionTagText, laneDisplayLabel, phaseService, signalMovements, TURN_ARROW_EXTENSION_M } from "@/simulation/scene-summary"
+import { approachDirection, closedLaneIds, departureDirection, junctionClosures, junctionShortLabel, junctionTagText, laneDisplayLabel, phaseService, signalMovements, TURN_ARROW_EXTENSION_M } from "@/simulation/scene-summary"
 import { bentNetwork, crossNetwork } from "./geometry-fixture"
 
 describe("scene labels", () => {
@@ -88,5 +88,48 @@ describe("signalMovements", () => {
   it("keeps every approach unlit without a frame, and has none for an unknown junction", () => {
     expect([...byLane(null).values()].every(movement => movement.color === "off")).toBe(true)
     expect(signalMovements(geometry, "missing", null)).toEqual([])
+  })
+})
+
+describe("closures at a junction", () => {
+  const connector = (id: string, shape: { x: number; y: number }[]) => ({ index: 0, function: "internal", toward_intersection: true, away_from_intersection: true, shape,
+    lanes: [{ id, index: 0, width: 3.3, allow: "passenger", disallow: "", source_length: 18, clip_start_position: 0, clip_end_position: 18, shape }] })
+  const northStopLine = { x: -1.65, y: 9 }
+  const geometry = normalizeSceneGeometry({ ...crossNetwork(), internal_lanes: [
+    connector("north-in->west-out", [northStopLine, { x: -9, y: 1.65 }]),
+    connector("north-in->south-out", [northStopLine, { x: -1.65, y: -9 }]),
+    connector("north-in->east-out", [northStopLine, { x: 9, y: -1.65 }]),
+    connector("east-in->west-out", [{ x: 9, y: 1.65 }, { x: -9, y: 1.65 }]),
+  ] })
+  const frameWith = (closed: string[]) => ({ visual: { closed_lanes: closed }, lane_metrics: {} }) as unknown as Parameters<typeof closedLaneIds>[0]
+
+  it("collects closed lanes from the frame, whether set from the start or by a scheduled event", () => {
+    expect([...closedLaneIds(frameWith(["a", "b"]))]).toEqual(["a", "b"])
+    const metricsOnly = { visual: { closed_lanes: [] }, lane_metrics: { c: { closed: true }, d: { closed: false } } } as unknown as Parameters<typeof closedLaneIds>[0]
+    expect([...closedLaneIds(metricsOnly)]).toEqual(["c"])
+    expect(closedLaneIds(null).size).toBe(0)
+  })
+
+  it("names a closed approach and a closed exit, and the turns that become unavailable", () => {
+    const view = junctionClosures(geometry, "J", closedLaneIds(frameWith(["east-in", "west-out"])))
+    expect(view.closedApproaches).toEqual(["east-in"])
+    expect(view.closedExits).toEqual(["west-out"])
+    expect(view.unavailableTurns).toEqual([{ from: "east-in", to: "west-out" }, { from: "north-in", to: "west-out" }])
+  })
+
+  it("reports nothing when no lane of this junction is closed", () => {
+    const view = junctionClosures(geometry, "J", closedLaneIds(frameWith(["somewhere-else"])))
+    expect(view).toEqual({ closedApproaches: [], closedExits: [], unavailableTurns: [] })
+  })
+
+  it("marks each movement's arrows by target so closed ones can be drawn as unavailable", () => {
+    const movement = signalMovements(geometry, "J", null).find(item => item.laneId === "north-in")!
+    expect(movement.turnTargets.sort()).toEqual(["east-out", "south-out", "west-out"])
+    expect(movement.turnTargets).toHaveLength(movement.turns.length)
+  })
+
+  it("names the side a closed exit leads towards", () => {
+    expect(departureDirection(geometry, "west-out")).toBe("To west")
+    expect(departureDirection(geometry, "missing")).toBeNull()
   })
 })

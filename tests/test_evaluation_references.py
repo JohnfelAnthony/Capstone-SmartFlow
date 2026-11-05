@@ -82,7 +82,7 @@ class EvaluationReferenceTests(unittest.TestCase):
 
         def recording_step(engine, num_ticks=1):
             if engine.simulation_time < 3:
-                modes.append({signal.mode for signal in engine.signals.values()})
+                modes.append({engine.signals[engine.controlled_junction].mode})  # the loop junctions are always first-come
             return original_step(engine, num_ticks)
 
         with patch.object(TrafficEngine, "step", recording_step):

@@ -42,9 +42,9 @@ class StubPolicy:
 
 
 def test_contract_names_and_engine_version():
-    assert ENGINE_VERSION == "native-8"
+    assert ENGINE_VERSION == "native-9"
     assert {key: value for key, value in native_contract(NETWORK).items() if key != "network_sha256"} == {
-        "engine": "native-8", "observation": "native-local-20-v4", "actions": "phase-service-5-v2"}
+        "engine": "native-9", "observation": "native-local-20-v4", "actions": "phase-service-5-v2"}
     assert RL_SERVICE_ACTIONS == ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
 
 
@@ -132,4 +132,4 @@ def test_training_metadata_records_the_phase_plan(tmp_path):
     assert result.returncode == 0, result.stderr + result.stdout
     metadata = json.loads(output.read_text(encoding="utf-8"))["metadata"]
     assert metadata["phase_plan"] == {"junction": JUNCTION, "phase_keys": ["north+south", "east+west", "pedestrian"]}
-    assert metadata["native_contract"]["engine"] == "native-8"
+    assert metadata["native_contract"]["engine"] == "native-9"

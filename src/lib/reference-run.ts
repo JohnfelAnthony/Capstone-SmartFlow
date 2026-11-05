@@ -11,12 +11,11 @@ function stable(value: unknown): unknown {
   return value
 }
 
-/** The TypeScript twin of backend/main.py compare_key: the inputs two runs must share to be compared. Only the routing mode may differ. */
+/** The TypeScript twin of backend/main.py compare_key: the inputs two runs must share to be compared, the routing mode included. */
 export function comparisonKey(experiment: SavedExperiment): string {
-  const { routing_mode: _routingMode, ...settings } = (experiment.config && typeof experiment.config === "object" ? experiment.config : {}) as Record<string, unknown>
-  void _routingMode
+  const settings = (experiment.config && typeof experiment.config === "object" ? experiment.config : {}) as Record<string, unknown>
   const identity = Object.fromEntries(IDENTITY_KEYS.map((key) => [key, experiment[key] ?? null]))
-  return JSON.stringify(stable({ ...identity, config_except_routing_mode: settings }))
+  return JSON.stringify(stable({ ...identity, config: settings }))
 }
 
 export type ReferenceRun = { run: SimulationRunRecord; kind: "no-signal" | "fixed-time" }

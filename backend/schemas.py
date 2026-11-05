@@ -309,6 +309,11 @@ class ObservationImportRequest(BaseModel):
     network_id: str | None = None
 
 
+class ClosureCheckRequest(BaseModel):
+    closed_lanes: list[str] = Field(default_factory=list)
+    events: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class MovementCountsRequest(BaseModel):
     csv_text: str
     network_id: str

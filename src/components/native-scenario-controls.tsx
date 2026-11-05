@@ -40,7 +40,7 @@ export function NativeScenarioSummary({ config, options }: { config: NativeScena
   const laneLabel = (id: string) => options?.lanes.find((lane) => lane.id === id)?.label ?? id
   return <div className="flex flex-col gap-3 text-sm">
     <p><strong>RL candidate:</strong> {label}. Other junctions use their saved fixed-time or all-way-stop plans.</p>
-    <p><strong>Routing:</strong> {config.routing_mode ?? "adaptive"}. <strong>Scheduled changes:</strong> {config.events?.length ?? 0}.</p>
+    <p><strong>Routing:</strong> {options?.fixed_routing_mode ?? config.routing_mode ?? "adaptive"}{options?.fixed_routing_mode ? " (traffic is rerouted around closed roads only, never around congestion)" : ""}. <strong>Scheduled changes:</strong> {config.events?.length ?? 0}.</p>
     {(config.closed_lanes ?? []).map((lane) => <p key={lane}>Initially closed: {laneLabel(lane)}</p>)}
     {Object.entries(config.slow_lanes ?? {}).map(([lane, factor]) => <p key={lane}>Initial speed: {laneLabel(lane)} — {Math.round(factor * 100)}%</p>)}
     {[...(config.events ?? [])].sort((a, b) => a.time - b.time).map((event, index) => <p key={index}>

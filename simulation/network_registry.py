@@ -58,9 +58,11 @@ def registered_networks(registry_path: Path = REGISTRY_PATH) -> list[dict]:
     return result
 
 
-def engine_for_scenario(scenario: dict, *, seed: int | None = 42, registry_path: Path = REGISTRY_PATH):
+def engine_for_scenario(scenario: dict, *, seed: int | None = 42, registry_path: Path = REGISTRY_PATH, routing_mode: str | None = None):
     from simulation.traffic_engine import TrafficEngine
 
     engine = TrafficEngine(seed=seed, network=load_registered_network(scenario.get("network_id"), registry_path=registry_path))
     engine.configure_from_scenario(scenario)
+    if routing_mode:
+        engine.configure(routing_mode=routing_mode)
     return engine

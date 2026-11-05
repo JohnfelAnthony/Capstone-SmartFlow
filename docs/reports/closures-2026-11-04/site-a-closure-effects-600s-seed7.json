@@ -1,0 +1,206 @@
+[
+  {
+    "control": "fixed-time",
+    "case": "no closure",
+    "completed": 146,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 0,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      0,
+      0
+    ]
+  },
+  {
+    "control": "fixed-time",
+    "case": "one direction closed: east exit (road3f)",
+    "completed": 149,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 45,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      0,
+      0
+    ]
+  },
+  {
+    "control": "fixed-time",
+    "case": "west leg inbound inside the loop (road2r)",
+    "completed": 136,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 0,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      33,
+      0
+    ]
+  },
+  {
+    "control": "fixed-time",
+    "case": "whole road: west piece both directions (road2f+road2r)",
+    "completed": 137,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 0,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      33,
+      38
+    ]
+  },
+  {
+    "control": "fixed-time",
+    "case": "two roads: south leg both directions + west piece both",
+    "completed": 105,
+    "requested": 179,
+    "waiting_to_enter": 55,
+    "diverted": 39,
+    "blocked_by_closure": 55,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      35,
+      36
+    ]
+  },
+  {
+    "control": "fixed-time",
+    "case": "two entries closed: west and south inbound (road2r, road0r)",
+    "completed": 104,
+    "requested": 179,
+    "waiting_to_enter": 55,
+    "diverted": 0,
+    "blocked_by_closure": 55,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      35,
+      0
+    ]
+  },
+  {
+    "control": "no-signal",
+    "case": "no closure",
+    "completed": 154,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 0,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      0,
+      0
+    ]
+  },
+  {
+    "control": "no-signal",
+    "case": "one direction closed: east exit (road3f)",
+    "completed": 160,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 45,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      0,
+      0
+    ]
+  },
+  {
+    "control": "no-signal",
+    "case": "west leg inbound inside the loop (road2r)",
+    "completed": 147,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 0,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      33,
+      0
+    ]
+  },
+  {
+    "control": "no-signal",
+    "case": "whole road: west piece both directions (road2f+road2r)",
+    "completed": 155,
+    "requested": 179,
+    "waiting_to_enter": 0,
+    "diverted": 0,
+    "blocked_by_closure": 0,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      33,
+      46
+    ]
+  },
+  {
+    "control": "no-signal",
+    "case": "two roads: south leg both directions + west piece both",
+    "completed": 106,
+    "requested": 179,
+    "waiting_to_enter": 55,
+    "diverted": 39,
+    "blocked_by_closure": 55,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      35,
+      37
+    ]
+  },
+  {
+    "control": "no-signal",
+    "case": "two entries closed: west and south inbound (road2r, road0r)",
+    "completed": 105,
+    "requested": 179,
+    "waiting_to_enter": 55,
+    "diverted": 0,
+    "blocked_by_closure": 55,
+    "held_at_closed_exit": 0,
+    "stuck": 0,
+    "gridlock_s": 0.0,
+    "conservation_error": 0,
+    "loop_exits": [
+      35,
+      0
+    ]
+  }
+]

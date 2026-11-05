@@ -8,6 +8,14 @@ import json
 import math
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def is_study_site(network_id: str | None, root: Path | None = None) -> bool:
+    """A network is a study site when `data/sites/<id>_mapping.json` exists."""
+    return bool(network_id) and ((root or ROOT) / "data" / "sites" / f"{network_id}_mapping.json").exists()
+
+
 VEHICLE_TYPES = {
     "car": {"length": 4.5, "width": 1.8, "speed_factor": 1.0},
     "motorcycle": {"length": 2.0, "width": 0.8, "speed_factor": 1.0},
@@ -202,6 +210,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             raise ValueError(f"Unsupported {key}")
     if not isinstance(result["routing_mode"], str) or result["routing_mode"] not in {"adaptive", "static"}:
         raise ValueError("routing_mode must be adaptive or static")
+    if is_study_site(network.id):
+        # Every path (live, training, evaluation, validation, recording) validates through here. At a study site "adaptive" would mean
+        # congestion rerouting onto side streets no field data has observed, so only closures reroute traffic.
+        result["routing_mode"] = "static"
     for key, low, high in (("green_seconds", 5, 180), ("reroute_interval", 1, 300),
                            ("reroute_improvement", 0, .9), ("pedestrian_speed", .3, 3),
                            ("crossing_length", 2, 50), ("pedestrian_max_wait", 10, 600),
@@ -228,6 +240,16 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         if "speed_factor" in event:
             event["speed_factor"] = number(event["speed_factor"], "speed factor", .05, 1)
     result["events"].sort(key=lambda event: event["time"])
+    closed_now = set(result["closed_lanes"])
+    states = [("from the start", set(closed_now))]
+    for event in result["events"]:
+        if "closed" in event:
+            (closed_now.add if event["closed"] else closed_now.discard)(event["lane_id"])
+            states.append((f"at {event['time']:g} s", set(closed_now)))
+    for when, closed in states:
+        if closed and not network.has_legal_movement(closed):
+            raise ValueError(f"These closures leave no legal movement anywhere {when}: no vehicle could get from an entry road to an exit "
+                             "(U-turns are not allowed). Open at least one more road or direction.")
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")

@@ -15,8 +15,10 @@ def test_site_b_no_signal_has_no_overlapping_vehicles(seed, duration):
         assert not overlapping_pairs(engine.vehicle_records()), f"overlap at {engine.simulation_time}s"
 
 
-# The engine limits below were found on the OSM corridor and remain true of it, so they stay pinned to that history.
-@pytest.mark.parametrize("seed,duration", [(101, 60), pytest.param(102, 60, marks=pytest.mark.xfail(strict=True, reason="Same-lane motorcycles overlap on a curved OSM corridor approach at 45.4 s; engine fix and native-version review pending"))])
+# The engine limits below were found on the OSM corridor and stay pinned to that history. Seed 102 used to overlap at 45.4 s (same-lane
+# motorcycles on a curved approach); a lane with a bend now keeps its bodies further from the lane edges (TrafficEngine.lateral_limits), which
+# removed that run's overlap. The isolated two-motorcycle case below still fails, so the same-lane bend limit itself is not closed.
+@pytest.mark.parametrize("seed,duration", [(101, 60), (102, 60)])
 def test_osm_corridor_overlaps_remain_documented(seed, duration):
     _, density, mix, options = case_options("siteB-medium-nosignal")
     engine = build_engine("siteB-osm-corridor", density, mix, duration, seed, **options)
@@ -32,8 +34,8 @@ def test_two_motorcycles_on_a_bend_keep_their_world_footprints_separate():
     engine._decide_lateral = lambda *args: None
     engine._step_lateral = lambda *args: None
     leader = engine.add_vehicle(["road6r", "road2f", "road4f"], vehicle_type="motorcycle")
-    follower = engine.add_vehicle(["road6r", "road7f"], vehicle_type="motorcycle")
     leader.position, leader.lateral, leader.lateral_target, leader.speed = 231.928143, -.15, -.15, 0
+    follower = engine.add_vehicle(["road6r", "road7f"], vehicle_type="motorcycle")  # added once the leader has left the lane start
     follower.position, follower.lateral, follower.lateral_target, follower.speed = 230.716, 1.1, 1.1, 1.68
     assert not overlapping_pairs(engine.vehicle_records())
     engine._move_vehicle(follower)
@@ -51,8 +53,8 @@ def test_experimental_guard_blocks_the_isolated_bend_overlap():
     engine._decide_lateral = lambda *args: None
     engine._step_lateral = lambda *args: None
     leader = engine.add_vehicle(["road6r", "road2f", "road4f"], vehicle_type="motorcycle")
-    follower = engine.add_vehicle(["road6r", "road7f"], vehicle_type="motorcycle")
     leader.position, leader.lateral, leader.lateral_target, leader.speed = 231.928143, -.15, -.15, 0
+    follower = engine.add_vehicle(["road6r", "road7f"], vehicle_type="motorcycle")  # added once the leader has left the lane start
     follower.position, follower.lateral, follower.lateral_target, follower.speed = 230.716, 1.1, 1.1, 1.68
     assert not overlapping_pairs(engine.vehicle_records())
     engine._move_vehicle(follower)

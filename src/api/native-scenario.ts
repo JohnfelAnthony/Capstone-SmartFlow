@@ -61,9 +61,13 @@ export type NativeScenarioOptions = {
   network_name: string
   network_sha256: string
   defaults: NativeScenarioConfig
+  /** Set when the network fixes the routing mode (study sites reroute around closures only, never around congestion). */
+  fixed_routing_mode?: "static" | null
   junctions: Array<{ id: string; label: string; approaches: string[]; default_plan: SignalPlan }>
   boundaries: Array<{ id: string; label: string }>
-  lanes: Array<{ id: string; label: string; road_name: string; source: string; target: string; speed_mps: number }>
+  lanes: Array<{ id: string; label: string; road_name: string; source: string; target: string; speed_mps: number
+    /** Road piece this lane belongs to (both directions share it), the compass direction of travel, entry/exit/link, and where the piece lies. */
+    road_id: string; direction: string; kind: "entry" | "exit" | "link"; where: string }>
   vehicle_mix_presets: Record<string, VehicleMixPreset>
 }
 
@@ -76,6 +80,20 @@ export function listNetworks() {
 export function getNativeScenarioOptions(networkId?: string) {
   const query = networkId ? `?network_id=${encodeURIComponent(networkId)}` : ""
   return apiRequest<NativeScenarioOptions>(`/api/simulation/options${query}`)
+}
+
+export type ClosureReport = {
+  network_id: string
+  valid: boolean
+  /** Plain-language reason when the closures leave no legal movement anywhere. */
+  message: string | null
+  pieces: Record<string, { has_detour: boolean; trips_using: number; trips_without_route: number }>
+  selection: { trips: number; trips_without_route: number }
+}
+
+/** The real routing check: which road pieces have a detour, and whether these closures leave any legal movement. */
+export function checkClosures(networkId: string, closedLanes: string[], events: LaneEvent[]) {
+  return apiRequest<ClosureReport>(`/api/networks/${encodeURIComponent(networkId)}/closure-check`, { method: "POST", body: { closed_lanes: closedLanes, events } })
 }
 
 export function resolveNativeScenario(scenarioId: number) {
