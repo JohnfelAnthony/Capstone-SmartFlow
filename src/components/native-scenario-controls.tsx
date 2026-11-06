@@ -43,7 +43,7 @@ export function NativeScenarioSummary({ config, options }: { config: NativeScena
     : options?.routing_follows_closure_choice ? "Drivers are rerouted around closed roads only, not around congestion."
     : `${config.routing_mode ?? "adaptive"}.`
   return <div className="flex flex-col gap-3 text-sm">
-    <p><strong>RL candidate:</strong> {label}. Other junctions use their saved fixed-time or all-way-stop plans.</p>
+    <p><strong>Learned controller can control:</strong> {label}. Other junctions use their saved fixed-time or all-way-stop plans.</p>
     <p><strong>Routing:</strong> {routing} <strong>Scheduled changes:</strong> {config.events?.length ?? 0}.</p>
     {Object.entries(config.slow_lanes ?? {}).map(([lane, factor]) => <p key={lane}>Initial speed: {laneLabel(lane)} — {Math.round(factor * 100)}%</p>)}
     {[...(config.events ?? [])].filter((event) => event.speed_factor !== undefined).sort((a, b) => a.time - b.time).map((event, index) => <p key={index}>

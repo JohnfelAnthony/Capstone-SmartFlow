@@ -60,7 +60,7 @@ def configuration_options(network_id: str | None = None):
         "lanes": [{"id": lane.id, "source": lane.source, "target": lane.target, "road_id": lane.id[:-1], "direction": lane_direction(lane), "where": road_whereabouts(network, roads[lane.id[:-1]]),
                    "kind": "entry" if lane.source in network.boundaries else "exit" if lane.target in network.boundaries else "link",
                    "road_name": road_names[lane.id[:-1]], "speed_mps": lane.speed,
-                   "label": f"{road_names[lane.id[:-1]]}: {node_labels[lane.source]} to {node_labels[lane.target]} ({lane.id})"}
+                   "label": f"{road_names[lane.id[:-1]]}: {node_labels[lane.source]} to {node_labels[lane.target]}"}
                   for lane in network.lanes.values()],
         "vehicle_mix_presets": copy.deepcopy(VEHICLE_MIX_PRESETS),
     }

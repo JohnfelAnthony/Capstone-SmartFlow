@@ -74,6 +74,7 @@ export function DashboardPage({
   const [reference, setReference] = React.useState<ReferenceRun | null>(null)
   const [notice, setNotice] = React.useState("Loading simulation workspace...")
   const [isBusy, setIsBusy] = React.useState(false)
+  const [isPreparing, setIsPreparing] = React.useState(false)
   const lastStateRefreshAt = React.useRef(0)
   const stateRefreshInFlight = React.useRef(false)
 
@@ -279,14 +280,15 @@ export function DashboardPage({
       setNotice("Run seed must be a whole number from 0 to 4294967295.")
       return
     }
-    applySimulationAction(() =>
+    setIsPreparing(true)  // the server runs the hidden warm-up before it answers
+    void applySimulationAction(() =>
       startSimulation({
         scenario_id: Number(selectedScenarioId),
         duration_seconds: Number(durationSeconds),
         seed: parsedSeed,
         control_mode: controlMode,
       })
-    )
+    ).finally(() => setIsPreparing(false))
   }
 
   function handlePauseOrResume() {
@@ -352,7 +354,7 @@ export function DashboardPage({
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
         runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
         onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
-        controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} canOperate={canOperate} canStart={canConfigure}
+        controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} isPreparing={isPreparing} canOperate={canOperate} canStart={canConfigure}
           onStart={handleStart} onStartPlayback={handleStartPlayback} onPause={handlePauseOrResume} onStop={() => applySimulationAction(stopSimulation)} onReset={() => applySimulationAction(resetSimulation)}
           onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }} onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)} />}
         overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controlMode={controlMode} models={models} controlledJunction={scenarioConfig?.controlled_junction}

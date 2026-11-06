@@ -27,8 +27,8 @@ const RL_METHODS = ["ql", "dql", "ppo"]
 const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`
 
 /** Play/pause/stop, speed and the elapsed clock; sits in the map card's bottom bar. */
-export function SimControlBar({ simulation, elapsedSeconds, isBusy, canOperate, canStart, onStart, onStartPlayback, onPause, onStop, onReset, onSpeedChange, onSeekPlayback }: {
-  simulation: SimulationStatePayload | null; elapsedSeconds: number; isBusy: boolean; canOperate: boolean; canStart: boolean
+export function SimControlBar({ simulation, elapsedSeconds, isBusy, isPreparing = false, canOperate, canStart, onStart, onStartPlayback, onPause, onStop, onReset, onSpeedChange, onSeekPlayback }: {
+  simulation: SimulationStatePayload | null; elapsedSeconds: number; isBusy: boolean; isPreparing?: boolean; canOperate: boolean; canStart: boolean
   onStart: () => void; onStartPlayback: () => void; onPause: () => void; onStop: () => void; onReset: () => void
   onSpeedChange: (value: number) => void; onSeekPlayback: (frameIndex: number) => void
 }) {
@@ -51,6 +51,7 @@ export function SimControlBar({ simulation, elapsedSeconds, isBusy, canOperate, 
       <SelectTrigger size="sm" aria-label="Playback speed"><SelectValue /></SelectTrigger>
       <SelectContent><SelectGroup>{speedOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
     </Select>
+    {isPreparing ? <span role="status" className="text-xs whitespace-nowrap text-muted-foreground">Preparing traffic…</span> : null}
     <div className="flex min-w-44 flex-1 items-center gap-3">
       <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{clock(elapsedSeconds)} / {clock(durationSeconds)}</span>
       {isPlayback

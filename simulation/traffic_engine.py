@@ -352,6 +352,7 @@ class TrafficEngine:
         self.safety_overrides = 0
         self.last_safety_override = None
         self.measurement_start = 0.0
+        self.clock_origin = 0.0  # the hidden warm-up's length once warm_up() has run: frames, events and charts count visible seconds from here
         self.admitted_at_measurement = self.pedestrians_at_measurement = 0
         self.completed_external_wait = 0.0
         self.lane_exits = dict.fromkeys(self.network.lanes, 0)
@@ -391,7 +392,7 @@ class TrafficEngine:
         return self.signals[self.controlled_junction].switches
 
     def _add_event(self, kind: str, message: str):
-        self.events.append({"time": self.simulation_time, "kind": kind, "message": message})
+        self.events.append({"time": self.visible_time, "kind": kind, "message": message})
         self.events = self.events[-40:]
         self.last_action = message
 
@@ -454,6 +455,20 @@ class TrafficEngine:
         self._apply_scheduled_events()
         self._spawn_demand()
         self._refresh_metrics()
+
+    @property
+    def visible_time(self):
+        return round(self.simulation_time-self.clock_origin, 6)
+
+    def warm_up(self, seconds: float):
+        """Hidden warm-up (D39): run the first `seconds` under the normal rules with nobody watching, then start the metrics and the
+        visible clock. The engine's own clock, events, demand and seed are those of an evaluation with the same warm-up."""
+        ticks = round(number(seconds, "warm-up", 0, 3600)/STEP_LENGTH)
+        if ticks:
+            self.step(ticks)
+            self.reset_metrics()
+            self.events = []
+            self.clock_origin = self.simulation_time
 
     def pause(self):
         if self.status == "running":
@@ -771,7 +786,7 @@ class TrafficEngine:
         result = signal.request(family)
         if result["applied"]:
             self.safety_overrides += 1
-            self.last_safety_override = {"time": self.simulation_time, "junction_id": node,
+            self.last_safety_override = {"time": self.visible_time, "junction_id": node,
                                          "service": family, "reason": reason}
             self._add_event("safety", f"{node}: {reason} requested {family}")
 
@@ -1908,7 +1923,7 @@ class TrafficEngine:
             if self.ticks % 10 == 0:
                 average_wait = (self.completed_wait + sum(vehicle.wait for vehicle in self.vehicles.values()))/max(1, self.completed+len(self.vehicles))
                 for key, value in (("traffic_flow", len(self.vehicles)), ("wait_time", average_wait), ("queue_length", sum(queues.values())), ("throughput", self.completed)):
-                    self.charts[key].append({"time": self.simulation_time, "value": value})
+                    self.charts[key].append({"time": self.visible_time, "value": value})
                     self.charts[key] = self.charts[key][-300:]
         self._metrics_pending = True
 
@@ -2013,7 +2028,7 @@ class TrafficEngine:
             if lane.target in self.signals:
                 signal = self.signals[lane.target]
                 lights[lane.id] = {"state": "n" if signal.mode == "first_come" else "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.serves(lane.approach) else "y" if signal.stage == "yellow" and signal.serves(lane.approach) else "r", "phase": signal.phase}
-        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes),
+        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.visible_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes),
                    **({"shared_roads": [strip_geometry(self.base_network, kept_lane(kept)) for kept in self.shared_roads.values()]} if self.shared_roads else {}), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
 
     get_state = to_dict
@@ -2088,10 +2103,10 @@ class TrafficEngine:
         if result["reason"] == "closed_approach":
             # Safe by construction: the signal stays where it is. It counts as an override like the other refusals.
             self.safety_overrides += 1
-            self.last_safety_override = {"time": self.simulation_time, "junction_id": node, "service": key, "reason": "closed_approach"}
+            self.last_safety_override = {"time": self.visible_time, "junction_id": node, "service": key, "reason": "closed_approach"}
             self._add_event("safety", f"{node}: closed_approach refused a request for {key}")
         self.policy_decisions += 1
-        self.last_policy_decision = {"time": self.simulation_time, "junction_id": node,
+        self.last_policy_decision = {"time": self.visible_time, "junction_id": node,
                                      "action": action_name, **result}
         return result
 

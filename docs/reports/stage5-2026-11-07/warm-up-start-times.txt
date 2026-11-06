@@ -1,0 +1,4 @@
+tagum_site_a medium warm-up 120 s: start returned after 0.8 s; first frame time 0.0, vehicles 28
+tagum_site_a medium warm-up 300 s: start returned after 2.2 s; first frame time 0.0, vehicles 24
+tagum_site_b high warm-up 120 s: start returned after 4.0 s; first frame time 0.0, vehicles 59
+tagum_site_b high warm-up 300 s: start returned after 43.6 s; first frame time 0.0, vehicles 138

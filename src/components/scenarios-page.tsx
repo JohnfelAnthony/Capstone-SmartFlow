@@ -31,7 +31,7 @@ import {
 } from "@/api/scenarios"
 import { configureSimulation, generateTimeline, startSimulation } from "@/api/simulation"
 import { listRLModels, type RLModelRecord } from "@/api/rl"
-import { getNativeScenarioOptions, importMovementCounts, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
+import { effectiveWarmupSeconds, getNativeScenarioOptions, importMovementCounts, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
 import { ClosurePicker } from "@/components/closure-picker"
 import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { closureLines, closureProblem, readClosures } from "@/lib/closures"
@@ -420,7 +420,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
       setNativeOptions(options)
       setDraft((current) => ({ ...current, intersectionId: options.network_id,
         engineConfig: structuredClone(options.defaults),
-        trafficDensity: normalizeDensity(String(options.defaults.traffic_density)),
+        trafficDensity: "Medium",  // the form's default; the engine's own default (the single car) is not offered for a new scenario
         pedestrianDensity: String(options.defaults.pedestrian_density) }))
       setImportNotice("")
       setEditConfigReady(true)
@@ -526,6 +526,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     setIsSaving(true)
     try {
       if (action === "live") {
+        setNotice("Preparing traffic…")  // the server runs the hidden warm-up before it answers
         await startSimulation({ scenario_id: scenario.id, duration_seconds: 300, control_mode: "fixed-time" })
         setNotice(`"${scenario.name}" started as a live FastAPI simulation.`)
       } else {
@@ -780,7 +781,9 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
               </Field>
               <FieldGroup className="grid sm:grid-cols-2">
                 <NativeSelect label={hasCsvDemand ? "Traffic density (set by the imported counts)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={hasCsvDemand}
-                  options={["None", "Single", "Low", "Medium", "High", "Very High"].map((label) => ({ label, value: label.toLowerCase() }))}
+                  options={["None", "Single", "Low", "Medium", "High", "Very High"]
+                    .filter((label) => !["None", "Single"].includes(label) || label === draft.trafficDensity)  // kept only for a saved scenario that already has it
+                    .map((label) => ({ label, value: label.toLowerCase() }))}
                   onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />
                 <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()}
                   options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
@@ -1055,6 +1058,7 @@ function ScenarioDetailSheet({
 }) {
   const laneOptions = useLaneOptions(scenario.intersectionId)
   const closures = closureLines(scenario.engineConfig, laneOptions?.lanes ?? [])
+  const warmUp = effectiveWarmupSeconds(scenario.engineConfig, Number(laneOptions?.defaults.warmup_seconds ?? 0))
   return (
     <>
       <SheetHeader>
@@ -1069,6 +1073,7 @@ function ScenarioDetailSheet({
             <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
             <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={scenario.pedestrianDensity} />
             <ScenarioMeta icon={SlidersHorizontalIcon} label="Road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
+            <ScenarioMeta icon={CalendarClockIcon} label="Traffic warm-up" value={warmUp > 0 ? `${warmUp} s before the first frame` : "None (the traffic is scripted)"} />
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />
           </div>
@@ -1086,18 +1091,10 @@ function ScenarioDetailSheet({
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Disruptions</CardTitle>
-              <CardDescription>Native disruption schedule and controller configuration.</CardDescription>
+              <CardTitle>Other settings</CardTitle>
+              <CardDescription>Routing, speed restrictions and the junction the learned controller can control.</CardDescription>
             </CardHeader>
             <CardContent><NativeScenarioSummary config={scenario.engineConfig} options={laneOptions} /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced JSON</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="scenario-json-preview">{JSON.stringify(scenario.engineConfig, null, 2)}</pre>
-            </CardContent>
           </Card>
         </div>
       </div>

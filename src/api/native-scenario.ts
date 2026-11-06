@@ -42,6 +42,8 @@ export type NativeScenarioConfig = {
   pedestrian_density?: string
   controlled_junction?: string
   green_seconds?: number
+  /** Hidden warm-up before a live run or recording; absent in an old saved scenario, which the server resolves to its default. */
+  warmup_seconds?: number
   closed_lanes?: string[]
   /** How traffic responds to each closed lane (see src/lib/closures.ts); absent for a lane means the behaviour closures always had. */
   closure_responses?: Record<string, string>
@@ -102,6 +104,12 @@ export function checkClosures(networkId: string, closedLanes: string[], events: 
 
 export function resolveNativeScenario(scenarioId: number) {
   return apiRequest<{ engine_config: NativeScenarioConfig }>(`/api/scenarios/${scenarioId}/native-config`)
+}
+
+/** The warm-up a run really gets: none for scripted traffic (the single car, timed trips), which it would play out unseen. Mirrors scenario_config.py. */
+export function effectiveWarmupSeconds(config: NativeScenarioConfig, defaultSeconds: number) {
+  const steady = (config.demand_windows?.length ?? 0) > 0 || ["low", "medium", "high", "very high"].includes(String(config.traffic_density ?? "").toLowerCase())
+  return steady && !((config.trips as unknown[] | undefined)?.length) ? (config.warmup_seconds ?? defaultSeconds) : 0
 }
 
 export type FieldCountsSummary = {

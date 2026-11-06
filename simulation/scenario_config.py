@@ -30,8 +30,11 @@ VEHICLE_MIX_PRESETS = {
     "tagum_provisional": {"label": "Tagum (provisional)", "mix": TAGUM_PROVISIONAL_MIX},
     "cars_only": {"label": "Cars only", "mix": CARS_ONLY_MIX},
 }
+# Hidden warm-up before a live run or recording (D39). 120 s, not the 300 s of training and evaluation: at Site B high demand 300 s took
+# 80-140 s of computing, 120 s about 7 s. Evaluation and training keep their own --warmup-seconds.
+DEFAULT_RUN_WARMUP_SECONDS = 120.0
 DEFAULTS = {
-    "traffic_density": "single", "pedestrian_density": "none",
+    "traffic_density": "single", "warmup_seconds": DEFAULT_RUN_WARMUP_SECONDS, "pedestrian_density": "none",
     "green_seconds": 14.0, "closed_lanes": [], "closure_responses": {}, "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
@@ -79,6 +82,12 @@ def effective_maximum_red(plan, order, green):
     if "maximum_red_seconds" in plan:
         return plan["maximum_red_seconds"]
     return max(DEFAULT_MAXIMUM_RED_SECONDS, fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1), plan.get("phase_greens")))
+
+
+def effective_warmup_seconds(config: dict) -> float:
+    """The warm-up a live run or recording really uses: none for scripted traffic (timed trips, the single car), which it would play out unseen."""
+    steady = bool(config["demand_windows"]) or config["traffic_density"] in {"low", "medium", "high", "very high"}
+    return config["warmup_seconds"] if steady and not config["trips"] else 0.0
 
 
 def number(value, label, minimum=0.0, maximum=86400.0):
@@ -215,6 +224,9 @@ def validate_config(current: dict, settings: dict, network) -> dict:
                            ("crossing_length", 2, 50), ("pedestrian_max_wait", 10, 600),
                            ("max_active_vehicles", 1, 2000), ("max_pending_vehicles", 1, 100000)):
         result[key] = number(result[key], key, low, high)
+    result["warmup_seconds"] = number(result["warmup_seconds"], "warm-up", 0, 3600)
+    if abs(result["warmup_seconds"]*10 - round(result["warmup_seconds"]*10)) > 1e-7:
+        raise ValueError("warm-up must be a multiple of the 0.1 second step")
     for key in ("max_active_vehicles", "max_pending_vehicles"):
         if result[key] != int(result[key]):
             raise ValueError(f"{key} must be an integer")
