@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { closureLines, closureProblem, describeRule, groupRoads, readClosures, ruleProblem, writeClosures } from "@/lib/closures"
+import { chooseResponse, closureLines, closureProblem, describeRule, groupRoads, readClosures, ruleProblem, settleResponses, writeClosures } from "@/lib/closures"
 
 describe("reading closures from a scenario's settings", () => {
   it("reads whole-run closures and timed ones with a start and an end", () => {
@@ -85,5 +85,38 @@ describe("closures in words for a scenario record", () => {
     expect(closureLines({ closed_lanes: ["road2r"] }, lanes as never)).toEqual(["Capitol Road · west, 0–226 m out · westbound — whole run"])
     expect(closureLines({ events: [{ time: 60, lane_id: "road2r", closed: true }, { time: 90, lane_id: "road2r", closed: false }] }, lanes as never)).toEqual(["Capitol Road · west, 0–226 m out · westbound — 60–90 s"])
     expect(closureLines({}, lanes as never)).toEqual([])
+  })
+})
+
+describe("closure responses", () => {
+  const pieces = {
+    a: { responses: ["side_street", "side_street_adaptive", "nearest_exit"], default_response: "side_street" },
+    b: { responses: ["side_street", "side_street_adaptive", "nearest_exit"], default_response: "side_street" },
+    c: { responses: ["nearest_exit"], default_response: "nearest_exit" },
+  }
+
+  it("records a choice and moves every side-street closure with an avoid-jams choice", () => {
+    const base = { closed_lanes: ["a", "b", "c"], closure_responses: { a: "side_street", b: "side_street", c: "nearest_exit" } }
+    expect(chooseResponse(base, "a", "side_street_adaptive").closure_responses).toEqual({ a: "side_street_adaptive", b: "side_street_adaptive", c: "nearest_exit" })
+    expect(chooseResponse({ ...base, closure_responses: { a: "side_street_adaptive", b: "side_street_adaptive", c: "nearest_exit" } }, "b", "side_street").closure_responses)
+      .toEqual({ a: "side_street", b: "side_street", c: "nearest_exit" })
+    expect(chooseResponse(base, "c", "nearest_exit").closure_responses?.a).toBe("side_street")
+  })
+
+  it("drops the response of a reopened lane and replaces one that no longer works by the default", () => {
+    const config = { closed_lanes: ["a", "c"], closure_responses: { a: "side_street", b: "nearest_exit", c: "side_street" } }
+    expect(settleResponses(config, pieces).closure_responses).toEqual({ a: "side_street", c: "nearest_exit" })
+  })
+
+  it("leaves the settings alone when nothing changes, including a saved scenario with no recorded choice", () => {
+    const config = { closed_lanes: ["a"] }
+    expect(settleResponses(config, pieces)).toBe(config)
+    const recorded = { closed_lanes: ["a"], closure_responses: { a: "side_street" } }
+    expect(settleResponses(recorded, pieces)).toBe(recorded)
+  })
+
+  it("keeps one avoid-jams choice across the side-street closures", () => {
+    const config = { closed_lanes: ["a", "b"], closure_responses: { a: "side_street_adaptive", b: "side_street" } }
+    expect(settleResponses(config, pieces).closure_responses).toEqual({ a: "side_street_adaptive", b: "side_street_adaptive" })
   })
 })

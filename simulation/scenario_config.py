@@ -32,7 +32,7 @@ VEHICLE_MIX_PRESETS = {
 }
 DEFAULTS = {
     "traffic_density": "single", "pedestrian_density": "none",
-    "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
+    "green_seconds": 14.0, "closed_lanes": [], "closure_responses": {}, "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
     "vehicle_mix": dict(TAGUM_PROVISIONAL_MIX), "routing_mode": "adaptive", "reroute_interval": 15.0,
@@ -210,10 +210,6 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             raise ValueError(f"Unsupported {key}")
     if not isinstance(result["routing_mode"], str) or result["routing_mode"] not in {"adaptive", "static"}:
         raise ValueError("routing_mode must be adaptive or static")
-    if is_study_site(network.id):
-        # Every path (live, training, evaluation, validation, recording) validates through here. At a study site "adaptive" would mean
-        # congestion rerouting onto side streets no field data has observed, so only closures reroute traffic.
-        result["routing_mode"] = "static"
     for key, low, high in (("green_seconds", 5, 180), ("reroute_interval", 1, 300),
                            ("reroute_improvement", 0, .9), ("pedestrian_speed", .3, 3),
                            ("crossing_length", 2, 50), ("pedestrian_max_wait", 10, 600),
@@ -250,6 +246,17 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         if closed and not network.has_legal_movement(closed):
             raise ValueError(f"These closures leave no legal movement anywhere {when}: no vehicle could get from an entry road to an exit "
                              "(U-turns are not allowed). Open at least one more road or direction.")
+    from .closure_responses import SIDE_STREET_ADAPTIVE, check_responses
+    closed_ever = set(result["closed_lanes"]) | {event["lane_id"] for event in result["events"] if event.get("closed")}
+    check_responses(network, result["closure_responses"], closed_ever)
+    chose_adaptive = SIDE_STREET_ADAPTIVE in result["closure_responses"].values()
+    if is_study_site(network.id):
+        # Every path (live, training, evaluation, validation, recording) validates through here. At a study site congestion rerouting could
+        # send traffic onto side streets no field data has observed, so a run reacts to closures only (static) unless the scenario has a
+        # closure whose response is 'avoid jams'.
+        result["routing_mode"] = "adaptive" if chose_adaptive else "static"
+    elif chose_adaptive:
+        result["routing_mode"] = "adaptive"
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")

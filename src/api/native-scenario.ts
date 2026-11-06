@@ -43,6 +43,8 @@ export type NativeScenarioConfig = {
   controlled_junction?: string
   green_seconds?: number
   closed_lanes?: string[]
+  /** How traffic responds to each closed lane (see src/lib/closures.ts); absent for a lane means the behaviour closures always had. */
+  closure_responses?: Record<string, string>
   slow_lanes?: Record<string, number>
   events?: LaneEvent[]
   signal_plans?: Record<string, Partial<SignalPlan>>
@@ -61,8 +63,8 @@ export type NativeScenarioOptions = {
   network_name: string
   network_sha256: string
   defaults: NativeScenarioConfig
-  /** Set when the network fixes the routing mode (study sites reroute around closures only, never around congestion). */
-  fixed_routing_mode?: "static" | null
+  /** True at the study sites: traffic reroutes around closed roads only, unless a closure's response is "avoid jams". */
+  routing_follows_closure_choice?: boolean
   junctions: Array<{ id: string; label: string; approaches: string[]; default_plan: SignalPlan }>
   boundaries: Array<{ id: string; label: string }>
   lanes: Array<{ id: string; label: string; road_name: string; source: string; target: string; speed_mps: number
@@ -87,7 +89,9 @@ export type ClosureReport = {
   valid: boolean
   /** Plain-language reason when the closures leave no legal movement anywhere. */
   message: string | null
-  pieces: Record<string, { has_detour: boolean; trips_using: number; trips_without_route: number }>
+  pieces: Record<string, { has_detour: boolean; trips_using: number; trips_without_route: number
+    /** Responses that really work for this piece given the whole selection, and the one to preselect. */
+    responses: string[]; default_response: string }>
   selection: { trips: number; trips_without_route: number }
 }
 

@@ -1775,3 +1775,7 @@
   .sf-sim-chip { max-width:calc(100% - 32px); }
   .sf-sim-chip-bottom-right { bottom:72px; }
 }
+.sf-mini-road[data-pickable] { cursor:pointer; outline:none; }
+.sf-mini-road[data-pickable]:hover { fill:color-mix(in srgb, var(--primary) 35%, var(--card)); }
+.sf-mini-road[data-pickable]:focus-visible { stroke:var(--ring); stroke-width:.6; }
+.sf-mini-road[data-pickable][data-closed="true"]:hover { fill:color-mix(in srgb, #ef4444 55%, var(--card)); }

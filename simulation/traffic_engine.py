@@ -478,6 +478,11 @@ class TrafficEngine:
                 key for key in signal.approaches if key != "pedestrian"
                 and all(lane in self.closed_lanes and lane not in occupied for lane in self.network.incoming[node] if self.network.lanes[lane].approach in key.split("+")))
 
+    def _cut_nearest_exit_lanes(self) -> set:
+        """Closed lanes whose response is 'send to the nearest open exit': traffic that would use them goes to the nearest exit even if a detour exists."""
+        responses = self.config["closure_responses"]
+        return {lane for lane in self.closed_lanes if responses.get(lane) == "nearest_exit"} if responses else set()
+
     def _best_open_exit(self, node: str, previous: str | None, costs: dict | None) -> list[str]:
         """Lanes from `node` to the cheapest exit still open, for a vehicle whose own destination can no longer be reached."""
         exits = {boundary for boundary in self.network.boundaries if self.network.incoming[boundary]}
@@ -621,7 +626,9 @@ class TrafficEngine:
                 continue
             if costs is None and self.config["routing_mode"] == "adaptive":
                 costs = self._travel_costs()
-            route = self.network.route(arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None)
+            cut = self._cut_nearest_exit_lanes()
+            route = [] if cut and cut & set(self.network.route(arrival.source, arrival.destination)) else self.network.route(
+                arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None)
             diverting = not route and bool(self.closed_lanes)
             if diverting:
                 route = self._best_open_exit(arrival.source, None, costs if self.config["routing_mode"] == "adaptive" else None)
@@ -1529,6 +1536,9 @@ class TrafficEngine:
         costs = self._travel_costs()
         alternative = self.network.route(current.target, vehicle.destination, closed=self.closed_lanes, costs=costs, previous=current.id)
         # The destination can no longer be reached (also from the last junction before it): go to the best open exit.
+        cut = self._cut_nearest_exit_lanes()
+        if cut and cut & set(vehicle.route[1:]):
+            alternative = []
         diverting = route_blocked and not alternative
         if diverting:
             alternative = self._best_open_exit(current.target, current.id, costs)

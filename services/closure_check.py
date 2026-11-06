@@ -1,6 +1,7 @@
 """Which road pieces have a detour, and whether a chosen set of closures leaves any legal movement (the real routing check)."""
 from __future__ import annotations
 
+from simulation.closure_responses import available_responses
 from simulation.scenario_config import DEFAULTS, validate_config
 
 
@@ -23,6 +24,10 @@ def closure_report(network, closed_lanes: list[str], events: list[dict] | None =
         unreachable = [pair for pair in using if not network.route(*pair, closed={lane_id})]
         pieces[lane_id] = {"has_detour": not unreachable, "trips_using": len(using), "trips_without_route": len(unreachable)}
     closed = set(closed_lanes)
+    closed_ever = closed | {event["lane_id"] for event in (events or []) if event.get("closed")}
+    for lane_id, piece in pieces.items():
+        choice = available_responses(network, closed_ever | {lane_id}, lane_id, usual)
+        piece["responses"], piece["default_response"] = choice["available"], choice["default"]
     try:
         validate_config(DEFAULTS, {"closed_lanes": sorted(closed), "events": events or []}, network)
         message = None

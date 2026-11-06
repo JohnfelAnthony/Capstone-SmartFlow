@@ -6,7 +6,8 @@ from tests.mixed_traffic_helpers import junction_network
 
 def test_an_exit_road_with_no_way_round_has_no_detour():
     pieces = closure_report(junction_network(), [])["pieces"]
-    assert pieces["er"] == {"has_detour": False, "trips_using": 3, "trips_without_route": 3}
+    assert {key: pieces["er"][key] for key in ("has_detour", "trips_using", "trips_without_route")} == {"has_detour": False, "trips_using": 3, "trips_without_route": 3}
+    assert pieces["er"]["responses"] == ["nearest_exit"]
 
 
 def test_an_entry_road_has_no_detour_and_a_road_used_by_nobody_says_so():

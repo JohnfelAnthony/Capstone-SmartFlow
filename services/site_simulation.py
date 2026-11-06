@@ -181,9 +181,12 @@ def _aggregate(runs: list[dict]) -> dict:
 
 
 def validation_engine(scenario: dict, seed: int):
-    """The scenario's engine with static routing, so only closures (never congestion) move traffic onto side streets."""
+    """The scenario's engine with static routing, so only closures (never congestion) move traffic onto side streets: a closure whose
+    response is 'avoid jams' is validated as the plain side-street response, because avoiding jams is what makes a run adaptive."""
     from simulation.network_registry import engine_for_scenario
-    return engine_for_scenario(scenario, seed=seed, routing_mode="static")
+    config = dict(scenario.get("engine_config") or {})
+    responses = {lane: "side_street" if choice == "side_street_adaptive" else choice for lane, choice in (config.get("closure_responses") or {}).items()}
+    return engine_for_scenario({**scenario, "engine_config": {**config, "closure_responses": responses}}, seed=seed, routing_mode="static")
 
 
 def simulated_measures(scenario: dict, mapping: dict, *, seeds, origin_s: float, start_s: float, end_s: float, criteria: dict, engine_factory=None) -> dict:
