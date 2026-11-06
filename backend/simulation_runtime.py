@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from threading import Event, RLock, Thread, get_ident
+from threading import Condition, Event, RLock, Thread, get_ident
 from time import monotonic
 from typing import Any
 
@@ -48,6 +48,21 @@ class SimulationRuntime:
         self._owner_name: str | None = None
         self._speed_multiplier = 1.0
         self._workload_lease = None
+        self._tick_count = 0
+        self._tick_condition = Condition()
+
+    def ticks_per_frame(self) -> int:
+        """Engine ticks per streamed frame: about ten frames a second of wall time at any speed."""
+        return max(1, round(self._speed_multiplier))
+
+    def tick_count(self) -> int:
+        return self._tick_count
+
+    def wait_for_ticks(self, after: int, count: int, timeout: float) -> int:
+        """Wait until `count` background engine ticks follow tick `after`, or the timeout; return the latest tick."""
+        with self._tick_condition:
+            self._tick_condition.wait_for(lambda: self._tick_count >= after + count, timeout)
+            return self._tick_count
 
     @contextmanager
     def network_revision_guard(self):
@@ -394,6 +409,7 @@ class SimulationRuntime:
     def _run_step_loop(self, stop_event: Event) -> None:
         next_tick = monotonic() + STEP_LENGTH / self._speed_multiplier
         while not stop_event.wait(max(0.0, next_tick-monotonic())):
+            stepped = False
             with self._lock:
                 if stop_event.is_set():
                     return
@@ -403,6 +419,7 @@ class SimulationRuntime:
                 if engine.status == "running":
                     try:
                         engine.step(1)
+                        stepped = True
                     except Exception as exc:
                         engine.status = "error"
                         engine.last_error = f"Traffic engine failed: {exc}"
@@ -410,6 +427,10 @@ class SimulationRuntime:
                     self._finalize_terminal_run_locked()
                     stop_event.set()
                     return
+            if stepped:
+                with self._tick_condition:
+                    self._tick_count += 1
+                    self._tick_condition.notify_all()
             # Include computation in the wall-clock budget; do not add a full
             # sleep after every step or skip simulation ticks under load.
             next_tick = max(next_tick+STEP_LENGTH / self._speed_multiplier, monotonic())

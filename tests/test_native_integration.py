@@ -67,6 +67,21 @@ class NativeIntegrationTests(unittest.TestCase):
         self.assertEqual(run["status"], "stopped")
         self.assertIsNotNone(database.get_run_metrics(run["id"]))
 
+    def test_live_stream_sends_one_frame_per_fixed_number_of_engine_ticks(self):
+        """Frames used to go out on their own ~110 ms timer, so some carried an extra engine tick and the map pulsed."""
+        response = self.client.post("/api/simulation/configure", json={"scenario_id": self.scenario["id"], "engine_config": {"traffic_density": "low", "pedestrian_density": "none"}, "duration_seconds": 600})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.post("/api/simulation/start", json={}).status_code, 200)
+        for speed, ticks_per_frame in ((4.0, 4), (1.0, 1)):
+            self.assertEqual(self.client.post("/api/simulation/speed", json={"speed_multiplier": speed}).status_code, 200)
+            with self.client.websocket_connect("/ws/simulation") as socket:
+                times = [socket.receive_json()["time"] for _ in range(16)]
+            # The first frame after connecting is sent at once; every later one should follow a whole frame of ticks.
+            steps = [round((later - earlier) / 0.1) for earlier, later in zip(times[1:], times[2:])]
+            self.assertNotIn(0, steps, f"speed {speed}: ticks per frame {steps}")
+            self.assertGreaterEqual(steps.count(ticks_per_frame), len(steps) - 1, f"speed {speed}: ticks per frame {steps}")
+        self.client.post("/api/simulation/stop")
+
     def test_recording_and_playback_preserve_car_positions_and_metrics(self):
         run_id = database.create_run(self.scenario["id"], None, run_mode="pre-record", status="running", seed=11)
         paths = (self.root / "recording.jsonl", self.root / "recording.jsonl.gz", self.root / "recording.manifest.json")

@@ -2006,6 +2006,14 @@ async def simulation_websocket(
     await websocket.accept()
     sequence = 0
     had_active_run = False
+    ticks = simulation_runtime.tick_count()
+
+    def build_frame(sequence: int):
+        # Off the event loop: waiting for the engine lock and serialising must not delay other sockets.
+        simulation = simulation_runtime.get_state()
+        frame = render_frame_service.build_render_frame(simulation.state, sequence=sequence)
+        return simulation, render_frame_service.encode_render_frame(frame)
+
     try:
         while True:
             if sequence % 10 == 0:
@@ -2018,17 +2026,13 @@ async def simulation_websocket(
                 except HTTPException:
                     await websocket.close(code=1008)
                     return
-            simulation = simulation_runtime.get_state()
             try:
-                frame = render_frame_service.build_render_frame(
-                    simulation.state,
-                    sequence=sequence,
-                )
+                simulation, text = await asyncio.to_thread(build_frame, sequence)
             except render_frame_service.RenderFrameBudgetError as exc:
                 await websocket.send_json({"type": "stream_error", "code": "render_metadata_budget", "message": str(exc)})
                 await websocket.close(code=1009)
                 return
-            await websocket.send_text(render_frame_service.encode_render_frame(frame))
+            await websocket.send_text(text)
             sequence += 1
 
             if simulation.status in {"running", "paused"}:
@@ -2037,7 +2041,11 @@ async def simulation_websocket(
                 await websocket.close(code=1000)
                 return
 
-            await asyncio.sleep(0.1)
+            if simulation.status == "running":
+                # Follow the engine clock: each frame carries the same number of ticks, so frames never beat against it.
+                ticks = await asyncio.to_thread(simulation_runtime.wait_for_ticks, ticks, simulation_runtime.ticks_per_frame(), 0.5)
+            else:
+                await asyncio.sleep(0.1)
     except WebSocketDisconnect:
         return
     except RuntimeError:
