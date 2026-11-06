@@ -180,6 +180,24 @@ def normalize_vehicle_scope(settings: dict) -> dict:
     return result
 
 
+def normalize_lane_events(network, events: list[dict]) -> list[dict]:
+    """Validate lane events and return independent copies in execution order."""
+    normalized = [event.copy() for event in events]
+    for event in normalized:
+        if event.keys() - {"time", "lane_id", "closed", "speed_factor", "label"}:
+            raise ValueError("Unknown lane event field")
+        event["time"] = number(event.get("time"), "event time")
+        if not isinstance(event.get("lane_id"), str) or event["lane_id"] not in network.lanes:
+            raise ValueError("Unknown event lane")
+        if "closed" not in event and "speed_factor" not in event:
+            raise ValueError("An event needs closed or speed_factor")
+        if "closed" in event and not isinstance(event["closed"], bool):
+            raise ValueError("closed must be true or false")
+        if "speed_factor" in event:
+            event["speed_factor"] = number(event["speed_factor"], "speed factor", .05, 1)
+    return sorted(normalized, key=lambda event: event["time"])
+
+
 def validate_config(current: dict, settings: dict, network) -> dict:
     """Build a candidate before committing anything to a running engine."""
     if not isinstance(settings, dict) or any(not isinstance(key, str) for key in settings):
@@ -242,35 +260,18 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Unknown constrained lane")
     result["closed_lanes"] = sorted(set(result["closed_lanes"]))
     result["slow_lanes"] = {lane: number(factor, "speed factor", .05, 1) for lane, factor in result["slow_lanes"].items()}
-    for event in result["events"]:
-        if event.keys() - {"time", "lane_id", "closed", "speed_factor", "label"}:
-            raise ValueError("Unknown lane event field")
-        event["time"] = number(event.get("time"), "event time")
-        if not isinstance(event.get("lane_id"), str) or event["lane_id"] not in network.lanes:
-            raise ValueError("Unknown event lane")
-        if "closed" not in event and "speed_factor" not in event:
-            raise ValueError("An event needs closed or speed_factor")
-        if "closed" in event and not isinstance(event["closed"], bool):
-            raise ValueError("closed must be true or false")
-        if "speed_factor" in event:
-            event["speed_factor"] = number(event["speed_factor"], "speed factor", .05, 1)
-    result["events"].sort(key=lambda event: event["time"])
-    closed_now = set(result["closed_lanes"])
-    states = [("from the start", set(closed_now))]
-    for event in result["events"]:
-        if "closed" in event:
-            (closed_now.add if event["closed"] else closed_now.discard)(event["lane_id"])
-            states.append((f"at {event['time']:g} s", set(closed_now)))
+    result["events"] = normalize_lane_events(network, result["events"])
+    from .closure_responses import SIDE_STREET_ADAPTIVE, check_responses, closure_states
+    states = closure_states(result["closed_lanes"], result["events"])
     # A direction that shares the opposite pavement is not closed to traffic.
     shared = {lane for lane, choice in result["closure_responses"].items() if choice == "share"} if isinstance(result["closure_responses"], dict) else set()
-    for when, closed in states:
+    for time, closed in states.items():
+        when = f"at {time:g} s" if time else "from the start"
         closed = closed - shared
         if closed and not network.has_legal_movement(closed):
             raise ValueError(f"These closures leave no legal movement anywhere {when}: no vehicle could get from an entry road to an exit "
                              "(U-turns are not allowed). Open at least one more road or direction.")
-    from .closure_responses import SIDE_STREET_ADAPTIVE, check_responses
-    closed_ever = set(result["closed_lanes"]) | {event["lane_id"] for event in result["events"] if event.get("closed")}
-    check_responses(network, result["closure_responses"], closed_ever)
+    check_responses(network, result["closure_responses"], states.values())
     chose_adaptive = SIDE_STREET_ADAPTIVE in result["closure_responses"].values()
     if is_study_site(network.id):
         # Every path (live, training, evaluation, validation, recording) validates through here. At a study site congestion rerouting could

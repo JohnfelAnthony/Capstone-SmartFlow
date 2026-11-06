@@ -9,6 +9,8 @@ Responses, stored per closed lane in `engine_config.closure_responses`:
 """
 from __future__ import annotations
 
+from collections.abc import Collection, Iterable
+
 SIDE_STREET, SIDE_STREET_ADAPTIVE, SHARE, NEAREST_EXIT, WAIT = "side_street", "side_street_adaptive", "share", "nearest_exit", "wait"
 RESPONSES = (SIDE_STREET, SIDE_STREET_ADAPTIVE, SHARE, NEAREST_EXIT, WAIT)
 LABELS = {SIDE_STREET: "Use the side street", SIDE_STREET_ADAPTIVE: "Use the side street and avoid jams", SHARE: "Share the other side (hypothetical)",
@@ -28,22 +30,45 @@ def lane_kind(network, lane_id: str) -> str:
     return "entry" if lane.source in network.boundaries else "exit" if lane.target in network.boundaries else "link"
 
 
+def closure_states(closed_lanes: Iterable[str], events: list[dict]) -> dict[float, frozenset[str]]:
+    """Snapshot the closed directions after all validated events at each time."""
+    closed = set(closed_lanes)
+    states = {0.0: frozenset(closed)}
+    for event in events:
+        if "closed" in event:
+            (closed.add if event["closed"] else closed.discard)(event["lane_id"])
+            states[event["time"]] = frozenset(closed)
+    return states
+
+
 def available_responses(network, closed: set, lane_id: str, trips: dict | None = None) -> dict:
-    """The responses that work for `lane_id` when every lane in `closed` (which includes it) is closed, and the one to preselect."""
+    """Responses for a single closure state."""
+    return scheduled_responses(network, [frozenset(closed)], lane_id, trips)
+
+
+def scheduled_responses(network, states: Collection[frozenset[str]], lane_id: str, trips: dict | None = None) -> dict:
+    """Report routes and responses that work whenever this direction is closed."""
     trips = usual_trips(network) if trips is None else trips
     using = [pair for pair, route in trips.items() if lane_id in route]
-    has_detour = all(network.route(*pair, closed=closed) for pair in using)
+    # For a direction the user has not picked yet, preview closing it for the whole run.
+    active = {closed for closed in states if lane_id in closed}
+    if not active:
+        active = {closed | {lane_id} for closed in states}
+    unreachable = sum(any(not network.route(*pair, closed=closed) for closed in active) for pair in using)
     kind = lane_kind(network, lane_id)
+    has_detour = unreachable == 0 and kind != "entry"
     options = []
-    if has_detour and kind != "entry":
+    if has_detour:
         options += [SIDE_STREET, SIDE_STREET_ADAPTIVE]
-    if _can_share(network, closed, lane_id):
+    # Sharing can still be draining after an event. Keep the opposite direction
+    # available throughout the schedule rather than assuming an instant switch.
+    if _can_share(network, set().union(*states), lane_id):
         options.append(SHARE)
-    if kind != "entry":
-        options.append(NEAREST_EXIT)
-    if kind == "entry":
-        options.append(WAIT)
-    return {"available": options, "default": options[0], "has_detour": has_detour and kind != "entry"}
+    options.append(WAIT if kind == "entry" else NEAREST_EXIT)
+    return {
+        "available": options, "default": options[0], "has_detour": has_detour,
+        "trips_using": len(using), "trips_without_route": unreachable,
+    }
 
 
 def _can_share(network, closed: set, lane_id: str) -> bool:
@@ -52,17 +77,20 @@ def _can_share(network, closed: set, lane_id: str) -> bool:
     return road_of(lane_id) in eligible_roads(network) and kept_lane(lane_id) not in closed
 
 
-def check_responses(network, responses: dict, closed_ever: set) -> None:
+def check_responses(network, responses: dict, states: Collection[frozenset[str]]) -> None:
     """Refuse, in plain words, a response that is unknown, set for a road that is never closed, not available for it, or mixed in a way that conflicts."""
     if not isinstance(responses, dict) or any(not isinstance(lane, str) or not isinstance(choice, str) for lane, choice in responses.items()):
         raise ValueError("closure_responses must map each closed road to a response")
-    trips = usual_trips(network) if responses else {}
+    if not responses:
+        return
+    closed_ever = set().union(*states)
+    trips = usual_trips(network)
     for lane_id, choice in responses.items():
         if lane_id not in closed_ever:
             raise ValueError(f"A response is set for a road that is never closed ({lane_id}).")
         if choice not in RESPONSES:
             raise ValueError(f"Unknown response '{choice}' for a closed road.")
-        offered = available_responses(network, closed_ever, lane_id, trips)["available"]
+        offered = scheduled_responses(network, states, lane_id, trips)["available"]
         if choice not in offered:
             names = ", ".join(LABELS[item].lower() for item in offered)
             raise ValueError(f"'{LABELS[choice]}' does not work for this closed road ({lane_id}); choose one of: {names}.")
