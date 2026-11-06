@@ -36,12 +36,13 @@ def run(job: tuple) -> dict:
     (name, density, no_signal, events, seconds), seed, routing = job
     engine = build_engine("siteA", density, dict(TAGUM_PROVISIONAL_MIX), seconds, seed, events=events or None, no_signal=no_signal, routing_mode="static")
     engine.config["routing_mode"] = routing
-    open_episodes, episodes, most_at_once = {}, [], 0
+    open_episodes, episodes, most_at_once, most_stalled = {}, [], 0, 0
     while engine.status == "running" and engine.simulation_time < seconds:
         engine.step(1)
         records = engine.vehicle_records()
         now = set(overlapping_pairs(records))
         most_at_once = max(most_at_once, len(now))
+        most_stalled = max(most_stalled, engine._last_metrics["stalled_vehicles"])
         for pair in now - open_episodes.keys():
             lanes = [engine.vehicles[identity].route[0] for identity in pair]
             kinds = [engine.vehicles[identity].vehicle_type for identity in pair]
@@ -52,7 +53,7 @@ def run(job: tuple) -> dict:
             episodes.append(episode)
     episodes.extend({**episode, "end": round(engine.simulation_time, 1)} for episode in open_episodes.values())
     return {"case": name, "seed": seed, "routing_mode": routing, "seconds": seconds, "episodes": len(episodes), "episodes_on_loop": sum(episode["on_loop"] for episode in episodes),
-            "seconds_overlapping": round(sum(episode["end"]-episode["start"] for episode in episodes), 1), "most_pairs_at_once": most_at_once,
+            "seconds_overlapping": round(sum(episode["end"]-episode["start"] for episode in episodes), 1), "most_pairs_at_once": most_at_once, "max_stalled_vehicles": most_stalled,
             "completed": engine._last_metrics["throughput"], "first_episodes": episodes[:3]}
 
 

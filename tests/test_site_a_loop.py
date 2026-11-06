@@ -171,3 +171,20 @@ def test_a_bus_entering_the_short_west_stub_waits_for_a_bus_still_leaving_it_thr
     assert leader.connector is not None and leader.connector_position-leader.length/2 < 0
     lateral = engine._entry_lateral("road4r", "bus")
     assert lateral is None or abs(lateral-leader.lateral) >= 2.5+0.3  # never in the leader's band
+
+
+def test_vehicles_side_by_side_at_the_stub_line_for_the_narrower_loop_all_get_through():
+    """Seed 108, medium, no signal, side street closed 500-800 s: three vehicles stood at the west stub's line for 958 s. The earliest
+    (stopped at the line first) was held by the last one standing in its path, the last waited for the middle one's earlier place, and the
+    middle one waited for the earliest: a cycle through one hop of 'stands in its path'. Rebuilt from the traced positions."""
+    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
+    engine.enable_no_signal_control()
+    engine.driver_variation_scale = 0
+    engine.start(300)
+    for kind, position, lateral, arrival in (("motorcycle", 13.9, 1.9, 10.0), ("tricycle", 13.4, -1.62, 11.0), ("tricycle", 13.4, 0.75, 12.0)):
+        vehicle = engine.add_vehicle(["road4r", "road6f", "road5f"], vehicle_type=kind, speed=0.0)
+        vehicle.position, vehicle.lateral, vehicle.lateral_target = position, lateral, lateral
+        vehicle.approach_arrival = vehicle.stop_arrival = arrival
+    engine.step(1200)
+    assert engine._last_metrics["throughput"] == 3

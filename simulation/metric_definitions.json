@@ -1,5 +1,5 @@
 {
-  "version": "native-metric-interpretation-5",
+  "version": "native-metric-interpretation-6",
   "scope": "Native network; per-junction telemetry is separate from whole-network summaries.",
   "window": "Metrics have different windows. Read each definition: measurement reset affects stopped waits/completions/queues, while demand accounting remains cumulative since run start.",
   "unsupported": {
@@ -548,7 +548,20 @@
       "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
       "unavailable": "Missing or non-finite values are unavailable.",
       "requires_elapsed": false
+    },
+    {
+      "key": "stalled_vehicles",
+      "label": "Vehicles stalled with nothing holding them",
+      "unit": "vehicles",
+      "aliases": [],
+      "population": "Active vehicles on a lane that have been stopped for more than 60 s.",
+      "definition": "From native-10: current count of vehicles on a lane (not inside a junction) stopped for more than 60 s with nothing that legitimately holds them: no vehicle or turning body ahead in their band, no red or yellow for their approach, nobody inside their junction, no pedestrians on the crossing, and an open exit with room. A vehicle holding a junction reservation is counted by stuck_junction_vehicles and one held at a closed exit by closure_held_vehicles. Only the head of a frozen queue counts, so a count of one can mean a whole queue is waiting behind it. The other alarms miss this case: stuck_junction_vehicles needs a reservation and gridlock_seconds needs no movement anywhere.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count or balanced accounting; it is not proof of missing coverage or field validity.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
     }
   ],
-  "engine_version": "native-9"
+  "engine_version": "native-10"
 }

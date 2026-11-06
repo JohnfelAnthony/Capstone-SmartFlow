@@ -1,6 +1,6 @@
 """Runs with no closure stay identical to what the previous engine (`native-8`) produced for the same seed.
 
-The digests were recorded from commit c42ba78 before the closure work and re-run on `native-9`; they match. A change here
+The digests were recorded from commit c42ba78 before the closure work and re-run on `native-9` and `native-10`; they match. A change here
 means traffic changed without a closure, which needs its own engine bump. The single-junction Site A is the kept copy under
 data/networks/history, because the installed Site A now has the West-North loop. Seed 101, 120 s, provisional Tagum mix.
 """

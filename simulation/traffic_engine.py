@@ -37,7 +37,7 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-9"
+ENGINE_VERSION = "native-10"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
@@ -47,6 +47,8 @@ MIN_GAP = 2.0
 # Car following creeps towards its standstill gap without reaching it, so entry keeps this slack past release.
 EXIT_SPACE_MARGIN = 1.0
 STUCK_IN_JUNCTION_SECONDS = 30.0
+STALLED_SECONDS = 60.0  # a lane vehicle stopped this long with nothing legitimately holding it counts as stalled
+STALL_TRACKING_AFTER_SECONDS = 5.0  # a stop shorter than this is not looked at, so ordinary queues cost nothing
 GRIDLOCK_SECONDS = 60.0
 # Turning speed through a junction and the straight-ahead tolerance; both are calibration parameters.
 # shortcut: fixed constants until field discharge headways exist, then move them into the scenario config.
@@ -180,6 +182,8 @@ class Vehicle:
     stop_arrival: float | None = None
     approach_arrival: float | None = None
     stopped_for: float = 0.0
+    unexplained_for: float = 0.0
+    held_for: float = 0.0
     # Per-driver values drawn at entry (simulation/mixed_traffic.py); defaults are the car class.
     time_headway: float = 1.2
     minimum_gap: float = 2.0
@@ -241,6 +245,7 @@ class TrafficEngine:
         # Width left for a body's sideways positions: a lane with a bend gives up 'swing / 2' each side (see lateral_limits).
         longest_body = max(spec["length"] for spec in VEHICLE_TYPES.values())
         self._room_width = {lane_id: lane.width-2*max(0.0, body_swing(lane.shape, longest_body)/2-EDGE_CLEARANCE_M) for lane_id, lane in self.network.lanes.items()}
+        self._bent_lanes = {lane_id for lane_id, lane in self.network.lanes.items() if self._room_width[lane_id] < lane.width}
         self.intersection_id = self.network.id
         self.controlled_junction = self.network.intersections[0]
         self.traffic_density = "single"
@@ -908,8 +913,10 @@ class TrafficEngine:
             else:
                 ahead_in_order = other.connector is None and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order
                 must_wait = ((inside_or_committed and self._beside(vehicle, other)) or ahead_in_order) and self._paths_merge(vehicle, other)
-            # An uncommitted vehicle whose path this one stands in waits for it (_sweep_blocked), so this one goes first.
-            if must_wait and (inside_or_committed or not self._stands_in_path(vehicle, other)):
+            # An uncommitted vehicle whose path this one stands in waits for it (_sweep_blocked), so this one goes first. So does
+            # one blocked by any standing vehicle: waiting for it would close a cycle (it waits for the standing vehicle, which
+            # waits for the next in order, which waits for it) that holds the whole line for good.
+            if must_wait and (inside_or_committed or not (self._stands_in_path(vehicle, other) or self._sweep_blocked(other, node))):
                 return True
         return False
 
@@ -1311,8 +1318,11 @@ class TrafficEngine:
             if other is None or other is vehicle or self.network.lanes[other.route[0]].target != lane.target:
                 continue
             own_approach = other.route[0] == lane.id
-            # Fronts, not centres: a long vehicle beside a short one can be ahead with its centre behind.
-            if own_approach and self._progress(other)+other.length/2 <= self._progress(vehicle)+vehicle.length/2:
+            # Fronts, not centres: a long vehicle beside a short one can be ahead with its centre behind. One behind in this
+            # vehicle's own band is queued behind it and cannot get past, so waiting for its sweep would lock both; one in
+            # another band is free to go, and its rear swings across this vehicle's position.
+            if (own_approach and self._progress(other)+other.length/2 <= self._progress(vehicle)+vehicle.length/2
+                    and bands_overlap(vehicle.lateral, vehicle.width, other.lateral, other.width)):
                 continue
             if other.connector is None:
                 progress = -math.inf
@@ -1439,6 +1449,20 @@ class TrafficEngine:
                 return step
         return 0.0
 
+    def _bend_clear_travel(self, vehicle: Vehicle, lane, travel: float) -> float:
+        """On a bent lane the sideways bands used for spacing are measured along the lane, so two bodies the bands call apart can
+        still touch in the world. Only a vehicle behind is held, by one ahead of it on the lane, so no two can wait for each other:
+        the longest of travel, travel/2 ... travel/16 whose body clears every such vehicle, else 0."""
+        if travel <= 0 or lane.id not in self._bent_lanes:
+            return travel
+        ahead = [self._lane_body(other, lane, other.position, other.lateral, other.yaw) for other in self._candidates(("on_lane", lane.id))
+                 if other.connector is None and other.route[0] == lane.id and other.position > vehicle.position]
+        for step in (travel, travel/2, travel/4, travel/8, travel/16):
+            body = self._lane_body(vehicle, lane, vehicle.position+step, vehicle.lateral, vehicle.yaw)
+            if not any(rectangles_overlap(body, other) for other in ahead):
+                return step
+        return 0.0
+
     def _step_lateral(self, vehicle: Vehicle, lane) -> None:
         """Move toward the target this tick with the turned body as drawn; shorten a step that touches anyone or leaves the road."""
         if vehicle.lateral == vehicle.lateral_target:
@@ -1544,6 +1568,7 @@ class TrafficEngine:
         self._decide_lateral(vehicle, lane)
         self._step_lateral(vehicle, lane)
         leader, obstacle, leader_speed = self._lane_obstacle(vehicle, lane)
+        blocked_ahead = leader is not None or obstacle != math.inf
         if lane.target in self.signals and len(vehicle.route) > 1 and vehicle.reserved_junction != lane.target:
             signal = self.signals[lane.target]
             outgoing = vehicle.route[1]
@@ -1582,8 +1607,9 @@ class TrafficEngine:
         if vehicle.reserved_junction == lane.target:
             desired_speed = min(desired_speed, self._movement_speed(lane.id, vehicle.route[1])*vehicle.speed_factor)
         travel = self._advance(vehicle, obstacle-vehicle.position, leader_speed, desired_speed)
-        cleared = self._sweep_clear_travel(vehicle, lane, travel)
+        cleared = self._bend_clear_travel(vehicle, lane, self._sweep_clear_travel(vehicle, lane, travel))
         self._record_motion(vehicle, cleared)
+        self._track_unexplained_stop(vehicle, lane, blocked_ahead)
         vehicle.position += cleared
         if vehicle.position >= lane.length:
             self.lane_exits[lane.id] += 1
@@ -1689,6 +1715,63 @@ class TrafficEngine:
             return False
         return self._near_line(vehicle, self.network.lanes[vehicle.route[0]], vehicle.position)
 
+    def _track_unexplained_stop(self, vehicle: Vehicle, lane, blocked_ahead: bool) -> None:
+        """Seconds a vehicle on a lane has stood with nothing legitimately holding it (stalled_vehicles counts them once past
+        STALLED_SECONDS). Moving, queued behind a vehicle or turning body, a red or yellow for its approach, a closed or full
+        exit and a vehicle holding a reservation (counted by stuck_junction_vehicles) all reset it. Somebody inside the junction or
+        pedestrians on the crossing only pause it, because cross traffic can pass a frozen line again and again."""
+        vehicle.held_for = vehicle.held_for+STEP_LENGTH if self.closed_lanes and self._held_at_closed_exit(vehicle) else 0.0
+        if vehicle.speed > 0.1 or blocked_ahead or vehicle.reserved_junction:
+            vehicle.unexplained_for = 0.0
+            return
+        if vehicle.stopped_for <= STALL_TRACKING_AFTER_SECONDS:
+            return
+        if len(vehicle.route) > 1 and lane.target in self.signals:
+            signal = self.signals[lane.target]
+            if signal.mode == "signalized" and not (signal.stage == "green" and signal.serves(lane.approach)):
+                vehicle.unexplained_for = 0.0
+            elif vehicle.route[1] in self.closed_lanes or not self._exit_has_space(vehicle.route[1], vehicle):
+                vehicle.unexplained_for = 0.0
+            elif not (self.reservations.get(lane.target) or self._crossing_occupied(lane.target)):
+                # Waiting its turn behind vehicles that are held by a full or closed exit is explained by that exit: the count pauses (it
+                # is not reset, so a deadlock that only looks explained now and then still adds up). Looked at only once the count is long.
+                if not (vehicle.unexplained_for >= STALLED_SECONDS/2 and self._node_has_exit_hold(lane.target)):
+                    vehicle.unexplained_for += STEP_LENGTH
+        else:
+            vehicle.unexplained_for += STEP_LENGTH
+
+    def _node_has_exit_hold(self, node: str) -> bool:
+        """Some vehicle standing at a stop line of this junction is held by a closed exit, or by a full exit that is itself held for a
+        real reason, which every vehicle waiting its turn behind it (same approach order, crossing paths, first come) is then held by as well."""
+        for lane_id in self.network.incoming[node]:
+            for other in self._candidates(("on_lane", lane_id)):
+                if (other.connector is None and other.speed <= 0.1 and len(other.route) > 1 and other.route[0] == lane_id
+                        and self._near_line(other, self.network.lanes[lane_id], other.position)
+                        and (other.route[1] in self.closed_lanes
+                             or not self._exit_has_space(other.route[1], other) and self._full_exit_clears(other.route[1], {lane_id}))):
+                    return True
+        return False
+
+    def _full_exit_clears(self, lane_id: str, visited: set) -> bool:
+        """A full lane is a legitimate reason to wait only if its own head will move: it is moving now, or is held by a closed exit, a red
+        light, or a full exit further on that clears in turn. A head with nothing holding it, or a chain that comes back to a lane already
+        on it (each exit full because of the next), does not clear."""
+        if lane_id in visited:
+            return False
+        visited = visited | {lane_id}
+        lane = self.network.lanes[lane_id]
+        head = max((v for v in self._candidates(("on_lane", lane_id)) if v.connector is None and v.route[0] == lane_id), key=lambda v: v.position, default=None)
+        if head is None or head.speed > 0.1 or head.reserved_junction:
+            return True
+        if len(head.route) < 2 or lane.target not in self.signals:
+            return False  # at the end of the network with nothing ahead: it should be leaving
+        signal = self.signals[lane.target]
+        if signal.mode == "signalized" and not (signal.stage == "green" and signal.serves(lane.approach)):
+            return True
+        if head.route[1] in self.closed_lanes or self.reservations.get(lane.target) or self._crossing_occupied(lane.target):
+            return True
+        return not self._exit_has_space(head.route[1], head) and self._full_exit_clears(head.route[1], visited)
+
     def _closure_blocked_sources(self) -> frozenset:
         """Entries whose demand cannot start at all: the entry road is closed, or no exit can be reached from it."""
         closed = frozenset(self.closed_lanes)
@@ -1773,8 +1856,9 @@ class TrafficEngine:
             "vehicle_conservation_error": self.requested_vehicles-self.lifetime_completed-len(self.vehicles)-len(self.pending_demand)-self.deferred_demand,
             "pedestrian_conservation_error": self.pedestrian_serial-self.lifetime_pedestrians_completed-len(self.pedestrians)-self.dropped_pedestrians,
             "dropped_pedestrians": self.dropped_pedestrians,
-            "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS
-                                           and (vehicle.reserved_junction or self.closed_lanes and self._held_at_closed_exit(vehicle))),
+            "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.reserved_junction and vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS
+                                           or vehicle.held_for > STUCK_IN_JUNCTION_SECONDS),
+            "stalled_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.unexplained_for > STALLED_SECONDS),
             "diverted_vehicles": self.diverted_vehicles,
             "closure_blocked_vehicles": sum(1 for item in self.pending_demand if item.source in self._closure_blocked_sources()) if self.closed_lanes else 0,
             "closure_held_vehicles": sum(1 for vehicle in self.vehicles.values() if self._held_at_closed_exit(vehicle)) if self.closed_lanes else 0,

@@ -26,7 +26,7 @@ def west_to_east(time=0.0):
 
 
 def test_engine_label_is_native_9():
-    assert ENGINE_VERSION == "native-9"
+    assert ENGINE_VERSION == "native-10"
 
 
 @pytest.mark.parametrize("closed", [ENTRIES + EXITS, EXITS, ENTRIES])
@@ -179,3 +179,19 @@ def test_a_phase_stays_alive_until_vehicles_already_on_its_closed_approach_have_
     engine.step(1200)
     assert engine._last_metrics["throughput"] == 1
     assert engine.signals["j"].dead == {"west"}
+
+
+def test_a_vehicle_that_waited_at_a_red_before_its_exit_closed_is_not_stuck_the_moment_it_closes():
+    """Held at a closed exit counts as stuck only after 30 s of being held, not 30 s of standing: Site B road2 closed at 300 s read 2 stuck vehicles
+    that had stood at the line since before the closure and were diverted within seconds."""
+    from tests.mixed_traffic_helpers import hold_green, place, started_engine
+    engine = started_engine(junction_network(), events=[{"time": 50, "lane_id": "er", "closed": True}])
+    hold_green(engine, "j", "north")
+    waiting = place(engine, ["wf", "er"], "car", from_stop_line=2, lateral=0)
+    most_stuck = most_held = 0
+    for _ in range(900):
+        engine.step(1)
+        most_stuck = max(most_stuck, engine._last_metrics["stuck_junction_vehicles"])
+        most_held = max(most_held, engine._last_metrics["closure_held_vehicles"])
+    assert waiting.stopped_for > 30 and waiting.route[1] == "nr"  # it stood for over 30 s and was diverted
+    assert most_held == 1 and most_stuck == 0
