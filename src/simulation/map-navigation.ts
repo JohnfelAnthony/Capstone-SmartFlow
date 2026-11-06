@@ -1,6 +1,6 @@
 import type { VisualPoint } from "@/api/visual-network"
-import type { RenderFrame, RenderPedestrian, RenderVehicle } from "@/simulation/frame-types"
-import { interpolationDuration, interpolateVehicle, isPresentationJump } from "@/simulation/entity-interpolation"
+import type { RenderFrame } from "@/simulation/frame-types"
+import { interpolateVehicle, isPresentationJump } from "@/simulation/entity-interpolation"
 import type { SceneBounds } from "@/simulation/scene-geometry"
 
 export type MapCamera = { scale: number; ox: number; oy: number; width: number; height: number }
@@ -41,40 +41,58 @@ export function claimMapLabel(candidates: LabelRect[], occupied: LabelRect[], wi
   return selected ?? null
 }
 
-/** One presentation stream; metadata is always current and motion never extrapolates. */
+/**
+ * Plays frames back on a steady simulation clock about two frames behind the newest one, so uneven
+ * delivery (network, a busy CPU, a frame carrying two engine ticks) never shows as uneven motion.
+ * Positions are interpolated between the two frames around the clock; motion never extrapolates.
+ */
 export function createMapInterpolator() {
-  let target: RenderFrame | null = null, displayed: RenderFrame | null = null, previousRun = "", beganAt = 0, duration = 0
-  let vehicles = new Map<string, RenderVehicle>(), people = new Map<string, RenderPedestrian>()
+  let frames: RenderFrame[] = [], previousRun = "", clock = 0, lastNow = 0
+  // Smoothed simulation seconds per wall second, and simulation seconds between frames.
+  let rate = 1, step = .1
+  const newest = () => frames.length ? frames[frames.length - 1] : null
+  const advance = (now: number) => {
+    const latest = newest()
+    if (!latest) return
+    const elapsed = Math.max(0, Math.min(1, (now - lastNow) / 1000)), behind = latest.time - 2 * step - clock
+    lastNow = now
+    // After a long stall, resynchronise; otherwise drift back at most 10% faster or slower, which the eye does not see.
+    if (Math.abs(behind) > Math.max(1, 10 * step)) clock = latest.time - 2 * step
+    else clock += elapsed * rate * (1 + Math.max(-.1, Math.min(.1, behind / Math.max(rate, .01))))
+    clock = Math.max(frames[0].time, Math.min(latest.time, clock))
+  }
   const sample = (now: number): RenderFrame | null => {
-    if (!target || duration === 0 || now - beganAt >= duration) { displayed = target; return displayed }
-    const elapsed = Math.max(0, now - beganAt), amount = Math.min(1, elapsed / duration)
-    displayed = { ...target,
-      vehicles: target.vehicles.map((vehicle) => { const previous = vehicles.get(vehicle.id); return previous ? interpolateVehicle(previous, vehicle, elapsed, duration) : vehicle }),
-      pedestrians: target.pedestrians.map((person) => { const previous = people.get(person.id); return previous ? { ...person, x: previous.x + (person.x - previous.x) * amount, y: previous.y + (person.y - previous.y) * amount } : person }),
+    advance(now)
+    let index = 0
+    while (index + 1 < frames.length && frames[index + 1].time <= clock) index++
+    if (index > 0) frames.splice(0, index)
+    const from = frames[0], to = frames[1]
+    if (!from || !to) return from ?? null
+    const amount = (clock - from.time) / (to.time - from.time)
+    const vehicles = new Map(from.vehicles.map((entity) => [entity.id, entity])), people = new Map(from.pedestrians.map((entity) => [entity.id, entity]))
+    return { ...to,
+      vehicles: to.vehicles.map((vehicle) => { const previous = vehicles.get(vehicle.id); return previous ? interpolateVehicle(previous, vehicle, amount, 1) : vehicle }),
+      pedestrians: to.pedestrians.map((person) => { const previous = people.get(person.id); return previous ? { ...person, x: previous.x + (person.x - previous.x) * amount, y: previous.y + (person.y - previous.y) * amount } : person }),
     }
-    return displayed
   }
   return {
     set(next: RenderFrame | null, run: string, now: number) {
-      if (next === target && run === previousRun) return
-      const start = sample(now)
-      const snap = !next || isPresentationJump(target, next, previousRun, run)
-      vehicles = new Map((start?.vehicles ?? []).map((entity) => [entity.id, entity]))
-      people = new Map((start?.pedestrians ?? []).map((entity) => [entity.id, entity]))
-      // Compare the displayed pose, so an early duplicate delivery still finishes
-      // an in-flight movement. New/departed entities and metrics update immediately.
-      const movingVehicles = next?.vehicles.some((entity) => {
-        const previous = vehicles.get(entity.id)
-        return previous && (previous.x !== entity.x || previous.y !== entity.y || (previous.angle - entity.angle) % 360 !== 0)
-      })
-      const movingPeople = next?.pedestrians.some((entity) => {
-        const previous = people.get(entity.id)
-        return previous && (previous.x !== entity.x || previous.y !== entity.y)
-      })
-      duration = snap || !next || (!movingVehicles && !movingPeople) ? 0 : interpolationDuration(target, next)
-      target = next; previousRun = run; beganAt = now
+      const latest = newest()
+      if (next === latest && run === previousRun) return
+      if (!next || !latest || isPresentationJump(latest, next, previousRun, run)) {
+        frames = next ? [next] : []; clock = next?.time ?? 0; lastNow = now; previousRun = run
+        return
+      }
+      advance(now)
+      if (next.time > latest.time) {
+        const simulated = next.time - latest.time, delivered = next.render_ts - latest.render_ts
+        // A resume after a pause has a long wall gap; it says nothing about the running speed.
+        if (delivered > 0 && delivered < 1) { rate += (simulated / delivered - rate) * .2; step += (simulated - step) * .2 }
+        frames.push(next)
+      } else frames[frames.length - 1] = next // same simulation time: newer metadata only
+      previousRun = run
     },
     sample,
-    moving(now: number) { return target?.status === "running" && duration > 0 && now - beganAt < duration },
+    moving() { const latest = newest(); return latest?.status === "running" && clock < latest.time },
   }
 }

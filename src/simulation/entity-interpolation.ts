@@ -6,11 +6,6 @@ export function isPresentationJump(previous: RenderFrame | null, next: RenderFra
     (next.playback.active && Math.abs(next.playback.frame_index - previous.playback.frame_index) !== 1)
 }
 
-export function interpolationDuration(previous: RenderFrame | null, next: RenderFrame) {
-  const deliveryInterval = previous ? (next.render_ts - previous.render_ts)*1000 : 0
-  return Math.max(1, Math.min(1000, deliveryInterval > 0 ? deliveryInterval : next.step_length*1000))
-}
-
 /** Interpolation stops at authoritative target; it never extrapolates. */
 export function interpolateVehicle(previous: RenderVehicle, target: RenderVehicle, elapsed: number, duration: number): RenderVehicle {
   const amount=Math.max(0,Math.min(1,elapsed/duration))
