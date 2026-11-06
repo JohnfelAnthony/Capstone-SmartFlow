@@ -41,24 +41,34 @@ export function claimMapLabel(candidates: LabelRect[], occupied: LabelRect[], wi
   return selected ?? null
 }
 
-/**
- * Plays frames back on a steady simulation clock about two frames behind the newest one, so uneven
- * delivery (network, a busy CPU, a frame carrying two engine ticks) never shows as uneven motion.
- * Positions are interpolated between the two frames around the clock; motion never extrapolates.
- */
+type EntityPose = { id: string; x: number; y: number; angle?: number }
+
+function posesChanged(previous: EntityPose[], next: EntityPose[]) {
+  if (previous.length !== next.length) return true
+  const byId = new Map(previous.map(entity => [entity.id, entity]))
+  return next.some(entity => {
+    const old = byId.get(entity.id)
+    return !old || old.x !== entity.x || old.y !== entity.y ||
+      ((old.angle ?? 0) - (entity.angle ?? 0)) % 360 !== 0
+  })
+}
+
+/** Interpolate buffered snapshots on the configured simulation clock without extrapolating. */
 export function createMapInterpolator() {
   let frames: RenderFrame[] = [], previousRun = "", clock = 0, lastNow = 0
-  // Smoothed simulation seconds per wall second, and simulation seconds between frames.
-  let rate = 1, step = .1
+  let motionUntil = 0
   const newest = () => frames.length ? frames[frames.length - 1] : null
   const advance = (now: number) => {
     const latest = newest()
     if (!latest) return
+    const rate = latest.speed_multiplier ?? 1
+    // Mirror ticks_per_frame: at slow speeds the server still sends at least one tick.
+    const step = Math.max(1, Math.round(rate)) * latest.step_length
     const elapsed = Math.max(0, Math.min(1, (now - lastNow) / 1000)), behind = latest.time - 2 * step - clock
     lastNow = now
-    // After a long stall, resynchronise; otherwise drift back at most 10% faster or slower, which the eye does not see.
-    if (Math.abs(behind) > Math.max(1, 10 * step)) clock = latest.time - 2 * step
-    else clock += elapsed * rate * (1 + Math.max(-.1, Math.min(.1, behind / Math.max(rate, .01))))
+    // Catch up after a long gap without rewinding when the target buffer depth changes.
+    if (behind > Math.max(1, 10 * step)) clock = latest.time - 2 * step
+    else clock += elapsed * rate * (1 + Math.max(-.1, Math.min(.1, behind / rate)))
     clock = Math.max(frames[0].time, Math.min(latest.time, clock))
   }
   const sample = (now: number): RenderFrame | null => {
@@ -66,6 +76,7 @@ export function createMapInterpolator() {
     let index = 0
     while (index + 1 < frames.length && frames[index + 1].time <= clock) index++
     if (index > 0) frames.splice(0, index)
+    if (clock >= motionUntil) return newest()
     const from = frames[0], to = frames[1]
     if (!from || !to) return from ?? null
     const amount = (clock - from.time) / (to.time - from.time)
@@ -80,19 +91,23 @@ export function createMapInterpolator() {
       const latest = newest()
       if (next === latest && run === previousRun) return
       if (!next || !latest || isPresentationJump(latest, next, previousRun, run)) {
-        frames = next ? [next] : []; clock = next?.time ?? 0; lastNow = now; previousRun = run
+        frames = next ? [next] : []
+        clock = next?.time ?? 0
+        motionUntil = clock
+        lastNow = now
+        previousRun = run
         return
       }
       advance(now)
       if (next.time > latest.time) {
-        const simulated = next.time - latest.time, delivered = next.render_ts - latest.render_ts
-        // A resume after a pause has a long wall gap; it says nothing about the running speed.
-        if (delivered > 0 && delivered < 1) { rate += (simulated / delivered - rate) * .2; step += (simulated - step) * .2 }
+        if (posesChanged(latest.vehicles, next.vehicles) || posesChanged(latest.pedestrians, next.pedestrians)) {
+          motionUntil = next.time
+        }
         frames.push(next)
       } else frames[frames.length - 1] = next // same simulation time: newer metadata only
       previousRun = run
     },
     sample,
-    moving() { const latest = newest(); return latest?.status === "running" && clock < latest.time },
+    moving() { return newest()?.status === "running" && clock < motionUntil },
   }
 }

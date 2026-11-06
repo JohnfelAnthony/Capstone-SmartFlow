@@ -2,8 +2,9 @@ import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
 
 export function isPresentationJump(previous: RenderFrame | null, next: RenderFrame, previousRun: string, nextRun: string) {
   return !previous || previousRun !== nextRun || previous.intersection_id !== next.intersection_id ||
-    previous.render_mode !== next.render_mode || next.time < previous.time || next.status !== "running" ||
-    (next.playback.active && Math.abs(next.playback.frame_index - previous.playback.frame_index) !== 1)
+    previous.render_mode !== next.render_mode || next.time < previous.time ||
+    previous.status !== "running" || next.status !== "running" ||
+    (next.playback.active && (next.playback.seek_revision ?? 0) !== (previous.playback.seek_revision ?? 0))
 }
 
 /** Interpolation stops at authoritative target; it never extrapolates. */

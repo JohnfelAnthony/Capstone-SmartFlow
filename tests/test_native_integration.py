@@ -75,7 +75,9 @@ class NativeIntegrationTests(unittest.TestCase):
         for speed, ticks_per_frame in ((4.0, 4), (1.0, 1)):
             self.assertEqual(self.client.post("/api/simulation/speed", json={"speed_multiplier": speed}).status_code, 200)
             with self.client.websocket_connect("/ws/simulation") as socket:
-                times = [socket.receive_json()["time"] for _ in range(16)]
+                frames = [socket.receive_json() for _ in range(16)]
+            self.assertTrue(all(frame["speed_multiplier"] == speed for frame in frames))
+            times = [frame["time"] for frame in frames]
             # The first frame after connecting is sent at once; every later one should follow a whole frame of ticks.
             steps = [round((later - earlier) / 0.1) for earlier, later in zip(times[1:], times[2:])]
             self.assertNotIn(0, steps, f"speed {speed}: ticks per frame {steps}")
@@ -93,12 +95,24 @@ class NativeIntegrationTests(unittest.TestCase):
         self.assertEqual(run["status"], "completed", run.get("notes"))
         response = self.client.post("/api/simulation/playback/load", json={"run_id": run_id})
         self.assertEqual(response.status_code, 200, response.text)
+        loaded_revision = response.json()["simulation"]["render_frame"]["playback"]["seek_revision"]
         response = self.client.post("/api/simulation/playback/seek", json={"frame_index": 50})
-        state = response.json()["simulation"]["state"]
+        seeked = response.json()["simulation"]
+        state = seeked["state"]
+        revision = seeked["render_frame"]["playback"]["seek_revision"]
+        self.assertEqual(revision, loaded_revision + 1)
         self.assertEqual(state["time"], 5)
         self.assertEqual(state["vehicle_count"], 1)
         self.assertEqual(state["scenario"]["intersection_id"], "tagum_network")
         self.assertEqual(state["metrics"]["throughput"], 0)
+        self.assertEqual(self.client.post("/api/simulation/speed", json={"speed_multiplier": 4}).status_code, 200)
+        self.assertEqual(self.client.post("/api/simulation/playback/start").status_code, 200)
+        with self.client.websocket_connect("/ws/simulation") as socket:
+            frames = [socket.receive_json() for _ in range(6)]
+        self.assertTrue(all(frame["speed_multiplier"] == 4 for frame in frames))
+        self.assertTrue(all(frame["playback"]["seek_revision"] == revision for frame in frames))
+        indices = [frame["playback"]["frame_index"] for frame in frames]
+        self.assertIn(4, [later - earlier for earlier, later in zip(indices, indices[1:])])
 
     def test_rl_observation_masks_and_native_model_round_trip(self):
         env = SmartFlowRLEnv(warmup_seconds=0, evaluation_seconds=20, scenario={"traffic_density": "low"})

@@ -64,11 +64,12 @@ describe("authoritative entity interpolation lifecycle", () => {
     expect(isPresentationJump(frame(), frame({ time: 2.1 }), "run-A", "run-A")).toBe(false)
   })
 
-  it("snaps nonadjacent replay seeks and permits ordinary consecutive playback frames", () => {
+  it("distinguishes replay seeks from ordinary progress across multiple recorded ticks", () => {
     const old = frame({ render_mode: "playback", playback: { active: true, frame_index: 10, frame_count: 100 } })
     expect(isPresentationJump(old, frame({ render_mode: "playback", playback: { active: true, frame_index: 11, frame_count: 100 } }), "recording-A", "recording-A")).toBe(false)
     expect(isPresentationJump(old, frame({ render_mode: "playback", time: 1, playback: { active: true, frame_index: 5, frame_count: 100 } }), "recording-A", "recording-A")).toBe(true)
-    expect(isPresentationJump(old, frame({ render_mode: "playback", time: 3, playback: { active: true, frame_index: 30, frame_count: 100 } }), "recording-A", "recording-A")).toBe(true)
+    expect(isPresentationJump(old, frame({ render_mode: "playback", time: 2.4, playback: { active: true, frame_index: 14, frame_count: 100 } }), "recording-A", "recording-A")).toBe(false)
+    expect(isPresentationJump(old, frame({ render_mode: "playback", time: 3, playback: { active: true, frame_index: 30, frame_count: 100, seek_revision: 1 } }), "recording-A", "recording-A")).toBe(true)
     // Host revision tokens cover an explicit seek to an adjacent frame too.
     expect(isPresentationJump(old, frame({ render_mode: "playback", playback: { active: true, frame_index: 11, frame_count: 100 } }), "recording-A:0", "recording-A:1")).toBe(true)
   })

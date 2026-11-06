@@ -196,7 +196,7 @@ FIELD_OBSERVER_LAUNCHER = Path(config.BASE_DIR) / "tools" / "field_observer" / "
 def simulation_presentation_response(simulation: SimulationStateResponse) -> SimulationStateResponse:
     """HTTP fallback uses the same snapshot and display allocation as streaming."""
     try:
-        frame = render_frame_service.build_render_frame(simulation.state)
+        frame = render_frame_service.build_render_frame(simulation.state, speed_multiplier=simulation.speed_multiplier)
     except render_frame_service.RenderFrameBudgetError as exc:
         return simulation.model_copy(update={"render_frame": None, "render_frame_error": str(exc)})
     return simulation.model_copy(update={"render_frame": frame, "render_frame_error": None})
@@ -2006,13 +2006,14 @@ async def simulation_websocket(
     await websocket.accept()
     sequence = 0
     had_active_run = False
-    ticks = simulation_runtime.tick_count()
 
     def build_frame(sequence: int):
         # Off the event loop: waiting for the engine lock and serialising must not delay other sockets.
-        simulation = simulation_runtime.get_state()
-        frame = render_frame_service.build_render_frame(simulation.state, sequence=sequence)
-        return simulation, render_frame_service.encode_render_frame(frame)
+        simulation, ticks = simulation_runtime.stream_snapshot()
+        frame = render_frame_service.build_render_frame(
+            simulation.state, sequence=sequence, speed_multiplier=simulation.speed_multiplier
+        )
+        return simulation, ticks, render_frame_service.encode_render_frame(frame)
 
     try:
         while True:
@@ -2027,7 +2028,7 @@ async def simulation_websocket(
                     await websocket.close(code=1008)
                     return
             try:
-                simulation, text = await asyncio.to_thread(build_frame, sequence)
+                simulation, ticks, text = await asyncio.to_thread(build_frame, sequence)
             except render_frame_service.RenderFrameBudgetError as exc:
                 await websocket.send_json({"type": "stream_error", "code": "render_metadata_budget", "message": str(exc)})
                 await websocket.close(code=1009)
@@ -2042,8 +2043,8 @@ async def simulation_websocket(
                 return
 
             if simulation.status == "running":
-                # Follow the engine clock: each frame carries the same number of ticks, so frames never beat against it.
-                ticks = await asyncio.to_thread(simulation_runtime.wait_for_ticks, ticks, simulation_runtime.ticks_per_frame(), 0.5)
+                # Wait from the tick actually sent so a delayed snapshot cannot shorten the next interval.
+                await asyncio.to_thread(simulation_runtime.wait_for_ticks, ticks, simulation_runtime.ticks_per_frame(), 0.5)
             else:
                 await asyncio.sleep(0.1)
     except WebSocketDisconnect:

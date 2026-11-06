@@ -43,6 +43,7 @@ export type RenderFrame = {
   time: number
   render_ts: number
   step_length: number
+  speed_multiplier?: number
   status: string
   flow_state: string
   intersection_id: string
@@ -61,6 +62,7 @@ export type RenderFrame = {
     active: boolean
     frame_index: number
     frame_count: number
+    seek_revision?: number
   }
   vehicles: RenderVehicle[]
   pedestrians: RenderPedestrian[]

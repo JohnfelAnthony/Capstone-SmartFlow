@@ -98,4 +98,55 @@ describe("2D displayed-frame playback", () => {
     stream.set(null, "", 125)
     expect(stream.sample(125)).toBeNull(); expect(stream.moving()).toBe(false)
   })
+
+  it("keeps the configured speed after a same-time resume and an early tick", () => {
+    const stream = createMapInterpolator()
+    stream.set(at(5, 50, { status: "paused" }), "run", 0)
+    stream.set(at(5, 50, { render_ts: 10 }), "run", 1000)
+    stream.set(at(5.1, 51, { render_ts: 10.02 }), "run", 1020)
+    const before = stream.sample(1020)!.vehicles[0].x
+    const after = stream.sample(1070)!.vehicles[0].x
+    expect(after - before).toBeGreaterThan(.44)
+    expect(after - before).toBeLessThan(.56)
+  })
+
+  it("applies a speed change immediately and starts a new run at its own speed", () => {
+    const stream = createMapInterpolator()
+    for (let index = 0; index <= 10; index++) {
+      stream.set(at(index * .4, index * 4, { speed_multiplier: 4, render_ts: index / 10 }), "fast", index * 100)
+      stream.sample(index * 100)
+    }
+    stream.set(at(4, 40, { speed_multiplier: 1 }), "fast", 1000)
+    const before = stream.sample(1000)!.vehicles[0].x
+    expect(stream.sample(1050)!.vehicles[0].x - before).toBeLessThan(.56)
+    stream.set(at(0, 0, { speed_multiplier: 1 }), "new", 1100)
+    stream.set(at(.1, 1, { speed_multiplier: 1 }), "new", 1200)
+    expect(stream.sample(1250)!.vehicles[0].x).toBeLessThan(.56)
+  })
+
+  it.each([true, false])("skips animation for unchanged poses and refreshes metadata (entities present: %s)", (hasEntities) => {
+    const stream = createMapInterpolator()
+    const entities = hasEntities ? {} : { vehicles: [], pedestrians: [] }
+    stream.set(at(0, 0, entities), "run", 0)
+    stream.set(at(.1, 0, { ...entities, phase: "EAST_GREEN" }), "run", 100)
+    expect(stream.sample(100)!.phase).toBe("EAST_GREEN")
+    expect(stream.moving()).toBe(false)
+  })
+
+  it("interpolates normal 4× replay progress and snaps an explicit forward seek", () => {
+    const stream = createMapInterpolator()
+    const replay = (index: number, seekRevision = 0) => at(index / 10, index, {
+      speed_multiplier: 4, render_mode: "playback",
+      playback: { active: true, frame_index: index, frame_count: 1000, seek_revision: seekRevision },
+    })
+    stream.set(replay(0), "recording", 0)
+    stream.set(replay(4), "recording", 100)
+    const before = stream.sample(125)!.vehicles[0].x
+    expect(before).toBeGreaterThan(0)
+    expect(before).toBeLessThan(4)
+    expect(stream.sample(150)!.vehicles[0].x).toBeGreaterThan(before)
+    stream.set(replay(50, 1), "recording", 160)
+    expect(stream.sample(160)!.vehicles[0].x).toBe(50)
+    expect(stream.moving()).toBe(false)
+  })
 })

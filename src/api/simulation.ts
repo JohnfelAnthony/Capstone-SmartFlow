@@ -35,6 +35,7 @@ export type SimulationStatePayload = {
       source_controller?: string
       source_controller_label?: string
       frame_index?: number
+      seek_revision?: number
       frame_count?: number
       progress_percent?: number
     }
