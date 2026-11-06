@@ -1,7 +1,9 @@
-"""At the two study sites every path runs static routing (reroute around closures only); the five-junction test network keeps adaptive routing.
+"""At the two study sites every path runs static routing (reroute around closures only) unless the scenario has a closure whose response is
+'avoid jams'; the five-junction test network keeps adaptive routing.
 
 A scenario saved or submitted as adaptive at a study site is not refused (every saved study-site scenario carries the old default):
-it is normalised to static wherever the engine configuration is validated, and the stored config then says static.
+it is normalised to static wherever the engine configuration is validated, and the stored config then says static. Only a scenario with a
+closure set to "Use the side street and avoid jams" runs adaptive (tests/test_closure_responses.py).
 """
 import json
 from types import SimpleNamespace
@@ -108,8 +110,8 @@ def test_the_routing_comparison_still_pairs_runs_that_differ_only_in_routing():
         main.compare_manifest = original
 
 
-def test_scenario_options_tell_the_page_that_routing_is_fixed_at_study_sites():
+def test_scenario_options_tell_the_page_that_routing_follows_the_closure_choice_at_study_sites():
     from services.native_scenario_service import configuration_options
-    assert configuration_options("tagum_site_a")["fixed_routing_mode"] == "static"
+    assert configuration_options("tagum_site_a")["routing_follows_closure_choice"] is True
     assert configuration_options("tagum_site_a")["defaults"]["routing_mode"] == "static"
-    assert configuration_options("tagum_network")["fixed_routing_mode"] is None
+    assert configuration_options("tagum_network")["routing_follows_closure_choice"] is False

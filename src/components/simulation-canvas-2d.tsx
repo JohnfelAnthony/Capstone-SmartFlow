@@ -323,6 +323,15 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
       if (presentation.selection?.kind === "lane" && presentation.selection.id === lane.id) path(ctx, lane.centerline, transform, undefined, palette.selected, Math.max(2, lane.width * transform.scale * .35), true)
       else if (hover?.kind === "lane" && hover.id === lane.id) path(ctx, lane.centerline, transform, undefined, "rgba(178,229,207,.8)", Math.max(2, lane.width * transform.scale * .25))
     }
+    // Roads sharing a pavement (hypothetical): both lanes drawn as amber half-width bands on the open pavement, labelled.
+    for (const road of frame.visual.shared_roads ?? []) {
+      for (const [laneId, points] of Object.entries(road.lanes)) {
+        const line = points.map(([x, y]) => ({ x, y }))
+        path(ctx, line, transform, undefined, laneId === road.shared_lane ? "rgba(245,158,11,.42)" : "rgba(245,158,11,.22)", Math.max(2, road.width * transform.scale * .9))
+      }
+      const middle = road.lanes[road.kept_lane]?.[Math.floor((road.lanes[road.kept_lane]?.length ?? 0) / 2)]
+      if (middle) laneLabels.push(["Shared lane (hypothetical)", { x: middle[0], y: middle[1] }])
+    }
     for (const vehicle of frame.vehicles) {
       const p = screen(vehicle, transform), margin = Math.max(vehicle.length, vehicle.width) * transform.scale
       if (p.x + margin < 0 || p.y + margin < 0 || p.x - margin > transform.width || p.y - margin > transform.height) continue

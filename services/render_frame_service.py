@@ -120,6 +120,8 @@ def _serialize_visual_payload(raw_visual: dict | None) -> dict:
     }
     if isinstance(raw_visual.get("pedestrian_paths"), list):
         visual["pedestrian_paths"] = copy.deepcopy(raw_visual["pedestrian_paths"])
+    if raw_visual.get("shared_roads"):  # only while a closed direction shares the opposite pavement (hypothetical)
+        visual["shared_roads"] = copy.deepcopy(raw_visual["shared_roads"])
     return visual
 
 

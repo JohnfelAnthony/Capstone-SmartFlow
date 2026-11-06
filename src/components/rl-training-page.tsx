@@ -285,6 +285,9 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
 
   const scenarioConfig = scenarioResolution?.id === selectedScenarioId ? scenarioResolution.config : null
   const scenarioLoading = Boolean(selectedScenarioId && scenarioResolution?.id !== selectedScenarioId)
+  // Models from an older contract cannot run or resume; they are hidden here, never deleted.
+  const shownModels = status.models.filter((model) => model.compatible || model.checkpoints.some((checkpoint) => checkpoint.compatible))
+  const hiddenModelCount = status.models.length - shownModels.length
   const selectedModel = status.models.find((model) => model.id === selectedModelId) ?? null
   const selectedModelMatchesScenario = Boolean(selectedModel && scenarioConfig && selectedModel.controlled_junction === scenarioConfig.controlled_junction)
   const viewedJob = status.job
@@ -753,7 +756,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
             </CardTitle>
             <CardDescription>Select a registered model explicitly. A checkpoint can resume even when the final artifact is missing, if that checkpoint is compatible. The evaluation score is negative mean stopped vehicle wait, not an overall recommendation. Historical scores may lack population evidence; different input sets are not comparable.</CardDescription>
             <CardAction>
-              <Badge variant="secondary">{status.models.length} models</Badge>
+              <Badge variant="secondary">{shownModels.length} models</Badge>
             </CardAction>
           </CardHeader>
           <CardContent className="rl-table-shell">
@@ -768,7 +771,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {status.models.map((model: RLModelRecord) => (
+                {shownModels.map((model: RLModelRecord) => (
                   <TableRow
                     key={model.id}
                     className={cn(selectedModel?.id === model.id && "selected")}
@@ -783,6 +786,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                 ))}
               </TableBody>
             </Table>
+            {hiddenModelCount > 0 ? <p role="note" className="p-3 text-sm text-muted-foreground">{hiddenModelCount} older model{hiddenModelCount === 1 ? "" : "s"} from before the current controller contract {hiddenModelCount === 1 ? "is" : "are"} hidden because {hiddenModelCount === 1 ? "it" : "they"} cannot run or resume. Nothing was deleted.</p> : null}
             {selectedModel ? (
               <div className="flex flex-col gap-2 p-3">
                 <p>Model #{selectedModel.id}: {selectedModel.compatible ? "compatible artifact" : selectedModel.compatibility_message}. Junction {selectedModel.controlled_junction ?? "unknown"}; decision every {selectedModel.decision_interval_seconds}s; minimum green hold {selectedModel.minimum_green_hold_seconds}s. Status: {selectedModel.training_status ?? "unknown"}. {selectedModelMatchesScenario ? "Matches the selected scenario junction." : "Choose a scenario with this controlled junction to use this model."}</p>

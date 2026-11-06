@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react"
+import type * as React from "react"
 import { ImageOffIcon } from "lucide-react"
 
 import type { VisualPoint } from "@/api/visual-network"
@@ -10,7 +11,7 @@ import { sitePhoto } from "@/lib/study-sites"
 import { cn } from "@/lib/utils"
 import type { JunctionMetrics, RenderFrame } from "@/simulation/frame-types"
 import { boundsOfPoints, walkSignalState, type SceneGeometry } from "@/simulation/scene-geometry"
-import { approachDirection, closedLaneIds, departureDirection, junctionClosures, junctionShortLabel, laneDisplayLabel, phaseService, signalMovements } from "@/simulation/scene-summary"
+import { approachDirection, closedLaneIds, departureDirection, junctionClosures, junctionShortLabel, laneDisplayLabel, phaseService, sharedStripsFromFrame, signalMovements, type SharedStrip } from "@/simulation/scene-summary"
 import { timingLabel } from "@/simulation/render-frame-adapter"
 
 // Same bands as the map: 0 clear · 1–4 low · 5–9 moderate · 10+ high.
@@ -63,10 +64,29 @@ export function JunctionCard({ frame, geometry, junctionId, laneStreets }: {
 function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
   frame: RenderFrame | null; geometry: SceneGeometry; junctionId: string; approachName: (laneId: string) => string
 }) {
+  if (!geometry.junctionById.get(junctionId)) return null
+  const movements = signalMovements(geometry, junctionId, frame)
+  const walkLit = walkSignalState(junctionId, frame) === "walk"
+  const servedMovements = movements.filter(movement => movement.color === "green" || movement.color === "yellow")
+  const summary = servedMovements.length ? `Served: ${servedMovements.map(movement => approachName(movement.laneId)).join(", ")}` : walkLit ? "Pedestrians crossing" : "No approach is being served"
+  const closed = closedLaneIds(frame)
+  const strips = sharedStripsFromFrame(frame).filter(strip => !closed.has(strip.sharedLane) && !closed.has(strip.keptLane))
+  return <JunctionMiniMap geometry={geometry} junctionId={junctionId} movements={movements} closed={closed} walkLit={walkLit} summary={summary}
+    strips={strips} shared={new Set(strips.map(strip => strip.sharedLane))} />
+}
+
+/**
+ * The mini-intersection drawing, shared by the dashboard's Signal phases and the closure picker. Closed directions turn red and the turns
+ * they remove are dashed. With `onToggleLane` every road direction is a button (Enter or Space as well as a click) that closes or reopens it.
+ */
+export function JunctionMiniMap({ geometry, junctionId, movements, closed, summary, walkLit = false, laneLabel, onToggleLane, shared, strips = [] }: {
+  geometry: SceneGeometry; junctionId: string; movements: ReturnType<typeof signalMovements>; closed: ReadonlySet<string>; summary: string
+  walkLit?: boolean; laneLabel?: (laneId: string) => string; onToggleLane?: (laneId: string) => void
+  /** Pavements whose traffic uses half of the opposite pavement (hypothetical), drawn amber. */
+  shared?: ReadonlySet<string>; strips?: SharedStrip[]
+}) {
   const junction = geometry.junctionById.get(junctionId)
   if (!junction) return null
-  const movements = signalMovements(geometry, junctionId, frame)
-  const closed = closedLaneIds(frame)
   const unavailable = new Set(junctionClosures(geometry, junctionId, closed).unavailableTurns.map(turn => `${turn.from}->${turn.to}`))
   const colorByLane = new Map(movements.map(movement => [movement.laneId, movement.color]))
   const roads = geometry.lanes.filter(lane => lane.kind === "road" && lane.junctionIds.includes(junctionId))
@@ -75,10 +95,14 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
   const bounds = boundsOfPoints(arrowPoints.length ? arrowPoints : junction.kerb, 0.12)
   const lineWidth = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y) / 70
   const flowStyle = { "--sf-turn-period": `${lineWidth * 4}px` } as CSSProperties
-  const walkLit = walkSignalState(junctionId, frame) === "walk"
   const servedMovements = movements.filter(movement => movement.color === "green" || movement.color === "yellow")
-  const summary = servedMovements.length ? `Served: ${servedMovements.map(movement => approachName(movement.laneId)).join(", ")}` : walkLit ? "Pedestrians crossing" : "No approach is being served"
-  return <svg className="sf-mini-intersection" viewBox={`${bounds.min_x} ${-bounds.max_y} ${bounds.max_x - bounds.min_x} ${bounds.max_y - bounds.min_y}`} role="img" aria-label={summary}>
+  const pickProps = (laneId: string) => !onToggleLane ? {} : {
+    role: "button", tabIndex: 0, "aria-pressed": closed.has(laneId) || Boolean(shared?.has(laneId)), "data-pickable": true,
+    "aria-label": `${laneLabel?.(laneId) ?? laneId}: ${shared?.has(laneId) ? "closed, traffic shares the other side — press to reopen" : closed.has(laneId) ? "closed — press to reopen" : "open — press to close"}`,
+    onClick: () => onToggleLane(laneId),
+    onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggleLane(laneId) } },
+  }
+  return <svg className="sf-mini-intersection" viewBox={`${bounds.min_x} ${-bounds.max_y} ${bounds.max_x - bounds.min_x} ${bounds.max_y - bounds.min_y}`} role={onToggleLane ? "group" : "img"} aria-label={summary}>
     <defs>
       {["green", "yellow"].map(color => <marker key={color} id={`sf-turn-arrow-${color}`} viewBox="0 0 4 4" refX="1.5" refY="2" markerWidth="3.6" markerHeight="3.6" orient="auto">
         <path className="sf-mini-arrow" data-color={color} d="M0 0 L4 2 L0 4 Z" />
@@ -86,7 +110,13 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
     </defs>
     <g transform="scale(1 -1)">
       <polygon className="sf-mini-road" points={svgPoints(junction.kerb)} />
-      {roads.map(road => <polygon key={road.id} className="sf-mini-road" data-color={colorByLane.get(road.id)} data-closed={closed.has(road.id) || undefined} points={svgPoints(road.polygon)} />)}
+      {roads.map(road => <polygon key={road.id} className="sf-mini-road" data-color={colorByLane.get(road.id)} data-closed={closed.has(road.id) || undefined} data-shared={shared?.has(road.id) || undefined} points={svgPoints(road.polygon)} {...pickProps(road.id)}>
+        {onToggleLane ? <title>{laneLabel?.(road.id) ?? road.id}</title> : null}
+      </polygon>)}
+      {strips.flatMap(strip => Object.entries(strip.lanes).filter(([, points]) => points.length > 1).map(([laneId, points]) =>
+        <polyline key={`strip-${laneId}`} className="sf-mini-share" data-shared-lane={laneId === strip.sharedLane || undefined} points={svgPoints(points)} strokeWidth={strip.width * 0.9}>
+          <title>{laneId === strip.sharedLane ? "Closed direction, driving on half of the other pavement (hypothetical)" : "Open direction, narrowed to half of its pavement (hypothetical)"}</title>
+        </polyline>))}
       {junction.crosswalks.flatMap(crosswalk => crosswalk.stripes.map((stripe, index) =>
         <polygon key={`${crosswalk.laneId}-${index}`} className="sf-mini-zebra" data-lit={walkLit} points={svgPoints(stripe)} />))}
       {movements.flatMap(movement => movement.turns.map((turn, index) => unavailable.has(`${movement.laneId}->${movement.turnTargets[index]}`)

@@ -1,0 +1,180 @@
+[
+  {
+    "step": "start",
+    "note": "SYNTHETIC rehearsal; development seeds only; short training"
+  },
+  {
+    "step": "import-and-save",
+    "site": "tagum_site_a",
+    "scenario_id": 3,
+    "vehicles": 218,
+    "vehicles_per_hour": 817.5,
+    "rate_note": "steady hourly rates from a 960 s count; within-period variation not modelled",
+    "flagged_mappings": [
+      "jeepney",
+      "tricycle/pedicab"
+    ],
+    "not_simulated": {
+      "bicycle": 6
+    }
+  },
+  {
+    "step": "import-and-save",
+    "site": "tagum_site_a",
+    "scenario_id": 4,
+    "vehicles": 189,
+    "vehicles_per_hour": 708.8,
+    "rate_note": "steady hourly rates from a 960 s count; within-period variation not modelled",
+    "flagged_mappings": [
+      "jeepney",
+      "tricycle/pedicab"
+    ],
+    "not_simulated": {
+      "bicycle": 3
+    }
+  },
+  {
+    "step": "import-and-save",
+    "site": "tagum_site_b",
+    "scenario_id": 5,
+    "vehicles": 185,
+    "vehicles_per_hour": 693.8,
+    "rate_note": "steady hourly rates from a 960 s count; within-period variation not modelled",
+    "flagged_mappings": [
+      "jeepney",
+      "tricycle/pedicab"
+    ],
+    "not_simulated": {
+      "bicycle": 7
+    }
+  },
+  {
+    "step": "train",
+    "job_id": 1,
+    "status": "completed",
+    "message": "Job completed. Field counts inputs; scenario-based results, not calibrated or validated.",
+    "progress": 100.0
+  },
+  {
+    "step": "model",
+    "model_id": 1,
+    "algorithm": "QL",
+    "junction": "tagum_site_a_j",
+    "network": null
+  },
+  {
+    "step": "compare",
+    "runs": {
+      "no-signal": 4,
+      "fixed-time": 5,
+      "ql:1": 6
+    },
+    "compatible_with_fixed_time": [
+      4,
+      6
+    ],
+    "comparison_type": "signal",
+    "frames": 601,
+    "first_frame_time": 0.0,
+    "first_frame_vehicles": 19,
+    "duration": 60.0,
+    "warnings": [
+      "This pair shows per-metric tradeoffs, not an overall performance winner. Average waits exclude pending arrivals; review completed, unfinished and dropped demand and pedestrians. Missing or empty-population averages are unavailable, not zero.",
+      "Left run has 27 unfinished vehicles at the horizon.",
+      "Right run has 21 unfinished vehicles at the horizon.",
+      "At least one run's demand is synthetic or from field counts, not an observed dataset; scenario-based, not calibrated or validated. Do not interpret this pair as observed field performance."
+    ]
+  },
+  {
+    "step": "report",
+    "rows": 3,
+    "has_columns": {
+      "Stalled Vehicles At Run End": true,
+      "Measurement Start Seconds": true,
+      "Measurement Duration Seconds": true
+    },
+    "measurement_start": [
+      "120.0",
+      "120.0",
+      "120.0"
+    ],
+    "stalled": [
+      "0",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "step": "live-responses",
+    "site": "tagum_site_a",
+    "results": {
+      "side_street": {
+        "first_frame_time": 0.0,
+        "first_frame_vehicles": 12,
+        "status": "completed",
+        "final_time": 20.0,
+        "diverted": 0,
+        "held": 0,
+        "stalled": 0,
+        "shared_roads": 0
+      },
+      "side_street_adaptive": {
+        "first_frame_time": 0.0,
+        "first_frame_vehicles": 12,
+        "status": "completed",
+        "final_time": 20.0,
+        "diverted": 0,
+        "held": 0,
+        "stalled": 0,
+        "shared_roads": 0
+      },
+      "share": {
+        "first_frame_time": 0.0,
+        "first_frame_vehicles": 12,
+        "status": "completed",
+        "final_time": 20.0,
+        "diverted": 0,
+        "held": 0,
+        "stalled": 0,
+        "shared_roads": 1
+      },
+      "nearest_exit": {
+        "first_frame_time": 0.0,
+        "first_frame_vehicles": 12,
+        "status": "completed",
+        "final_time": 20.0,
+        "diverted": 2,
+        "held": 0,
+        "stalled": 0,
+        "shared_roads": 0
+      }
+    }
+  },
+  {
+    "step": "backup-restore",
+    "backup": "smartflow_backup_20261106_182331_348294.zip",
+    "size_bytes": 5906154,
+    "restore_path": "C:\\Users\\jhepo\\AppData\\Local\\Temp\\claude\\032e6efc506a1dd9\\6a9f404a-6c1a-4ca6-a23c-69a6ada19e82\\scratchpad\\rehearsaldb\\backups\\restores\\restore-tcweze86",
+    "message": "Backup restored and verified in a separate directory. The live application was not replaced.",
+    "live_counts": {
+      "scenarios_by_site": {
+        "tagum_site_a": 7,
+        "tagum_site_b": 2
+      },
+      "runs": 10,
+      "models": 1
+    }
+  },
+  {
+    "step": "restored-counts",
+    "database": "C:\\Users\\jhepo\\AppData\\Local\\Temp\\claude\\032e6efc506a1dd9\\6a9f404a-6c1a-4ca6-a23c-69a6ada19e82\\scratchpad\\rehearsaldb\\backups\\restores\\restore-tcweze86\\smartflow.db",
+    "counts": {
+      "scenarios_by_site": {
+        "tagum_site_a": 7,
+        "tagum_site_b": 2
+      },
+      "runs": 10,
+      "models": 1
+    }
+  }
+]

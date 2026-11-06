@@ -6,7 +6,8 @@ from tests.mixed_traffic_helpers import junction_network
 
 def test_an_exit_road_with_no_way_round_has_no_detour():
     pieces = closure_report(junction_network(), [])["pieces"]
-    assert pieces["er"] == {"has_detour": False, "trips_using": 3, "trips_without_route": 3}
+    assert {key: pieces["er"][key] for key in ("has_detour", "trips_using", "trips_without_route")} == {"has_detour": False, "trips_using": 3, "trips_without_route": 3}
+    assert pieces["er"]["responses"] == ["nearest_exit"]
 
 
 def test_an_entry_road_has_no_detour_and_a_road_used_by_nobody_says_so():
@@ -60,3 +61,41 @@ def test_options_say_where_each_road_piece_lies():
     from services.native_scenario_service import configuration_options
     where = {lane["road_id"]: lane["where"] for lane in configuration_options("tagum_site_a")["lanes"]}
     assert where["road2"].startswith("west, 0–226") and where["road4"].startswith("west, 226–2")
+
+@pytest.mark.parametrize("other_start, detour_available", [(30, True), (20, True), (15, False)])
+def test_detour_options_and_badge_follow_the_active_closures(other_start, detour_available):
+    from simulation.network_registry import load_registered_network
+    from simulation.scenario_config import DEFAULTS, validate_config
+
+    network = load_registered_network("tagum_site_a")
+    events = [
+        {"time": other_start, "lane_id": "road0f", "closed": True},
+        {"time": 10, "lane_id": "road2r", "closed": True},
+        {"time": 20, "lane_id": "road2r", "closed": False},
+        {"time": 40, "lane_id": "road0f", "closed": False},
+    ]
+    report = closure_report(network, [], events)
+    piece = report["pieces"]["road2r"]
+    assert report["valid"]
+    assert piece["has_detour"] is detour_available
+    assert ("side_street" in piece["responses"]) is detour_available
+    assert ("side_street_adaptive" in piece["responses"]) is detour_available
+    assert (piece["trips_without_route"] == 0) is detour_available
+
+    settings = {"events": events, "closure_responses": {"road2r": "side_street"}}
+    if detour_available:
+        assert validate_config(DEFAULTS, settings, network)["closure_responses"] == settings["closure_responses"]
+    else:
+        with pytest.raises(ValueError, match="does not work"):
+            validate_config(DEFAULTS, settings, network)
+
+
+def test_two_permanent_closures_can_remove_the_detour_shown_for_one_alone():
+    from simulation.network_registry import load_registered_network
+
+    network = load_registered_network("tagum_site_a")
+    assert closure_report(network, ["road2r"])["pieces"]["road2r"]["has_detour"]
+    piece = closure_report(network, ["road2r", "road0f"])["pieces"]["road2r"]
+    assert not piece["has_detour"]
+    assert "side_street" not in piece["responses"]
+    assert piece["trips_without_route"] > 0

@@ -56,7 +56,7 @@ def test_lane_body_sampling_detects_an_island_beside_the_centerline(monkeypatch)
         site_b_island_sweep_review.review_lanes(network, spacing_m=0)
 
 
-@pytest.mark.xfail(strict=True, reason="Provisional Site B connector sweeps touch median islands; geometry needs review")
+@pytest.mark.xfail(strict=True, reason="Provisional Site B connector sweeps touch median islands. Owner decision, 5 November 2026: this waits for real measurements of the median openings and islands; do not change Site B geometry to make it pass")
 def test_site_b_connector_footprint_envelopes_clear_islands():
     from simulation.network_registry import load_registered_network
     result = site_b_island_sweep_review.review(load_registered_network("tagum_site_b"))

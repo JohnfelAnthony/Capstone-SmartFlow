@@ -77,3 +77,16 @@ def metric_report_metadata(metrics: dict | None) -> dict:
             "values": interpreted_metrics(metrics),
             "historical_note": "Stored values/artifacts are unchanged. Unavailable averages are not zero. "
                                f"Definitions describe {METRIC_CATALOG['engine_version']}; historical artifacts need their engine provenance checked."}
+
+
+def run_safety_issues(metrics: dict) -> dict[str, float]:
+    """Recorded failures that invalidate a performance comparison."""
+    issues = {}
+    for key in ("peak_stalled_vehicles", "max_overlapping_pairs"):
+        value = metric_value(metrics, key)
+        if value is not None and value > 0:
+            issues[key] = value
+    final_stalls = metric_value(metrics, "stalled_vehicles")
+    if "peak_stalled_vehicles" not in issues and final_stalls is not None and final_stalls > 0:
+        issues["stalled_vehicles"] = final_stalls
+    return issues

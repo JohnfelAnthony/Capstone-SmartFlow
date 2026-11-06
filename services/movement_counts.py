@@ -6,13 +6,11 @@ import hashlib
 import io
 import math
 
-from services.study_gate import is_study_site
 from simulation.network_registry import load_registered_network
-from simulation.scenario_config import DEFAULTS, VEHICLE_TYPES, number, validate_config
+from simulation.scenario_config import DEFAULTS, STEADY_DEMAND_END_SECONDS, VEHICLE_TYPES, is_study_site, number, validate_config
 
 COLUMNS = ("from", "to", "vehicle_type", "count")
 MAX_CSV_BYTES = 1_000_000
-DEMAND_END_SECONDS = 86400.0  # the longest run a scenario can record
 
 
 def _heading(lane, at_start: bool) -> float:
@@ -93,7 +91,7 @@ def import_movement_counts(*, csv_text: str, network_id: str, engine_config: dic
             raise ValueError(f"Row {row_number}: {' → '.join(movement[:2])} {movement[2]} appears twice")
         seen.add(movement)
         if count:
-            windows.append({"start": 0.0, "end": DEMAND_END_SECONDS, "vehicles_per_hour": count, "vehicle_type": row["vehicle_type"],
+            windows.append({"start": 0.0, "end": STEADY_DEMAND_END_SECONDS, "vehicles_per_hour": count, "vehicle_type": row["vehicle_type"],
                             "label": f"{row['from']} to {row['to']} {row['vehicle_type']}",
                             "od": [{"source": approaches[row["from"]][0], "destination": approaches[row["to"]][1], "weight": 1}]})
     if not windows:

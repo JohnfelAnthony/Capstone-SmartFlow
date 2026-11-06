@@ -65,16 +65,26 @@ def test_two_episode_synthetic_smoke_ql_training_preserves_site_identity(tmp_pat
     assert result.returncode == 0, result.stderr + result.stdout
     artifact = json.loads(output.read_text(encoding="utf-8"))
     assert artifact["metadata"]["native_contract"]["network_sha256"] == site.fingerprint
+    assert artifact["metadata"]["scenario"]["synthetic_smoke_test"] is True  # marked as a code check, not study evidence
 
 
-def test_site_training_through_the_api_needs_an_open_validation_gate(monkeypatch):
+def test_site_training_through_the_api_has_no_validation_gate_any_more(monkeypatch):
     import database
     from services.training_settings import prepare_settings
     site = load_registered_network("tagum_site_a")
     scenario = {"id": 7, "name": "Site", "network_id": site.id, "network_sha256": site.fingerprint, "engine_config": {}, "is_archived": 0}
     monkeypatch.setattr(database, "get_scenario_by_id", lambda scenario_id: scenario)
-    with pytest.raises(ValueError, match="independent validation gate"):
+    with pytest.raises(ValueError, match="Held-out scenario ID") as refused:  # the next thing it asks for, not a gate
         prepare_settings({"scenario_id": 7})
+    assert "validation" not in str(refused.value)
+
+
+def test_a_smoke_test_flag_marks_a_study_site_scenario_and_nothing_else():
+    from tools.training_inputs import mark_synthetic_smoke_test
+    site_scenario = {"network_id": "tagum_site_a", "engine_config": {}}
+    assert mark_synthetic_smoke_test(site_scenario, True)["synthetic_smoke_test"] is True
+    assert "synthetic_smoke_test" not in mark_synthetic_smoke_test(site_scenario, False)
+    assert "synthetic_smoke_test" not in mark_synthetic_smoke_test({"network_id": "tagum_network", "engine_config": {}}, True)
 
 
 def test_training_worker_validates_model_against_job_network(tmp_path, monkeypatch):

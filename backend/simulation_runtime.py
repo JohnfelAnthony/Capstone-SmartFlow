@@ -16,6 +16,7 @@ from backend.schemas import (
 from services.simulation_flow import FlowState, build_flow_snapshot
 from services.workload_admission import WorkloadConflict, workload_admission
 from simulation.road_network import load_network
+from simulation.scenario_config import effective_warmup_seconds
 from simulation.traffic_engine import STEP_LENGTH
 from simulation.traffic_engine import TrafficEngine
 from simulation.timeline_engine import TimelinePlaybackEngine
@@ -196,9 +197,14 @@ class SimulationRuntime:
             self._run_mode = "live"
             self._finalize_terminal_run_locked()
             new_run = engine.status not in {"running", "paused"} and self._active_run_id is None
-            # Validate and initialize before allocating a database run. Invalid
-            # demand must not leave a permanent 'running' row behind.
-            engine.start(self._duration_seconds)
+            if engine.status == "paused":
+                return self.resume(user_id=user_id)
+            if new_run:
+                # Validate and initialize before allocating a database run.
+                warm_up = effective_warmup_seconds(engine.config)
+                engine.start(self._duration_seconds + warm_up)
+                if engine.status == "running":
+                    engine.warm_up(warm_up)
             self._claim_owner(user_id, owner_name)
             if new_run:
                 self._begin_run_locked(engine, user_id=user_id)
@@ -418,7 +424,7 @@ class SimulationRuntime:
         engine = self._engine
         if engine is None or self._active_run_id is None or engine.status not in {"completed", "error", "stopped"}:
             return
-        reason = (f"Simulation automatically completed at {engine.duration_limit}s limit."
+        reason = (f"Simulation automatically completed at {engine.duration_limit-engine.clock_origin:g}s limit."
                   if engine.status == "completed" else engine.last_error
                   if engine.status == "error" else "Simulation stopped.")
         try:
@@ -481,7 +487,7 @@ class SimulationRuntime:
             return
         normalized_status = str(run_status or "completed").strip().lower() or "completed"
         metrics = self._metrics_payload(self._engine)
-        duration_seconds = float(max(getattr(self._engine, "simulation_time", 0), 0))
+        duration_seconds = float(max(getattr(self._engine, "visible_time", 0), 0))
         database.update_run(
             self._active_run_id,
             control_mode=self._normalize_control_mode(self._engine),

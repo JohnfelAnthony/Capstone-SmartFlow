@@ -30,9 +30,13 @@ VEHICLE_MIX_PRESETS = {
     "tagum_provisional": {"label": "Tagum (provisional)", "mix": TAGUM_PROVISIONAL_MIX},
     "cars_only": {"label": "Cars only", "mix": CARS_ONLY_MIX},
 }
+# Hidden warm-up before a live run or recording (D39). 120 s, not the 300 s of training and evaluation: at Site B high demand 300 s took
+# 80-140 s of computing, 120 s about 7 s. Evaluation and training keep their own --warmup-seconds.
+DEFAULT_RUN_WARMUP_SECONDS = 120.0
+STEADY_DEMAND_END_SECONDS = 86400.0  # the maximum simulation duration
 DEFAULTS = {
-    "traffic_density": "single", "pedestrian_density": "none",
-    "green_seconds": 14.0, "closed_lanes": [], "slow_lanes": {},
+    "traffic_density": "single", "warmup_seconds": DEFAULT_RUN_WARMUP_SECONDS, "pedestrian_density": "none",
+    "green_seconds": 14.0, "closed_lanes": [], "closure_responses": {}, "slow_lanes": {},
     "events": [], "signal_plans": {}, "demand_windows": [], "trips": [], "pedestrian_trips": [],
     "demand_source": {"kind": "synthetic", "description": "Seeded study assumptions"},
     "vehicle_mix": dict(TAGUM_PROVISIONAL_MIX), "routing_mode": "adaptive", "reroute_interval": 15.0,
@@ -79,6 +83,18 @@ def effective_maximum_red(plan, order, green):
     if "maximum_red_seconds" in plan:
         return plan["maximum_red_seconds"]
     return max(DEFAULT_MAXIMUM_RED_SECONDS, fixed_red_seconds(order, green, plan.get("yellow_seconds", 3), plan.get("all_red_seconds", 1), plan.get("phase_greens")))
+
+
+def effective_warmup_seconds(config: dict) -> float:
+    """Keep timed arrivals and finite demand schedules on the visible clock."""
+    if config["trips"] or config["pedestrian_trips"]:
+        return 0.0
+    windows = config["demand_windows"]
+    if windows:
+        steady = all(window["start"] == 0 and window["end"] == STEADY_DEMAND_END_SECONDS for window in windows)
+    else:
+        steady = config["traffic_density"] in {"low", "medium", "high", "very high"}
+    return config["warmup_seconds"] if steady else 0.0
 
 
 def number(value, label, minimum=0.0, maximum=86400.0):
@@ -164,6 +180,24 @@ def normalize_vehicle_scope(settings: dict) -> dict:
     return result
 
 
+def normalize_lane_events(network, events: list[dict]) -> list[dict]:
+    """Validate lane events and return independent copies in execution order."""
+    normalized = [event.copy() for event in events]
+    for event in normalized:
+        if event.keys() - {"time", "lane_id", "closed", "speed_factor", "label"}:
+            raise ValueError("Unknown lane event field")
+        event["time"] = number(event.get("time"), "event time")
+        if not isinstance(event.get("lane_id"), str) or event["lane_id"] not in network.lanes:
+            raise ValueError("Unknown event lane")
+        if "closed" not in event and "speed_factor" not in event:
+            raise ValueError("An event needs closed or speed_factor")
+        if "closed" in event and not isinstance(event["closed"], bool):
+            raise ValueError("closed must be true or false")
+        if "speed_factor" in event:
+            event["speed_factor"] = number(event["speed_factor"], "speed factor", .05, 1)
+    return sorted(normalized, key=lambda event: event["time"])
+
+
 def validate_config(current: dict, settings: dict, network) -> dict:
     """Build a candidate before committing anything to a running engine."""
     if not isinstance(settings, dict) or any(not isinstance(key, str) for key in settings):
@@ -210,15 +244,14 @@ def validate_config(current: dict, settings: dict, network) -> dict:
             raise ValueError(f"Unsupported {key}")
     if not isinstance(result["routing_mode"], str) or result["routing_mode"] not in {"adaptive", "static"}:
         raise ValueError("routing_mode must be adaptive or static")
-    if is_study_site(network.id):
-        # Every path (live, training, evaluation, validation, recording) validates through here. At a study site "adaptive" would mean
-        # congestion rerouting onto side streets no field data has observed, so only closures reroute traffic.
-        result["routing_mode"] = "static"
     for key, low, high in (("green_seconds", 5, 180), ("reroute_interval", 1, 300),
                            ("reroute_improvement", 0, .9), ("pedestrian_speed", .3, 3),
                            ("crossing_length", 2, 50), ("pedestrian_max_wait", 10, 600),
                            ("max_active_vehicles", 1, 2000), ("max_pending_vehicles", 1, 100000)):
         result[key] = number(result[key], key, low, high)
+    result["warmup_seconds"] = number(result["warmup_seconds"], "warm-up", 0, 3600)
+    if abs(result["warmup_seconds"]*10 - round(result["warmup_seconds"]*10)) > 1e-7:
+        raise ValueError("warm-up must be a multiple of the 0.1 second step")
     for key in ("max_active_vehicles", "max_pending_vehicles"):
         if result[key] != int(result[key]):
             raise ValueError(f"{key} must be an integer")
@@ -227,29 +260,26 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Unknown constrained lane")
     result["closed_lanes"] = sorted(set(result["closed_lanes"]))
     result["slow_lanes"] = {lane: number(factor, "speed factor", .05, 1) for lane, factor in result["slow_lanes"].items()}
-    for event in result["events"]:
-        if event.keys() - {"time", "lane_id", "closed", "speed_factor", "label"}:
-            raise ValueError("Unknown lane event field")
-        event["time"] = number(event.get("time"), "event time")
-        if not isinstance(event.get("lane_id"), str) or event["lane_id"] not in network.lanes:
-            raise ValueError("Unknown event lane")
-        if "closed" not in event and "speed_factor" not in event:
-            raise ValueError("An event needs closed or speed_factor")
-        if "closed" in event and not isinstance(event["closed"], bool):
-            raise ValueError("closed must be true or false")
-        if "speed_factor" in event:
-            event["speed_factor"] = number(event["speed_factor"], "speed factor", .05, 1)
-    result["events"].sort(key=lambda event: event["time"])
-    closed_now = set(result["closed_lanes"])
-    states = [("from the start", set(closed_now))]
-    for event in result["events"]:
-        if "closed" in event:
-            (closed_now.add if event["closed"] else closed_now.discard)(event["lane_id"])
-            states.append((f"at {event['time']:g} s", set(closed_now)))
-    for when, closed in states:
+    result["events"] = normalize_lane_events(network, result["events"])
+    from .closure_responses import SIDE_STREET_ADAPTIVE, check_responses, closure_states
+    states = closure_states(result["closed_lanes"], result["events"])
+    # A direction that shares the opposite pavement is not closed to traffic.
+    shared = {lane for lane, choice in result["closure_responses"].items() if choice == "share"} if isinstance(result["closure_responses"], dict) else set()
+    for time, closed in states.items():
+        when = f"at {time:g} s" if time else "from the start"
+        closed = closed - shared
         if closed and not network.has_legal_movement(closed):
             raise ValueError(f"These closures leave no legal movement anywhere {when}: no vehicle could get from an entry road to an exit "
                              "(U-turns are not allowed). Open at least one more road or direction.")
+    check_responses(network, result["closure_responses"], states.values())
+    chose_adaptive = SIDE_STREET_ADAPTIVE in result["closure_responses"].values()
+    if is_study_site(network.id):
+        # Every path (live, training, evaluation, validation, recording) validates through here. At a study site congestion rerouting could
+        # send traffic onto side streets no field data has observed, so a run reacts to closures only (static) unless the scenario has a
+        # closure whose response is 'avoid jams'.
+        result["routing_mode"] = "adaptive" if chose_adaptive else "static"
+    elif chose_adaptive:
+        result["routing_mode"] = "adaptive"
     for node, plan in result["signal_plans"].items():
         if node not in network.intersections:
             raise ValueError("Unknown signal junction")
@@ -291,10 +321,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     if sum(result["vehicle_mix"].values()) <= 0:
         raise ValueError("Vehicle mix needs a positive weight")
     source_kind = result["demand_source"].get("kind")
-    if not isinstance(source_kind, str) or source_kind not in {"synthetic", "observed"}:
-        raise ValueError("Demand source kind must be synthetic or observed")
-    if result["demand_source"]["kind"] == "observed" and not result["demand_source"].get("description"):
-        raise ValueError("Observed demand needs its survey/source description")
+    if not isinstance(source_kind, str) or source_kind not in {"synthetic", "observed", "field_counts"}:
+        raise ValueError("Demand source kind must be synthetic, observed or field_counts")
+    if result["demand_source"]["kind"] in {"observed", "field_counts"} and not result["demand_source"].get("description"):
+        raise ValueError("Observed demand and field counts need their survey/source description")
     def validate_od(item):
         source, target = item.get("source"), item.get("destination")
         if source not in network.boundaries or target not in network.boundaries or not network.route(source, target):

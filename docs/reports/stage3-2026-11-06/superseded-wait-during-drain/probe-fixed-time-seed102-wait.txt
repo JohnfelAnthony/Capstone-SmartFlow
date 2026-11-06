@@ -1,0 +1,14 @@
+1.0 (False, (), ()) on road2: 0 veh 1 done 0 stalled 0 stuck 0
+200.0 (False, (), ()) on road2: 7 veh 29 done 23 stalled 0 stuck 0
+300.0 (False, ('road2f', 'road2r'), ()) on road2: 6 veh 39 done 43 stalled 0 stuck 0
+400.0 (False, ('road2f', 'road2r'), ()) on road2: 1 veh 53 done 59 stalled 0 stuck 0
+443.0 (True, (), (('road2', 'road2f'),)) on road2: 0 veh 59 done 61 stalled 0 stuck 0
+600.0 (True, (), (('road2', 'road2f'),)) on road2: 18 veh 74 done 85 stalled 0 stuck 0
+800.0 (True, (), (('road2', 'road2f'),)) on road2: 25 veh 94 done 127 stalled 0 stuck 0
+1000.0 (True, (), (('road2', 'road2f'),)) on road2: 26 veh 107 done 170 stalled 0 stuck 0
+1200.0 (True, ('road2f', 'road2r'), (('road2', 'road2f'),)) on road2: 32 veh 98 done 220 stalled 0 stuck 0
+1400.0 (True, ('road2f', 'road2r'), (('road2', 'road2f'),)) on road2: 23 veh 119 done 245 stalled 0 stuck 0
+1600.0 (True, ('road2f', 'road2r'), (('road2', 'road2f'),)) on road2: 18 veh 154 done 252 stalled 0 stuck 0
+1800.0 (True, ('road2f', 'road2r'), (('road2', 'road2f'),)) on road2: 8 veh 197 done 258 stalled 0 stuck 0
+
+[exited with code 0]

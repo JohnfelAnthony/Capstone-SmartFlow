@@ -54,6 +54,23 @@ for _density in ("medium", "high"):
     for _control, _extras in (("nosignal", {"no_signal": True}), ("fixed", {})):
         CASES[f"siteA-static-{_density}-{_control}"] = ("siteA", _density, "tagum", {**_extras, "static": True})
         CASES[f"siteA-static-{_density}-{_control}-closure"] = ("siteA", _density, "tagum", {**_extras, "static": True, "loop_closure": True})
+# Closure acceptance beyond the west piece (review of 5 November 2026): each road both ways from 300 s to 1,200 s at either site, and at Site A the
+# loop street closed for 500-800 s inside the west closure. Medium traffic, no signal and fixed-time.
+def _closed(lanes, start, end):
+    return [{"time": float(start), "lane_id": lane, "closed": True} for lane in lanes]+[{"time": float(end), "lane_id": lane, "closed": False} for lane in lanes]
+
+
+EXTRA_CLOSURE_CASES = {
+    "road1-closed": _closed(("road1f", "road1r"), 300, 1200),
+    "road2-closed": _closed(("road2f", "road2r"), 300, 1200),
+}
+for _site in ("siteA", "siteB"):
+    for _control, _extras in (("nosignal", {"no_signal": True}), ("fixed", {})):
+        for _name, _events in EXTRA_CLOSURE_CASES.items():
+            CASES[f"{_site}-static-medium-{_control}-{_name}"] = (_site, "medium", "tagum", {**_extras, "static": True, "events": _events})
+for _control, _extras in (("nosignal", {"no_signal": True}), ("fixed", {})):
+    CASES[f"siteA-static-medium-{_control}-side-street-closed"] = ("siteA", "medium", "tagum", {**_extras, "static": True, "events": sorted(
+        _closed(("road2r",), 300, 1200)+_closed(("road6f", "road6r"), 500, 800), key=lambda event: event["time"])})
 GROUPED_PHASES = [["north", "south"], ["east", "west"], "pedestrian"]
 SYNTHETIC_VEHICLES_PER_HOUR = {"low": 432, "medium": 1080, "high": 2340, "very high": 3420}  # simulation/demand.py, spread evenly over boundaries
 QUICK_CASES = ("2j-medium-tagum", "5j-medium-cars")
@@ -152,7 +169,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
     node = engine.controlled_junction
     incoming = [network.lanes[lane_id] for lane_id in network.incoming[node]]
     signal = engine.signals[node]
-    max_overlaps = max_stuck = 0
+    max_overlaps = max_stuck = max_unexplained_stuck = 0
     max_island_intrusions = 0 if network.islands else None
     max_gridlock = max_held = 0.0
     # The stuck and gridlock counters only see vehicles inside a junction; this one also catches a frozen queue at its line.
@@ -170,6 +187,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
             max_island_intrusions = max(max_island_intrusions, intrusions)
         metrics = engine._last_metrics
         max_stuck = max(max_stuck, metrics["stuck_junction_vehicles"])
+        max_unexplained_stuck = max(max_unexplained_stuck, metrics["unexplained_stuck_junction_vehicles"])
         max_gridlock = max(max_gridlock, metrics["gridlock_seconds"])
         max_held = max(max_held, metrics["closure_held_vehicles"])
         if engine.lifetime_completed != completed_so_far or not engine.vehicles:
@@ -209,10 +227,15 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         "simulated_s": engine.simulation_time,
         "network_id": network.id,
         "network_fingerprint": network.fingerprint,
+        "experiment": engine.experiment_metadata(),
         "max_overlapping_pairs": int(max_overlaps),
         "island_count": len(network.islands),
         "max_island_intrusions": max_island_intrusions,
         "max_stuck_junction_vehicles": int(max_stuck),
+        "max_unexplained_stuck_junction_vehicles": max_unexplained_stuck,
+        "max_stalled_vehicles": engine.peak_stalled_vehicles,
+        "final_stalled_vehicles": engine._last_metrics["stalled_vehicles"],
+        "first_stall_seconds": engine.first_stall_seconds,
         "max_gridlock_seconds": float(max_gridlock),
         "longest_completion_gap_s": round(float(longest_completion_gap), 1),
         "final_vehicle_conservation_error": engine._last_metrics["vehicle_conservation_error"],
@@ -244,6 +267,9 @@ def case_options(name: str) -> tuple[str, str, dict, dict]:
         options["signal_plans"] = grouped_plan(network_name, density, MIXES[mix_name])
     if extras.get("static"):
         options["routing_mode"] = "static"
+    if extras.get("events"):
+        lanes = load_network(network_name).lanes  # a one-way road has only its forward lane
+        options["events"] = [dict(event) for event in extras["events"] if event["lane_id"] in lanes]
     if extras.get("loop_closure"):
         options["events"] = [dict(event) for event in LOOP_CLOSURE_EVENTS]
     if extras.get("closure"):

@@ -417,7 +417,7 @@ def _run_job(job_id: int, workload_lease=None):
                 evaluation_path=output_path, ended_at=_utc_now_iso(), message="Training and evaluation completed." if not settings.get("evaluation_only") else "Evaluation completed.")
         provenance = settings.get("scenario_snapshot", {}).get("engine_config", {}).get("demand_source", {}).get("kind", "synthetic")
         database.update_rl_training_job(job_id, status="completed", progress_percent=100, ended_at=_utc_now_iso(),
-            message=f"Job completed. {provenance.capitalize()} inputs; results require separate validation before effectiveness claims.")
+            message=f"Job completed. {provenance.replace('_', ' ').capitalize()} inputs; scenario-based results, not calibrated or validated.")
     except (Exception, KeyboardInterrupt) as exc:
         interrupted = isinstance(exc, (TrainingCancelled, KeyboardInterrupt)) or _cancel_event.is_set()
         status = "interrupted" if interrupted else "error"

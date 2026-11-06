@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 import auth
 import config
 import database
-from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics, run_safety_issues
 from services.control_labels import condition_label
 from backend.schemas import (
     AdminPasswordResetResponse,
@@ -47,6 +47,7 @@ from backend.schemas import (
     LoginResponse,
     MessageResponse,
     ClosureCheckRequest,
+    FieldObserverCountsRequest,
     MovementCountsRequest,
     NetworkRevisionPreviewRequest,
     NetworkRevisionApplyRequest,
@@ -1102,6 +1103,10 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Throughput": run_metric_value(run, "throughput"),
         "Scheduled Vehicles": raw.get("scheduled_vehicles", ""),
         "Unfinished Vehicles": raw.get("unfinished_vehicles", ""),
+        "Stalled Vehicles At Run End": raw.get("stalled_vehicles", ""),
+        "Peak Stalled Vehicles": raw.get("peak_stalled_vehicles", ""),
+        "First Stall Measurement Seconds": raw.get("first_stall_seconds", ""),
+        "Peak Overlapping Vehicle Pairs": raw.get("max_overlapping_pairs", ""),
         "Dropped Vehicles": raw.get("dropped_vehicles", ""),
         "Unfinished Pedestrians": raw.get("active_pedestrian_count", ""),
         "Average Pedestrian Delay": run_metric_value(run, "avg_pedestrian_delay"),
@@ -1431,11 +1436,20 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
     right_metrics = compare_run_metrics(right_option.run.id)
     for label, metrics in (("Left", left_metrics), ("Right", right_metrics)):
         raw = metrics.get("raw_metrics") or {}
+        issues = run_safety_issues(raw)
+        if issues:
+            peak = issues.get("peak_stalled_vehicles", issues.get("stalled_vehicles", 0))
+            overlaps = raw.get("max_overlapping_pairs", "unavailable")
+            first = raw.get("first_stall_seconds")
+            onset = f" First stall at measured second {first:g}." if isinstance(first, (int, float)) else ""
+            warnings.append(f"{label} run failed a safety check and should be excluded from performance conclusions. "
+                            f"Recorded stalls: {peak:g}; stalls at end: {raw.get('stalled_vehicles', 'unavailable')}; "
+                            f"peak overlaps: {overlaps}.{onset}")
         unfinished = int(raw.get("unfinished_vehicles") or 0)
         if unfinished:
             warnings.append(f"{label} run has {unfinished} unfinished vehicles at the horizon.")
     if left_option.provenance.get("demand_source") != "observed" or right_option.provenance.get("demand_source") != "observed":
-        warnings.append("At least one run uses synthetic demand; do not interpret this pair as observed field performance.")
+        warnings.append("At least one run's demand is synthetic or from field counts, not an observed dataset; scenario-based, not calibrated or validated. Do not interpret this pair as observed field performance.")
     return ComparePairResponse(
         left=CompareRunBundle(option=left_option, frames=aligned_left, metrics=left_metrics),
         right=CompareRunBundle(option=right_option, frames=aligned_right, metrics=right_metrics),
@@ -1513,6 +1527,16 @@ def import_movement_counts(payload: MovementCountsRequest, user: dict = Depends(
     from services.movement_counts import import_movement_counts as convert
     try:
         return convert(**payload.model_dump())
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
+
+
+@app.post("/api/scenarios/field-observer-counts")
+def import_field_observer_counts(payload: FieldObserverCountsRequest, user: dict = Depends(require_current_user)) -> dict:
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from services.field_observer_counts import import_field_counts
+    try:
+        return import_field_counts(**payload.model_dump())
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
 

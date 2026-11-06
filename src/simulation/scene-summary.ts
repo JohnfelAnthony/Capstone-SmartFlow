@@ -1,4 +1,5 @@
 import type { VisualPoint } from "@/api/visual-network"
+import type { SharedRoad } from "@/simulation/frame-types"
 import { immediateApproach, signalAppearance, type SceneGeometry, type SceneJunction } from "@/simulation/scene-geometry"
 
 export function junctionShortLabel(geometry: SceneGeometry, junctionId: string) {
@@ -79,6 +80,44 @@ export function junctionClosures(geometry: SceneGeometry, junctionId: string, cl
     closedExits: [...new Set(turns.map(turn => turn.to))].filter(laneId => closed.has(laneId)),
     unavailableTurns: turns.filter(turn => closed.has(turn.from) || closed.has(turn.to)).sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
   }
+}
+
+/** The lane keeping its own pavement when `laneId` is the closed, shared direction of its road (ids end in f or r). */
+export const keptLaneOf = (laneId: string) => `${laneId.slice(0, -1)}${laneId.endsWith("f") ? "r" : "f"}`
+
+export type SharedStrip = { sharedLane: string; keptLane: string; width: number; lanes: Record<string, VisualPoint[]> }
+
+function nearestPoint(point: VisualPoint, line: readonly VisualPoint[]) {
+  let best = line[0], bestDistance = Infinity
+  for (let index = 1; index < line.length; index++) {
+    const a = line[index - 1], b = line[index], dx = b.x - a.x, dy = b.y - a.y, squared = dx * dx + dy * dy
+    const fraction = squared > 0 ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / squared)) : 0
+    const candidate = { x: a.x + dx * fraction, y: a.y + dy * fraction }, gap = Math.hypot(point.x - candidate.x, point.y - candidate.y)
+    if (gap < bestDistance) { best = candidate; bestDistance = gap }
+  }
+  return best
+}
+
+/** Where the two lanes of a road would run if its closed direction shared the opposite pavement: the road's axis lies halfway between the two lane centre lines, the kept lane moves to the middle of its own half and the shared one to the middle of the inner half. Used before a run; a run reports the engine's own geometry. */
+export function sharedStripsFromGeometry(geometry: SceneGeometry, sharedLanes: Iterable<string>): SharedStrip[] {
+  const strips: SharedStrip[] = []
+  for (const sharedLane of sharedLanes) {
+    const keptLane = keptLaneOf(sharedLane)
+    const closedSide = geometry.laneById.get(sharedLane), keptSide = geometry.laneById.get(keptLane)
+    if (!closedSide || !keptSide || keptSide.centerline.length < 2) continue
+    const axis = keptSide.centerline.map(point => { const other = nearestPoint(point, closedSide.centerline); return { x: (point.x + other.x) / 2, y: (point.y + other.y) / 2 } })
+    const along = (factor: number) => keptSide.centerline.map((point, index) => ({ x: axis[index].x + (point.x - axis[index].x) * factor, y: axis[index].y + (point.y - axis[index].y) * factor }))
+    strips.push({ sharedLane, keptLane, width: keptSide.width / 2, lanes: { [keptLane]: along(1.5), [sharedLane]: along(0.5) } })
+  }
+  return strips
+}
+
+/** The engine's own geometry for the roads sharing a pavement right now. */
+export function sharedStripsFromFrame(frame: { visual?: { shared_roads?: SharedRoad[] } } | null | undefined): SharedStrip[] {
+  return (frame?.visual?.shared_roads ?? []).map(road => ({
+    sharedLane: road.shared_lane, keptLane: road.kept_lane, width: road.width,
+    lanes: Object.fromEntries(Object.entries(road.lanes).map(([lane, points]) => [lane, points.map(([x, y]) => ({ x, y }))])),
+  }))
 }
 
 /** Compass side a leaving road heads towards, from the lane's first heading (+y is north). */

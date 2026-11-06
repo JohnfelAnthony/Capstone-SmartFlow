@@ -111,7 +111,7 @@ def native_snapshot(scenario: dict) -> dict:
     engine.configure_from_scenario(scenario)
     return {'id': scenario.get('id'), 'name': scenario.get('name', ''),
             'intersection_id': scenario['network_id'],
-            'network_id': scenario['network_id'], 'network_sha256': engine.network.fingerprint,
+            'network_id': scenario['network_id'], 'network_sha256': engine.base_network.fingerprint,
             'engine_config': copy.deepcopy(engine.config)}
 
 

@@ -38,14 +38,16 @@ export function NativeScenarioSummary({ config, options }: { config: NativeScena
   const junction = config.controlled_junction ?? options?.defaults.controlled_junction
   const label = options?.junctions.find((item) => item.id === junction)?.label ?? junction ?? "Default junction"
   const laneLabel = (id: string) => options?.lanes.find((lane) => lane.id === id)?.label ?? id
+  const routing = config.routing_mode === "adaptive"
+    ? "Avoid jams (adaptive): drivers steer around congestion as well as closed roads, in this whole scenario."
+    : options?.routing_follows_closure_choice ? "Drivers are rerouted around closed roads only, not around congestion."
+    : `${config.routing_mode ?? "adaptive"}.`
   return <div className="flex flex-col gap-3 text-sm">
-    <p><strong>RL candidate:</strong> {label}. Other junctions use their saved fixed-time or all-way-stop plans.</p>
-    <p><strong>Routing:</strong> {options?.fixed_routing_mode ?? config.routing_mode ?? "adaptive"}{options?.fixed_routing_mode ? " (traffic is rerouted around closed roads only, never around congestion)" : ""}. <strong>Scheduled changes:</strong> {config.events?.length ?? 0}.</p>
-    {(config.closed_lanes ?? []).map((lane) => <p key={lane}>Initially closed: {laneLabel(lane)}</p>)}
+    <p><strong>Learned controller can control:</strong> {label}. Other junctions use their saved fixed-time or all-way-stop plans.</p>
+    <p><strong>Routing:</strong> {routing} <strong>Scheduled changes:</strong> {config.events?.length ?? 0}.</p>
     {Object.entries(config.slow_lanes ?? {}).map(([lane, factor]) => <p key={lane}>Initial speed: {laneLabel(lane)} — {Math.round(factor * 100)}%</p>)}
-    {[...(config.events ?? [])].sort((a, b) => a.time - b.time).map((event, index) => <p key={index}>
-      At {event.time}s: {laneLabel(event.lane_id)} — {event.closed === undefined ? "" : event.closed ? "close entry" : "reopen"}
-      {event.speed_factor === undefined ? "" : ` ${Math.round(event.speed_factor * 100)}% speed`}
+    {[...(config.events ?? [])].filter((event) => event.speed_factor !== undefined).sort((a, b) => a.time - b.time).map((event, index) => <p key={index}>
+      At {event.time}s: {laneLabel(event.lane_id)} — {Math.round((event.speed_factor ?? 1) * 100)}% speed
     </p>)}
   </div>
 }

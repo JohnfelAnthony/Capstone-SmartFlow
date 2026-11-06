@@ -3,7 +3,7 @@ import json
 
 from tools.mixed_traffic_report import QUICK_CASES, main
 
-CASE_FIELDS = {"runtime_s", "max_overlapping_pairs", "max_stuck_junction_vehicles", "max_gridlock_seconds",
+CASE_FIELDS = {"runtime_s", "max_overlapping_pairs", "max_stuck_junction_vehicles", "max_stalled_vehicles", "max_gridlock_seconds",
                "final_vehicle_conservation_error", "completed", "queue_count_p95", "active_count_p95",
                "front_row_motorcycle_share", "queue_motorcycle_share", "mean_discharge_first_10s",
                "network_id", "network_fingerprint", "island_count", "max_island_intrusions", "requested_vehicles",

@@ -9,6 +9,8 @@ import config
 import database
 from services.timeline_artifacts import timeline_artifact_paths, timeline_directory
 from services.workload_admission import workload_admission
+from simulation.scenario_config import effective_warmup_seconds
+from simulation.footprints import overlapping_pairs
 from simulation.traffic_engine import TrafficEngine
 
 logger = logging.getLogger(__name__)
@@ -95,7 +97,7 @@ def _build_manifest(
         getattr(engine, "controller_provenance_label", "")
         or controller_provenance.replace("-", " ").title()
     )
-    actual_duration = float(getattr(engine, "simulation_time", 0) or 0)
+    actual_duration = float(getattr(engine, "visible_time", 0) or 0)
     step_length = float(getattr(engine, "step_length", 0.1) or 0.1)
     return {
         "manifest_version": 2,
@@ -168,8 +170,11 @@ def generate_timeline(
             engine.configure_from_scenario(scenario)
             from services.native_controller import apply_controller
             apply_controller(engine, control_mode)
-            engine.start(duration_limit)
+            warm_up = effective_warmup_seconds(engine.config)
+            engine.start(duration_limit + warm_up)
             engine.run_id = str(run_id)
+            if engine.status == "running":
+                engine.warm_up(warm_up)  # hidden: the recording starts at the end of it (D39)
             if engine.status == "error":
                 logger.error("Timeline generator failed to start: %s", engine.last_error)
                 database.update_run(
@@ -192,7 +197,9 @@ def generate_timeline(
 
             with timeline_path.open("w", encoding="utf-8") as timeline_file:
                 frame_count = 0
-                timeline_file.write(json.dumps(engine.to_dict()) + "\n")
+                frame = engine.to_dict()
+                max_overlaps = len(overlapping_pairs(frame["vehicles"]))
+                timeline_file.write(json.dumps(frame) + "\n")
                 frame_count += 1
                 if on_progress:
                     on_progress(
@@ -207,11 +214,13 @@ def generate_timeline(
                 while engine.status == "running":
                     engine.step(1)
                     if engine.status in {"running", "completed"}:
-                        timeline_file.write(json.dumps(engine.to_dict()) + "\n")
+                        frame = engine.to_dict()
+                        max_overlaps = max(max_overlaps, len(overlapping_pairs(frame["vehicles"])))
+                        timeline_file.write(json.dumps(frame) + "\n")
                         frame_count += 1
 
                     if on_progress and duration_limit > 0:
-                        current_progress = int((engine.simulation_time / duration_limit) * 100)
+                        current_progress = int((engine.visible_time / duration_limit) * 100)
                         if current_progress > last_progress:
                             last_progress = current_progress
                             on_progress(
@@ -223,6 +232,7 @@ def generate_timeline(
                             )
 
             final_metrics = {**engine.to_dict().get("metrics", {}), "experiment": engine.experiment_metadata()}
+            final_metrics["max_overlapping_pairs"] = max_overlaps
             _save_metrics(run_id, final_metrics)
             compression = {}
             if config.TIMELINE_GZIP_ENABLED:
@@ -249,7 +259,7 @@ def generate_timeline(
                 control_mode=engine.controller_provenance,
                 rl_model_id=(getattr(engine.runtime_policy, "artifact_metadata", {}) or {}).get("model_id"),
                 end_time=_utc_now_iso(),
-                duration_seconds=float(engine.simulation_time),
+                duration_seconds=float(engine.visible_time),
                 timeline_path=str(canonical_timeline_path),
                 notes=f"Timeline generated with {frame_count} recorded frames.",
             )
@@ -295,7 +305,7 @@ def generate_timeline(
                 run_mode="pre-record",
                 status="error",
                 end_time=_utc_now_iso(),
-                duration_seconds=float(getattr(engine, "simulation_time", 0) or 0),
+                duration_seconds=float(getattr(engine, "visible_time", 0) or 0),
                 timeline_path=str(timeline_path) if timeline_path is not None else None,
                 notes=str(exc),
             )
