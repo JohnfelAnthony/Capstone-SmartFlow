@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { RenderFrame, RenderVehicle } from "@/simulation/frame-types"
-import { interpolationDuration, interpolateVehicle, isPresentationJump } from "@/simulation/entity-interpolation"
+import { interpolateVehicle, isPresentationJump } from "@/simulation/entity-interpolation"
 
 const vehicle: RenderVehicle = { id: "synthetic-vehicle", x: 10, y: 20, angle: 90, speed: 3,
   lane_id: "lane-A", lane_position: 10, length: 3, width: 1.4, stopped: false, visual_type: "tricycle", wait_time: 2 }
@@ -15,18 +15,6 @@ function frame(overrides: Partial<RenderFrame> = {}): RenderFrame {
 const degrees = (angle: number) => (angle % 360 + 360) % 360
 
 describe("authoritative entity interpolation lifecycle", () => {
-  it("uses snapshot delivery timing, falling back to the supplied native step length", () => {
-    expect(interpolationDuration(frame(), frame({ render_ts: 100.25 }))).toBe(250)
-    expect(interpolationDuration(null, frame({ step_length: .2 }))).toBe(200)
-    expect(interpolationDuration(frame(), frame({ render_ts: 100, step_length: .3 }))).toBe(300)
-    expect(interpolationDuration(frame(), frame({ render_ts: 99, step_length: .05 }))).toBe(50)
-  })
-
-  it("keeps long or invalid delivery gaps within a bounded interpolation window", () => {
-    expect(interpolationDuration(frame(), frame({ render_ts: 110 }))).toBe(1000)
-    expect(interpolationDuration(null, frame({ step_length: 0 }))).toBe(1)
-  })
-
   it("interpolates position without replacing authoritative speed/wait/class metadata", () => {
     const target = { ...vehicle, x: 30, y: 50, speed: 0, wait_time: 12, stopped: true }
     const middle = interpolateVehicle(vehicle, target, 50, 100)
@@ -76,11 +64,12 @@ describe("authoritative entity interpolation lifecycle", () => {
     expect(isPresentationJump(frame(), frame({ time: 2.1 }), "run-A", "run-A")).toBe(false)
   })
 
-  it("snaps nonadjacent replay seeks and permits ordinary consecutive playback frames", () => {
+  it("distinguishes replay seeks from ordinary progress across multiple recorded ticks", () => {
     const old = frame({ render_mode: "playback", playback: { active: true, frame_index: 10, frame_count: 100 } })
     expect(isPresentationJump(old, frame({ render_mode: "playback", playback: { active: true, frame_index: 11, frame_count: 100 } }), "recording-A", "recording-A")).toBe(false)
     expect(isPresentationJump(old, frame({ render_mode: "playback", time: 1, playback: { active: true, frame_index: 5, frame_count: 100 } }), "recording-A", "recording-A")).toBe(true)
-    expect(isPresentationJump(old, frame({ render_mode: "playback", time: 3, playback: { active: true, frame_index: 30, frame_count: 100 } }), "recording-A", "recording-A")).toBe(true)
+    expect(isPresentationJump(old, frame({ render_mode: "playback", time: 2.4, playback: { active: true, frame_index: 14, frame_count: 100 } }), "recording-A", "recording-A")).toBe(false)
+    expect(isPresentationJump(old, frame({ render_mode: "playback", time: 3, playback: { active: true, frame_index: 30, frame_count: 100, seek_revision: 1 } }), "recording-A", "recording-A")).toBe(true)
     // Host revision tokens cover an explicit seek to an adjacent frame too.
     expect(isPresentationJump(old, frame({ render_mode: "playback", playback: { active: true, frame_index: 11, frame_count: 100 } }), "recording-A:0", "recording-A:1")).toBe(true)
   })

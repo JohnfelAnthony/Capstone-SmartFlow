@@ -40,6 +40,7 @@ class TimelinePlaybackEngine:
         
         self._frames = []
         self._current_frame_idx = 0
+        self._seek_revision = 0
         self.duration_limit = 300
         
         manifest = self._load_manifest()
@@ -165,6 +166,7 @@ class TimelinePlaybackEngine:
             return
         clamped_index = max(0, min(int(frame_index or 0), len(self._frames) - 1))
         self._current_frame_idx = clamped_index
+        self._seek_revision += 1
         if self.status in {"completed", "stopped"}:
             self.status = "paused"
         self.last_action = f"Seeked to frame {clamped_index + 1} of {len(self._frames)}"
@@ -198,6 +200,7 @@ class TimelinePlaybackEngine:
         state["playback"] = {
             "frame_index": idx,
             "frame_count": len(self._frames),
+            "seek_revision": self._seek_revision,
             "progress_percent": int((idx / max(1, len(self._frames) - 1)) * 100),
         }
         dashboard = dict(frame.get("dashboard", {}))

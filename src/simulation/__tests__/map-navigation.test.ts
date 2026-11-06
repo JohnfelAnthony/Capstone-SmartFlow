@@ -40,51 +40,113 @@ describe("2D map navigation", () => {
     expect(claimMapLabel([{ x: 15, y: 12, width: 30, height: 15 }, { x: 195, y: 12, width: 30, height: 15 }], occupied, 200, 100)).toBeNull()
   })
 })
-describe("2D displayed-frame interpolation", () => {
-  it("moves both entity types, uses target metadata and never extrapolates", () => {
-    const stream = createMapInterpolator(); stream.set(frame(0), "run", 0); stream.set(frame(10), "run", 100)
-    const middle = stream.sample(150)!
-    expect(middle.vehicles[0].x).toBe(5); expect(middle.pedestrians[0].x).toBe(5); expect(middle.time).toBe(10)
-    expect(stream.sample(1000)!.vehicles[0].x).toBe(10); expect(stream.moving(1000)).toBe(false)
+describe("2D displayed-frame playback", () => {
+  // Simulation time equals wall time here (1x speed); each frame is delivered at `now` milliseconds.
+  const at = (time: number, x: number, overrides: Partial<RenderFrame> = {}) => frame(x, { time, render_ts: time, ...overrides })
+
+  it("plays steadily between frames, uses the next frame's metadata and never extrapolates", () => {
+    const stream = createMapInterpolator()
+    for (let tick = 0; tick <= 10; tick++) stream.set(at(tick / 10, tick, { phase: `P${tick}` }), "run", tick * 100)
+    const shown = stream.sample(1000)!
+    expect(shown.vehicles[0].x).toBeGreaterThan(7); expect(shown.vehicles[0].x).toBeLessThan(10)
+    expect(shown.phase).toBe(`P${Math.ceil(shown.vehicles[0].x)}`)
+    expect(stream.moving()).toBe(true)
+    // No further frames arrive: the display stops at the newest frame and goes no further.
+    expect(stream.sample(5000)!.vehicles[0].x).toBe(10); expect(stream.moving()).toBe(false)
   })
-  it("starts a new delivery from the current displayed position instead of jumping backward", () => {
-    const stream = createMapInterpolator(); stream.set(frame(0), "run", 0); stream.set(frame(10), "run", 100)
-    stream.set(frame(20), "run", 150)
-    expect(stream.sample(150)!.vehicles[0].x).toBe(5)
-    expect(stream.sample(200)!.vehicles[0].x).toBe(12.5)
+
+  it("keeps a constant speed when frames arrive unevenly or carry two engine ticks", () => {
+    // One car at 10 m/s; the engine ticks every 100 ms. Before this fix the display swung by 42-92% between paints and froze.
+    for (const [every, noise] of [[110, 0], [100, 30]]) {
+      let seed = 7
+      const random = () => (seed = seed * 16807 % 2147483647) / 2147483647
+      const deliveries = Array.from({ length: Math.floor(20000 / every) }, (_, index) => {
+        const wall = index * every, time = Math.floor(wall / 100) / 10
+        return { arrives: wall + random() * noise, frame: at(time, time * 10, { render_ts: (wall + random() * noise) / 1000 }) }
+      })
+      const stream = createMapInterpolator(), speeds: number[] = []
+      let next = 0, previous: number | null = null
+      for (let now = 0; now < 19000; now += 1000 / 60) {
+        while (next < deliveries.length && deliveries[next].arrives <= now) stream.set(deliveries[next++].frame, "run", now)
+        const x = stream.sample(now)?.vehicles[0].x ?? 0
+        if (previous !== null && now > 2000) speeds.push((x - previous) * 60)
+        previous = x
+      }
+      const swings = speeds.map((speed) => Math.abs(speed - 10) / 10).sort((a, b) => a - b)
+      expect(swings[Math.floor(swings.length * .95)]).toBeLessThan(.2)
+      expect(Math.min(...speeds)).toBeGreaterThan(5)
+    }
   })
+
   it("snaps pause, run reset and backward seek and discards departed entities", () => {
-    const stream = createMapInterpolator(); stream.set(frame(0), "run", 0); stream.set(frame(10), "run", 100)
-    stream.set(frame(10, { status: "paused" }), "run", 125)
-    expect(stream.sample(125)!.vehicles[0].x).toBe(10); expect(stream.moving(125)).toBe(false)
-    stream.set(frame(1), "new-run", 130); expect(stream.sample(130)!.vehicles[0].x).toBe(1)
-    stream.set(frame(0, { vehicles: [], pedestrians: [] }), "new-run", 140)
-    expect(stream.sample(140)!.vehicles).toEqual([]); expect(stream.sample(140)!.pedestrians).toEqual([])
+    const stream = createMapInterpolator(); stream.set(at(0, 0), "run", 0); stream.set(at(.1, 1), "run", 100)
+    stream.set(at(.1, 1, { status: "paused" }), "run", 125)
+    expect(stream.sample(125)!.vehicles[0].x).toBe(1); expect(stream.moving()).toBe(false)
+    stream.set(at(5, 50), "run", 130); stream.set(at(1, 9), "run", 140)
+    expect(stream.sample(140)!.vehicles[0].x).toBe(9)
+    stream.set(at(0, 3), "new-run", 150); expect(stream.sample(150)!.vehicles[0].x).toBe(3)
+    stream.set(at(.1, 4, { vehicles: [], pedestrians: [] }), "new-run", 250)
+    expect(stream.sample(400)!.vehicles).toEqual([]); expect(stream.sample(400)!.pedestrians).toEqual([])
   })
-  it("does not animate stationary or empty snapshots while keeping current metrics", () => {
-    const stream = createMapInterpolator(); stream.set(frame(0), "run", 0)
-    stream.set(frame(0, { time: 1, render_ts: .1, phase: "EAST_GREEN" }), "run", 100)
-    expect(stream.moving(100)).toBe(false)
-    expect(stream.sample(100)!.phase).toBe("EAST_GREEN")
-    stream.set(frame(0, { time: 2, render_ts: .2, vehicles: [], pedestrians: [] }), "run", 200)
-    expect(stream.moving(200)).toBe(false)
-    expect(stream.sample(200)!.vehicles).toEqual([])
-  })
-  it("finishes in-flight motion when a stationary delivery arrives before the last target", () => {
-    const stream = createMapInterpolator(); stream.set(frame(0), "run", 0); stream.set(frame(10), "run", 100)
-    stream.set(frame(10, { time: 11, render_ts: .15 }), "run", 150)
-    expect(stream.moving(150)).toBe(true)
-    expect(stream.sample(150)!.vehicles[0].x).toBe(5)
-    expect(stream.sample(200)!.vehicles[0].x).toBe(10)
-    expect(stream.moving(200)).toBe(false)
-  })
+
   it("snaps explicit adjacent replay seeks and clears the display when a run is unloaded", () => {
     const stream = createMapInterpolator()
     stream.set(frame(0, { render_mode: "playback", playback: { active: true, frame_index: 0, frame_count: 10 } }), "recording:0", 0)
     stream.set(frame(10, { render_mode: "playback", playback: { active: true, frame_index: 1, frame_count: 10 } }), "recording:1", 100)
     expect(stream.sample(100)!.vehicles[0].x).toBe(10)
-    expect(stream.moving(100)).toBe(false)
+    expect(stream.moving()).toBe(false)
     stream.set(null, "", 125)
-    expect(stream.sample(125)).toBeNull(); expect(stream.moving(125)).toBe(false)
+    expect(stream.sample(125)).toBeNull(); expect(stream.moving()).toBe(false)
+  })
+
+  it("keeps the configured speed after a same-time resume and an early tick", () => {
+    const stream = createMapInterpolator()
+    stream.set(at(5, 50, { status: "paused" }), "run", 0)
+    stream.set(at(5, 50, { render_ts: 10 }), "run", 1000)
+    stream.set(at(5.1, 51, { render_ts: 10.02 }), "run", 1020)
+    const before = stream.sample(1020)!.vehicles[0].x
+    const after = stream.sample(1070)!.vehicles[0].x
+    expect(after - before).toBeGreaterThan(.44)
+    expect(after - before).toBeLessThan(.56)
+  })
+
+  it("applies a speed change immediately and starts a new run at its own speed", () => {
+    const stream = createMapInterpolator()
+    for (let index = 0; index <= 10; index++) {
+      stream.set(at(index * .4, index * 4, { speed_multiplier: 4, render_ts: index / 10 }), "fast", index * 100)
+      stream.sample(index * 100)
+    }
+    stream.set(at(4, 40, { speed_multiplier: 1 }), "fast", 1000)
+    const before = stream.sample(1000)!.vehicles[0].x
+    expect(stream.sample(1050)!.vehicles[0].x - before).toBeLessThan(.56)
+    stream.set(at(0, 0, { speed_multiplier: 1 }), "new", 1100)
+    stream.set(at(.1, 1, { speed_multiplier: 1 }), "new", 1200)
+    expect(stream.sample(1250)!.vehicles[0].x).toBeLessThan(.56)
+  })
+
+  it.each([true, false])("skips animation for unchanged poses and refreshes metadata (entities present: %s)", (hasEntities) => {
+    const stream = createMapInterpolator()
+    const entities = hasEntities ? {} : { vehicles: [], pedestrians: [] }
+    stream.set(at(0, 0, entities), "run", 0)
+    stream.set(at(.1, 0, { ...entities, phase: "EAST_GREEN" }), "run", 100)
+    expect(stream.sample(100)!.phase).toBe("EAST_GREEN")
+    expect(stream.moving()).toBe(false)
+  })
+
+  it("interpolates normal 4× replay progress and snaps an explicit forward seek", () => {
+    const stream = createMapInterpolator()
+    const replay = (index: number, seekRevision = 0) => at(index / 10, index, {
+      speed_multiplier: 4, render_mode: "playback",
+      playback: { active: true, frame_index: index, frame_count: 1000, seek_revision: seekRevision },
+    })
+    stream.set(replay(0), "recording", 0)
+    stream.set(replay(4), "recording", 100)
+    const before = stream.sample(125)!.vehicles[0].x
+    expect(before).toBeGreaterThan(0)
+    expect(before).toBeLessThan(4)
+    expect(stream.sample(150)!.vehicles[0].x).toBeGreaterThan(before)
+    stream.set(replay(50, 1), "recording", 160)
+    expect(stream.sample(160)!.vehicles[0].x).toBe(50)
+    expect(stream.moving()).toBe(false)
   })
 })

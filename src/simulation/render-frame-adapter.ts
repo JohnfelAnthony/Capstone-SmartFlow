@@ -59,7 +59,10 @@ export function enforcePresentationBudget(frame: RenderFrame): RenderFrame {
 export function renderFrameFromSimulation(simulation: SimulationStatePayload | null, renderTs = Date.now()/1000): RenderFrame | null {
   if (!simulation) return null
   if (simulation.render_frame_error) throw new Error(simulation.render_frame_error)
-  if (simulation.render_frame) return simulation.render_frame
+  if (simulation.render_frame) {
+    const frame = simulation.render_frame
+    return frame.speed_multiplier === undefined ? { ...frame, speed_multiplier: simulation.speed_multiplier } : frame
+  }
   const state=simulation.state, status=state.status ?? simulation.status
   const phase=status === "stopped" ? "ALL_RED" : String(state.phase ?? "ALL_RED")
   const color=phase.endsWith("_GREEN") ? "green" : phase.endsWith("_YELLOW") ? "yellow" : "red"
@@ -67,11 +70,11 @@ export function renderFrameFromSimulation(simulation: SimulationStatePayload | n
   const flow=String(state.flow?.state ?? "IDLE")
   const lights=Object.fromEntries(Object.entries(state.traffic_lights ?? {}).filter(([,light]) => light.state).map(([id,light])=>[text(id,"",16),{state:text(light.state,"",64),phase:text(light.phase,"ALL_RED",32)}]))
   return enforcePresentationBudget({
-    time:numeric(state.time), render_ts:renderTs, step_length:numeric(state.step_length,.1), status, flow_state:flow,
+    time:numeric(state.time), render_ts:renderTs, step_length:numeric(state.step_length,.1), speed_multiplier:simulation.speed_multiplier, status, flow_state:flow,
     intersection_id:text(state.scenario?.intersection_id ?? state.scenario?.network_id,"tagum_network",24), phase, ns_state:north ? color : "red", ew_state:east ? color : "red",
     render_mode:flow === "LIVE_RUNNING" ? "live" : state.playback ? "playback" : "idle",
     vehicle_count:numeric(state.vehicle_count,state.vehicles?.length ?? 0), pedestrian_count:numeric(state.pedestrian_count,state.pedestrians?.length ?? 0),
-    render_limits:{...DISPLAY_LIMITS}, playback:{active:Boolean(state.playback),frame_index:numeric(state.playback?.frame_index),frame_count:numeric(state.playback?.frame_count)},
+    render_limits:{...DISPLAY_LIMITS}, playback:{active:Boolean(state.playback),frame_index:numeric(state.playback?.frame_index),frame_count:numeric(state.playback?.frame_count),...(state.playback?.seek_revision ? {seek_revision:state.playback.seek_revision} : {})},
     vehicles:distributeEntities(state.vehicles ?? [],300).map(vehicle), pedestrians:distributeEntities(state.pedestrians ?? [],128).map(pedestrian),
     visual:{closed_lanes:state.visual?.closed_lanes ?? [],...(state.visual?.shared_roads?.length ? {shared_roads:state.visual.shared_roads} : {}),slow_lanes:state.visual?.slow_lanes ?? {},constraint_marker:{active:Boolean(state.visual?.constraint_marker?.active),x:numeric(state.visual?.constraint_marker?.x),y:numeric(state.visual?.constraint_marker?.y)},...(state.visual?.pedestrian_paths ? {pedestrian_paths:state.visual.pedestrian_paths} : {})},
     junction_controls:state.junction_controls ?? {}, traffic_lights:lights,
@@ -83,7 +86,7 @@ export function renderFrameFromSimulation(simulation: SimulationStatePayload | n
 /** Optional telemetry must be replaced, including absence in older replay frames. */
 export function mergeRenderFrame(simulation: SimulationStatePayload | null, frame: RenderFrame): SimulationStatePayload | null {
   if (!simulation) return null
-  return { ...simulation, render_frame:frame, render_frame_error:null, status:frame.status, state:{ ...simulation.state, time:frame.time, step_length:frame.step_length, status:frame.status, phase:frame.phase,
+  return { ...simulation, render_frame:frame, render_frame_error:null, status:frame.status, speed_multiplier:frame.speed_multiplier ?? simulation.speed_multiplier, state:{ ...simulation.state, time:frame.time, step_length:frame.step_length, status:frame.status, phase:frame.phase,
     traffic_lights:frame.traffic_lights, vehicles:frame.vehicles, pedestrians:frame.pedestrians, visual:frame.visual, junction_controls:frame.junction_controls,
     vehicle_count:frame.vehicle_count, pedestrian_count:frame.pedestrian_count, render_coverage:frame.render_coverage,
     metrics:{...simulation.state.metrics,lanes:frame.lane_metrics,junctions:frame.junction_metrics},

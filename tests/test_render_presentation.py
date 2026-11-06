@@ -251,7 +251,9 @@ class RenderPresentationTests(unittest.TestCase):
                     http = client.get("/api/simulation/state")
                     self.assertEqual(http.status_code, 200, http.text)
                     delivered = http.json()["render_frame"]
-                    self.assertEqual(delivered, build_render_frame(state, render_ts=delivered["render_ts"]))
+                    self.assertEqual(delivered, build_render_frame(
+                        state, render_ts=delivered["render_ts"], speed_multiplier=snapshot.speed_multiplier,
+                    ))
                     self.assertIsNone(http.json()["render_frame_error"])
                     self.assertEqual(http.json()["state"], state)
                     with client.websocket_connect("/ws/simulation") as socket:
@@ -284,7 +286,9 @@ class RenderPresentationTests(unittest.TestCase):
         snapshot = SimulationStateResponse(state=state, status="running", duration_seconds=30, seed=17, control_mode="fixed-time")
         response = simulation_action_response("Synthetic presentation fixture", snapshot)
         frame = response.simulation.render_frame
-        self.assertEqual(frame, build_render_frame(state, render_ts=frame["render_ts"]))
+        self.assertEqual(frame, build_render_frame(
+            state, render_ts=frame["render_ts"], speed_multiplier=snapshot.speed_multiplier,
+        ))
         self.assertEqual(response.simulation.state, original)
         self.assertIsNone(snapshot.render_frame)
         self.assertIsNone(response.simulation.render_frame_error)

@@ -456,7 +456,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       canvas!.dataset.theme = theme
       canvas!.dataset.mapCamera = JSON.stringify({ scale: transform.scale, ox: transform.ox, oy: transform.oy, width, height })
       canvas!.dataset.paintCount = String(++totalPaints)
-      canvas!.dataset.interpolating = String(stream.moving(now))
+      canvas!.dataset.interpolating = String(stream.moving())
       const firstVehicle = displayedFrame?.vehicles[0], firstPerson = displayedFrame?.pedestrians[0]
       canvas!.dataset.displayVehicle = firstVehicle ? JSON.stringify({ id: firstVehicle.id, x: firstVehicle.x, y: firstVehicle.y }) : ""
       canvas!.dataset.displayPedestrian = firstPerson ? JSON.stringify({ id: firstPerson.id, x: firstPerson.x, y: firstPerson.y }) : ""
@@ -474,7 +474,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))] })
         sampleStarted = now; drawnFrames = 0; frameIntervals = []
       }
-      if (stream.moving(now)) schedule()
+      if (stream.moving()) schedule()
     }
     const resize = () => {
       const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, 1.5)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from threading import Event, RLock, Thread, get_ident
+from threading import Condition, Event, RLock, Thread, get_ident
 from time import monotonic
 from typing import Any
 
@@ -49,6 +49,22 @@ class SimulationRuntime:
         self._owner_name: str | None = None
         self._speed_multiplier = 1.0
         self._workload_lease = None
+        self._tick_count = 0
+        self._tick_condition = Condition()
+
+    def ticks_per_frame(self) -> int:
+        """Aim for ten frames per wall second, with at least one engine tick per frame."""
+        return max(1, round(self._speed_multiplier))
+
+    def stream_snapshot(self) -> tuple[SimulationStateResponse, int]:
+        """Capture the state and its engine tick under the same lock."""
+        with self._lock:
+            return self.get_state(), self._tick_count
+
+    def wait_for_ticks(self, after: int, count: int, timeout: float) -> None:
+        """Wait until `count` background engine ticks follow tick `after`, or the timeout."""
+        with self._tick_condition:
+            self._tick_condition.wait_for(lambda: self._tick_count >= after + count, timeout)
 
     @contextmanager
     def network_revision_guard(self):
@@ -409,6 +425,9 @@ class SimulationRuntime:
                 if engine.status == "running":
                     try:
                         engine.step(1)
+                        with self._tick_condition:
+                            self._tick_count += 1
+                            self._tick_condition.notify_all()
                     except Exception as exc:
                         engine.status = "error"
                         engine.last_error = f"Traffic engine failed: {exc}"

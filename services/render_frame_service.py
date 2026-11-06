@@ -208,6 +208,7 @@ def build_render_frame(
     render_ts: float | None = None,
     sequence: int | None = None,
     current_intersection_id: str | None = None,
+    speed_multiplier: float | None = None,
 ) -> dict:
     """Build the compact renderer payload shared by native state fallbacks and WebSocket streaming."""
 
@@ -265,5 +266,9 @@ def build_render_frame(
                                       for key in ("last_policy_decision", "last_safety_override")}
     if sequence is not None:
         frame["sequence"] = int(sequence)
+    if speed_multiplier is not None:
+        frame["speed_multiplier"] = speed_multiplier
+    if playback.get("seek_revision"):
+        frame["playback"]["seek_revision"] = int(playback["seek_revision"])
     _set_coverage(frame, "entity_limit")
     return _enforce_byte_budget(frame)
