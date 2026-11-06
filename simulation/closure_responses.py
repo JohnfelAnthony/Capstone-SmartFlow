@@ -3,15 +3,15 @@
 Responses, stored per closed lane in `engine_config.closure_responses`:
 - side_street: vehicles whose usual route is cut take the detour that exists (what a closure has always done).
 - side_street_adaptive: the same, and every vehicle also reroutes around congestion. Routing is network-wide, so it applies to the whole scenario.
+- share: the closed direction's traffic moves onto half of the opposite pavement, one lane each way (hypothetical, see simulation/contraflow.py).
 - nearest_exit: vehicles whose route would use the closed road go to the nearest open exit instead, even where a detour exists.
 - wait: demand that would enter on a closed entry road waits until it reopens (the vehicles have not entered yet).
-(A fifth, sharing the opposite side of the road, arrives with the shared-lane closure.)
 """
 from __future__ import annotations
 
-SIDE_STREET, SIDE_STREET_ADAPTIVE, NEAREST_EXIT, WAIT = "side_street", "side_street_adaptive", "nearest_exit", "wait"
-RESPONSES = (SIDE_STREET, SIDE_STREET_ADAPTIVE, NEAREST_EXIT, WAIT)
-LABELS = {SIDE_STREET: "Use the side street", SIDE_STREET_ADAPTIVE: "Use the side street and avoid jams",
+SIDE_STREET, SIDE_STREET_ADAPTIVE, SHARE, NEAREST_EXIT, WAIT = "side_street", "side_street_adaptive", "share", "nearest_exit", "wait"
+RESPONSES = (SIDE_STREET, SIDE_STREET_ADAPTIVE, SHARE, NEAREST_EXIT, WAIT)
+LABELS = {SIDE_STREET: "Use the side street", SIDE_STREET_ADAPTIVE: "Use the side street and avoid jams", SHARE: "Share the other side (hypothetical)",
           NEAREST_EXIT: "Send to the nearest open exit", WAIT: "Vehicles wait until it reopens"}
 
 
@@ -37,11 +37,19 @@ def available_responses(network, closed: set, lane_id: str, trips: dict | None =
     options = []
     if has_detour and kind != "entry":
         options += [SIDE_STREET, SIDE_STREET_ADAPTIVE]
+    if _can_share(network, closed, lane_id):
+        options.append(SHARE)
     if kind != "entry":
         options.append(NEAREST_EXIT)
     if kind == "entry":
         options.append(WAIT)
     return {"available": options, "default": options[0], "has_detour": has_detour and kind != "entry"}
+
+
+def _can_share(network, closed: set, lane_id: str) -> bool:
+    """A wide enough two-way road whose opposite direction is open: the closed direction can use half of that pavement."""
+    from .contraflow import eligible_roads, kept_lane, road_of
+    return road_of(lane_id) in eligible_roads(network) and kept_lane(lane_id) not in closed
 
 
 def check_responses(network, responses: dict, closed_ever: set) -> None:

@@ -47,7 +47,7 @@ def study_gate(engine, root: Path | None = None) -> dict:
     if reasons or mapping is None or criteria is None or ledger is None:
         return {"open": False, "reasons": reasons}
     metadata = engine.experiment_metadata()
-    identity = sv.current_identity(engine_version=metadata["engine_version"], network_sha256=engine.network.fingerprint,
+    identity = sv.current_identity(engine_version=metadata["engine_version"], network_sha256=engine.base_network.fingerprint,
                                    site_calibration_sha256=metadata["site_calibration_sha256"], mapping=mapping, criteria=criteria)
     newest: dict | None = None
     for path in reports:

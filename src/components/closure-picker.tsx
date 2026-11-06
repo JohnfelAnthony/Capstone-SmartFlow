@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
-  chooseResponse, describeRule, readClosures, recordedResponse, RESPONSE_HINTS, RESPONSE_LABELS, ruleProblem, settleResponses, writeClosures,
+  chooseResponse, describeRule, readClosures, recordedResponse, RESPONSE_HINTS, RESPONSE_LABELS, ruleProblem, settleResponses, sharedLaneIds, writeClosures,
   type ClosureRule, type LaneOption,
 } from "@/lib/closures"
 import { JunctionMiniMap } from "@/simulation/junction-details"
 import { normalizeSceneGeometry, type SceneGeometry } from "@/simulation/scene-geometry"
-import { junctionShortLabel, signalMovements } from "@/simulation/scene-summary"
+import { junctionShortLabel, sharedStripsFromGeometry, signalMovements } from "@/simulation/scene-summary"
 
 const CHECK_DELAY_MS = 250
 
@@ -78,6 +78,8 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
   const laneOf = (laneId: string): LaneOption | undefined => options.lanes.find(lane => lane.id === laneId)
   const laneName = (laneId: string) => { const lane = laneOf(laneId); return lane ? [lane.road_name, lane.where, lane.direction].filter(Boolean).join(" · ") : laneId }
   const closedIds = React.useMemo(() => new Set([...Object.keys(rules), ...locked]), [rules, locked])
+  const sharedIds = React.useMemo(() => new Set(sharedLaneIds(config)), [config])
+  const strips = React.useMemo(() => geometry ? sharedStripsFromGeometry(geometry, sharedIds) : [], [geometry, sharedIds])
 
   const update = (next: Record<string, ClosureRule>, withConfig: NativeScenarioConfig = config) => {
     const written = writeClosures(withConfig, next, locked)
@@ -121,7 +123,8 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
       </div>
       <p className="text-sm text-muted-foreground">{junctions.find(junction => junction.id === junctionId)?.label.replace(/^J\d+:\s*/, "")}</p>
       <JunctionMiniMap geometry={geometry} junctionId={junctionId} movements={movements} closed={closedIds} summary={summary}
-        laneLabel={laneName} onToggleLane={disabled ? undefined : toggle} />
+        laneLabel={laneName} onToggleLane={disabled ? undefined : toggle} shared={sharedIds} strips={strips} />
+      {sharedIds.size ? <p className="text-xs text-muted-foreground">Amber: the closed direction shares half of the opposite pavement, one lane each way. This is a hypothetical arrangement; it assumes cones, signs and usually an enforcer.</p> : null}
     </div> : !drawingError ? <p className="text-sm text-muted-foreground">Loading the junction…</p> : null}
     <div className="flex flex-col gap-2" role="group" aria-label="Closed roads in words">
       {closedIds.size === 0 ? <p className="text-sm text-muted-foreground">No road is closed.</p> : null}
@@ -141,7 +144,9 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
             {isLocked ? <Badge variant="outline">several timed changes (kept as saved)</Badge> : null}
             {!disabled && rule ? <Button type="button" size="xs" variant="ghost" className="ml-auto" onClick={() => toggle(laneId)}>Reopen</Button> : null}
           </div>
-          <p className="text-sm text-muted-foreground">{piece && !piece.has_detour && lane?.kind !== "entry"
+          <p className="text-sm text-muted-foreground">{sharedIds.has(laneId)
+            ? "This direction's traffic drives on half of the opposite pavement, one lane each way. Hypothetical: it assumes cones, signs and usually an enforcer."
+            : piece && !piece.has_detour && lane?.kind !== "entry"
             ? "No new vehicle enters it; those already on it finish. Drivers whose route used it have no other way, so they are sent to the nearest open exit."
             : MEANING[lane?.kind ?? "link"]}</p>
           {rule ? <div className="grid max-w-sm grid-cols-2 gap-2">

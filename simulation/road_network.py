@@ -250,6 +250,7 @@ class RoadNetwork:
             for node_id in (road.get("source"), road.get("target")):
                 widest_at[node_id] = max(widest_at.get(node_id, 0.0), total_width)
         clearance = {node_id: max(self.nodes.get(node_id, {}).get("junction_clearance_m", JUNCTION_CLEARANCE_M), widest/2 + STOP_LINE_SETBACK_M) for node_id, widest in widest_at.items()}
+        self.clearance = clearance
         for road in payload["roads"]:
             if road.get("source") not in self.nodes or road.get("target") not in self.nodes or road["source"] == road["target"]:
                 raise ValueError("Road endpoints must reference distinct nodes")

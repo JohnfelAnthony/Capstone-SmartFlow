@@ -21,6 +21,7 @@ from .mixed_traffic import (ALONGSIDE_GAP_M, CLASS_DRIVING, DRIVER_STREAM_SALT, 
                             MAX_YAW_DEGREES, MOTORCYCLE_SHUFFLE_MPS, MOVE_COOLDOWN_SECONDS, MOVE_COST_PER_M, MOVE_GAIN_THRESHOLD_M,
                             ROOM_HORIZON_M, SIDE_CLEARANCE_M, TURN_SIDE_DISTANCE_M, TURN_SIDE_WEIGHT_PER_M, bands_overlap, body_box,
                             candidate_laterals, keeping_position, lateral_bounds, sample_driver, sub_lane_of)
+from .contraflow import kept_lane, road_of, shared_network, strip_geometry
 from .road_network import NETWORK_ID, SHARP_TURN_DEGREES, RoadNetwork, body_swing, length, load_network, sample
 
 STEP_LENGTH = 0.1
@@ -241,11 +242,13 @@ class TrafficEngine:
         if validated_seed != int(validated_seed):
             raise ValueError("Seed must be an integer")
         self.seed = int(validated_seed)
-        self.network = network or load_network()
-        # Width left for a body's sideways positions: a lane with a bend gives up 'swing / 2' each side (see lateral_limits).
-        longest_body = max(spec["length"] for spec in VEHICLE_TYPES.values())
-        self._room_width = {lane_id: lane.width-2*max(0.0, body_swing(lane.shape, longest_body)/2-EDGE_CLEARANCE_M) for lane_id, lane in self.network.lanes.items()}
-        self._bent_lanes = {lane_id for lane_id, lane in self.network.lanes.items() if self._room_width[lane_id] < lane.width}
+        self.network = self.base_network = network or load_network()
+        self._index_lanes()
+        # Shared-lane closure (simulation/contraflow.py): road id -> the lane that keeps its own pavement, lanes being emptied before a
+        # road changes (closed to new entry), and road id -> (start or end, the closed direction) while it waits for them to empty.
+        self.shared_roads: dict[str, str] = {}
+        self.draining: set[str] = set()
+        self._contraflow_pending: dict[str, tuple[str, str]] = {}
         self.intersection_id = self.network.id
         self.controlled_junction = self.network.intersections[0]
         self.traffic_density = "single"
@@ -272,7 +275,17 @@ class TrafficEngine:
         self.driver_variation_scale = 1.0
         self._reset_state()
 
+    def _index_lanes(self) -> None:
+        """Per-lane values derived from the lane shapes; run again whenever the network is replaced."""
+        # Width left for a body's sideways positions: a lane with a bend gives up 'swing / 2' each side (see lateral_limits).
+        longest_body = max(spec["length"] for spec in VEHICLE_TYPES.values())
+        self._room_width = {lane_id: lane.width-2*max(0.0, body_swing(lane.shape, longest_body)/2-EDGE_CLEARANCE_M) for lane_id, lane in self.network.lanes.items()}
+        self._bent_lanes = {lane_id for lane_id, lane in self.network.lanes.items() if self._room_width[lane_id] < lane.width}
+
     def _reset_state(self, *, arrivals=None):
+        if self.network is not self.base_network:
+            self.network = self.base_network
+            self._index_lanes()
         # Scheduling can reject excessive demand; fail before changing live state.
         arrivals = build_schedule(self.config, self.network, self.seed, self.duration_limit) if arrivals is None else arrivals
         self.random = random.Random(self.seed)
@@ -280,6 +293,12 @@ class TrafficEngine:
         # Driver variety has its own stream, so arrivals and pedestrians match native-5 for the same seed.
         self.driver_random = random.Random(self.seed ^ DRIVER_STREAM_SALT)
         self.closed_lanes = set(self.config["closed_lanes"])
+        self.shared_roads, self.draining, self._contraflow_pending = {}, set(), {}
+        for lane_id in sorted(lane for lane in self.closed_lanes if self.config["closure_responses"].get(lane) == "share"):
+            self.closed_lanes.discard(lane_id)  # a shared direction carries traffic; with no vehicles yet the road changes at once
+            self.shared_roads[road_of(lane_id)] = kept_lane(lane_id)
+        if self.shared_roads:
+            self._swap_network()
         self.slow_lanes = dict(self.config["slow_lanes"])
         self.scheduled_events = copy.deepcopy(self.config["events"])
         self.status, self.simulation_time, self.ticks = "stopped", 0.0, 0
@@ -380,8 +399,8 @@ class TrafficEngine:
         self._settle_metrics()
         if self.status in {"running", "paused"}:
             raise ValueError("Stop the run before changing scenario settings")
-        candidate = validate_config(self.config, settings, self.network)
-        arrivals = build_schedule(candidate, self.network, self.seed, self.duration_limit)
+        candidate = validate_config(self.config, settings, self.base_network)
+        arrivals = build_schedule(candidate, self.base_network, self.seed, self.duration_limit)
         self.config = candidate
         self.site_calibration = resolve_site_calibration(candidate.get("site_calibration"), self.network.id)
         for key in ("traffic_density", "pedestrian_density", "green_seconds", "controlled_junction"):
@@ -396,7 +415,7 @@ class TrafficEngine:
         from .scenario_config import normalize_vehicle_scope
         scenario = normalize_vehicle_scope(scenario)
         saved_network_hash = scenario.get("network_sha256")
-        if saved_network_hash and saved_network_hash != self.network.fingerprint:
+        if saved_network_hash and saved_network_hash != self.base_network.fingerprint:
             raise ValueError(f"Scenario settings do not match network '{self.network.id}'; the network changed since this scenario was saved — migrate the scenario.")
         if 'network_id' in scenario:
             if scenario['network_id'] != self.network.id:
@@ -427,7 +446,7 @@ class TrafficEngine:
         duration = number(duration_limit, "duration", STEP_LENGTH, 86400)
         if abs(duration/STEP_LENGTH-round(duration/STEP_LENGTH)) > 1e-7:
             raise ValueError("Duration must be a multiple of the 0.1 second step")
-        arrivals = build_schedule(self.config, self.network, self.seed, duration)
+        arrivals = build_schedule(self.config, self.base_network, self.seed, duration)
         self.duration_limit = duration
         self._reset_state(arrivals=arrivals)
         self.status, self.run_id = "running", f"native-{self.seed}"
@@ -456,6 +475,11 @@ class TrafficEngine:
             raise ValueError("Unknown lane")
         if not isinstance(closed, bool):
             raise ValueError("closed must be true or false")
+        if self.config["closure_responses"].get(lane_id) == "share":
+            self._set_sharing(lane_id, closed)
+            for vehicle in self.vehicles.values():
+                vehicle.reroute_at = 0
+            return
         if closed:
             self.closed_lanes.add(lane_id)
         else:
@@ -477,6 +501,52 @@ class TrafficEngine:
             signal.dead = frozenset(
                 key for key in signal.approaches if key != "pedestrian"
                 and all(lane in self.closed_lanes and lane not in occupied for lane in self.network.incoming[node] if self.network.lanes[lane].approach in key.split("+")))
+
+    def _swap_network(self) -> None:
+        """Replace the network by the one with `shared_roads` shared (or the base network when none is). Lane ids and topology do not change."""
+        self.network = shared_network(self.base_network, dict(self.shared_roads))
+        self._index_lanes()
+        for cache in (self._sweep_cache, self._sweep_bounds_cache, self._sweep_block_cache, self._conflict_point_cache):
+            cache.clear()
+
+    def _set_sharing(self, lane_id: str, closed: bool) -> None:
+        """The closure of `lane_id` (whose response is 'share') begins or ends: the road changes once its two lanes are empty."""
+        road, kept = road_of(lane_id), kept_lane(lane_id)
+        lanes = {lane_id, kept}
+        pending = self._contraflow_pending.get(road)
+        if pending and pending[0] == ("end" if closed else "start"):
+            del self._contraflow_pending[road]  # changed its mind before the road changed: nothing to do
+            self.draining -= lanes
+            self.closed_lanes -= lanes
+        elif closed and road not in self.shared_roads and not pending or not closed and road in self.shared_roads and not pending:
+            self.draining |= lanes
+            self.closed_lanes |= lanes
+            self._contraflow_pending[road] = ("start" if closed else "end", lane_id)
+        for vehicle in self.vehicles.values():
+            vehicle.reroute_at = 0  # lanes being emptied are closed to new entry like any closed lane: traffic that needs them reroutes or diverts
+        self._refresh_dead_phases()
+        self._advance_contraflow()
+
+    def _lanes_clear(self, lanes: set) -> bool:
+        """No vehicle is on these lanes, on a connector leaving them, or on its way in (committed to the junction before them)."""
+        return not any(vehicle.route[0] in lanes or len(vehicle.route) > 1 and vehicle.route[1] in lanes and (vehicle.connector is not None or vehicle.reserved_junction)
+                       for vehicle in self.vehicles.values())
+
+    def _advance_contraflow(self) -> None:
+        for road, (action, lane_id) in list(self._contraflow_pending.items()):
+            lanes = {lane_id, kept_lane(lane_id)}
+            if not self._lanes_clear(lanes):
+                continue
+            if action == "start":
+                self.shared_roads[road] = kept_lane(lane_id)
+            else:
+                self.shared_roads.pop(road, None)
+            self._swap_network()
+            del self._contraflow_pending[road]
+            self.draining -= lanes
+            self.closed_lanes -= lanes
+            self._refresh_dead_phases()
+            self._add_event("closure", f"Road {road} {'shares its pavement: one lane each way' if action == 'start' else 'is back to normal'}")
 
     def _cut_nearest_exit_lanes(self) -> set:
         """Closed lanes whose response is 'send to the nearest open exit': traffic that would use them goes to the nearest exit even if a detour exists."""
@@ -713,7 +783,7 @@ class TrafficEngine:
         policy_metadata = getattr(policy, "artifact_metadata", {})
         if "native_contract" in policy_metadata:
             validate_metadata(policy_metadata, self.network)
-        elif self.network.fingerprint != native_contract()["network_sha256"]:
+        elif self.base_network.fingerprint != native_contract()["network_sha256"]:
             raise ValueError("This model was not trained for the current Python engine and road network. Train a new model; artifacts from earlier engine or observation versions cannot be reused.")
         if "native_contract" in policy_metadata:
             from .model_contract import phase_plan
@@ -1662,6 +1732,8 @@ class TrafficEngine:
             if self.status != "running":
                 break
             self._apply_scheduled_events()
+            if self._contraflow_pending:
+                self._advance_contraflow()
             if self.closed_lanes:
                 self._refresh_dead_phases()
             self._control_signals()
@@ -1870,6 +1942,7 @@ class TrafficEngine:
             "dropped_pedestrians": self.dropped_pedestrians,
             "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.reserved_junction and vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS
                                            or vehicle.held_for > STUCK_IN_JUNCTION_SECONDS),
+            "shared_lane_roads": len(self.shared_roads), "shared_lane_changing_roads": len(self._contraflow_pending),
             "stalled_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.unexplained_for > STALLED_SECONDS),
             "diverted_vehicles": self.diverted_vehicles,
             "closure_blocked_vehicles": sum(1 for item in self.pending_demand if item.source in self._closure_blocked_sources()) if self.closed_lanes else 0,
@@ -1940,7 +2013,8 @@ class TrafficEngine:
             if lane.target in self.signals:
                 signal = self.signals[lane.target]
                 lights[lane.id] = {"state": "n" if signal.mode == "first_come" else "o" if signal.mode == "all_way_stop" else "G" if signal.stage == "green" and signal.serves(lane.approach) else "y" if signal.stage == "yellow" and signal.serves(lane.approach) else "r", "phase": signal.phase}
-        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
+        return copy.deepcopy({"engine_version": ENGINE_VERSION, "time": self.simulation_time, "step_length": STEP_LENGTH, "status": self.status, "phase": self.phase, "phase_remaining": self.phase_remaining, "cycle_count": self.cycle_count, "controller_type": self.controller_type, "vehicles": self.vehicle_records(), "vehicle_count": len(self.vehicles), "pedestrians": self.pedestrian_records(), "pedestrian_count": len(self.pedestrians), "queues": self._last_metrics["queue_by_approach"], "metrics": self._last_metrics, "events": self.events, "scenario": {"intersection_id": self.intersection_id, "traffic_density": self.traffic_density, "pedestrian_density": self.pedestrian_density, "road_constraint": self.road_constraint}, "dashboard": {"current_scenario_name": self.current_scenario_name, "control_mode_label": self.control_mode_label, "controller_provenance": self.controller_provenance, "controller_provenance_label": self.controller_provenance_label, "last_action": self.last_action, "last_error": self.last_error, "run_id": self.run_id}, "charts": self.charts, "visual": {"constraint_marker": {"active": bool(self.closed_lanes or self.slow_lanes), "x": 0, "y": 0}, "closed_lanes": sorted(self.closed_lanes),
+                   **({"shared_roads": [strip_geometry(self.base_network, kept_lane(kept)) for kept in self.shared_roads.values()]} if self.shared_roads else {}), "slow_lanes": {lane: factor for lane, factor in self.slow_lanes.items() if factor < 1}, "pedestrian_paths": self.pedestrian_paths()}, "junction_controls": self.junction_controls(), "traffic_lights": lights, "experiment": self.experiment_metadata()})
 
     get_state = to_dict
 
@@ -2071,7 +2145,7 @@ class TrafficEngine:
 
     def experiment_metadata(self):
         return {"engine_version": ENGINE_VERSION, "network_id": self.network.id,
-                "network_sha256": self.network.fingerprint, "seed": self.seed,
+                "network_sha256": self.base_network.fingerprint, "seed": self.seed,
                 "duration_seconds": self.duration_limit, "step_length": STEP_LENGTH,
                 "measurement_start": self.measurement_start, "controller": self.controller_provenance,
                 "demand_sha256": self.demand_fingerprint, "config": copy.deepcopy(self.config),

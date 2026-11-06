@@ -2,7 +2,7 @@
 import pytest
 
 from services.closure_check import closure_report
-from simulation.closure_responses import NEAREST_EXIT, SIDE_STREET, SIDE_STREET_ADAPTIVE, WAIT, available_responses
+from simulation.closure_responses import NEAREST_EXIT, SHARE, SIDE_STREET, SIDE_STREET_ADAPTIVE, WAIT, available_responses
 from simulation.network_registry import engine_for_scenario, load_registered_network
 from simulation.scenario_config import DEFAULTS, validate_config
 from simulation.traffic_engine import TrafficEngine
@@ -15,28 +15,48 @@ def offered(site, closed, lane):
     return available_responses(load_registered_network(site), set(closed), lane)["available"]
 
 
-def test_a_road_next_to_the_loop_offers_the_side_street_and_the_nearest_exit():
-    assert offered(A, ["road2r"], "road2r") == [SIDE_STREET, SIDE_STREET_ADAPTIVE, NEAREST_EXIT]
+def test_a_road_next_to_the_loop_offers_the_side_street_sharing_and_the_nearest_exit():
+    assert offered(A, ["road2r"], "road2r") == [SIDE_STREET, SIDE_STREET_ADAPTIVE, SHARE, NEAREST_EXIT]
     assert available_responses(load_registered_network(A), {"road2r"}, "road2r")["default"] == SIDE_STREET
 
 
-def test_closing_a_road_in_both_directions_still_offers_the_side_street_where_one_exists():
-    assert SIDE_STREET in offered(A, ["road2f", "road2r"], "road2r")
+def test_closing_a_road_in_both_directions_still_offers_the_side_street_but_not_sharing():
+    both = offered(A, ["road2f", "road2r"], "road2r")
+    assert SIDE_STREET in both and SHARE not in both
 
 
-def test_a_road_with_no_detour_offers_only_the_nearest_exit():
-    assert offered(A, ["road3f"], "road3f") == [NEAREST_EXIT]  # the east exit: nowhere else for its traffic to go
-    assert available_responses(load_registered_network(A), {"road3f"}, "road3f")["default"] == NEAREST_EXIT
+def test_a_wide_road_with_no_detour_offers_sharing_first_and_the_nearest_exit():
+    assert offered(A, ["road3f"], "road3f") == [SHARE, NEAREST_EXIT]  # the east exit: nowhere else for its traffic to go
+    assert available_responses(load_registered_network(A), {"road3f"}, "road3f")["default"] == SHARE
 
 
-def test_a_closed_entry_road_offers_only_waiting():
-    assert offered(A, ["road4r"], "road4r") == [WAIT]
+def test_roads_too_narrow_or_too_short_to_share_do_not_offer_it():
+    assert offered(A, ["road6f"], "road6f") == [NEAREST_EXIT] or SHARE not in offered(A, ["road6f"], "road6f")  # the side street is one lane wide
+    assert SHARE not in offered(A, ["road4f"], "road4f")  # the 24 m west stub
+
+
+def test_a_closed_entry_road_offers_waiting_and_sharing_only_where_the_road_can_share():
+    assert offered(A, ["road4r"], "road4r") == [WAIT]  # the 24 m west stub is too short to share
+    assert offered(A, ["road3r"], "road3r") == [SHARE, WAIT]  # the east entry road
 
 
 def test_site_b_has_no_detour_so_it_never_offers_avoiding_jams():
     network = load_registered_network(B)
     for lane in network.lanes:
         assert SIDE_STREET_ADAPTIVE not in available_responses(network, {lane}, lane)["available"]
+
+
+def test_at_site_b_only_sobrecarey_can_share():
+    network = load_registered_network(B)
+    sharing = {lane for lane in network.lanes if SHARE in available_responses(network, {lane}, lane)["available"]}
+    assert sharing == {"road1f", "road1r"}
+
+
+def test_sharing_is_refused_in_plain_words_where_it_does_not_work_and_a_shared_direction_is_not_counted_as_closed():
+    with pytest.raises(ValueError, match="does not work"):
+        validate_config(DEFAULTS, {"closed_lanes": ["road6f"], "closure_responses": {"road6f": SHARE}}, load_registered_network(A))
+    config = validate_config(DEFAULTS, {"closed_lanes": ["road2r"], "closure_responses": {"road2r": SHARE}}, load_registered_network(A))
+    assert config["closure_responses"] == {"road2r": SHARE} and config["routing_mode"] == "static"
 
 
 @pytest.mark.parametrize("responses,fragment", [
@@ -109,7 +129,7 @@ def test_the_nearest_exit_response_also_diverts_a_vehicle_already_underway_when_
 def test_the_closure_check_lists_the_responses_for_each_piece_and_the_one_to_preselect():
     report = closure_report(load_registered_network(A), ["road2r"])
     piece = report["pieces"]["road2r"]
-    assert piece["responses"] == [SIDE_STREET, SIDE_STREET_ADAPTIVE, NEAREST_EXIT] and piece["default_response"] == SIDE_STREET
+    assert piece["responses"] == [SIDE_STREET, SIDE_STREET_ADAPTIVE, SHARE, NEAREST_EXIT] and piece["default_response"] == SIDE_STREET
     assert report["pieces"]["road4r"]["responses"] == [WAIT]
 
 

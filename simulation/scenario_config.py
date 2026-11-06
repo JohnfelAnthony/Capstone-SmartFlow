@@ -242,7 +242,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         if "closed" in event:
             (closed_now.add if event["closed"] else closed_now.discard)(event["lane_id"])
             states.append((f"at {event['time']:g} s", set(closed_now)))
+    # A direction that shares the opposite pavement is not closed to traffic.
+    shared = {lane for lane, choice in result["closure_responses"].items() if choice == "share"} if isinstance(result["closure_responses"], dict) else set()
     for when, closed in states:
+        closed = closed - shared
         if closed and not network.has_legal_movement(closed):
             raise ValueError(f"These closures leave no legal movement anywhere {when}: no vehicle could get from an entry road to an exit "
                              "(U-turns are not allowed). Open at least one more road or direction.")

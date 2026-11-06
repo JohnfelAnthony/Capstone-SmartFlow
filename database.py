@@ -838,7 +838,7 @@ def validated_native_scenario(network_id=None, engine_config=None):
     engine.configure_from_scenario({'network_id': requested, 'engine_config': settings})
     serialized = json.dumps(engine.config)
     _validate_json_object('engine_config', serialized)
-    return {'network_id': requested, 'network_sha256': engine.network.fingerprint, 'engine_config': serialized}
+    return {'network_id': requested, 'network_sha256': engine.base_network.fingerprint, 'engine_config': serialized}
 
 
 def create_scenario(name, network_id=None, description='', engine_config=None,

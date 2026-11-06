@@ -1779,3 +1779,6 @@
 .sf-mini-road[data-pickable]:hover { fill:color-mix(in srgb, var(--primary) 35%, var(--card)); }
 .sf-mini-road[data-pickable]:focus-visible { stroke:var(--ring); stroke-width:.6; }
 .sf-mini-road[data-pickable][data-closed="true"]:hover { fill:color-mix(in srgb, #ef4444 55%, var(--card)); }
+.sf-mini-road[data-shared] { fill:color-mix(in srgb, #f59e0b 26%, var(--card)); stroke:#f59e0b; stroke-width:.35; stroke-dasharray:1.2 .9; }
+.sf-mini-share { fill:none; stroke:color-mix(in srgb, #f59e0b 60%, transparent); stroke-linecap:butt; stroke-linejoin:round; pointer-events:none; }
+.sf-mini-share[data-shared-lane] { stroke:color-mix(in srgb, #f59e0b 85%, transparent); stroke-dasharray:2 1.4; }

@@ -42,6 +42,7 @@ export type SimulationStatePayload = {
     pedestrians?: RenderPedestrian[]
     visual?: {
       closed_lanes?: string[]
+      shared_roads?: Array<{ road_id: string; shared_lane: string; kept_lane: string; width: number; lanes: Record<string, Array<[number, number]>> }>
       slow_lanes?: Record<string, number>
       pedestrian_paths?: PedestrianPath[]
       constraint_marker?: {

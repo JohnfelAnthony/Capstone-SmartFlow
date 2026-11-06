@@ -81,16 +81,24 @@ export function groupRoads(lanes: LaneOption[]): RoadGroup[] {
 export const RESPONSE_LABELS: Record<string, string> = {
   side_street: "Use the side street",
   side_street_adaptive: "Use the side street and avoid jams (adaptive)",
+  share: "Share the other side (hypothetical)",
   nearest_exit: "Send to the nearest open exit",
   wait: "Vehicles wait until it reopens",
 }
 export const RESPONSE_HINTS: Record<string, string> = {
   side_street: "Drivers whose usual route is cut take the detour that exists.",
   side_street_adaptive: "As above, and all drivers also steer around jams. This applies to the whole scenario, not only this road.",
+  share: "This direction's traffic drives on half of the opposite pavement, so that pavement carries one lane each way. Hypothetical: it assumes cones, signs and usually an enforcer, and neither site has an enforcer today. Both directions lose capacity. The two lanes are emptied before the road changes, so traffic waits briefly when it starts and ends.",
   nearest_exit: "Drivers whose route would use this road go to the nearest open exit instead, even if a detour exists.",
   wait: "Nothing can enter here; the vehicles that would have entered wait until the road reopens.",
 }
 export type ClosurePiece = { responses: string[]; default_response: string }
+
+/** Closed lanes whose traffic shares the opposite pavement. */
+export function sharedLaneIds(config: NativeScenarioConfig) {
+  const closed = new Set([...(config.closed_lanes ?? []), ...(config.events ?? []).filter(event => event.closed).map(event => event.lane_id)])
+  return Object.entries(config.closure_responses ?? {}).filter(([lane, response]) => response === "share" && closed.has(lane)).map(([lane]) => lane)
+}
 
 /** The response recorded for a closed lane, if any. A lane without one behaves as closures always did. */
 export function recordedResponse(config: NativeScenarioConfig, laneId: string) {

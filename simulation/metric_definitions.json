@@ -550,6 +550,32 @@
       "requires_elapsed": false
     },
     {
+      "key": "shared_lane_roads",
+      "label": "Roads sharing a pavement (hypothetical)",
+      "unit": "roads",
+      "aliases": [],
+      "population": "Roads whose closed direction currently uses half of the opposite pavement.",
+      "definition": "From native-10: current count of roads in a shared-lane closure (hypothetical: it assumes cones, signs and usually an enforcer, and the widths are provisional). Each such road carries one lane each way on the open direction's pavement.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count; it means no road is sharing a pavement now.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
+      "key": "shared_lane_changing_roads",
+      "label": "Roads changing to or from a shared pavement",
+      "unit": "roads",
+      "aliases": [],
+      "population": "Roads whose two lanes are being emptied before the road changes.",
+      "definition": "From native-10: current count of roads whose shared-lane closure has begun or ended but whose two lanes still hold vehicles; both lanes take no new entry until they are empty, then the road changes.",
+      "population_keys": [],
+      "requires_ticks": false,
+      "zero": "Zero is a recorded count; it means no road is waiting to change.",
+      "unavailable": "Missing or non-finite values are unavailable.",
+      "requires_elapsed": false
+    },
+    {
       "key": "stalled_vehicles",
       "label": "Vehicles stalled with nothing holding them",
       "unit": "vehicles",

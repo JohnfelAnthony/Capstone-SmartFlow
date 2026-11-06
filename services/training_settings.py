@@ -40,7 +40,7 @@ def prepare_settings(settings: dict) -> dict:
     if not evaluation_scenario or evaluation_scenario.get("is_archived"):
         raise ValueError("Select an available held-out evaluation scenario.")
     evaluation_engine = engine_for_scenario(evaluation_scenario)
-    if evaluation_engine.network.fingerprint != engine.network.fingerprint:
+    if evaluation_engine.base_network.fingerprint != engine.base_network.fingerprint:
         raise ValueError("Training and held-out scenarios must use the same network.")
     validate_observed_holdout({"engine_config": engine.config}, {"engine_config": evaluation_engine.config})
     if evaluation_engine.controlled_junction != engine.controlled_junction:
@@ -70,13 +70,13 @@ def prepare_settings(settings: dict) -> dict:
     engine.configure_rl_control(decision_interval=normalized["decision_interval_seconds"],
                                 minimum_green_hold=normalized["minimum_green_hold_seconds"])
     snapshot = {"id": scenario_id, "name": scenario["name"], "intersection_id": engine.intersection_id,
-                "network_id": engine.network.id, "network_sha256": engine.network.fingerprint,
+                "network_id": engine.network.id, "network_sha256": engine.base_network.fingerprint,
                 "engine_config": engine.config}
     normalized["scenario_snapshot"] = snapshot
     normalized["scenario_sha256"] = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     evaluation_snapshot = {"id": evaluation_scenario_id, "name": evaluation_scenario["name"],
                            "intersection_id": evaluation_engine.intersection_id, "network_id": evaluation_engine.network.id,
-                           "network_sha256": evaluation_engine.network.fingerprint,
+                           "network_sha256": evaluation_engine.base_network.fingerprint,
                            "engine_config": evaluation_engine.config}
     normalized["evaluation_scenario_snapshot"] = evaluation_snapshot
     normalized["evaluation_scenario_sha256"] = hashlib.sha256(json.dumps(evaluation_snapshot, sort_keys=True).encode()).hexdigest()
