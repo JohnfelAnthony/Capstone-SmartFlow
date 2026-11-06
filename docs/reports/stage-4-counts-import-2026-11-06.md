@@ -37,7 +37,7 @@ Totals: **full backend suite 701 passed, 1 skipped, 3 xfailed (the same three), 
 ## Not fixed, not checked
 
 - **No real Field Observer export was read.** I do not know whether the GUI's `lines.json` carries `role: "exit"` and the site's approach names in `approach_id` by default; if not, the user must set them when drawing the lines, and the refusal says what is wrong. Worth one check against a real revision.
-- **Demand ends with the counts** (about 16 minutes): a longer run has no traffic after it. The preview says so.
+- **Demand is a steady hourly rate** (owner's decision, applied after this report): each movement and class runs at count × 3600 / span for the whole run, so runs longer than the 16-minute footage keep receiving vehicles; within-period variation is not modelled. (This report first replayed per-bin rates and stopped when the counts ended.)
 - **No frontend unit test for the new component;** it was checked in the browser (preview, apply, save, a refusal) at Site A only, with an invented export.
 - **Import → scenario → train → evaluate → compare → report** end to end is stage 5's rehearsal; here only the engine run on the imported demand and the smoke-test training path were exercised.
 - Archival documents (history, review notes, earlier plans, earlier stage reports) still describe the removed gate and page as they were.

@@ -76,18 +76,21 @@ def windows(result):
     return result["engine_config"]["demand_windows"]
 
 
-def test_counts_per_class_approach_and_turn_become_rates_in_the_exports_time_bins():
+def test_counts_per_class_approach_and_turn_become_one_steady_hourly_rate_each():
     vehicles = [vehicle("a", 5, "south", "north"), vehicle("b", 20, "south", "north"), vehicle("c", 30, "south", "east", cls="motorcycle"),
                 vehicle("d", 70, "west", "east", cls="truck", exit_s=80)]
     result = run(export(vehicles))
-    rows = {(w["start"], w["end"], w["vehicle_type"], w["od"][0]["source"], w["od"][0]["destination"]): w["vehicles_per_hour"] for w in windows(result)}
-    # south = boundary_0 and north = boundary_1 and so on, rates are count / bin length in vehicles per hour
-    assert rows == {(0.0, 60.0, "car", "boundary_0", "boundary_1"): 120.0, (0.0, 60.0, "motorcycle", "boundary_0", "boundary_3"): 60.0,
-                    (60.0, 120.0, "truck", "boundary_2", "boundary_3"): 60.0}
+    rows = {(w["vehicle_type"], w["od"][0]["source"], w["od"][0]["destination"]): w for w in windows(result)}
+    # south = boundary_0 and north = boundary_1 and so on; rate = count x 3600 / the 120 s span, whichever bin the vehicle was seen in
+    assert {key: w["vehicles_per_hour"] for key, w in rows.items()} == {("car", "boundary_0", "boundary_1"): 60.0, ("motorcycle", "boundary_0", "boundary_3"): 30.0,
+                                                                       ("truck", "boundary_2", "boundary_3"): 30.0}
+    assert all(w["start"] == 0 and w["end"] >= 86400 for w in rows.values())  # one window each, from the start to beyond any run
     config = result["engine_config"]
     assert config["traffic_density"] == "none" and config["trips"] == [] and config["demand_source"]["kind"] == "field_counts"
     assert "not calibrated or validated" in config["demand_source"]["description"]
+    assert "steady hourly rates from a 120 s count; within-period variation not modelled" in config["demand_source"]["description"]
     summary = result["summary"]
+    assert "steady hourly rates from a 120 s count; within-period variation not modelled" in summary["rate_note"]
     assert summary["vehicles"] == 4 and summary["bins"] == 2 and summary["bin_seconds"] == 60.0
     assert summary["by_approach_class"] == {"south": {"car": 2, "motorcycle": 1}, "west": {"truck": 1}}
     assert summary["turns"] == {"south to north": 2, "south to east": 1, "west to east": 1}
@@ -191,3 +194,14 @@ def test_the_imported_demand_runs_in_the_engine_and_is_reproducible():
         engine.step(2400)
         totals.append((engine._last_metrics["total_vehicles_spawned"], engine._last_metrics["throughput"]))
     assert totals[0] == totals[1] and totals[0][0] > 0
+
+
+def test_a_run_longer_than_the_counts_keeps_receiving_vehicles_at_the_counted_hourly_rate():
+    from simulation.demand import build_schedule
+    from simulation.network_registry import load_registered_network
+    config = run(export([vehicle(f"a{n}", 2 + 3*n, "south", "north") for n in range(20)]))["engine_config"]  # 20 cars in 120 s = 600 per hour
+    arrivals = build_schedule(config, load_registered_network(SITE), 101, 7200.0)
+    after_the_counts = [arrival for arrival in arrivals if arrival.time > SPAN]
+    assert len(after_the_counts) > 1000 and max(arrival.time for arrival in arrivals) > 7000
+    assert 1080 <= len(arrivals) <= 1320  # 600 per hour for two hours, Poisson
+    assert {(arrival.source, arrival.destination, arrival.vehicle_type) for arrival in arrivals} == {("boundary_0", "boundary_1", "car")}

@@ -45,16 +45,16 @@ export function FieldCountsImport({ networkId, config, disabled, onUse }: {
     <Input id="field-counts-files" type="file" multiple accept=".csv,.json,text/csv,application/json" disabled={disabled || busy}
       onChange={(event) => { void choose(event.target.files); event.target.value = "" }} />
     <FieldDescription>
-      Open the reviewed revision folder and select its five files together: {FILES.join(", ")}. Counts per class, approach and turn, in the export's time bins,
-      replace this scenario's vehicle demand. An incomplete bin is refused, never read as zero. The scenario's approach names are south, north, east and west; the
+      Open the reviewed revision folder and select its five files together: {FILES.join(", ")}. Counts per class, approach and turn become steady hourly rates
+      that replace this scenario's vehicle demand. An incomplete bin is refused, never read as zero. The scenario's approach names are south, north, east and west; the
       export's counting lines must use them.
     </FieldDescription>
     {busy && <p role="status" className="text-sm">Reading the export...</p>}
     {problem && <Alert variant="destructive"><AlertDescription>{problem}</AlertDescription></Alert>}
     {summary && preview && <section aria-label="Counts read from Field Observer" className="mt-2 flex flex-col gap-3 rounded-md border p-3 text-sm">
       <p><strong>{summary.vehicles} vehicles</strong> over {Math.round(summary.span_seconds)} s in {summary.bins} bin(s) of {summary.bin_seconds} s
-        ({summary.vehicles_per_hour} per hour), from {preview.source}. They are not saved until you save the scenario. The counts cover the first {Math.round(summary.span_seconds)} s
-        of a run; no vehicles arrive after that, so use a run no longer than this.</p>
+        ({summary.vehicles_per_hour} per hour), from {preview.source}. They are not saved until you save the scenario. Used as {summary.rate_note}:
+        the same rates apply for the whole run, however long.</p>
       <Table>
         <TableHeader><TableRow><TableHead>Approach</TableHead><TableHead>Class</TableHead><TableHead className="text-right">Vehicles</TableHead></TableRow></TableHeader>
         <TableBody>{Object.entries(summary.by_approach_class).flatMap(([approach, classes]) => Object.entries(classes).map(([kind, count]) =>

@@ -18,7 +18,7 @@ The Calibration & Validation page, its `/api/calibration` routes, the site-valid
 
 ## Counts from Field Observer
 
-In **Scenarios**, **Import counts from Field Observer** takes the five files of a reviewed revision (`manifest.json`, `events.csv`, `coverage.csv`, `reviewed_bins.csv`, `lines.json`), chosen together, and turns the accepted arrivals into the scenario's vehicle demand: one stream per time bin, class, approach and turn, at the bin's rate. It shows the totals per approach and class and the turns before anything is applied, and nothing is saved until the scenario is.
+In **Scenarios**, **Import counts from Field Observer** takes the five files of a reviewed revision (`manifest.json`, `events.csv`, `coverage.csv`, `reviewed_bins.csv`, `lines.json`), chosen together, and turns the accepted arrivals into the scenario's vehicle demand: one steady hourly rate per class, approach and turn (count × 3600 / the count's span, for the whole run, however long; the bins are checked but not replayed; within-period variation is not modelled). It shows the totals per approach and class and the turns before anything is applied, and nothing is saved until the scenario is.
 
 - The counting lines' `approach_id` must be the site's own approach names (south, north, east, west); arrival lines are `vehicle_arrival` lines and exits are lines with role `exit`.
 - A blank reviewed bin, a coverage gap, a changed file, a U-turn or a vehicle with no reviewed exit stops the import with the reason. A vehicle seen in the last 60 s of the footage with no exit yet is left out and reported. Nothing is read as zero.

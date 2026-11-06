@@ -108,7 +108,7 @@ export type FieldCountsSummary = {
   vehicles: number; bins: number; bin_seconds: number; span_seconds: number; vehicles_per_hour: number
   by_approach_class: Record<string, Record<string, number>>; turns: Record<string, number>
   class_mapping: Array<{ field_class: string; engine_class: string; vehicles: number; pending_team_decision: boolean; note: string }>
-  not_simulated: Record<string, number>; not_counted_at_the_end: number; limits: string
+  not_simulated: Record<string, number>; not_counted_at_the_end: number; limits: string; rate_note: string
   source: { take_id: string; revision: string; manifest_sha256: string }
 }
 
