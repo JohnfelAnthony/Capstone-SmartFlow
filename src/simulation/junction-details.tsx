@@ -69,8 +69,9 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
   const walkLit = walkSignalState(junctionId, frame) === "walk"
   const servedMovements = movements.filter(movement => movement.color === "green" || movement.color === "yellow")
   const summary = servedMovements.length ? `Served: ${servedMovements.map(movement => approachName(movement.laneId)).join(", ")}` : walkLit ? "Pedestrians crossing" : "No approach is being served"
-  const strips = sharedStripsFromFrame(frame)
-  return <JunctionMiniMap geometry={geometry} junctionId={junctionId} movements={movements} closed={closedLaneIds(frame)} walkLit={walkLit} summary={summary}
+  const closed = closedLaneIds(frame)
+  const strips = sharedStripsFromFrame(frame).filter(strip => !closed.has(strip.sharedLane) && !closed.has(strip.keptLane))
+  return <JunctionMiniMap geometry={geometry} junctionId={junctionId} movements={movements} closed={closed} walkLit={walkLit} summary={summary}
     strips={strips} shared={new Set(strips.map(strip => strip.sharedLane))} />
 }
 
@@ -81,12 +82,12 @@ function JunctionSignalMap({ frame, geometry, junctionId, approachName }: {
 export function JunctionMiniMap({ geometry, junctionId, movements, closed, summary, walkLit = false, laneLabel, onToggleLane, shared, strips = [] }: {
   geometry: SceneGeometry; junctionId: string; movements: ReturnType<typeof signalMovements>; closed: ReadonlySet<string>; summary: string
   walkLit?: boolean; laneLabel?: (laneId: string) => string; onToggleLane?: (laneId: string) => void
-  /** Closed pavements whose traffic uses half of the opposite pavement (hypothetical): drawn amber, not red, and the turns stay available. */
+  /** Pavements whose traffic uses half of the opposite pavement (hypothetical), drawn amber. */
   shared?: ReadonlySet<string>; strips?: SharedStrip[]
 }) {
   const junction = geometry.junctionById.get(junctionId)
   if (!junction) return null
-  const unavailable = new Set(junctionClosures(geometry, junctionId, new Set([...closed].filter(laneId => !shared?.has(laneId)))).unavailableTurns.map(turn => `${turn.from}->${turn.to}`))
+  const unavailable = new Set(junctionClosures(geometry, junctionId, closed).unavailableTurns.map(turn => `${turn.from}->${turn.to}`))
   const colorByLane = new Map(movements.map(movement => [movement.laneId, movement.color]))
   const roads = geometry.lanes.filter(lane => lane.kind === "road" && lane.junctionIds.includes(junctionId))
   // Frame what the arrows need, not the whole pavement, so a large junction zooms in as far as a small one.

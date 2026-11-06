@@ -20,6 +20,7 @@ START_S, END_S = 300.0, 1200.0
 # (site, the closed direction that shares), seeds are given per site
 CASES = [("tagum_site_a", "road2r"), ("tagum_site_a", "road3f"), ("tagum_site_a", "road1f"), ("tagum_site_b", "road1f"), ("tagum_site_b", "road1r")]
 CONTROLS = ("no-signal", "fixed-time")
+ZERO_TARGETS = ("max_stalled_vehicles", "max_stuck_junction_vehicles", "conservation_error")
 
 
 def build(site: str, lane: str | None, control: str, seed: int, seconds: float):
@@ -40,7 +41,8 @@ def drive(engine, lanes: tuple[str, str], seconds: float, *, check_overlaps: boo
     from simulation.footprints import overlapping_pairs
     entered: dict[tuple[str, str], float] = {}
     crossing: dict[str, list[float]] = {lane: [] for lane in lanes}
-    overlaps = most_stalled = most_stuck = most_held = 0
+    overlaps = 0 if check_overlaps else None
+    most_stalled = most_stuck = most_held = conservation_error = 0
     shared_ticks = 0
     while engine.status == "running" and engine.simulation_time < seconds:
         engine.step(1)
@@ -59,12 +61,13 @@ def drive(engine, lanes: tuple[str, str], seconds: float, *, check_overlaps: boo
                 crossing[key[1]].append(now-started)
         metrics = engine._last_metrics
         most_stalled, most_stuck, most_held = max(most_stalled, metrics["stalled_vehicles"]), max(most_stuck, metrics["stuck_junction_vehicles"]), max(most_held, metrics["closure_held_vehicles"])
+        conservation_error = max(conservation_error, abs(metrics["vehicle_conservation_error"]))
         shared_ticks += bool(metrics["shared_lane_roads"])
-        if check_overlaps:
+        if overlaps is not None:
             overlaps = max(overlaps, len(overlapping_pairs(engine.vehicle_records())))
     metrics = engine._last_metrics
     return {"max_overlapping_pairs": overlaps, "max_stalled_vehicles": most_stalled, "max_stuck_junction_vehicles": most_stuck, "max_closure_held_vehicles": most_held,
-            "conservation_error": metrics["vehicle_conservation_error"], "completed": metrics["throughput"], "diverted_vehicles": metrics["diverted_vehicles"],
+            "conservation_error": conservation_error, "completed": metrics["throughput"], "diverted_vehicles": metrics["diverted_vehicles"],
             "seconds_shared": round(shared_ticks*0.1, 1), "crossings": {lane: len(times) for lane, times in crossing.items()},
             "mean_crossing_s": {lane: round(sum(times)/len(times), 2) if times else None for lane, times in crossing.items()}}
 
@@ -95,15 +98,23 @@ def main() -> int:
     cases = [CASES[int(index)] for index in args.cases.split(",")]
     jobs = [(site, lane, control, int(seed), args.seconds) for site, lane in cases for control in args.controls.split(",")
             for seed in (args.seeds_a if site == "tagum_site_a" else args.seeds_b).split(",")]
-    with ProcessPoolExecutor(args.workers) as pool, args.out.open("w", encoding="utf-8") as out:
+    failed = 0
+    with ProcessPoolExecutor(args.workers) as pool, args.out.open("x", encoding="utf-8") as out:
         futures = [pool.submit(run, job) for job in jobs]
         for result in (future.result() for future in as_completed(futures)):
+            problem = {}
+            for condition in ("shared", "no_closure"):
+                targets = (*ZERO_TARGETS, "max_overlapping_pairs") if condition == "shared" else ZERO_TARGETS
+                missed = {key: result[condition].get(key) for key in targets if result[condition].get(key) != 0}
+                if missed:
+                    problem[condition] = missed
+            result["missed_targets"] = problem
+            failed += bool(problem)
             out.write(json.dumps(result)+"\n")
             out.flush()
             shared = result["shared"]
-            problem = {key: shared[key] for key in ("max_overlapping_pairs", "max_stalled_vehicles", "conservation_error") if shared[key]}
             print(f'{result["site"]} {result["shared_lane"]} {result["control"]} seed {result["seed"]}: completed {shared["completed"]}{" PROBLEM "+json.dumps(problem) if problem else ""}', file=sys.stderr, flush=True)
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

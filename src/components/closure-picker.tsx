@@ -104,6 +104,7 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
 
   const junctions = geometry?.junctions ?? []
   const movements = geometry && junctionId ? signalMovements(geometry, junctionId, null) : []
+  const unavailableIds = new Set([...closedIds].filter(laneId => !sharedIds.has(laneId)))
   const closedHere = geometry && junctionId ? [...closedIds].filter(laneId => geometry.laneById.get(laneId)?.junctionIds.includes(junctionId)) : []
   const summary = closedHere.length ? `Closed here: ${closedHere.map(laneName).join("; ")}` : "No road is closed at this junction"
 
@@ -122,7 +123,7 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
         </Button>)}
       </div>
       <p className="text-sm text-muted-foreground">{junctions.find(junction => junction.id === junctionId)?.label.replace(/^J\d+:\s*/, "")}</p>
-      <JunctionMiniMap geometry={geometry} junctionId={junctionId} movements={movements} closed={closedIds} summary={summary}
+      <JunctionMiniMap geometry={geometry} junctionId={junctionId} movements={movements} closed={unavailableIds} summary={summary}
         laneLabel={laneName} onToggleLane={disabled ? undefined : toggle} shared={sharedIds} strips={strips} />
       {sharedIds.size ? <p className="text-xs text-muted-foreground">Amber: the closed direction shares half of the opposite pavement, one lane each way. This is a hypothetical arrangement; it assumes cones, signs and usually an enforcer.</p> : null}
     </div> : !drawingError ? <p className="text-sm text-muted-foreground">Loading the junction…</p> : null}
