@@ -19,16 +19,12 @@ SITE_A += [f"siteA-static-medium-{control}-{closure}" for control in ("nosignal"
 SITE_B = [f"siteB-{density}-{control}" for density in ("medium", "high") for control in ("nosignal", "fixed")]
 SITE_B += [f"siteB-static-medium-{control}-{closure}" for control in ("nosignal", "fixed") for closure in ("road1-closed", "road2-closed")]
 # Zero at every seed and case is the target for these; a count above 0 in any run fails the acceptance.
-ZERO_TARGETS = ("max_overlapping_pairs", "max_stuck_junction_vehicles", "max_stalled_vehicles", "max_gridlock_seconds", "final_vehicle_conservation_error")
+ZERO_TARGETS = ("max_overlapping_pairs", "max_unexplained_stuck_junction_vehicles", "max_stalled_vehicles", "max_gridlock_seconds", "final_vehicle_conservation_error")
 
 
 def missed_targets(result: dict) -> dict:
-    """Targets a run missed. A vehicle held over 30 s at a closed exit that has no open way out (the closure itself strands it) counts in
-    max_stuck_junction_vehicles, so stuck is excused only while the run also shows vehicles held at a closed exit."""
-    missed = {key: result[key] for key in ZERO_TARGETS if result.get(key)}
-    if missed.get("max_stuck_junction_vehicles") and result.get("max_closure_held_vehicles"):
-        del missed["max_stuck_junction_vehicles"]
-    return missed
+    """Require each safety measurement, including the per-tick peak after closure exemptions."""
+    return {key: result.get(key) for key in ZERO_TARGETS if result.get(key) != 0}
 
 
 def run(job: tuple) -> dict:
@@ -50,6 +46,8 @@ def main() -> int:
     parser.add_argument("--sites", default="A,B")
     parser.add_argument("--heavy-seeds", default=None, help="seeds for the high-traffic no-signal cases, which take hours each (default: --seeds)")
     parser.add_argument("--skip-done", type=Path, action="append", default=[], help="earlier --out files whose (case, seed) pairs are not run again")
+    parser.add_argument("--matrix", type=Path, help="JSONL of exact case, seed and seconds combinations to repeat")
+    parser.add_argument("--source-id", help="Identifier of the frozen source used for this batch")
     args = parser.parse_args()
     if args.out.exists():
         parser.error("output already exists; choose a new path to preserve prior evidence")
@@ -60,15 +58,26 @@ def main() -> int:
             return args.extra_seeds
         return args.heavy_seeds if args.heavy_seeds and "high-nosignal" in name else args.seeds
     jobs = [(name, int(seed), args.seconds) for name in names for seed in seeds_for(name).split(",") if (name, int(seed)) not in done]
-    jobs.sort(key=lambda job: ("high-nosignal" not in job[0], not job[0].startswith("siteB"), "high" not in job[0]))  # longest first
-    with ProcessPoolExecutor(args.workers) as pool, args.out.open("w", encoding="utf-8") as out:
+    if args.matrix:
+        if not args.source_id or args.skip_done:
+            parser.error("--matrix requires --source-id and cannot reuse earlier results")
+        rows = [json.loads(line) for line in args.matrix.read_text(encoding="utf-8").splitlines()]
+        jobs = list(dict.fromkeys((row["case"], row["seed"], row["seconds"]) for row in rows))
+    else:
+        jobs.sort(key=lambda job: ("high-nosignal" not in job[0], not job[0].startswith("siteB"), "high" not in job[0]))
+    failed = 0
+    with ProcessPoolExecutor(args.workers) as pool, args.out.open("x", encoding="utf-8") as out:
         futures = [pool.submit(run, job) for job in jobs]
         for result in (future.result() for future in as_completed(futures)):
+            result["source_id"] = args.source_id
+            result["missed_targets"] = missed_targets(result)
             out.write(json.dumps(result)+"\n")
             out.flush()
-            bad = missed_targets(result)
+            bad = result["missed_targets"]
+            failed += bool(bad)
             print(f'{result["case"]} seed {result["seed"]}: completed {result["completed"]}{" TARGET MISSED " + json.dumps(bad) if bad else ""}', file=sys.stderr, flush=True)
-    return 0
+    print(f"Finished {len(jobs)} runs; {failed} missed a target.", file=sys.stderr, flush=True)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

@@ -37,12 +37,17 @@ def test_scripted_traffic_has_nothing_to_warm_up():
     medium = validate_config(DEFAULTS, {"traffic_density": "medium", "warmup_seconds": 90}, load_registered_network(SITE))
     assert effective_warmup_seconds(medium) == 90.0
     for scripted in ({"traffic_density": "single"}, {"traffic_density": "none"},
-                     {"traffic_density": "none", "trips": [{"time": 5, "source": "boundary_0", "destination": "boundary_1"}]}):
+                     {"traffic_density": "none", "trips": [{"time": 5, "source": "boundary_0", "destination": "boundary_1"}]},
+                     {"traffic_density": "medium", "pedestrian_trips": [{"time": 5, "junction": "tagum_site_a_j"}]}):
         config = validate_config(DEFAULTS, {**scripted, "warmup_seconds": 90}, load_registered_network(SITE))
         assert effective_warmup_seconds(config) == 0.0, scripted
     counts = {"traffic_density": "none", "demand_windows": [{"start": 0, "end": 86400, "vehicles_per_hour": 300,
                                                            "od": [{"source": "boundary_0", "destination": "boundary_1", "weight": 1}]}]}
     assert effective_warmup_seconds(validate_config(DEFAULTS, {**counts, "warmup_seconds": 90}, load_registered_network(SITE))) == 90.0
+    for start, end in ((0, 60), (5, 86400)):
+        window = {**counts["demand_windows"][0], "start": start, "end": end}
+        config = validate_config(DEFAULTS, {**counts, "demand_windows": [window]}, load_registered_network(SITE))
+        assert effective_warmup_seconds(config) == 0.0
 
 
 def test_the_first_frame_after_the_warm_up_has_vehicles_that_drove_in_and_the_clock_and_metrics_start_at_zero():
@@ -131,6 +136,35 @@ def test_a_live_start_returns_after_the_warm_up_with_the_clock_at_zero_and_the_f
     runtime._finalize_terminal_run_locked()
     import database
     assert database.get_runs()[0]["duration_seconds"] == 30.0  # the visible length, not warm-up plus run
+
+
+@pytest.mark.parametrize("paused", [False, True])
+def test_start_on_an_active_run_preserves_its_clock_and_measurement(api, paused):
+    from unittest.mock import patch
+
+    import database
+
+    client, runtime = api
+    created = client.post("/api/scenarios", json={
+        "name": "Start retry", "network_id": SITE,
+        "engine_config": {"traffic_density": "medium", "warmup_seconds": 40},
+    })
+    assert created.status_code == 200, created.text
+    with patch.object(runtime, "_start_background_runner_locked"):
+        first = client.post("/api/simulation/start", json={"scenario_id": created.json()["id"], "duration_seconds": 300})
+        assert first.status_code == 200, first.text
+        runtime._engine.step(50)
+        if paused:
+            assert client.post("/api/simulation/pause").status_code == 200
+        retried = client.post("/api/simulation/start", json={})
+    assert retried.status_code == 200, retried.text
+    state = retried.json()["simulation"]["state"]
+    assert state["status"] == "running"
+    assert state["time"] == 5.0
+    assert state["experiment"]["measurement_start"] == 40.0
+    assert state["metrics"]["measurement_seconds"] == 5.0
+    assert state["dashboard"]["run_id"] == first.json()["simulation"]["state"]["dashboard"]["run_id"]
+    assert [run["status"] for run in database.get_runs()] == ["running"]
 
 
 def test_an_old_scenario_without_the_setting_loads_with_the_default(api):

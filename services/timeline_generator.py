@@ -10,6 +10,7 @@ import database
 from services.timeline_artifacts import timeline_artifact_paths, timeline_directory
 from services.workload_admission import workload_admission
 from simulation.scenario_config import effective_warmup_seconds
+from simulation.footprints import overlapping_pairs
 from simulation.traffic_engine import TrafficEngine
 
 logger = logging.getLogger(__name__)
@@ -196,7 +197,9 @@ def generate_timeline(
 
             with timeline_path.open("w", encoding="utf-8") as timeline_file:
                 frame_count = 0
-                timeline_file.write(json.dumps(engine.to_dict()) + "\n")
+                frame = engine.to_dict()
+                max_overlaps = len(overlapping_pairs(frame["vehicles"]))
+                timeline_file.write(json.dumps(frame) + "\n")
                 frame_count += 1
                 if on_progress:
                     on_progress(
@@ -211,7 +214,9 @@ def generate_timeline(
                 while engine.status == "running":
                     engine.step(1)
                     if engine.status in {"running", "completed"}:
-                        timeline_file.write(json.dumps(engine.to_dict()) + "\n")
+                        frame = engine.to_dict()
+                        max_overlaps = max(max_overlaps, len(overlapping_pairs(frame["vehicles"])))
+                        timeline_file.write(json.dumps(frame) + "\n")
                         frame_count += 1
 
                     if on_progress and duration_limit > 0:
@@ -227,6 +232,7 @@ def generate_timeline(
                             )
 
             final_metrics = {**engine.to_dict().get("metrics", {}), "experiment": engine.experiment_metadata()}
+            final_metrics["max_overlapping_pairs"] = max_overlaps
             _save_metrics(run_id, final_metrics)
             compression = {}
             if config.TIMELINE_GZIP_ENABLED:

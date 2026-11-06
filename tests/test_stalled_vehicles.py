@@ -54,6 +54,41 @@ def test_a_clear_run_has_no_stalled_vehicles():
     assert engine._last_metrics["throughput"] == 1 and engine._last_metrics["stalled_vehicles"] == 0
 
 
+def test_cleared_stall_remains_in_measured_peak():
+    engine, _ = site_a_scene([("car", 13.0, 0.0, 10.0)])
+    permission = engine._first_come_permission
+    engine._first_come_permission = lambda *_: False
+    engine.step(700)
+    onset = engine._last_metrics["first_stall_seconds"]
+    assert 60 < onset < 70
+    engine._first_come_permission = permission
+    engine.step(1200)
+    assert engine._last_metrics["stalled_vehicles"] == 0
+    assert engine._last_metrics["peak_stalled_vehicles"] == 1
+    assert engine._last_metrics["first_stall_seconds"] == onset
+    engine.reset_metrics()
+    assert engine._last_metrics["peak_stalled_vehicles"] == 0
+    assert engine._last_metrics["first_stall_seconds"] is None
+
+
+def test_direct_full_exit_requires_a_chain_that_can_clear():
+    engine = started_engine(junction_network())
+    engine.enable_no_signal_control()
+    vehicle = place(engine, ["wf", "er"], "car", from_stop_line=0.5, lateral=0)
+    vehicle.speed, vehicle.stopped_for = 0, 100
+    engine._exit_has_space = lambda *_: False
+    head = engine.add_vehicle(["er"], vehicle_type="car", speed=0)
+    head.position = engine.network.lanes["er"].length - 2
+    lane = engine.network.lanes["wf"]
+    engine._node_has_exit_hold = lambda *_: True  # an unrelated exit hold cannot explain this chain
+    vehicle.unexplained_for = 30.0
+    engine._track_unexplained_stop(vehicle, lane, False)
+    assert vehicle.unexplained_for > 30
+    head.speed = 3
+    engine._track_unexplained_stop(vehicle, lane, False)
+    assert vehicle.unexplained_for == 0
+
+
 def test_a_junction_with_a_vehicle_held_by_a_full_or_closed_exit_explains_the_vehicles_waiting_their_turn():
     """Seed 101, high traffic, no signal, west closed 300-1200 s: the loop street was jammed back to its start, the head of the west stub could not
     enter it (exit full), and the vehicles waiting behind it for their order at the line read as stalled."""

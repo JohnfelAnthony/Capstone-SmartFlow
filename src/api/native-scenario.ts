@@ -106,10 +106,17 @@ export function resolveNativeScenario(scenarioId: number) {
   return apiRequest<{ engine_config: NativeScenarioConfig }>(`/api/scenarios/${scenarioId}/native-config`)
 }
 
-/** The warm-up a run really gets: none for scripted traffic (the single car, timed trips), which it would play out unseen. Mirrors scenario_config.py. */
+/** Mirrors the live and recording rules in scenario_config.py. */
 export function effectiveWarmupSeconds(config: NativeScenarioConfig, defaultSeconds: number) {
-  const steady = (config.demand_windows?.length ?? 0) > 0 || ["low", "medium", "high", "very high"].includes(String(config.traffic_density ?? "").toLowerCase())
-  return steady && !((config.trips as unknown[] | undefined)?.length) ? (config.warmup_seconds ?? defaultSeconds) : 0
+  if ((config.trips as unknown[] | undefined)?.length || (config.pedestrian_trips as unknown[] | undefined)?.length) return 0
+  const windows = config.demand_windows ?? []
+  const steady = windows.length > 0
+    ? windows.every((window) => {
+      const bounds = window as { start?: number; end?: number } | null
+      return bounds?.start === 0 && bounds.end === 86_400
+    })
+    : ["low", "medium", "high", "very high"].includes(String(config.traffic_density ?? "").toLowerCase())
+  return steady ? (config.warmup_seconds ?? defaultSeconds) : 0
 }
 
 export type FieldCountsSummary = {

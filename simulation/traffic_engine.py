@@ -352,6 +352,8 @@ class TrafficEngine:
         self.safety_overrides = 0
         self.last_safety_override = None
         self.measurement_start = 0.0
+        self.peak_stalled_vehicles = 0
+        self.first_stall_seconds = None
         self.clock_origin = 0.0  # the hidden warm-up's length once warm_up() has run: frames, events and charts count visible seconds from here
         self.admitted_at_measurement = self.pedestrians_at_measurement = 0
         self.completed_external_wait = 0.0
@@ -1829,8 +1831,13 @@ class TrafficEngine:
             signal = self.signals[lane.target]
             if signal.mode == "signalized" and not (signal.stage == "green" and signal.serves(lane.approach)):
                 vehicle.unexplained_for = 0.0
-            elif vehicle.route[1] in self.closed_lanes or not self._exit_has_space(vehicle.route[1], vehicle):
+            elif vehicle.route[1] in self.closed_lanes:
                 vehicle.unexplained_for = 0.0
+            elif not self._exit_has_space(vehicle.route[1], vehicle):
+                if self._full_exit_clears(vehicle.route[1], {lane.id}):
+                    vehicle.unexplained_for = 0.0
+                else:
+                    vehicle.unexplained_for += STEP_LENGTH
             elif not (self.reservations.get(lane.target) or self._crossing_occupied(lane.target)):
                 # Waiting its turn behind vehicles that are held by a full or closed exit is explained by that exit: the count pauses (it
                 # is not reset, so a deadlock that only looks explained now and then still adds up). Looked at only once the count is long.
@@ -1916,6 +1923,7 @@ class TrafficEngine:
         when first read; public methods that change state between ticks build them first (_settle_metrics)."""
         if record:
             queues = self._lane_queues()
+            self._record_stalls()
             incoming = [lane for lane in self.network.lanes.values() if lane.target in self.signals]
             self.metric_ticks += 1
             self.queue_integral += sum(queues[lane.id] for lane in incoming)/max(1, len(incoming))
@@ -1930,6 +1938,15 @@ class TrafficEngine:
     def _settle_metrics(self):
         """Build pending metrics from the state they describe, before a public method changes that state."""
         self._last_metrics
+
+    def _stalled_vehicle_count(self) -> int:
+        return sum(1 for vehicle in self.vehicles.values() if vehicle.unexplained_for > STALLED_SECONDS)
+
+    def _record_stalls(self):
+        count = self._stalled_vehicle_count()
+        self.peak_stalled_vehicles = max(self.peak_stalled_vehicles, count)
+        if count and self.first_stall_seconds is None:
+            self.first_stall_seconds = round(self.simulation_time - self.measurement_start, 6)
 
     def _build_metrics(self) -> dict:
         queues = self._lane_queues()
@@ -1957,8 +1974,15 @@ class TrafficEngine:
             "dropped_pedestrians": self.dropped_pedestrians,
             "stuck_junction_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.reserved_junction and vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS
                                            or vehicle.held_for > STUCK_IN_JUNCTION_SECONDS),
+            "unexplained_stuck_junction_vehicles": sum(
+                1 for vehicle in self.vehicles.values()
+                if vehicle.reserved_junction and vehicle.stopped_for > STUCK_IN_JUNCTION_SECONDS
+                and vehicle.held_for <= STUCK_IN_JUNCTION_SECONDS
+            ),
             "shared_lane_roads": len(self.shared_roads), "shared_lane_changing_roads": len(self._contraflow_pending),
-            "stalled_vehicles": sum(1 for vehicle in self.vehicles.values() if vehicle.unexplained_for > STALLED_SECONDS),
+            "stalled_vehicles": self._stalled_vehicle_count(),
+            "peak_stalled_vehicles": self.peak_stalled_vehicles,
+            "first_stall_seconds": self.first_stall_seconds,
             "diverted_vehicles": self.diverted_vehicles,
             "closure_blocked_vehicles": sum(1 for item in self.pending_demand if item.source in self._closure_blocked_sources()) if self.closed_lanes else 0,
             "closure_held_vehicles": sum(1 for vehicle in self.vehicles.values() if self._held_at_closed_exit(vehicle)) if self.closed_lanes else 0,
@@ -2126,6 +2150,9 @@ class TrafficEngine:
         self.completed_wait = self.completed_travel = self.completed_pedestrian_wait = self.queue_integral = self.max_queue = 0.0
         self.metric_ticks = 0
         self.measurement_start = self.simulation_time
+        self.peak_stalled_vehicles = 0
+        self.first_stall_seconds = None
+        self._record_stalls()
         self.admitted_at_measurement = self.vehicle_serial-len(self.vehicles)
         self.pedestrians_at_measurement = self.pedestrian_serial-len(self.pedestrians)-self.dropped_pedestrians
         self.completed_external_wait = 0.0

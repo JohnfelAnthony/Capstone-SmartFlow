@@ -169,7 +169,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
     node = engine.controlled_junction
     incoming = [network.lanes[lane_id] for lane_id in network.incoming[node]]
     signal = engine.signals[node]
-    max_overlaps = max_stuck = max_stalled = 0
+    max_overlaps = max_stuck = max_unexplained_stuck = 0
     max_island_intrusions = 0 if network.islands else None
     max_gridlock = max_held = 0.0
     # The stuck and gridlock counters only see vehicles inside a junction; this one also catches a frozen queue at its line.
@@ -187,7 +187,7 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
             max_island_intrusions = max(max_island_intrusions, intrusions)
         metrics = engine._last_metrics
         max_stuck = max(max_stuck, metrics["stuck_junction_vehicles"])
-        max_stalled = max(max_stalled, metrics["stalled_vehicles"])
+        max_unexplained_stuck = max(max_unexplained_stuck, metrics["unexplained_stuck_junction_vehicles"])
         max_gridlock = max(max_gridlock, metrics["gridlock_seconds"])
         max_held = max(max_held, metrics["closure_held_vehicles"])
         if engine.lifetime_completed != completed_so_far or not engine.vehicles:
@@ -227,11 +227,15 @@ def run_case(network_name: str, density: str, mix: dict, seconds: float, seed: i
         "simulated_s": engine.simulation_time,
         "network_id": network.id,
         "network_fingerprint": network.fingerprint,
+        "experiment": engine.experiment_metadata(),
         "max_overlapping_pairs": int(max_overlaps),
         "island_count": len(network.islands),
         "max_island_intrusions": max_island_intrusions,
         "max_stuck_junction_vehicles": int(max_stuck),
-        "max_stalled_vehicles": int(max_stalled),
+        "max_unexplained_stuck_junction_vehicles": max_unexplained_stuck,
+        "max_stalled_vehicles": engine.peak_stalled_vehicles,
+        "final_stalled_vehicles": engine._last_metrics["stalled_vehicles"],
+        "first_stall_seconds": engine.first_stall_seconds,
         "max_gridlock_seconds": float(max_gridlock),
         "longest_completion_gap_s": round(float(longest_completion_gap), 1),
         "final_vehicle_conservation_error": engine._last_metrics["vehicle_conservation_error"],

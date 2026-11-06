@@ -33,6 +33,7 @@ VEHICLE_MIX_PRESETS = {
 # Hidden warm-up before a live run or recording (D39). 120 s, not the 300 s of training and evaluation: at Site B high demand 300 s took
 # 80-140 s of computing, 120 s about 7 s. Evaluation and training keep their own --warmup-seconds.
 DEFAULT_RUN_WARMUP_SECONDS = 120.0
+STEADY_DEMAND_END_SECONDS = 86400.0  # the maximum simulation duration
 DEFAULTS = {
     "traffic_density": "single", "warmup_seconds": DEFAULT_RUN_WARMUP_SECONDS, "pedestrian_density": "none",
     "green_seconds": 14.0, "closed_lanes": [], "closure_responses": {}, "slow_lanes": {},
@@ -85,9 +86,15 @@ def effective_maximum_red(plan, order, green):
 
 
 def effective_warmup_seconds(config: dict) -> float:
-    """The warm-up a live run or recording really uses: none for scripted traffic (timed trips, the single car), which it would play out unseen."""
-    steady = bool(config["demand_windows"]) or config["traffic_density"] in {"low", "medium", "high", "very high"}
-    return config["warmup_seconds"] if steady and not config["trips"] else 0.0
+    """Keep timed arrivals and finite demand schedules on the visible clock."""
+    if config["trips"] or config["pedestrian_trips"]:
+        return 0.0
+    windows = config["demand_windows"]
+    if windows:
+        steady = all(window["start"] == 0 and window["end"] == STEADY_DEMAND_END_SECONDS for window in windows)
+    else:
+        steady = config["traffic_density"] in {"low", "medium", "high", "very high"}
+    return config["warmup_seconds"] if steady else 0.0
 
 
 def number(value, label, minimum=0.0, maximum=86400.0):

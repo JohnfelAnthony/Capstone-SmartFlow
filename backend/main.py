@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 import auth
 import config
 import database
-from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics, run_safety_issues
 from services.control_labels import condition_label
 from backend.schemas import (
     AdminPasswordResetResponse,
@@ -1104,6 +1104,9 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Scheduled Vehicles": raw.get("scheduled_vehicles", ""),
         "Unfinished Vehicles": raw.get("unfinished_vehicles", ""),
         "Stalled Vehicles At Run End": raw.get("stalled_vehicles", ""),
+        "Peak Stalled Vehicles": raw.get("peak_stalled_vehicles", ""),
+        "First Stall Measurement Seconds": raw.get("first_stall_seconds", ""),
+        "Peak Overlapping Vehicle Pairs": raw.get("max_overlapping_pairs", ""),
         "Dropped Vehicles": raw.get("dropped_vehicles", ""),
         "Unfinished Pedestrians": raw.get("active_pedestrian_count", ""),
         "Average Pedestrian Delay": run_metric_value(run, "avg_pedestrian_delay"),
@@ -1433,6 +1436,15 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
     right_metrics = compare_run_metrics(right_option.run.id)
     for label, metrics in (("Left", left_metrics), ("Right", right_metrics)):
         raw = metrics.get("raw_metrics") or {}
+        issues = run_safety_issues(raw)
+        if issues:
+            peak = issues.get("peak_stalled_vehicles", issues.get("stalled_vehicles", 0))
+            overlaps = raw.get("max_overlapping_pairs", "unavailable")
+            first = raw.get("first_stall_seconds")
+            onset = f" First stall at measured second {first:g}." if isinstance(first, (int, float)) else ""
+            warnings.append(f"{label} run failed a safety check and should be excluded from performance conclusions. "
+                            f"Recorded stalls: {peak:g}; stalls at end: {raw.get('stalled_vehicles', 'unavailable')}; "
+                            f"peak overlaps: {overlaps}.{onset}")
         unfinished = int(raw.get("unfinished_vehicles") or 0)
         if unfinished:
             warnings.append(f"{label} run has {unfinished} unfinished vehicles at the horizon.")

@@ -16,10 +16,9 @@ from collections import Counter
 from services.field_observer_import import ACCEPTED_REVIEW, REVISION_FILES, _require_reviewed, _seconds
 from services.movement_counts import approach_boundaries
 from simulation.network_registry import load_registered_network
-from simulation.scenario_config import DEFAULTS, validate_config
+from simulation.scenario_config import DEFAULTS, STEADY_DEMAND_END_SECONDS, validate_config
 
 MAX_FILE_BYTES = 5_000_000
-RUN_END_SECONDS = 86400.0  # a demand window's end: beyond the longest run, so the counted rate applies for the whole run
 TAIL_SECONDS = 60.0  # a vehicle seen arriving this close to the end of the footage may simply not have left it yet
 # Field Observer class (class/subtype) to the five engine classes. `pending` marks the two choices the team has not decided.
 CLASS_MAP = {"car": "car", "motorcycle": "motorcycle", "tricycle": "tricycle", "tricycle/bao_bao": "tricycle", "bus": "bus", "truck": "truck",
@@ -173,7 +172,7 @@ def import_field_counts(*, files: dict, network_id: str, engine_config: dict) ->
         movements[(origin, destination, engine_class)] += count
     windows = []
     for (origin, destination, engine_class), count in sorted(movements.items()):
-        windows.append({"start": 0.0, "end": RUN_END_SECONDS, "vehicles_per_hour": count*3600.0/span, "vehicle_type": engine_class,
+        windows.append({"start": 0.0, "end": STEADY_DEMAND_END_SECONDS, "vehicles_per_hour": count*3600.0/span, "vehicle_type": engine_class,
                         "label": f"{origin} to {destination} {engine_class}", "od": [{"source": approaches[origin][0], "destination": approaches[destination][1], "weight": 1}]})
     take, revision = manifest.get("take_id"), manifest.get("revision")
     manifest_sha = hashlib.sha256(files["manifest.json"].encode("utf-8")).hexdigest()

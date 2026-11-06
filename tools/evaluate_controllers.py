@@ -19,7 +19,8 @@ import config
 import database
 from services.timeline_artifacts import timeline_artifact_paths
 from services.observation_identity import has_observed_inputs, validate_observed_holdout
-from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, run_safety_issues
+from simulation.footprints import overlapping_pairs
 from simulation.model_contract import artifact_metadata
 from services.rl_reporting_service import (
     build_combined_ranking,
@@ -286,6 +287,7 @@ def _run_controller_once(
     frame_count = 0
     metrics = {}
     official_metrics_reset = warmup_seconds <= 0
+    max_overlaps = 0
 
     try:
         engine.start(duration_limit=total_duration_seconds)
@@ -305,11 +307,14 @@ def _run_controller_once(
             if not official_metrics_reset and engine.simulation_time >= warmup_seconds:
                 _reset_official_metrics(engine)
                 official_metrics_reset = True
+            if official_metrics_reset:
+                max_overlaps = max(max_overlaps, len(overlapping_pairs(engine.vehicle_records())))
             if record_timeline and engine.status in {"running", "completed"}:
                 timeline_file.write(json.dumps(engine.to_dict()) + "\n")
                 frame_count += 1
 
         metrics = dict(engine.to_dict().get("metrics", {}))
+        metrics["max_overlapping_pairs"] = max_overlaps
         metrics["experiment"] = engine.experiment_metadata()
         metrics["rl_total_phase_switches"] = int(getattr(engine, "rl_total_phase_switches", 0) or 0)
         database.save_run_metrics(
@@ -407,9 +412,27 @@ def _build_summary(results: list[dict]) -> dict:
 
 
 def stalled_vehicle_runs(results: list[dict]) -> list[dict]:
-    """Runs that ended with a vehicle stalled for over 60 s with nothing holding it (the rare known freeze, D37): reported, never silently used."""
-    return [{"controller": result["controller"], "seed": result["seed"], "run_id": result["run_id"], "stalled_vehicles": metric_value(result["metrics"], "stalled_vehicles")}
-            for result in results if (metric_value(result["metrics"], "stalled_vehicles") or 0) > 0]
+    """List measured stalls, with end counts as fallback for older results."""
+    stalled = []
+    for result in results:
+        metrics = result["metrics"]
+        issues = run_safety_issues(metrics)
+        if "peak_stalled_vehicles" not in issues and "stalled_vehicles" not in issues:
+            continue
+        evidence = {key: metrics[key] for key in ("stalled_vehicles", "peak_stalled_vehicles", "first_stall_seconds") if key in metrics}
+        stalled.append({**{key: result[key] for key in ("controller", "seed", "run_id")}, **evidence})
+    return stalled
+
+
+def failed_matched_seeds(results: list[dict]) -> dict[int, list[dict]]:
+    failed = {}
+    for result in results:
+        issues = run_safety_issues(result["metrics"])
+        if issues:
+            failed.setdefault(result["seed"], []).append({
+                "controller": result["controller"], "run_id": result["run_id"], "issues": issues,
+            })
+    return failed
 
 
 def _build_model_learning(
@@ -561,7 +584,9 @@ def main() -> int:
         / f"controller_eval_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    summary = _build_summary(results)
+    excluded_seeds = failed_matched_seeds(results)
+    included = [result for result in results if result["seed"] not in excluded_seeds]
+    summary = _build_summary(included)
     model_learning = _build_model_learning(
         controllers=args.controllers,
         model_paths=model_paths,
@@ -593,15 +618,17 @@ def main() -> int:
             if controller in model_paths and model_paths[controller]
         },
         "results": results,
+        "excluded_matched_seeds": excluded_seeds,
+        "excluded_run_count": len(results) - len(included),
+        "all_runs_summary": _build_summary(results) if excluded_seeds else summary,
         "stalled_vehicle_runs": stalled_vehicle_runs(results),
         "summary": summary,
         "model_learning": model_learning,
         "combined_ranking": build_combined_ranking(summary, model_learning),
     }
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    stalled = payload["stalled_vehicle_runs"]
-    if stalled:
-        print(f"WARNING: {len(stalled)} run(s) ended with stalled_vehicles above zero; exclude or report them: {json.dumps(stalled)}", file=sys.stderr)
+    if excluded_seeds:
+        print(f"WARNING: Excluded {len(results) - len(included)} matched runs from performance summaries: {json.dumps(excluded_seeds)}", file=sys.stderr)
     print(f"Saved evaluation summary: {output_path}")
     return 0
 

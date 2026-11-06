@@ -1073,7 +1073,7 @@ function ScenarioDetailSheet({
             <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
             <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={scenario.pedestrianDensity} />
             <ScenarioMeta icon={SlidersHorizontalIcon} label="Road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
-            <ScenarioMeta icon={CalendarClockIcon} label="Traffic warm-up" value={warmUp > 0 ? `${warmUp} s before the first frame` : "None (the traffic is scripted)"} />
+              <ScenarioMeta icon={CalendarClockIcon} label="Traffic warm-up" value={warmUp > 0 ? `${warmUp} s before the first frame` : "None"} />
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
             <ScenarioMeta icon={CalendarClockIcon} label="Updated" value={formatDate(scenario.updatedAt)} />
           </div>

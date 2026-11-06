@@ -197,12 +197,14 @@ class SimulationRuntime:
             self._run_mode = "live"
             self._finalize_terminal_run_locked()
             new_run = engine.status not in {"running", "paused"} and self._active_run_id is None
-            # Validate and initialize before allocating a database run. Invalid
-            # demand must not leave a permanent 'running' row behind.
-            warm_up = effective_warmup_seconds(engine.config)
-            engine.start(self._duration_seconds + warm_up)
-            if engine.status == "running":
-                engine.warm_up(warm_up)  # hidden: the first frame the stream sends is already at the end of it (D39)
+            if engine.status == "paused":
+                return self.resume(user_id=user_id)
+            if new_run:
+                # Validate and initialize before allocating a database run.
+                warm_up = effective_warmup_seconds(engine.config)
+                engine.start(self._duration_seconds + warm_up)
+                if engine.status == "running":
+                    engine.warm_up(warm_up)
             self._claim_owner(user_id, owner_name)
             if new_run:
                 self._begin_run_locked(engine, user_id=user_id)
