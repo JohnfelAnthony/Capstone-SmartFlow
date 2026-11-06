@@ -133,12 +133,9 @@ def test_the_closure_check_lists_the_responses_for_each_piece_and_the_one_to_pre
     assert report["pieces"]["road4r"]["responses"] == [WAIT]
 
 
-def test_site_validation_stays_static_even_for_a_scenario_that_chose_to_avoid_jams():
-    from services.site_simulation import validation_engine
+def test_a_scenario_that_chose_to_avoid_jams_runs_adaptive_for_training_and_evaluation():
     scenario = {"network_id": A, "engine_config": {"closed_lanes": ["road2r"], "closure_responses": {"road2r": SIDE_STREET_ADAPTIVE}}}
-    assert engine_for_scenario(scenario, seed=1).config["routing_mode"] == "adaptive"  # training and evaluation follow the saved choice
-    engine = validation_engine(scenario, 1)
-    assert engine.config["routing_mode"] == "static" and engine.config["closure_responses"] == {"road2r": SIDE_STREET}
+    assert engine_for_scenario(scenario, seed=1).config["routing_mode"] == "adaptive"
 
 
 def test_training_follows_the_scenarios_saved_choice():

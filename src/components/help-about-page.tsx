@@ -55,7 +55,7 @@ const faqs = [
   },
   {
     question: "Do these results show real Tagum traffic?",
-    answer: "Not yet. Demand and site details are provisional until field observations are reviewed and the site passes validation.",
+    answer: "Not as a forecast. A scenario can take its demand from counts taken at the site (Field Observer: about 16 minutes, one day, midday), but the simulation settings are not tuned to the site and nothing is calibrated or validated. Read results as scenario-based comparisons.",
   },
   {
     question: "Why can't I see some pages?",

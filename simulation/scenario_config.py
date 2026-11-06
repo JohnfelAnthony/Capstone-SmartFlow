@@ -301,10 +301,10 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     if sum(result["vehicle_mix"].values()) <= 0:
         raise ValueError("Vehicle mix needs a positive weight")
     source_kind = result["demand_source"].get("kind")
-    if not isinstance(source_kind, str) or source_kind not in {"synthetic", "observed"}:
-        raise ValueError("Demand source kind must be synthetic or observed")
-    if result["demand_source"]["kind"] == "observed" and not result["demand_source"].get("description"):
-        raise ValueError("Observed demand needs its survey/source description")
+    if not isinstance(source_kind, str) or source_kind not in {"synthetic", "observed", "field_counts"}:
+        raise ValueError("Demand source kind must be synthetic, observed or field_counts")
+    if result["demand_source"]["kind"] in {"observed", "field_counts"} and not result["demand_source"].get("description"):
+        raise ValueError("Observed demand and field counts need their survey/source description")
     def validate_od(item):
         source, target = item.get("source"), item.get("destination")
         if source not in network.boundaries or target not in network.boundaries or not network.route(source, target):

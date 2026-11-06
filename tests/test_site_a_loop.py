@@ -98,12 +98,6 @@ def test_every_engine_at_the_study_site_uses_static_routing():
     assert engine_for_scenario(scenario, seed=101).config["routing_mode"] == "static"
 
 
-def test_site_validation_builds_its_engines_with_static_routing():
-    from services.site_simulation import validation_engine
-    scenario = {"network_id": SITE, "engine_config": {"routing_mode": "adaptive"}}
-    assert validation_engine(scenario, 101).config["routing_mode"] == "static"
-
-
 def test_static_routing_never_sends_open_road_traffic_onto_the_loop():
     from tests.mixed_traffic_helpers import busy_engine
     engine = busy_engine(load_registered_network(SITE), seed=101, density="medium", routing_mode="static")

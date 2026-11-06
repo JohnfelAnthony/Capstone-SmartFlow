@@ -1,8 +1,10 @@
 """Load immutable job inputs, or a saved scenario for direct CLI use."""
 import json
+import sys
 from pathlib import Path
 from services.scenario_identity import validate_resume_snapshot
 from services.scenario_migration import import_snapshot, native_snapshot
+from simulation.scenario_config import is_study_site
 
 
 def cumulative_training_seeds(seeds: tuple[int, ...], resume_model: Path | None, algorithm: str, scenario: dict) -> tuple[int, ...]:
@@ -18,14 +20,22 @@ def cumulative_training_seeds(seeds: tuple[int, ...], resume_model: Path | None,
     return tuple(sorted(set(seeds) | {int(seed) for seed in previous_seeds}))
 
 
+def mark_synthetic_smoke_test(snapshot: dict, smoke: bool) -> dict:
+    """`--synthetic-smoke-test` on a study site is a code check: say so and mark the scenario so the artifact cannot be mistaken for study evidence."""
+    network_id = snapshot.get("network_id") or snapshot.get("intersection_id")
+    if not smoke or not is_study_site(network_id):
+        return snapshot
+    print(f"SYNTHETIC SMOKE TEST on study site {network_id}: a code check, not study evidence; the artifact is marked.", file=sys.stderr)
+    return {**snapshot, "synthetic_smoke_test": True}
+
+
 def load_training_scenario(args, fallback: dict) -> dict:
     def checked(snapshot):
         requested = getattr(args, "intersection_id", None)
         actual = snapshot.get("network_id") or snapshot.get("intersection_id")
         if requested and requested != actual:
             raise ValueError(f"Requested network '{requested}' differs from scenario network '{actual}'")
-        from services.study_gate import gate_study_scenario
-        return gate_study_scenario(snapshot, smoke=getattr(args, "synthetic_smoke_test", False))
+        return mark_synthetic_smoke_test(snapshot, getattr(args, "synthetic_smoke_test", False))
     if args.scenario_file is not None:
         scenario = json.loads(args.scenario_file.read_text(encoding="utf-8"))
         if not isinstance(scenario, dict):

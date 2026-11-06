@@ -37,7 +37,7 @@ Open **this SmartFlow folder** as the workspace. Read [AGENTS.md](AGENTS.md), th
 | [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md) | Current status pointer, dated verification evidence and remaining research/release work; preserves earlier checkpoints and the resolved interruption. |
 | [October 21 progress report](docs/reports/SMARTFLOW_PROGRESS_REPORT_2026-10-21.docx) | Adviser/panel summary of revision `30da696`, milestones through October 12 and the limited October 21 source checks. |
 | [Research preparation](docs/RESEARCH_METHOD.md) | Observation form, calibration/evaluation protocol, metric definitions and open study decisions. |
-| [Settings, search and research workspace](docs/RESEARCH_WORKSPACE.md) | Using preferences, record search, baseline-fit comparisons, independent validation, permissions and exports. |
+| [Settings, search and counts import](docs/RESEARCH_WORKSPACE.md) | Using preferences, record search and the Field Observer counts import; the calibration and validation workspace was removed (D38). |
 | [Field recording procedure](docs/FIELD_RECORDING_PROTOCOL.md) | Roadside phone placement, coverage, signal and pedestrian observations, collection forms and pilot quality checks. |
 | [Video observation tool plan](docs/VIDEO_OBSERVATION_TOOL_PLAN.md) | Temporary offline Python tool inside SmartFlow, selected open-source stack, review workflow and evidence exports. |
 | [Field data integration plan](docs/FIELD_DATA_SMARTFLOW_INTEGRATION.md) | Required demand/signal fidelity changes, dataset conversion, calibration, validation and field-informed RL experiments. |

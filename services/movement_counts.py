@@ -6,9 +6,8 @@ import hashlib
 import io
 import math
 
-from services.study_gate import is_study_site
 from simulation.network_registry import load_registered_network
-from simulation.scenario_config import DEFAULTS, VEHICLE_TYPES, number, validate_config
+from simulation.scenario_config import DEFAULTS, VEHICLE_TYPES, is_study_site, number, validate_config
 
 COLUMNS = ("from", "to", "vehicle_type", "count")
 MAX_CSV_BYTES = 1_000_000

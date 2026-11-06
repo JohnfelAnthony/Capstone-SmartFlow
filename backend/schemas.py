@@ -320,6 +320,12 @@ class MovementCountsRequest(BaseModel):
     engine_config: dict[str, Any] = Field(default_factory=dict)
 
 
+class FieldObserverCountsRequest(BaseModel):
+    network_id: str
+    engine_config: dict[str, Any] = Field(default_factory=dict)
+    files: dict[str, str]
+
+
 class ObservationImportResponse(BaseModel):
     engine_config: dict[str, Any]
     summary: dict[str, Any]

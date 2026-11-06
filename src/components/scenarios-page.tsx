@@ -35,6 +35,7 @@ import { getNativeScenarioOptions, importMovementCounts, listNetworks, resolveNa
 import { ClosurePicker } from "@/components/closure-picker"
 import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { closureLines, closureProblem, readClosures } from "@/lib/closures"
+import { FieldCountsImport } from "@/components/field-counts-import"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
@@ -778,7 +779,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
                 </ToggleGroup>
               </Field>
               <FieldGroup className="grid sm:grid-cols-2">
-                <NativeSelect label={hasCsvDemand ? "Traffic density (set by the CSV)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={hasCsvDemand}
+                <NativeSelect label={hasCsvDemand ? "Traffic density (set by the imported counts)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={hasCsvDemand}
                   options={["None", "Single", "Low", "Medium", "High", "Very High"].map((label) => ({ label, value: label.toLowerCase() }))}
                   onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />
                 <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()}
@@ -793,6 +794,8 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
                 {isImporting && <p role="status" className="text-sm">Reading CSV...</p>}
                 {importNotice && <p role="status" className="text-sm">{importNotice}</p>}
               </Field>
+              <FieldCountsImport networkId={draft.intersectionId} config={draft.engineConfig} disabled={isImporting || isResolving || !nativeOptions || !editConfigReady}
+                onUse={(engineConfig, notice) => { setDraft((current) => ({ ...current, engineConfig, trafficDensity: "None" })); setImportNotice(notice) }} />
               {nativeOptions && nativeOptions.network_id === draft.intersectionId && editConfigReady && !isResolving
                 && <ClosurePicker options={nativeOptions} config={draft.engineConfig} disabled={isSaving}
                   onChange={(engineConfig) => setDraft((current) => ({ ...current, engineConfig }))} onProblem={setServerClosureProblem} />}

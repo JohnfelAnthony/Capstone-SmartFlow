@@ -51,7 +51,7 @@ export type NativeScenarioConfig = {
   routing_mode?: "adaptive" | "static"
   reroute_interval?: number
   reroute_improvement?: number
-  demand_source?: { kind: "synthetic" | "observed"; description?: string }
+  demand_source?: { kind: "synthetic" | "observed" | "field_counts"; description?: string }
   vehicle_mix?: Record<string, number>
   demand_windows?: unknown[]
   site_calibration?: SiteCalibration
@@ -102,6 +102,19 @@ export function checkClosures(networkId: string, closedLanes: string[], events: 
 
 export function resolveNativeScenario(scenarioId: number) {
   return apiRequest<{ engine_config: NativeScenarioConfig }>(`/api/scenarios/${scenarioId}/native-config`)
+}
+
+export type FieldCountsSummary = {
+  vehicles: number; bins: number; bin_seconds: number; span_seconds: number; vehicles_per_hour: number
+  by_approach_class: Record<string, Record<string, number>>; turns: Record<string, number>
+  class_mapping: Array<{ field_class: string; engine_class: string; vehicles: number; pending_team_decision: boolean; note: string }>
+  not_simulated: Record<string, number>; not_counted_at_the_end: number; limits: string
+  source: { take_id: string; revision: string; manifest_sha256: string }
+}
+
+/** A reviewed Field Observer export (its five files, by name) as scenario demand. Nothing is saved until the scenario is. */
+export function importFieldObserverCounts(payload: { network_id: string; engine_config: NativeScenarioConfig; files: Record<string, string> }) {
+  return apiRequest<{ engine_config: NativeScenarioConfig; summary: FieldCountsSummary }>("/api/scenarios/field-observer-counts", { method: "POST", body: payload })
 }
 
 export function importMovementCounts(payload: { csv_text: string; network_id: string; engine_config: NativeScenarioConfig }) {

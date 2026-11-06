@@ -30,8 +30,6 @@ def prepare_settings(settings: dict) -> dict:
         raise ValueError("Select an available saved scenario before starting training.")
     from simulation.network_registry import engine_for_scenario
     engine = engine_for_scenario(scenario)
-    from services.study_gate import require_study_gate
-    require_study_gate(engine)
     normalized = {"scenario_id": scenario_id}
     evaluation_scenario_id = numeric(settings.get("evaluation_scenario_id"), "Held-out scenario ID", 1, 2**31-1, integer=True)
     if evaluation_scenario_id == scenario_id:

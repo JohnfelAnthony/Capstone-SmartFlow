@@ -15,7 +15,6 @@ const AuditLogsPage = React.lazy(() => import("@/components/audit-logs-page").th
 import { LoginPage, RegisterPage } from "@/components/auth-pages"
 const BackupRestorePage = React.lazy(() => import("@/components/backup-restore-page").then(module => ({ default: module.BackupRestorePage })))
 const CompareRunsPage = React.lazy(() => import("@/components/compare-runs-page").then(module => ({ default: module.CompareRunsPage })))
-const CalibrationValidationPage = React.lazy(() => import("@/components/calibration-validation-page").then(module => ({ default: module.CalibrationValidationPage })))
 const DashboardPage = React.lazy(() => import("@/components/dashboard-page").then(module => ({ default: module.DashboardPage })))
 const HelpAboutPage = React.lazy(() => import("@/components/help-about-page").then(module => ({ default: module.HelpAboutPage })))
 const RoleAccessControlPage = React.lazy(() => import("@/components/role-access-control-page").then(module => ({ default: module.RoleAccessControlPage })))
@@ -36,7 +35,6 @@ export default function App() {
   const pageTitleByPage: Record<string, string> = {
     Dashboard: "Live Simulation View",
     Scenarios: "Scenario Library",
-    "Calibration & Validation": "Calibration & Validation",
     Settings: "Settings",
     "RL Training": "RL Training",
     "Runs & Reports": "Runs & Reports",
@@ -156,9 +154,6 @@ export default function App() {
               <ScenariosPage onOpenDashboard={() => navigate("Dashboard")}
                 permissions={{ create: can("scenarios", "create"), edit: can("scenarios", "edit"),
                   run: can("simulation", "run") }} />
-            ) : activePage === "Calibration & Validation" ? (
-              <CalibrationValidationPage canEdit={can("scenarios", "edit")}
-                canExport={can("runs-reports", "export")} onOpenScenarios={() => navigate("Scenarios")} />
             ) : activePage === "Settings" ? (
               <SettingsPage user={currentUser!}
                 onPasswordChanged={() => { getCurrentUser().then(setCurrentUser).catch(() => undefined) }} />
@@ -167,7 +162,6 @@ export default function App() {
                 canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
             ) : activePage === "Runs & Reports" ? (
               <RunsReportsPage onOpenDashboard={() => navigate("Dashboard")}
-                onOpenResearch={can("scenarios", "view") && can("runs-reports", "view") ? () => navigate("Calibration & Validation") : undefined}
                 onOpenCompare={can("compare", "view") ? () => navigate("Compare Runs") : undefined} />
             ) : activePage === "Compare Runs" ? (
               <CompareRunsPage />

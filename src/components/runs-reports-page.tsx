@@ -188,9 +188,9 @@ function MetricTiles({ run, keys }: { run: SimulationRunRecord; keys: string[] }
   </div>
 }
 
-export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare }: {
+export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
   onOpenDashboard?: () => void;
-  onOpenResearch?: () => void; onOpenCompare?: () => void;
+  onOpenCompare?: () => void;
 }) {
   const [runs, setRuns] = React.useState<SimulationRunRecord[]>([])
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
@@ -536,7 +536,6 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
                 <div>
                   <h3 className="runs-group-title">Inputs</h3>
                   <RunSourceSummary run={selectedRun} />
-                  {onOpenResearch ? <Button className="mt-2" variant="outline" size="sm" onClick={onOpenResearch}>Review baseline evidence</Button> : null}
                 </div>
                 <details className="runs-prose"><summary>Saved settings for reproducing this run</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(rawRunMetrics(selectedRun).experiment ?? { note: "This older run kept no saved settings." }, null, 2)}</pre></details>
                 <MetricDefinitions />
