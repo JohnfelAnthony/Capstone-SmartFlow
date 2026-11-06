@@ -81,7 +81,7 @@ Per run (shared run; "none" is the same seed with nothing closed):
 
 1. **Derive at run time, swap the network.** No network file or fingerprint changes were needed, so I did not stop to ask.
 2. **Site B National Highway is not built.** One-way carriageway pairs with a median crossed only at openings do not have an opposite pavement; sharing them would need a different arrangement. Sobrecarey (Site B `road1`) is eligible and tested.
-3. **Draining lanes are closed for routing, so vehicles divert or are held (fix 3).** The cost: some trips end at a different exit while a road changes (up to 30 of about 534 trips per run at Site A no-signal, 77 in the one Site B fixed-time run, counted in `diverted_vehicles`; held vehicles up to 15). The alternative (waiting) keeps every trip but jammed the junction under fixed-time. A choice for you: wait under first-come control and divert under a signal.
+3. **Draining lanes are closed for routing, so vehicles divert or are held (fix 3).** The cost: some trips end at a different exit while a road changes (up to 30 of about 534 trips per run at Site A no-signal, 77 in the one Site B fixed-time run, counted in `diverted_vehicles`; held vehicles up to 15). The alternative (waiting) keeps every trip but jammed the junction under fixed-time. **Owner's decision, 6 November: keep diverting**, including under first-come control; the no-signal case does not wait.
 4. **The shared direction is not "closed" for the signal** while the road is shared.
 5. **Widths are provisional OpenStreetMap values**, so which roads are eligible may change with measured widths.
 
