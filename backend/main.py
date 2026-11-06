@@ -1102,6 +1102,7 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Throughput": run_metric_value(run, "throughput"),
         "Scheduled Vehicles": raw.get("scheduled_vehicles", ""),
         "Unfinished Vehicles": raw.get("unfinished_vehicles", ""),
+        "Stalled Vehicles At Run End": raw.get("stalled_vehicles", ""),
         "Dropped Vehicles": raw.get("dropped_vehicles", ""),
         "Unfinished Pedestrians": raw.get("active_pedestrian_count", ""),
         "Average Pedestrian Delay": run_metric_value(run, "avg_pedestrian_delay"),

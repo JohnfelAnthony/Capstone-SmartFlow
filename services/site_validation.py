@@ -150,7 +150,8 @@ def check_validation(observed: dict, simulated: dict, criteria: dict) -> dict:
     if not isinstance(safety, dict) or any(not _finite(safety.get(field)) for field in SAFETY_FIELDS):
         insufficient.append("safety: overlaps, stuck vehicles, gridlock time and conservation error were not all measured")
     else:
-        broken = [f"{field}={safety[field]:g}" for field in SAFETY_FIELDS if safety[field] != 0]
+        # stalled_vehicles (D37) is checked when recorded; records made before it existed carry no such field.
+        broken = [f"{field}={safety[field]:g}" for field in (*SAFETY_FIELDS, "stalled_vehicles") if _finite(safety.get(field)) and safety[field] != 0]
         safety_ok = not broken
         if broken:
             failures.append("safety: " + ", ".join(broken))

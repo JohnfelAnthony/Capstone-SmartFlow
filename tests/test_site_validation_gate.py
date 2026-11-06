@@ -173,3 +173,11 @@ def test_the_report_is_written_once_and_never_overwritten(tmp_path):
     assert first != second and first.exists() and second.exists()
     assert json.loads(first.read_text())["status"] == "PASS"
     assert first.name.startswith(f"site-validation-{SITE}-validation-")
+
+
+def test_a_stalled_vehicle_fails_the_safety_check_and_records_without_the_field_still_pass():
+    sim = simulated()
+    assert check(sim=sim)["status"] == "PASS"
+    sim["safety"]["stalled_vehicles"] = 1
+    result = check(sim=sim)
+    assert (result["status"], result["safety_ok"]) == ("FAIL", False) and "stalled_vehicles=1" in result["reasons"][0]

@@ -75,7 +75,7 @@ def _run_seed(engine, seed: int, mapping: dict, criteria: dict, *, origin_s: flo
     records: dict[str, dict] = {}
     queue_samples: dict[str, dict[int, float]] = {boundary: {} for boundary in criteria["approaches"]}
     sample_ticks = {round((start_s + index * interval - origin_s) / STEP_LENGTH): index for index in range(math.ceil((end_s - start_s) / interval))}
-    overlaps = stuck = conservation = 0
+    overlaps = stuck = conservation = stalled = 0
     gridlock = 0.0
 
     def observe(tick: int):
@@ -114,6 +114,7 @@ def _run_seed(engine, seed: int, mapping: dict, criteria: dict, *, origin_s: flo
             metrics = engine._last_metrics
             stuck = max(stuck, metrics["stuck_junction_vehicles"])
             gridlock = max(gridlock, metrics["gridlock_seconds"])
+            stalled = max(stalled, metrics["stalled_vehicles"])
             conservation = max(conservation, abs(metrics["vehicle_conservation_error"]))
 
     discharge = {}
@@ -148,7 +149,7 @@ def _run_seed(engine, seed: int, mapping: dict, criteria: dict, *, origin_s: flo
                           "entry_a": first["stop"], "entry_b": second["stop"], "readiness": readiness, "visible": True})
     return {"seed": seed, "queue": summarize_queue(queue_samples, list(queue_samples)), "discharge": discharge,
             "travel_time": summarize_travel(durations, unfinished, True), "arrival_order": classify_pairs(pairs, mapping, criteria),
-            "safety": {"overlaps": overlaps, "stuck_junction_vehicles": stuck, "gridlock_seconds": gridlock, "vehicle_conservation_error": conservation},
+            "safety": {"overlaps": overlaps, "stuck_junction_vehicles": stuck, "gridlock_seconds": gridlock, "vehicle_conservation_error": conservation, "stalled_vehicles": stalled},
             "metadata": engine.experiment_metadata()}
 
 
@@ -174,6 +175,7 @@ def _aggregate(runs: list[dict]) -> dict:
             excluded[reason] = excluded.get(reason, 0) + count
     safety = {"overlaps": sum(run["safety"]["overlaps"] for run in runs), "stuck_junction_vehicles": max(run["safety"]["stuck_junction_vehicles"] for run in runs),
               "gridlock_seconds": max(run["safety"]["gridlock_seconds"] for run in runs),
+              "stalled_vehicles": max(run["safety"]["stalled_vehicles"] for run in runs),
               "vehicle_conservation_error": max(run["safety"]["vehicle_conservation_error"] for run in runs)}
     return {"queue": queue, "discharge": discharge, "travel_time": travel,
             "arrival_order": {"eligible": eligible, "respected": respected, "share": respected / eligible if eligible else None, "excluded": excluded},

@@ -406,6 +406,12 @@ def _build_summary(results: list[dict]) -> dict:
     return summary
 
 
+def stalled_vehicle_runs(results: list[dict]) -> list[dict]:
+    """Runs that ended with a vehicle stalled for over 60 s with nothing holding it (the rare known freeze, D37): reported, never silently used."""
+    return [{"controller": result["controller"], "seed": result["seed"], "run_id": result["run_id"], "stalled_vehicles": metric_value(result["metrics"], "stalled_vehicles")}
+            for result in results if (metric_value(result["metrics"], "stalled_vehicles") or 0) > 0]
+
+
 def _build_model_learning(
     *,
     controllers: tuple[str, ...],
@@ -587,11 +593,15 @@ def main() -> int:
             if controller in model_paths and model_paths[controller]
         },
         "results": results,
+        "stalled_vehicle_runs": stalled_vehicle_runs(results),
         "summary": summary,
         "model_learning": model_learning,
         "combined_ranking": build_combined_ranking(summary, model_learning),
     }
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    stalled = payload["stalled_vehicle_runs"]
+    if stalled:
+        print(f"WARNING: {len(stalled)} run(s) ended with stalled_vehicles above zero; exclude or report them: {json.dumps(stalled)}", file=sys.stderr)
     print(f"Saved evaluation summary: {output_path}")
     return 0
 

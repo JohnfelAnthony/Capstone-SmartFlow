@@ -68,7 +68,7 @@ def test_the_earlier_arrival_enters_first_under_first_come():
 
 def test_safety_measures_are_reported_and_clean_on_a_light_load():
     safety = measure([trip(1, "w", "e"), trip(4, "n", "s")])["safety"]
-    assert safety == {"overlaps": 0, "stuck_junction_vehicles": 0, "gridlock_seconds": 0.0, "vehicle_conservation_error": 0}
+    assert safety == {"overlaps": 0, "stuck_junction_vehicles": 0, "gridlock_seconds": 0.0, "vehicle_conservation_error": 0, "stalled_vehicles": 0}
 
 
 def test_every_declared_seed_is_run_and_reported_and_the_result_is_reproducible():
