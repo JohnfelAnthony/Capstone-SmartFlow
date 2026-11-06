@@ -188,3 +188,48 @@ def test_vehicles_side_by_side_at_the_stub_line_for_the_narrower_loop_all_get_th
         vehicle.approach_arrival = vehicle.stop_arrival = arrival
     engine.step(1200)
     assert engine._last_metrics["throughput"] == 3
+
+
+def test_a_bus_does_not_start_its_turn_beside_a_committed_motorcycle_that_is_then_held_in_the_bus_path():
+    """Seed 101, medium, fixed-time, west and side street closed, 1035.0 s. The motorcycle (in the band beside the bus: its lateral 0.2 against the
+    bus's -1.89) had committed and was still moving when the bus committed, so the commit test excused it as 'about to drive off'. Sweeps ahead of
+    it then held it 3.6 m past its stop line, inside the swing of the bus's rear, and the bodies overlapped for one tick."""
+    from simulation.footprints import overlapping_pairs
+    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
+    engine.driver_variation_scale = 0
+    engine.start(300)
+    signal = engine.signals["tagum_site_a_j"]
+    signal.index, signal.stage, signal.elapsed = signal.approaches.index("north"), "green", 0
+    signal.external, signal.maximum_green = True, 180
+    lane = engine.network.lanes["road1r"]
+    motorcycle = engine.add_vehicle(["road1r", "road3f"], vehicle_type="motorcycle", speed=1.0)
+    motorcycle.position, motorcycle.lateral, motorcycle.lateral_target = 46.0, 0.2, 0.2
+    engine._reserve(motorcycle, lane.target, lane.approach)
+    engine._sweeps[motorcycle.id] = engine._sweep_for(motorcycle, motorcycle.lateral, engine._exit_lateral(motorcycle))
+    bus = engine.add_vehicle(["road1r", "road3f"], vehicle_type="bus", speed=3.9)
+    bus.position, bus.lateral, bus.lateral_target = 38.0, -1.89, -1.89
+    original = engine._sweep_clear_travel
+    # the motorcycle moves until the bus has committed, then sweeps ahead of it (other approaches' turns) hold it where it stands
+    engine._sweep_clear_travel = lambda vehicle, lane_, travel: 0.0 if vehicle is motorcycle and bus.reserved_junction else original(vehicle, lane_, travel)
+    for _ in range(150):
+        engine.step(1)
+        assert not overlapping_pairs(engine.vehicle_records()), f"overlap at {engine.simulation_time}s"
+
+
+@pytest.mark.xfail(strict=True, reason="Known and unfixed: two vehicles side by side at the line can each stand in the other's turning path by a few centimetres. Neither can start, and a stopped vehicle cannot move sideways (the engine moves a body sideways only while it moves forward, a motorcycle's shuffle aside), so no sideways move frees them. The stalled_vehicles alarm reports it.")
+def test_a_bus_and_a_motorcycle_whose_turning_paths_barely_touch_do_not_freeze_the_line():
+    """Seed 105, medium, no signal, road2 closed, 1150 s: a bus and a motorcycle stood at the north loop junction's line for 440 s, both bound for
+    the loop street, each standing in the other's path by about 5 cm (the bus's nose against the motorcycle's drift toward the exit). Neither could
+    commit, and no sideways move was ever tried. Positions and arrival order are from the traced state."""
+    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
+    engine.enable_no_signal_control()
+    engine.driver_variation_scale = 0
+    engine.start(300)
+    for kind, position, lateral, arrival in (("bus", 44.47, 1.1, 8.0), ("motorcycle", 48.47, 2.8, 9.0)):
+        vehicle = engine.add_vehicle(["road1f", "road6r", "road4f"], vehicle_type=kind, speed=0.0)
+        vehicle.position, vehicle.lateral, vehicle.lateral_target = position, lateral, lateral
+        vehicle.approach_arrival = vehicle.stop_arrival = arrival
+    engine.step(1500)
+    assert engine._last_metrics["throughput"] == 2 and engine._last_metrics["stalled_vehicles"] == 0

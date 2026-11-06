@@ -1343,9 +1343,11 @@ class TrafficEngine:
 
     def _sweep_blocked(self, vehicle: Vehicle, node: str) -> bool:
         """True when this vehicle's path through the junction would hit a vehicle standing near a stop line, including
-        one beside it on its own approach (where a committed vehicle ahead is about to drive off, so it does not count)."""
+        one beside it on its own approach (where a committed vehicle ahead in this vehicle's own sideways band is about to drive off, so it
+        does not count; one in another band may be held by sweeps ahead of it, however it was moving when this vehicle committed, and does)."""
         return any(other is not vehicle and other.route[0] == lane_id and self._stands_in_path(other, vehicle)
-                   and not (lane_id == vehicle.route[0] and other.reserved_junction == node)
+                   and not (lane_id == vehicle.route[0] and other.reserved_junction == node
+                            and bands_overlap(vehicle.lateral, vehicle.width, other.lateral, other.width))
                    for lane_id in self.network.incoming[node] for other in self._candidates(("on_lane", lane_id)))
 
     def _meets_own_approach_path(self, vehicle: Vehicle) -> bool:
