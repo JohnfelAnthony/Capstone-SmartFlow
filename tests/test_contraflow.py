@@ -9,7 +9,7 @@ A, B = "tagum_site_a", "tagum_site_b"
 
 
 def test_only_wide_two_way_roads_that_are_long_enough_are_eligible():
-    assert eligible_roads(load_registered_network(A)) == {"road0", "road1", "road2", "road3", "road5"}  # not the 24 m west stub (road4) or the side street (road6)
+    assert eligible_roads(load_registered_network(A)) == {"road0", "road1", "road2", "road3", "road4", "road8", "road10", "road12", "road24"}  # the main roads; not the 47 m north piece (road5) or any one-lane side street
     assert eligible_roads(load_registered_network(B)) == {"road1"}  # Sobrecarey; Dao, Acacia and Bonifacio are narrow and the highway is one-way carriageways
 
 
@@ -17,7 +17,7 @@ def test_the_kept_lane_is_the_opposite_one():
     assert kept_lane("road2r") == "road2f" and kept_lane("road2f") == "road2r"
 
 
-@pytest.mark.parametrize("shared", ["road2r", "road2f", "road0r", "road5f"])
+@pytest.mark.parametrize("shared", ["road2r", "road2f", "road0r", "road8f"])
 def test_each_direction_gets_half_the_pavement_and_the_two_fit_inside_it(shared):
     network = load_registered_network(A)
     road = shared[:-1]

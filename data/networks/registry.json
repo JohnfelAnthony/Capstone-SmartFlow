@@ -2,7 +2,13 @@
   "networks": [
     {
       "id": "tagum_site_a",
-      "file": "tagum_site_a.json"
+      "file": "tagum_site_a.json",
+      "revision_history": [
+        {
+          "file": "tagum_site_a_loop.json",
+          "sha256": "91cf11fe3045f61b1d97bb9602a95610479b9b744269f5c00aad5bf1cc31f422"
+        }
+      ]
     },
     {
       "id": "tagum_site_b",

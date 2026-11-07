@@ -267,9 +267,6 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
     const pole = screen(feature.shape[Math.floor(feature.shape.length / 2)], transform)
     ctx.beginPath(); ctx.arc(pole.x, pole.y, Math.max(1.5, metres * .3), 0, Math.PI * 2); ctx.fillStyle = colors.housing; ctx.fill()
   }
-  for (const feature of features("building")) if (feature.label) {
-    label(ctx, feature.label, { x: feature.shape.reduce((sum, point) => sum + point.x, 0) / feature.shape.length, y: feature.shape.reduce((sum, point) => sum + point.y, 0) / feature.shape.length }, transform, colors)
-  }
 }
 function pointBeforeEnd(points: readonly VisualPoint[], metres: number) {
   let remaining = metres
@@ -284,6 +281,10 @@ function pointBeforeEnd(points: readonly VisualPoint[], metres: number) {
 type SignalReport = { approaches: Record<string, SignalColor>; walk: Record<string, WalkSignal | null> }
 function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, frame: RenderFrame | null, presentation: PresentationState, transform: Transform, hover: Selection | null, colors: Palette): SignalReport {
   occupiedLabels.set(ctx, [])
+  // Landmark names are drawn each frame, first, so junction and lane labels keep clear of them.
+  for (const feature of geometry.siteFeatures) if (feature.kind === "building" && feature.label) {
+    label(ctx, feature.label, { x: feature.shape.reduce((sum, point) => sum + point.x, 0) / feature.shape.length, y: feature.shape.reduce((sum, point) => sum + point.y, 0) / feature.shape.length }, transform, colors)
+  }
   const report: SignalReport = { approaches: {}, walk: {} }, laneLabels: Array<[string, VisualPoint]> = [], tags: Array<{ id: string; rect: LabelRect }> = []
   const focusedJunction = geometry.junctions.find((junction) => junction.id === presentation.junctionId)
   const orderedJunctions = focusedJunction ? [focusedJunction, ...geometry.junctions.filter((junction) => junction !== focusedJunction)] : geometry.junctions

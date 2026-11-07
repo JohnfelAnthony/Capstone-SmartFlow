@@ -26,7 +26,7 @@ def west_to_east(time=0.0):
 
 
 def test_engine_label_is_native_9():
-    assert ENGINE_VERSION == "native-11"
+    assert ENGINE_VERSION == "native-13"
 
 
 @pytest.mark.parametrize("closed", [ENTRIES + EXITS, EXITS, ENTRIES])

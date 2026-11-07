@@ -26,6 +26,21 @@ def test_sobrecarey_is_unreachable_in_both_directions_for_heavy_vehicles(kind):
     assert network.route("boundary_9", "boundary_7", vehicle_type=kind)  # Bonifacio is unchanged
 
 
+def test_main_road_preference_and_detour_both_respect_vehicle_access():
+    payload = copy.deepcopy(load_registered_network("tagum_site_a").payload)
+    payload["lane_vehicle_restrictions"] = {"road2r": ["truck"]}
+    network = RoadNetwork(payload)
+    source, target = "boundary_2", "boundary_1"
+    assert "road2r" in network.route(source, target, vehicle_type="car")
+
+    detour = network.route(source, target, vehicle_type="truck")
+    assert detour and "road2r" not in detour
+    assert any(network.lanes[lane].minor for lane in detour)
+
+    # With the main approach restricted and every side street closed, there is no legal truck route.
+    assert not network.route(source, target, vehicle_type="truck", closed=set(network.minor_lanes))
+
+
 def test_synthetic_demand_keeps_heavy_vehicles_on_legal_routes():
     network = restricted_network()
     config = validate_config(DEFAULTS, {"traffic_density": "high", "vehicle_mix": {"truck": 1}}, network)

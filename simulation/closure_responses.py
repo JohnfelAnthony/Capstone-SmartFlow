@@ -19,8 +19,8 @@ LABELS = {SIDE_STREET: "Use the side street", SIDE_STREET_ADAPTIVE: "Use the sid
 
 def usual_trips(network) -> dict:
     """Entry-to-exit trips and the lanes each normally uses, with nothing closed."""
-    entries = [node for node in network.boundaries if network.outgoing[node]]
-    exits = [node for node in network.boundaries if network.incoming[node]]
+    entries = [node for node in network.demand_boundaries if network.outgoing[node]]
+    exits = [node for node in network.demand_boundaries if network.incoming[node]]
     trips = {(source, target): network.route(source, target) for source in entries for target in exits if source != target}
     return {pair: route for pair, route in trips.items() if route}
 
