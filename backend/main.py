@@ -429,11 +429,6 @@ def login(payload: LoginRequest, request: Request, response: Response) -> LoginR
     from backend.security import authenticate_for_api
 
     user, failure_reason = authenticate_for_api(payload.username, payload.password, request)
-    if failure_reason == "locked":
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed login attempts. Try again later.",
-        )
     if failure_reason == "inactive":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

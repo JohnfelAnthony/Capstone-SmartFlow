@@ -38,7 +38,7 @@ def _parse_timestamp(value: str | None) -> datetime | None:
 
 def request_ip_address(request: Request) -> str:
     # The client controls X-Forwarded-For unless a trusted proxy has already
-    # resolved it into request.client. Never use that header for lockout keys.
+    # resolved it into request.client. Never use that header for login attempt records.
     return (request.client.host if request.client else "").strip()
 
 
@@ -148,9 +148,6 @@ def require_permission(user: dict, page: str, action: str = "view") -> None:
 def authenticate_for_api(username: str, password: str, request: Request) -> tuple[dict | None, str | None]:
     normalized_username = username.strip()
     ip_address = request_ip_address(request)
-    if database.is_login_blocked(normalized_username, ip_address):
-        return None, "locked"
-
     user = database.get_user_by_username(normalized_username)
     if not user or not auth.verify_password(password, user["password_hash"]):
         database.record_login_attempt(normalized_username, False, ip_address)
