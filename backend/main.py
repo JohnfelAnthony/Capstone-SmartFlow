@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import functools
 import gzip
 import json
 import secrets
@@ -35,6 +36,7 @@ from backend.schemas import (
     BackupListResponse,
     BackupRecord,
     ChangePasswordRequest,
+    ComparePairFramesResponse,
     ComparePairResponse,
     CompareRunBundle,
     CompareRunListResponse,
@@ -1458,6 +1460,56 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
     )
 
 
+COMPARE_RENDER_WINDOW_SECONDS = 60.0
+
+
+@functools.lru_cache(maxsize=4)
+def _compare_timeline_lines(path_text: str, mtime_ns: int, size: int) -> tuple[tuple[float, ...], tuple[str, ...]]:
+    # shortcut: keeps each recording's raw lines in memory (up to the file size, four files), upgrade to a seek index if hour-long recordings are compared often.
+    path = Path(path_text)
+    opener = gzip.open if path.suffix == ".gz" else open
+    times: list[float] = []
+    lines: list[str] = []
+    with opener(path, "rt", encoding="utf-8") as timeline_file:
+        for line in timeline_file:
+            stripped_line = line.strip()
+            if stripped_line:
+                times.append(round(compare_float(json.loads(stripped_line).get("time")), 6))
+                lines.append(stripped_line)
+    return tuple(times), tuple(lines)
+
+
+def compare_timeline_lines(timeline_path: str | None) -> tuple[tuple[float, ...], tuple[str, ...]]:
+    path = resolve_artifact_path(timeline_path)
+    if not path or not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timeline artifact was not found on disk.")
+    stat = path.stat()
+    return _compare_timeline_lines(str(path.resolve()), stat.st_mtime_ns, stat.st_size)
+
+
+def compare_pair_frames_response(left_run_id: int, right_run_id: int, start: float, end: float) -> ComparePairFramesResponse:
+    if end < start or end - start > COMPARE_RENDER_WINDOW_SECONDS + 1e-9:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Ask for a window of at most {COMPARE_RENDER_WINDOW_SECONDS:g} seconds, with the end after the start.",
+        )
+    left_option, right_option, _ = validated_compare_pair(left_run_id, right_run_id)
+    left_times, left_lines = compare_timeline_lines(left_option.run.timeline_path)
+    right_times, right_lines = compare_timeline_lines(right_option.run.timeline_path)
+    left_index = {time: index for index, time in enumerate(left_times)}
+    right_index = {time: index for index, time in enumerate(right_times)}
+    shared_times = sorted(left_index.keys() & right_index.keys())
+    if not shared_times:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
+    window = [(position, time) for position, time in enumerate(shared_times) if start <= time <= end]
+    return ComparePairFramesResponse(
+        times=[time for _, time in window],
+        left=[render_frame_service.build_render_frame(json.loads(left_lines[left_index[time]]), sequence=position) for position, time in window],
+        right=[render_frame_service.build_render_frame(json.loads(right_lines[right_index[time]]), sequence=position) for position, time in window],
+        duration=shared_times[-1],
+    )
+
+
 @app.post("/api/scenarios", response_model=Scenario)
 def create_scenario(payload: ScenarioWriteRequest, user: dict = Depends(require_current_user)) -> Scenario:
     require_permission(user, "scenarios", "create")
@@ -1796,6 +1848,18 @@ def get_compare_pair(
 ) -> ComparePairResponse:
     require_permission(user, "compare", "view")
     return compare_pair_response(left_run_id, right_run_id)
+
+
+@app.get("/api/compare/pair/frames", response_model=ComparePairFramesResponse)
+def get_compare_pair_frames(
+    left_run_id: int = Query(ge=1),
+    right_run_id: int = Query(ge=1),
+    start: float = Query(ge=0),
+    end: float = Query(ge=0),
+    user: dict = Depends(require_current_user),
+) -> ComparePairFramesResponse:
+    require_permission(user, "compare", "view")
+    return compare_pair_frames_response(left_run_id, right_run_id, start, end)
 
 
 @app.post("/api/simulation/timelines", response_model=TimelineGenerateResponse)

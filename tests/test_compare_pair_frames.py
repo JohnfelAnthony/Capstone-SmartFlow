@@ -67,6 +67,9 @@ class ComparePairFramesTests(unittest.TestCase):
         self.shared_times = [frame["time"] for frame in frames]
         return run_ids
 
+    def get_frames(self, left: int, right: int, start: float, end: float):
+        return self.client.get("/api/compare/pair/frames", params={"left_run_id": left, "right_run_id": right, "start": start, "end": end})
+
     def test_the_pair_refuses_the_same_run_and_an_incompatible_run(self):
         first, second = self.record_pair()
         with self.assertRaises(HTTPException) as same:
@@ -80,6 +83,35 @@ class ComparePairFramesTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as different:
             backend_main.validated_compare_pair(first, second)
         self.assertEqual(different.exception.status_code, 422)
+
+    def test_frames_cover_only_shared_times_in_the_window(self):
+        first, second = self.record_pair(extra_left_frames=5)
+        response = self.get_frames(first, second, 0, 1)
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        self.assertEqual(len(data["times"]), len(data["left"]))
+        self.assertEqual(len(data["times"]), len(data["right"]))
+        self.assertGreater(len(data["times"]), 0)
+        for index, shared_time in enumerate(data["times"]):
+            self.assertEqual(data["left"][index]["time"], shared_time)
+            self.assertEqual(data["right"][index]["time"], shared_time)
+        self.assertEqual(data["times"], [time for time in self.shared_times if time <= 1])
+        self.assertEqual(data["duration"], self.shared_times[-1])
+        self.assertLess(data["duration"], self.shared_times[-1] + 10)
+        later = self.get_frames(first, second, 0.5, 1).json()
+        self.assertEqual(later["times"], [time for time in self.shared_times if 0.5 <= time <= 1])
+        self.assertLess(len(later["times"]), len(data["times"]))
+        self.assertEqual(later["duration"], data["duration"])
+
+    def test_frames_refuse_a_window_longer_than_the_limit(self):
+        first, second = self.record_pair()
+        self.assertEqual(self.get_frames(first, second, 0, 61).status_code, 422)
+        self.assertEqual(self.get_frames(first, second, 5, 1).status_code, 422)
+        self.assertEqual(self.get_frames(first, second, 0, 60).status_code, 200)
+
+    def test_frames_refuse_the_same_run_twice(self):
+        first, _ = self.record_pair()
+        self.assertEqual(self.get_frames(first, first, 0, 1).status_code, 422)
 
 
 if __name__ == "__main__":

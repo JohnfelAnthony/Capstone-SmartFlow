@@ -454,6 +454,13 @@ class ComparePairResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class ComparePairFramesResponse(BaseModel):
+    times: list[float]
+    left: list[dict[str, Any]]
+    right: list[dict[str, Any]]
+    duration: float
+
+
 class RunTimelineResponse(BaseModel):
     run: SimulationRunRecord
     timeline: CompareTimelineMeta
