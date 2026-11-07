@@ -96,7 +96,7 @@ class OperationsTests(unittest.TestCase):
         network_dir = self.root / "networks"
         network_dir.mkdir()
         original_dir = Path(__file__).resolve().parents[1] / "data" / "networks"
-        for name in ("registry.json", "tagum_site_a.json", "tagum_site_b.json"):
+        for name in ("registry.json", "tagum_site_a.json", "tagum_site_b.json", "tagum_site_a_loop.json"):  # the loop is Site A's listed revision history
             shutil.copyfile(original_dir / name, network_dir / name)
         registry = network_dir / "registry.json"
         original = json.loads((network_dir / "tagum_site_a.json").read_text(encoding="utf-8"))
@@ -116,8 +116,8 @@ class OperationsTests(unittest.TestCase):
         restored_network = registry_module.load_registered_network("tagum_site_a", registry_path=restored_registry)
         self.assertEqual(restored_network.fingerprint, revision["new_sha256"])
         restored_history = json.loads(restored_registry.read_text(encoding="utf-8"))["networks"][0]["revision_history"]
-        self.assertEqual(restored_history[0]["sha256"], old.fingerprint)
-        restored_previous = restored_registry.parent / restored_history[0]["file"]
+        self.assertEqual(restored_history[-1]["sha256"], old.fingerprint)  # the newest revision; earlier history stays ahead of it
+        restored_previous = restored_registry.parent / restored_history[-1]["file"]
         self.assertEqual(json.loads(restored_previous.read_text(encoding="utf-8")), original)
         rollback = store_revision(restored_registry, "tagum_site_a", revision["new_sha256"], original)
         self.assertEqual(rollback["new_sha256"], old.fingerprint)
