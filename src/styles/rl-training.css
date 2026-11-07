@@ -36,73 +36,6 @@
   gap: 10px;
 }
 
-.rl-metric-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(18px, 4vw, 54px);
-  padding: 20px 0 22px;
-}
-
-.rl-strip-metric {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 14px;
-}
-
-.rl-strip-metric > svg {
-  width: 40px;
-  height: 40px;
-  color: var(--primary);
-  stroke-width: 2.4;
-}
-
-.rl-strip-metric.info > svg {
-  color: var(--chart-2);
-}
-
-.rl-strip-metric.warning > svg {
-  color: var(--chart-3);
-}
-
-.rl-strip-metric.purple > svg {
-  color: var(--chart-4);
-}
-
-.rl-strip-metric div div {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.rl-strip-metric strong {
-  max-width: 180px;
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: 32px;
-  font-weight: 800;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rl-strip-metric span {
-  color: var(--muted-foreground);
-  font-size: 18px;
-  font-weight: 500;
-}
-
-.rl-strip-metric small {
-  display: block;
-  margin-top: 4px;
-  max-width: 240px;
-  overflow: hidden;
-  color: color-mix(in oklch, var(--muted-foreground), var(--primary) 18%);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .rl-notice {
   display: flex;
   align-items: center;
@@ -240,6 +173,21 @@
   text-transform: capitalize;
 }
 
+.rl-status-badge.completed {
+  border-color: color-mix(in oklch, var(--primary), transparent 55%);
+  background: color-mix(in oklch, var(--primary), transparent 88%);
+  color: var(--primary);
+}
+
+.rl-item-message {
+  display: block;
+  max-width: 240px;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  white-space: normal;
+}
+
 .rl-progress {
   position: relative;
   width: 120px;
@@ -265,8 +213,7 @@
 }
 
 @media (max-width: 1180px) {
-  .rl-training-grid,
-  .rl-metric-strip {
+  .rl-training-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -287,7 +234,6 @@
   }
 
   .rl-training-grid,
-  .rl-metric-strip,
   .rl-form-grid,
   .rl-advanced-grid,
   .rl-mini-grid {
@@ -297,8 +243,11 @@
   .rl-field-wide {
     grid-column: auto;
   }
+}
 
-  .rl-strip-metric strong {
-    font-size: 26px;
-  }
+.rl-training-page .audit-strip-metric strong {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

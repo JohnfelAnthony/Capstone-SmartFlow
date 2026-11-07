@@ -5,6 +5,7 @@ import "@/styles/admin-user-management.css"
 import { openFieldObserver } from "@/api/admin"
 import { NetworkRevisionReviewCard } from "@/components/network-revision-review-card"
 import { changePassword, type CurrentUser } from "@/api/auth"
+import { parseServerTimestamp } from "@/lib/display-format"
 import { applyTheme, clearRandomPalette, getInitialTheme, type ThemeMode } from "@/lib/appearance"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -26,15 +27,8 @@ function passwordRules(password: string, confirmation: string) {
   ]
 }
 
-// SQLite stores UTC as "YYYY-MM-DD HH:MM:SS" without a zone.
-function createdDate(value: string | null | undefined) {
-  if (!value) return null
-  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
 function AccountStrip({ user }: { user: CurrentUser }) {
-  const created = createdDate(user.created_at)
+  const created = parseServerTimestamp(user.created_at)
   const metrics = [
     { label: "User", value: user.username, hint: user.full_name, icon: UserRoundIcon, tone: "info" },
     { label: "Created", value: created ? created.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }) : "Unknown",
