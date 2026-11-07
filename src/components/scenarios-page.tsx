@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import * as React from "react"
 import {
   ArchiveIcon,
@@ -449,10 +450,12 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
         const updated = await updateScenario(editingScenarioId, payloadFromDraft(draft))
         setScenarios((current) => current.map((scenario) => scenario.id === updated.id ? scenarioFromApi(updated) : scenario))
         setNotice(`"${updated.name}" updated in SQLite.`)
+        toast.success("Scenario updated")
       } else {
         const created = await createScenario(payloadFromDraft(draft))
         setScenarios((current) => sortScenarios([...current, scenarioFromApi(created)], "name_asc"))
         setNotice(`"${created.name}" created in SQLite.`)
+        toast.success("Scenario created")
       }
       setFormMode(null)
       setEditingScenarioId(null)
@@ -489,8 +492,11 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
         : await archiveScenario(scenario.id)
       setScenarios((current) => current.map((item) => item.id === updated.id ? scenarioFromApi(updated) : item))
       setNotice(`"${updated.name}" ${updated.is_archived ? "archived" : "restored"}.`)
+      toast.success(updated.is_archived ? "Scenario archived" : "Scenario restored")
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to update scenario status.")
+      const message = error instanceof Error ? error.message : "Unable to update scenario status."
+      setNotice(message)
+      toast.error(message)
     } finally {
       setIsSaving(false)
     }
@@ -533,6 +539,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
         await configureSimulation({ scenario_id: scenario.id, duration_seconds: 300, control_mode: "fixed-time" })
         setNotice(`"${scenario.name}" loaded into the dashboard simulation context.`)
       }
+      toast.success(action === "live" ? "Simulation started" : "Scenario loaded")
       onOpenDashboard?.()
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to launch scenario.")
@@ -560,6 +567,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
       })
       setNotice(`"${recordingScenario.name}" ${recordControlMode} recording started as run #${response.run.id}.`)
       setRecordingScenarioId(null)
+      toast.success(`Recording started as run #${response.run.id}`)
       onOpenDashboard?.()
     } catch (error) {
       setRecordError(error instanceof Error ? error.message : "Unable to start recording.")

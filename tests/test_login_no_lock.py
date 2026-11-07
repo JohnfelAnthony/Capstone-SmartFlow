@@ -32,3 +32,8 @@ class LoginWithoutLockTests(unittest.TestCase):
             self.assertEqual((wrong.status_code, wrong.json()["detail"]), (401, "Invalid username or password."))
         right = self.client.post("/api/auth/login", json={"username": "admin", "password": "LoginAdmin42!"})
         self.assertEqual(right.status_code, 200, right.text)
+
+    def test_the_signed_in_user_carries_the_account_creation_date_for_settings(self):
+        self.client.post("/api/auth/login", json={"username": "admin", "password": "LoginAdmin42!"})
+        created = self.client.get("/api/auth/me").json()["created_at"]
+        self.assertRegex(created, r"^\d{4}-\d{2}-\d{2}")

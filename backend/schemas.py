@@ -264,6 +264,7 @@ class CurrentUser(BaseModel):
     status: str
     must_change_password: bool
     permissions: list[Permission] = Field(default_factory=list)
+    created_at: str | None = None
 
 
 class LoginResponse(BaseModel):

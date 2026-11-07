@@ -15,6 +15,7 @@ export type CurrentUser = {
   status: string
   must_change_password: boolean
   permissions: Permission[]
+  created_at?: string | null
 }
 
 export type LoginResponse = {

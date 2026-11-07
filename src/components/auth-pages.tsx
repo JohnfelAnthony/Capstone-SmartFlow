@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -256,6 +257,7 @@ export function RegisterPage({ onNavigate, onRegister }: RegisterPageProps) {
         confirm_password: confirmPassword,
       })
       setSuccess(response.message)
+      toast.success("Registration submitted")
       setFullName("")
       setEmail("")
       setUsername("")

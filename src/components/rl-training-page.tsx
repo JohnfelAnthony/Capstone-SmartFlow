@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import * as React from "react"
 import {
   BrainIcon,
@@ -439,6 +440,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
       })
       viewJob(response.job_id)
       setAlert(response.message)
+      toast.success(response.message)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to start RL training."))
     } finally {
@@ -452,6 +454,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     try {
       const response = await stopRLTrainingJob(serverActiveJobId)
       setAlert(response.message)
+      toast.success(response.message)
       viewJob(serverActiveJobId)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to stop RL training."))
@@ -493,6 +496,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
       const response = await evaluateRLModel({ model_id: selectedModel.id, settings: evaluationSettings })
       viewJob(response.job_id)
       setAlert(response.message)
+      toast.success(response.message)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to evaluate selected model."))
     } finally {

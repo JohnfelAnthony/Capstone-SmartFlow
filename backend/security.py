@@ -60,6 +60,7 @@ def user_model(user: dict) -> CurrentUser:
         status=str(user["status"]),
         must_change_password=bool(user["must_change_password"]),
         permissions=_permission_models(int(user["role_id"])),
+        created_at=user.get("created_at"),
     )
 
 
