@@ -35,3 +35,11 @@ export function advancePlayback(time: number, elapsedMs: number, speed: 1 | 2 | 
 export function studyQueue(queues: Record<string, number> | undefined): number {
   return Object.values(queues ?? {}).reduce((total, value) => total + value, 0)
 }
+
+type ControlsFrame = { junction_controls?: Record<string, { selected_for_rl?: boolean }> }
+
+/** The junction the study (and any RL policy) controls, read from a recorded frame. */
+export function studyJunctionId(frame: ControlsFrame | null | undefined): string | null {
+  const entries = Object.entries(frame?.junction_controls ?? {})
+  return (entries.find(([, control]) => control.selected_for_rl) ?? [null])[0]
+}

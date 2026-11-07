@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyQueue } from "./compare-view"
+import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue } from "./compare-view"
 
 describe("kpiChange", () => {
   it("marks a drop in a lower-is-better metric as better and a rise as worse", () => {
@@ -46,5 +46,13 @@ describe("studyQueue", () => {
   it("sums the four approach queues", () => {
     expect(studyQueue({ north: 2, east: 0, south: 3, west: 1 })).toBe(6)
     expect(studyQueue(undefined)).toBe(0)
+  })
+})
+
+describe("studyJunctionId", () => {
+  it("finds the junction selected for RL, or null", () => {
+    expect(studyJunctionId({ junction_controls: { a: { selected_for_rl: false }, b: { selected_for_rl: true } } })).toBe("b")
+    expect(studyJunctionId({ junction_controls: { a: {} } })).toBeNull()
+    expect(studyJunctionId(null)).toBeNull()
   })
 })
