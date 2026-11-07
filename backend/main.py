@@ -1402,7 +1402,7 @@ def read_compare_frames(timeline_path: str | None) -> list[CompareTimelineFrame]
     return frames
 
 
-def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairResponse:
+def validated_compare_pair(left_run_id: int, right_run_id: int) -> tuple[CompareRunOption, CompareRunOption, str]:
     if int(left_run_id) == int(right_run_id):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Select two different runs to compare.")
     left_option = compare_option_by_run_id(left_run_id)
@@ -1413,7 +1413,11 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Selected runs must match network, demand, seed and duration; change either the signal controller or routing mode, not both.",
         )
+    return left_option, right_option, comparison_type
 
+
+def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairResponse:
+    left_option, right_option, comparison_type = validated_compare_pair(left_run_id, right_run_id)
     left_frames = read_compare_frames(left_option.run.timeline_path)
     right_frames = read_compare_frames(right_option.run.timeline_path)
     left_times = {round(frame.time, 6): frame for frame in left_frames}
