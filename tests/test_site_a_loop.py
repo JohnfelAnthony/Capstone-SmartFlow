@@ -1,22 +1,33 @@
-"""Site A's West -> North side-street loop on the real installed network: detours, closures and the one-junction assumptions.
+"""Site A's earlier West -> North side-street loop, kept as an engine regression bed: detours, closures and the one-junction assumptions.
+
+The installed Site A is now the street grid (D41); this layout is data/networks/history/tagum_site_a_loop.json.
 
 Lane ids: road2 is the study junction -> west loop junction piece (`road2r` runs towards the study junction), road4 is the
 boundary stub beyond it, road1 is study junction -> north loop junction, road5 the north stub, road6 the loop street
 (`road6f` runs from the west loop junction to the north one). boundary_2 is the west entry, boundary_1 the north, boundary_3 the east.
 """
+import json
+from pathlib import Path
+
 import pytest
 
 from services.movement_counts import approach_boundaries
 from simulation.network_registry import engine_for_scenario, load_registered_network
 from simulation.scenario_config import DEFAULTS, validate_config
+from simulation.road_network import RoadNetwork
 from simulation.traffic_engine import TrafficEngine
 
 WEST, NORTH, SOUTH, EAST = "boundary_2", "boundary_1", "boundary_0", "boundary_3"
 SITE = "tagum_site_a"
+LOOP_PATH = Path(__file__).resolve().parents[1]/"data/networks/history/tagum_site_a_loop.json"
+
+
+def loop_network() -> RoadNetwork:
+    return RoadNetwork(json.loads(LOOP_PATH.read_text(encoding="utf-8")))
 
 
 def run_site_a(trips, seconds=400, **config):
-    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine = TrafficEngine(seed=7, network=loop_network())
     engine.configure(traffic_density="none", pedestrian_density="none", trips=trips, routing_mode="static", **config)
     engine.driver_variation_scale = 0
     engine.start(seconds)
@@ -29,7 +40,7 @@ def trip(time, source, destination):
 
 
 def test_site_a_keeps_the_study_junction_first_and_the_loop_junctions_unsignalled():
-    network = load_registered_network(SITE)
+    network = loop_network()
     assert network.intersections[0] == "tagum_site_a_j" and len(network.intersections) == 3
     engine = TrafficEngine(network=network)
     modes = {node: signal.mode for node, signal in engine.signals.items()}
@@ -38,7 +49,7 @@ def test_site_a_keeps_the_study_junction_first_and_the_loop_junctions_unsignalle
 
 
 def test_route_west_to_north_is_normally_through_the_study_junction():
-    assert "road2r" in load_registered_network(SITE).route(WEST, NORTH)
+    assert "road2r" in loop_network().route(WEST, NORTH)
 
 
 def test_closed_from_the_start_traffic_takes_the_loop_and_finishes():
@@ -70,25 +81,25 @@ def test_a_closure_outside_the_loop_diverts_to_an_open_exit():
 
 
 def test_closing_every_lane_is_refused_with_a_plain_message():
-    network = load_registered_network(SITE)
+    network = loop_network()
     with pytest.raises(ValueError, match="no legal movement"):
         validate_config(DEFAULTS, {"closed_lanes": list(network.lanes)}, network)
 
 
 def test_closing_the_loop_itself_and_its_ends_leaves_the_four_legs_working():
-    network = load_registered_network(SITE)
+    network = loop_network()
     validate_config(DEFAULTS, {"closed_lanes": ["road6f", "road6r"]}, network)
 
 
 def test_every_leg_is_still_matched_to_its_boundary_through_the_loop_junctions():
-    network = load_registered_network(SITE)
+    network = loop_network()
     legs = approach_boundaries(network)
     assert legs == {"south": (SOUTH, SOUTH), "north": (NORTH, NORTH), "west": (WEST, WEST), "east": (EAST, EAST)}
 
 
 def test_the_loop_has_a_detour_for_each_piece_it_bypasses():
     from services.closure_check import closure_report
-    pieces = closure_report(load_registered_network(SITE), [])["pieces"]
+    pieces = closure_report(loop_network(), [])["pieces"]
     assert pieces["road2r"]["has_detour"] and pieces["road2f"]["has_detour"] and pieces["road1r"]["has_detour"]
     assert not pieces["road3f"]["has_detour"] and not pieces["road4r"]["has_detour"]
 
@@ -100,7 +111,7 @@ def test_every_engine_at_the_study_site_uses_static_routing():
 
 def test_static_routing_never_sends_open_road_traffic_onto_the_loop():
     from tests.mixed_traffic_helpers import busy_engine
-    engine = busy_engine(load_registered_network(SITE), seed=101, density="medium", routing_mode="static")
+    engine = busy_engine(loop_network(), seed=101, density="medium", routing_mode="static")
     engine.step(6000)
     assert engine._last_metrics["reroutes"] == 0
     assert engine._last_metrics["lanes"]["road6f"]["exits"] == 0 and engine._last_metrics["lanes"]["road6r"]["exits"] == 0
@@ -113,7 +124,7 @@ def test_opposing_bodies_never_overlap_anywhere_on_the_loop_street_bend():
     from simulation.road_network import sample
     from simulation.traffic_engine import VEHICLE_TYPES
 
-    engine = TrafficEngine(network=load_registered_network(SITE))
+    engine = TrafficEngine(network=loop_network())
     forward, backward = engine.network.lanes["road6f"], engine.network.lanes["road6r"]
     across = [(q, *sample(backward.shape, q)[:2]) for q in (index*0.25 for index in range(int(backward.length/0.25)+1))]
 
@@ -148,14 +159,14 @@ def test_only_a_bent_lane_gives_up_sideways_room():
     for site in ("tagum_site_b", "tagum_network"):
         engine = TrafficEngine(network=load_registered_network(site))
         assert all(engine._room_width[lane_id] == lane.width for lane_id, lane in engine.network.lanes.items())
-    engine = TrafficEngine(network=load_registered_network(SITE))
+    engine = TrafficEngine(network=loop_network())
     assert engine._room_width["road6f"] < engine.network.lanes["road6f"].width and engine._room_width["road2r"] == engine.network.lanes["road2r"].width
 
 
 def test_a_bus_entering_the_short_west_stub_waits_for_a_bus_still_leaving_it_through_the_junction():
     """road4r is 15 m long, so the entry spot is within one body length of the junction: a vehicle in the connector with its rear still on the lane blocks the entry."""
     from tests.mixed_traffic_helpers import started_engine
-    engine = started_engine(load_registered_network(SITE), routing_mode="static")
+    engine = started_engine(loop_network(), routing_mode="static")
     leader = engine.add_vehicle(["road4r", "road6f", "road5f"], vehicle_type="bus", speed=3.0)
     leader.position = engine.network.lanes["road4r"].length-8
     for _ in range(300):
@@ -171,7 +182,7 @@ def test_vehicles_side_by_side_at_the_stub_line_for_the_narrower_loop_all_get_th
     """Seed 108, medium, no signal, side street closed 500-800 s: three vehicles stood at the west stub's line for 958 s. The earliest
     (stopped at the line first) was held by the last one standing in its path, the last waited for the middle one's earlier place, and the
     middle one waited for the earliest: a cycle through one hop of 'stands in its path'. Rebuilt from the traced positions."""
-    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine = TrafficEngine(seed=7, network=loop_network())
     engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
     engine.enable_no_signal_control()
     engine.driver_variation_scale = 0
@@ -189,7 +200,7 @@ def test_a_bus_does_not_start_its_turn_beside_a_committed_motorcycle_that_is_the
     bus's -1.89) had committed and was still moving when the bus committed, so the commit test excused it as 'about to drive off'. Sweeps ahead of
     it then held it 3.6 m past its stop line, inside the swing of the bus's rear, and the bodies overlapped for one tick."""
     from simulation.footprints import overlapping_pairs
-    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine = TrafficEngine(seed=7, network=loop_network())
     engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
     engine.driver_variation_scale = 0
     engine.start(300)
@@ -216,7 +227,7 @@ def test_a_bus_and_a_motorcycle_whose_turning_paths_barely_touch_do_not_freeze_t
     """Seed 105, medium, no signal, road2 closed, 1150 s: a bus and a motorcycle stood at the north loop junction's line for 440 s, both bound for
     the loop street, each standing in the other's path by about 5 cm (the bus's nose against the motorcycle's drift toward the exit). Neither could
     commit, and no sideways move was ever tried. Positions and arrival order are from the traced state."""
-    engine = TrafficEngine(seed=7, network=load_registered_network(SITE))
+    engine = TrafficEngine(seed=7, network=loop_network())
     engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
     engine.enable_no_signal_control()
     engine.driver_variation_scale = 0

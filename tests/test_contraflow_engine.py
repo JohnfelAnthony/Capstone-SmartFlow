@@ -32,7 +32,7 @@ def run_until(engine, seconds):
 
 
 def test_both_directions_keep_flowing_while_the_pavement_is_shared():
-    trips = [trip(120+10*index, WEST, EAST) for index in range(6)] + [trip(125+10*index, EAST, WEST) for index in range(6)]
+    trips = [trip(60+10*index, WEST, EAST) for index in range(6)] + [trip(65+10*index, EAST, WEST) for index in range(6)]  # early enough for the ~710 m crossing to finish while the pavement is shared
     engine = build(events=WINDOW, trips=trips)
     base = engine.base_network
     run_until(engine, 200)

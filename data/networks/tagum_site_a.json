@@ -24,87 +24,221 @@
     "assumptions": [
       "Lane counts from OSM lanes tags; carriageway widths need field measurement",
       "30 km/h study speed; not a verified posted limit",
-      "Driveways, service roads and minor side streets along approaches are not modelled",
       "No traffic signal exists today; signal plans are proposals",
-      "Approach length 250 m per leg unless field queue reach needs more",
       "Synthetic demand until Field Observer counts are imported",
-      "The first 30 m of every leg is drawn straight from the junction, and map bends under 5 m are drawn straight; check both against the road",
-      "Detour loop 'Unnamed side street' (284.2 m, new junctions tagum_site_a_j2 and tagum_site_a_j3) is provisional geometry from OpenStreetMap, not field-checked; its minor streets are drawn as one plain two-way road with bends drawn as circular arcs of 25 m radius, and its two junctions use first-come right-of-way, not a signal.",
-      "The loop's side streets start empty: no traffic was observed there and none is generated on them; only road closures send vehicles onto the loop."
+      "Every public street inside the owner's crop (west -309 m, east 365 m, south -175 m, north 260 m) is modelled from OpenStreetMap, not field-checked; service lanes, the market aisles and the 48 m street west of Site A are not",
+      "Map bends under 5 m are drawn straight, the first 30 m at each end of a road is drawn straight, and bends are circular arcs of 25 m radius",
+      "Side-street junctions use first-come right-of-way; Site A stays the only signal and RL candidate",
+      "Generated traffic starts and ends only at the four main-road ends; side-street ends only let diverted vehicles leave, and route choice keeps to the main roads unless a closure forces a detour",
+      "The Tagum Public Market outline and buildings are OSM footprints (Intersect.osm (owner's export, bounds 7.459741–7.464007 N, 125.798092–125.805795 E)); drawn only, they do not affect traffic"
     ]
   },
   "nodes": [
     {
       "id": "tagum_site_a_j",
-      "x": 0,
-      "y": 0,
+      "x": 0.0,
+      "y": 0.0,
       "lat": 7.4617375,
       "lon": 125.8026196,
       "boundary": false
     },
     {
-      "id": "boundary_0",
-      "x": 3.3293317303241743,
-      "y": -134.49835502324288,
-      "boundary": true
-    },
-    {
-      "id": "boundary_1",
-      "x": 8.469436515992943,
-      "y": 214.37773260178344,
-      "boundary": true
-    },
-    {
-      "id": "boundary_2",
-      "x": -249.57889216765372,
-      "y": 14.168628851301683,
-      "boundary": true
-    },
-    {
-      "id": "boundary_3",
-      "x": 249.93917327948043,
-      "y": 0.6840036257571019,
-      "boundary": true
-    },
-    {
       "id": "tagum_site_a_j2",
-      "x": -225.713,
-      "y": 12.814,
-      "lat": 7.461852610565219,
-      "lon": 125.80057467503833,
+      "x": -225.722,
+      "y": 12.668,
+      "lat": 7.4618513,
+      "lon": 125.8005746,
       "boundary": false,
       "default_control_mode": "first_come"
     },
     {
       "id": "tagum_site_a_j3",
-      "x": 2.664,
-      "y": 67.422,
-      "lat": 7.462343160076632,
-      "lon": 125.80264373093861,
+      "x": 6.214,
+      "y": 67.282,
+      "lat": 7.4623419,
+      "lon": 125.8026759,
       "boundary": false,
       "default_control_mode": "first_come"
+    },
+    {
+      "id": "tagum_site_a_j4",
+      "x": 6.932,
+      "y": 114.025,
+      "lat": 7.4627618,
+      "lon": 125.8026824,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j5",
+      "x": 3.013,
+      "y": -144.493,
+      "lat": 7.4604395,
+      "lon": 125.8026469,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j6",
+      "x": 8.62,
+      "y": 224.377,
+      "lat": 7.4637531,
+      "lon": 125.8026977,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j7",
+      "x": -220.192,
+      "y": 83.946,
+      "lat": 7.4624916,
+      "lon": 125.8006247,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j8",
+      "x": -217.256,
+      "y": 121.895,
+      "lat": 7.4628325,
+      "lon": 125.8006513,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j9",
+      "x": -234.773,
+      "y": -133.072,
+      "lat": 7.4605421,
+      "lon": 125.8004926,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j10",
+      "x": 214.253,
+      "y": 212.599,
+      "lat": 7.4636473,
+      "lon": 125.8045607,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j11",
+      "x": -274.663,
+      "y": -131.079,
+      "lat": 7.46056,
+      "lon": 125.8001312,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j12",
+      "x": 334.134,
+      "y": 25.904,
+      "lat": 7.4619702,
+      "lon": 125.8056468,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_a_j13",
+      "x": -275.049,
+      "y": 220.959,
+      "lat": 7.4637224,
+      "lon": 125.8001277,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "boundary_0",
+      "x": 3.172,
+      "y": -235.0,
+      "boundary": true
+    },
+    {
+      "id": "boundary_1",
+      "x": 9.847,
+      "y": 320.0,
+      "boundary": true
+    },
+    {
+      "id": "boundary_2",
+      "x": -309.0,
+      "y": 17.906,
+      "boundary": true
+    },
+    {
+      "id": "boundary_3",
+      "x": 425.0,
+      "y": 96.969,
+      "boundary": true
+    },
+    {
+      "id": "boundary_4",
+      "x": -309.0,
+      "y": 90.478,
+      "boundary": true,
+      "generated_demand": false
+    },
+    {
+      "id": "boundary_5",
+      "x": -273.584,
+      "y": -175.0,
+      "boundary": true,
+      "generated_demand": false
+    },
+    {
+      "id": "boundary_6",
+      "x": -309.0,
+      "y": -129.356,
+      "boundary": true,
+      "generated_demand": false
+    },
+    {
+      "id": "boundary_7",
+      "x": -309.0,
+      "y": 220.959,
+      "boundary": true,
+      "generated_demand": false
+    },
+    {
+      "id": "boundary_8",
+      "x": 365.0,
+      "y": 209.69,
+      "boundary": true,
+      "generated_demand": false
     }
   ],
   "roads": [
     {
       "id": "road0",
       "source": "tagum_site_a_j",
-      "target": "boundary_0",
+      "target": "tagum_site_a_j5",
       "shape": [
         [
           0.0,
           0.0
         ],
         [
-          3.329,
-          -134.498
+          3.013,
+          -144.493
         ]
       ],
       "oneway": false,
       "name": "Dalisay Gante Road",
       "osm_way_id": 180968793,
       "osm_node_ids": [
-        1204232054,
         1402951601,
         8084054732,
         1217544595
@@ -131,15 +265,14 @@
           0.0
         ],
         [
-          2.664,
-          67.422
+          6.214,
+          67.282
         ]
       ],
       "oneway": false,
       "name": "Dalisay Gante Road",
       "osm_way_id": 1225836056,
       "osm_node_ids": [
-        1204232054,
         1402951602
       ],
       "osm_tags": {
@@ -166,15 +299,14 @@
           0.0
         ],
         [
-          -225.713,
-          12.814
+          -225.722,
+          12.668
         ]
       ],
       "oneway": false,
       "name": "Capitol Circumferential Road",
       "osm_way_id": 1225667612,
       "osm_node_ids": [
-        1204232054,
         7116314099,
         7116314126,
         1387566813
@@ -195,22 +327,57 @@
     {
       "id": "road3",
       "source": "tagum_site_a_j",
-      "target": "boundary_3",
+      "target": "tagum_site_a_j12",
       "shape": [
         [
           0.0,
           0.0
         ],
         [
-          249.939,
-          0.684
+          265.984,
+          0.872
+        ],
+        [
+          268.11,
+          0.97
+        ],
+        [
+          270.219,
+          1.248
+        ],
+        [
+          300.047,
+          6.476
+        ],
+        [
+          301.968,
+          6.892
+        ],
+        [
+          303.85,
+          7.456
+        ],
+        [
+          305.682,
+          8.167
+        ],
+        [
+          307.453,
+          9.019
+        ],
+        [
+          309.151,
+          10.008
+        ],
+        [
+          334.134,
+          25.904
         ]
       ],
       "oneway": false,
       "name": "Capitol Circumferential Road",
       "osm_way_id": 841643191,
       "osm_node_ids": [
-        1204232054,
         8084054726,
         8083312417,
         8084050714,
@@ -221,51 +388,7 @@
         1282385602,
         1909958925,
         11366390845,
-        5626002031,
-        1204193047,
-        11366390844,
-        14245700347,
-        14245700353,
-        11366390843,
-        7022873285,
-        14245700350,
-        1204194646,
-        1914143894,
-        1282385600,
-        1914143895,
-        1204193629,
-        8083226760,
-        11366390842,
-        11366390841,
-        8137260641,
-        8137260646,
-        7022868508,
-        11366390840,
-        1204194413,
-        1909958956,
-        7879012462,
-        8442719187,
-        1217579813,
-        8442719188,
-        1527897655,
-        7879040814,
-        1204193320,
-        8083740710,
-        6831771345,
-        1204193983,
-        11366390847,
-        6612848154,
-        7128019344,
-        11366390848,
-        8083868426,
-        11366390849,
-        14273163705,
-        1204194077,
-        14273163702,
-        11366390851,
-        1282336126,
-        11366390850,
-        7330733251
+        5626002031
       ],
       "osm_tags": {
         "cycleway:both": "lane",
@@ -287,21 +410,19 @@
       "target": "boundary_2",
       "shape": [
         [
-          -225.713,
-          12.814
+          -225.722,
+          12.668
         ],
         [
-          -249.579,
-          14.169
+          -309.0,
+          17.906
         ]
       ],
       "oneway": false,
       "name": "Capitol Circumferential Road",
       "osm_way_id": 1225667612,
       "osm_node_ids": [
-        1387566813,
-        7883137505,
-        1282385603
+        1387566813
       ],
       "osm_tags": {
         "designation": "national_secondary_road",
@@ -319,15 +440,15 @@
     {
       "id": "road5",
       "source": "tagum_site_a_j3",
-      "target": "boundary_1",
+      "target": "tagum_site_a_j4",
       "shape": [
         [
-          2.664,
-          67.422
+          6.214,
+          67.282
         ],
         [
-          8.469,
-          214.378
+          6.932,
+          114.025
         ]
       ],
       "oneway": false,
@@ -335,6 +456,97 @@
       "osm_way_id": 1225836056,
       "osm_node_ids": [
         1402951602,
+        6883729067
+      ],
+      "osm_tags": {
+        "alt_name": "Dalisay Gante Avenue",
+        "highway": "secondary",
+        "lane_markings": "no",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Dalisay Gante Road",
+        "old_name": "Doña Regina Dalisay Avenue",
+        "short_name": "Gante Road",
+        "source:maxspeed": "PH:urban",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road6",
+      "source": "tagum_site_a_j2",
+      "target": "tagum_site_a_j7",
+      "shape": [
+        [
+          -225.722,
+          12.668
+        ],
+        [
+          -220.192,
+          83.946
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 126583128,
+      "osm_node_ids": [
+        1387566813,
+        1527791811
+      ],
+      "osm_tags": {
+        "highway": "residential"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road7",
+      "source": "tagum_site_a_j3",
+      "target": "tagum_site_a_j7",
+      "shape": [
+        [
+          6.214,
+          67.282
+        ],
+        [
+          -220.192,
+          83.946
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 126583134,
+      "osm_node_ids": [
+        1402951602,
+        7116314100,
+        7116314125,
+        1527791811
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road8",
+      "source": "tagum_site_a_j4",
+      "target": "tagum_site_a_j6",
+      "shape": [
+        [
+          6.932,
+          114.025
+        ],
+        [
+          8.62,
+          224.377
+        ]
+      ],
+      "oneway": false,
+      "name": "Dalisay Gante Road",
+      "osm_way_id": 1225836056,
+      "osm_node_ids": [
         6883729067,
         14273132698,
         14273132700,
@@ -355,118 +567,971 @@
       "speed_mps": 8.33
     },
     {
-      "id": "road6",
-      "source": "tagum_site_a_j2",
-      "target": "tagum_site_a_j3",
+      "id": "road9",
+      "source": "tagum_site_a_j4",
+      "target": "tagum_site_a_j8",
       "shape": [
         [
-          -225.713,
-          12.814
+          6.932,
+          114.025
         ],
         [
-          -222.119,
-          59.121
-        ],
-        [
-          -221.856,
-          61.281
-        ],
-        [
-          -221.407,
-          63.409
-        ],
-        [
-          -220.774,
-          65.491
-        ],
-        [
-          -219.963,
-          67.509
-        ],
-        [
-          -218.979,
-          69.45
-        ],
-        [
-          -217.831,
-          71.297
-        ],
-        [
-          -216.526,
-          73.038
-        ],
-        [
-          -215.075,
-          74.658
-        ],
-        [
-          -213.488,
-          76.147
-        ],
-        [
-          -211.778,
-          77.491
-        ],
-        [
-          -209.958,
-          78.682
-        ],
-        [
-          -208.041,
-          79.711
-        ],
-        [
-          -206.042,
-          80.568
-        ],
-        [
-          -203.976,
-          81.249
-        ],
-        [
-          -201.858,
-          81.748
-        ],
-        [
-          -199.705,
-          82.06
-        ],
-        [
-          -197.534,
-          82.184
-        ],
-        [
-          -195.359,
-          82.119
-        ],
-        [
-          -172.84,
-          80.462
-        ],
-        [
-          -44.548,
-          71.022
-        ],
-        [
-          2.664,
-          67.422
+          -217.256,
+          121.895
         ]
       ],
       "oneway": false,
-      "name": "Unnamed side street",
-      "osm_way_id": 126583128,
+      "name": "Unnamed road",
+      "osm_way_id": 735022028,
       "osm_node_ids": [
-        1387566813,
-        1527791811,
-        7116314125,
-        7116314100,
-        1402951602
+        6883729067,
+        8083351525,
+        8083351526,
+        8083351527,
+        8083351528,
+        8083351529,
+        6883729068,
+        1402951594
       ],
       "osm_tags": {
-        "highway": "residential/unclassified",
-        "note": "minor streets joined as one plain road; OSM ways 126583128, 126583134"
+        "highway": "residential",
+        "surface": "unpaved"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road10",
+      "source": "tagum_site_a_j5",
+      "target": "boundary_0",
+      "shape": [
+        [
+          3.013,
+          -144.493
+        ],
+        [
+          3.172,
+          -235.0
+        ]
+      ],
+      "oneway": false,
+      "name": "Dalisay Gante Road",
+      "osm_way_id": 180968793,
+      "osm_node_ids": [
+        1217544595,
+        1387566818
+      ],
+      "osm_tags": {
+        "alt_name": "Dalisay Gante Avenue",
+        "highway": "secondary",
+        "lane_markings": "no",
+        "lanes": "4",
+        "name": "Dalisay Gante Road",
+        "old_name": "Doña Regina Dalisay Avenue",
+        "short_name": "Gante Road",
+        "surface": "concrete"
       },
       "speed_mps": 8.33
+    },
+    {
+      "id": "road11",
+      "source": "tagum_site_a_j5",
+      "target": "tagum_site_a_j9",
+      "shape": [
+        [
+          3.013,
+          -144.493
+        ],
+        [
+          -234.773,
+          -133.072
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766688,
+      "osm_node_ids": [
+        1217544595,
+        1402951585,
+        1402951604,
+        11721681206,
+        1402951592,
+        1402951600,
+        1387566816
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road12",
+      "source": "tagum_site_a_j6",
+      "target": "boundary_1",
+      "shape": [
+        [
+          8.62,
+          224.377
+        ],
+        [
+          9.847,
+          320.0
+        ]
+      ],
+      "oneway": false,
+      "name": "Dalisay Gante Road",
+      "osm_way_id": 845447766,
+      "osm_node_ids": [
+        1387566832
+      ],
+      "osm_tags": {
+        "alt_name": "Dalisay Gante Avenue",
+        "highway": "secondary",
+        "lane_markings": "no",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Dalisay Gante Road",
+        "old_name": "Doña Regina Dalisay Avenue",
+        "short_name": "Gante Road",
+        "source:maxspeed": "PH:urban",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road13",
+      "source": "tagum_site_a_j6",
+      "target": "tagum_site_a_j10",
+      "shape": [
+        [
+          8.62,
+          224.377
+        ],
+        [
+          214.253,
+          212.599
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766687,
+      "osm_node_ids": [
+        1387566832,
+        11049797664,
+        11049797663,
+        11049797662,
+        1387566829,
+        5626002030
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "name": "Gazmen Road",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road14",
+      "source": "tagum_site_a_j6",
+      "target": "tagum_site_a_j13",
+      "shape": [
+        [
+          8.62,
+          224.377
+        ],
+        [
+          -275.049,
+          220.959
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766687,
+      "osm_node_ids": [
+        1387566832,
+        14273163701,
+        14273132694,
+        1406775364,
+        8084536309,
+        6883729070
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "name": "Gazmen Road",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road15",
+      "source": "tagum_site_a_j9",
+      "target": "tagum_site_a_j2",
+      "shape": [
+        [
+          -234.773,
+          -133.072
+        ],
+        [
+          -225.722,
+          12.668
+        ]
+      ],
+      "oneway": true,
+      "name": "Unnamed road",
+      "osm_way_id": 124766684,
+      "osm_node_ids": [
+        1387566816,
+        1527791810,
+        1387566813
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "oneway": "yes",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road16",
+      "source": "tagum_site_a_j7",
+      "target": "boundary_4",
+      "shape": [
+        [
+          -220.192,
+          83.946
+        ],
+        [
+          -309.0,
+          90.478
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 126583134,
+      "osm_node_ids": [
+        1527791811
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road17",
+      "source": "tagum_site_a_j7",
+      "target": "tagum_site_a_j8",
+      "shape": [
+        [
+          -220.192,
+          83.946
+        ],
+        [
+          -217.256,
+          121.895
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 126583128,
+      "osm_node_ids": [
+        1527791811,
+        1402951594
+      ],
+      "osm_tags": {
+        "highway": "residential"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road18",
+      "source": "tagum_site_a_j8",
+      "target": "tagum_site_a_j13",
+      "shape": [
+        [
+          -217.256,
+          121.895
+        ],
+        [
+          -252.454,
+          125.537
+        ],
+        [
+          -254.586,
+          125.85
+        ],
+        [
+          -256.682,
+          126.346
+        ],
+        [
+          -258.728,
+          127.021
+        ],
+        [
+          -260.708,
+          127.869
+        ],
+        [
+          -262.608,
+          128.885
+        ],
+        [
+          -264.413,
+          130.061
+        ],
+        [
+          -266.11,
+          131.387
+        ],
+        [
+          -267.687,
+          132.855
+        ],
+        [
+          -269.132,
+          134.453
+        ],
+        [
+          -270.434,
+          136.169
+        ],
+        [
+          -271.583,
+          137.992
+        ],
+        [
+          -272.571,
+          139.906
+        ],
+        [
+          -273.39,
+          141.898
+        ],
+        [
+          -274.035,
+          143.954
+        ],
+        [
+          -274.501,
+          146.057
+        ],
+        [
+          -274.784,
+          148.193
+        ],
+        [
+          -274.882,
+          150.345
+        ],
+        [
+          -275.049,
+          220.959
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 735022028,
+      "osm_node_ids": [
+        1402951594,
+        8083921804,
+        8083921805,
+        8083921806,
+        8083921807,
+        6883729069,
+        6883729070
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "surface": "unpaved"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road19",
+      "source": "tagum_site_a_j9",
+      "target": "tagum_site_a_j11",
+      "shape": [
+        [
+          -234.773,
+          -133.072
+        ],
+        [
+          -274.663,
+          -131.079
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766688,
+      "osm_node_ids": [
+        1387566816,
+        1304824244
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road20",
+      "source": "tagum_site_a_j10",
+      "target": "boundary_8",
+      "shape": [
+        [
+          214.253,
+          212.599
+        ],
+        [
+          365.0,
+          209.69
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766687,
+      "osm_node_ids": [
+        5626002030,
+        1387566836,
+        1387566812,
+        1387566831,
+        8083226754,
+        8083226753
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "name": "Gazmen Road",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road21",
+      "source": "tagum_site_a_j10",
+      "target": "tagum_site_a_j12",
+      "shape": [
+        [
+          214.253,
+          212.599
+        ],
+        [
+          334.134,
+          25.904
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 589140636,
+      "osm_node_ids": [
+        5626002030,
+        14245700348,
+        5626002031
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road22",
+      "source": "tagum_site_a_j11",
+      "target": "boundary_5",
+      "shape": [
+        [
+          -274.663,
+          -131.079
+        ],
+        [
+          -273.584,
+          -175.0
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 115510525,
+      "osm_node_ids": [
+        1304824244,
+        1304824252,
+        1304824251
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "surface": "unpaved"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road23",
+      "source": "tagum_site_a_j11",
+      "target": "boundary_6",
+      "shape": [
+        [
+          -274.663,
+          -131.079
+        ],
+        [
+          -309.0,
+          -129.356
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766688,
+      "osm_node_ids": [
+        1304824244
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    },
+    {
+      "id": "road24",
+      "source": "tagum_site_a_j12",
+      "target": "boundary_3",
+      "shape": [
+        [
+          334.134,
+          25.904
+        ],
+        [
+          387.041,
+          78.614
+        ],
+        [
+          388.414,
+          79.883
+        ],
+        [
+          389.879,
+          81.047
+        ],
+        [
+          391.426,
+          82.097
+        ],
+        [
+          393.048,
+          83.029
+        ],
+        [
+          394.735,
+          83.837
+        ],
+        [
+          425.0,
+          96.969
+        ]
+      ],
+      "oneway": false,
+      "name": "Capitol Circumferential Road",
+      "osm_way_id": 841643191,
+      "osm_node_ids": [
+        5626002031,
+        1204193047,
+        11366390844,
+        14245700347,
+        14245700353,
+        11366390843,
+        7022873285,
+        14245700350,
+        1204194646,
+        1914143894,
+        1282385600,
+        1914143895,
+        1204193629
+      ],
+      "osm_tags": {
+        "cycleway:both": "lane",
+        "cycleway:lane": "advisory",
+        "designation": "national_secondary_road",
+        "highway": "secondary",
+        "lanes": "4",
+        "maxspeed": "40",
+        "name": "Capitol Circumferential Road",
+        "ref": "908",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "speed_mps": 8.33
+    },
+    {
+      "id": "road25",
+      "source": "tagum_site_a_j13",
+      "target": "boundary_7",
+      "shape": [
+        [
+          -275.049,
+          220.959
+        ],
+        [
+          -309.0,
+          220.959
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "osm_way_id": 124766687,
+      "osm_node_ids": [
+        6883729070
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "name": "Gazmen Road",
+        "surface": "concrete"
+      },
+      "speed_mps": 8.33,
+      "minor": true
+    }
+  ],
+  "site_features": [
+    {
+      "id": "public_market_lot",
+      "kind": "plaza",
+      "shape": [
+        [
+          -224.32,
+          3.985
+        ],
+        [
+          -9.846,
+          -8.26
+        ],
+        [
+          -13.069,
+          -136.734
+        ],
+        [
+          -231.428,
+          -124.111
+        ]
+      ]
+    },
+    {
+      "id": "public_market_757781935",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -219.607,
+          -9.206
+        ],
+        [
+          -220.931,
+          -32.149
+        ],
+        [
+          -213.989,
+          -32.55
+        ],
+        [
+          -213.922,
+          -31.481
+        ],
+        [
+          -205.567,
+          -31.96
+        ],
+        [
+          -205.655,
+          -33.474
+        ],
+        [
+          -192.476,
+          -34.231
+        ],
+        [
+          -191.129,
+          -10.843
+        ]
+      ]
+    },
+    {
+      "id": "public_market_757781936",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -224.507,
+          -45.819
+        ],
+        [
+          -224.673,
+          -49.326
+        ],
+        [
+          -227.035,
+          -49.215
+        ],
+        [
+          -227.775,
+          -64.51
+        ],
+        [
+          -192.487,
+          -66.213
+        ],
+        [
+          -191.582,
+          -47.4
+        ]
+      ]
+    },
+    {
+      "id": "public_market_757781937",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -227.907,
+          -70.588
+        ],
+        [
+          -229.0,
+          -86.128
+        ],
+        [
+          -226.803,
+          -86.273
+        ],
+        [
+          -227.002,
+          -89.112
+        ],
+        [
+          -194.661,
+          -91.383
+        ],
+        [
+          -193.381,
+          -73.015
+        ]
+      ]
+    },
+    {
+      "id": "public_market_757781938",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -185.081,
+          -12.947
+        ],
+        [
+          -171.361,
+          -13.626
+        ],
+        [
+          -176.902,
+          -125.09
+        ],
+        [
+          -190.622,
+          -124.411
+        ]
+      ]
+    },
+    {
+      "id": "public_market_757781939",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -166.107,
+          -43.036
+        ],
+        [
+          -152.376,
+          -43.827
+        ],
+        [
+          -155.864,
+          -105.086
+        ],
+        [
+          -169.595,
+          -104.307
+        ]
+      ]
+    },
+    {
+      "id": "public_market_757781940",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -143.888,
+          -44.116
+        ],
+        [
+          -62.595,
+          -49.382
+        ],
+        [
+          -66.668,
+          -112.288
+        ],
+        [
+          -147.663,
+          -107.045
+        ],
+        [
+          -146.239,
+          -85.115
+        ],
+        [
+          -149.307,
+          -84.926
+        ],
+        [
+          -148.115,
+          -66.48
+        ],
+        [
+          -145.345,
+          -66.658
+        ]
+      ],
+      "label": "Tagum Public Market"
+    },
+    {
+      "id": "public_market_761873865",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -163.932,
+          -21.318
+        ],
+        [
+          -164.882,
+          -34.921
+        ],
+        [
+          -66.138,
+          -41.823
+        ],
+        [
+          -65.189,
+          -28.22
+        ]
+      ]
+    },
+    {
+      "id": "public_market_761873866",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -40.553,
+          -22.353
+        ],
+        [
+          -47.992,
+          -131.859
+        ],
+        [
+          -62.131,
+          -130.901
+        ],
+        [
+          -54.692,
+          -21.396
+        ]
+      ]
+    },
+    {
+      "id": "public_market_761873867",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -169.639,
+          -112.5
+        ],
+        [
+          -69.781,
+          -120.092
+        ],
+        [
+          -70.741,
+          -132.693
+        ],
+        [
+          -170.599,
+          -125.101
+        ]
+      ]
+    },
+    {
+      "id": "public_market_761873868",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -30.597,
+          -57.174
+        ],
+        [
+          -31.546,
+          -75.308
+        ],
+        [
+          -25.508,
+          -76.254
+        ],
+        [
+          -24.868,
+          -57.486
+        ]
+      ]
+    },
+    {
+      "id": "public_market_761873869",
+      "kind": "building",
+      "tone": "light",
+      "shape": [
+        [
+          -32.418,
+          -79.828
+        ],
+        [
+          -32.815,
+          -95.98
+        ],
+        [
+          -26.457,
+          -96.937
+        ],
+        [
+          -26.049,
+          -79.983
+        ]
+      ]
     }
   ]
 }

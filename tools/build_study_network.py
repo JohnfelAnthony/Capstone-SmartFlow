@@ -360,6 +360,176 @@ def build_site_a_network(source_path: Path, *, with_loop: bool = True) -> dict:
                               detour_loops=[SITE_A_WEST_NORTH_LOOP] if with_loop else None)
 
 
+# The owner's crop of the street drawing (7 November), local metres: west, east, south, north.
+SITE_A_GRID_BOX_M = (-309.0, 365.0, -175.0, 260.0)
+# Owner's decision: the short street meeting Capitol 48 m west of Site A is left out, so the west approach stays 226 m.
+SITE_A_GRID_EXCLUDED_WAYS = frozenset({761662360})
+SITE_A_GRID_CLASSES = MAJOR_CLASSES | {"residential", "unclassified", "living_street"}  # service lanes (market aisles, driveways) are not modelled
+SITE_A_MARKET = Path(__file__).resolve().parents[1]/"data"/"sites"/"tagum_site_a_market.json"
+SITE_A_J2_OSM, SITE_A_J3_OSM = 1387566813, 1402951602
+SITE_A_MAIN_ROADS = frozenset({"Capitol Circumferential Road", "Dalisay Gante Road"})
+# The main roads run this far past the crop so traffic entering there has room before the first side-street junction. Not west:
+# 38 m past the crop Capitol Circumferential Road becomes one way westbound, so its entry would vanish.
+SITE_A_MAIN_ROAD_EXTRA_M = 60.0
+
+
+def _box_exit(inside: tuple, outside: tuple, box: tuple) -> tuple[float, float]:
+    """Where the segment from a point inside the box to one outside it crosses the box edge."""
+    west, east, south, north = box
+    low, high = 0.0, 1.0
+    for _ in range(50):
+        middle = (low+high)/2
+        x, y = inside[0]+(outside[0]-inside[0])*middle, inside[1]+(outside[1]-inside[1])*middle
+        low, high = (middle, high) if west <= x <= east and south <= y <= north else (low, middle)
+    return inside[0]+(outside[0]-inside[0])*low, inside[1]+(outside[1]-inside[1])*low
+
+
+def build_site_a_street_grid(source_path: Path, market_path: Path = SITE_A_MARKET) -> dict:
+    """Site A with every public street inside the owner's crop: main roads keep their ids and directions, side streets join at
+    their OSM junctions as first-come junctions, and each street the crop cuts ends at a boundary. Only the four main-road ends
+    carry generated traffic; side streets are used when a closure needs them (see `minor` and `generated_demand`)."""
+    raw = json.loads(source_path.read_text(encoding="utf-8"))
+    lat, lon = SITE_A_CENTRE
+    box = SITE_A_GRID_BOX_M
+    west, east, south, north = box
+    main_box = (west, east+SITE_A_MAIN_ROAD_EXTRA_M, south-SITE_A_MAIN_ROAD_EXTRA_M, north+SITE_A_MAIN_ROAD_EXTRA_M)
+    osm = {e["id"]: e for e in raw["elements"] if e["type"] == "node"}
+    points = {i: ((n["lon"]-lon)*111320*math.cos(math.radians(lat)), (n["lat"]-lat)*111320) for i, n in osm.items()}
+    inside = lambda p, b: b[0] <= p[0] <= b[1] and b[2] <= p[1] <= b[3]
+    links: dict[tuple, tuple] = {}  # (a, b) -> (way, a->b allowed, b->a allowed)
+    for way in raw["elements"]:
+        tags = way.get("tags", {}) if way["type"] == "way" else {}
+        if way["type"] != "way" or tags.get("highway") not in SITE_A_GRID_CLASSES or tags.get("access") in {"private", "no"} or way["id"] in SITE_A_GRID_EXCLUDED_WAYS:
+            continue
+        direction = tags.get("oneway", "yes" if tags.get("junction") == "roundabout" else "no")
+        forward, backward = direction != "-1", direction not in {"yes", "1", "true"}
+        way_box = main_box if tags.get("name") in SITE_A_MAIN_ROADS else box
+        for index, (a, b) in enumerate(zip(way["nodes"], way["nodes"][1:])):
+            a_in, b_in = inside(points[a], way_box), inside(points[b], way_box)
+            if not a_in and not b_in:
+                continue
+            if a_in != b_in:
+                cut = f"edge:{way['id']}:{index}"
+                points[cut] = _box_exit(points[a], points[b], way_box) if a_in else _box_exit(points[b], points[a], way_box)
+                a, b = (a, cut) if a_in else (cut, b)
+            links[a, b], links[b, a] = (way, forward, backward), (way, backward, forward)
+    study = {node for node in {a for a, _ in links} if math.hypot(*points[node]) <= 25.0 and len({b for a, b in links if a == node}) >= 3}
+    if not study:
+        raise ValueError("No street junction within 25 m of Site A's centre")
+    links = {("study" if a in study else a, "study" if b in study else b): value for (a, b), value in links.items() if not (a in study and b in study)}
+    points["study"] = (0.0, 0.0)
+    neighbours = defaultdict(set)
+    for a, b in links:
+        neighbours[a].add(b)
+    is_cut = lambda node: isinstance(node, str) and node.startswith("edge:")
+    while dead := [node for node, near in neighbours.items() if len(near) == 1 and not is_cut(node) and node != "study"]:
+        for node in dead:  # a street ending inside the crop is a dead end: vehicles cannot turn round, so it is not modelled
+            for other in neighbours.pop(node):
+                neighbours[other].discard(node)
+                links.pop((node, other), None); links.pop((other, node), None)
+    junctions = {node for node, near in neighbours.items() if len(near) != 2 or node == "study" or is_cut(node)}
+    chains, walked = [], set()
+    for start in sorted(junctions, key=str):
+        for first in sorted(neighbours[start], key=str):
+            if (start, first) in walked:
+                continue
+            chain, previous, current = [start, first], start, first
+            while current not in junctions:
+                previous, current = current, next(node for node in neighbours[current] if node != previous)
+                chain.append(current)
+            walked.update(zip(chain, chain[1:])); walked.update(zip(chain[1:], chain))
+            chains.append(chain)
+    names = {}
+    for node in sorted(junctions, key=lambda n: (math.hypot(*points[n]), str(n))):
+        if node == "study":
+            names[node] = "tagum_site_a_j"
+        elif node in (SITE_A_J2_OSM, SITE_A_J3_OSM):
+            names[node] = "tagum_site_a_j2" if node == SITE_A_J2_OSM else "tagum_site_a_j3"
+    if len(names) != 3:
+        raise ValueError("Site A's side-street junctions j2 and j3 are no longer junctions in the OSM extract")
+    main_name = lambda chain: links[chain[0], chain[1]][0].get("tags", {}).get("name")
+    # The four main-road ends keep boundary_0..3 (south, north, west, east): follow each leg of Site A along its own road name.
+    legs = {}
+    for chain in chains:
+        if chain[0] == "study" or chain[-1] == "study":
+            leg = chain if chain[0] == "study" else chain[::-1]
+            road_name, end = main_name(leg), leg
+            while not is_cut(end[-1]):
+                end = next(c if c[0] == end[-1] else c[::-1] for c in chains if end[-1] in (c[0], c[-1]) and c not in (end, end[::-1]) and main_name(c if c[0] == end[-1] else c[::-1]) == road_name)
+            x, y = points[end[-1]]
+            legs["south" if y < -abs(x) else "north" if y > abs(x) else "west" if x < 0 else "east"] = (leg, end[-1])
+    for index, side in enumerate(("south", "north", "west", "east")):
+        names[legs[side][1]] = f"boundary_{index}"
+    for node in sorted((n for n in junctions if n not in names), key=lambda n: (not is_cut(n), math.hypot(*points[n]), str(n))):
+        names[node] = f"boundary_{sum(1 for v in names.values() if v.startswith('boundary_'))}" if is_cut(node) else f"tagum_site_a_j{sum(1 for v in names.values() if not v.startswith('boundary_'))+1}"
+    nodes = []
+    for node in sorted(junctions, key=lambda n: (names[n] != "tagum_site_a_j", names[n].startswith("boundary_"), int(names[n].rsplit("_", 1)[1].lstrip("j") or 1) if names[n] != "tagum_site_a_j" else 0)):
+        x, y = points[node]
+        entry = {"id": names[node], "x": round(x, 3), "y": round(y, 3)}
+        if is_cut(node):
+            entry["boundary"] = True
+            if not names[node] in {f"boundary_{i}" for i in range(4)}:
+                entry["generated_demand"] = False  # owner's decision: generated traffic starts and ends only at the four main-road ends
+        else:
+            entry.update(lat=lat+y/111320, lon=lon+x/(111320*math.cos(math.radians(lat))), boundary=False)
+            if node != "study":
+                entry["default_control_mode"] = "first_come"
+                if node not in (SITE_A_J2_OSM, SITE_A_J3_OSM):
+                    entry["generated_demand"] = False  # no generated pedestrians here, so Site A, j2 and j3 keep today's share
+        nodes.append(entry)
+    known = {("study", legs["south"][0][-1]): "road0", ("study", legs["north"][0][-1]): "road1", ("study", legs["west"][0][-1]): "road2", ("study", legs["east"][0][-1]): "road3"}
+    roads = []
+    for chain in chains:
+        forward = all(links[a, b][1] for a, b in zip(chain, chain[1:]))
+        backward = all(links[a, b][2] for a, b in zip(chain, chain[1:]))
+        if not forward and not backward:
+            raise ValueError(f"Inconsistent one-way directions along OSM way {links[chain[0], chain[1]][0]['id']}")
+        ends = (chain[0], chain[-1])
+        if not forward or (backward and (math.hypot(*points[chain[-1]]), str(chain[-1])) < (math.hypot(*points[chain[0]]), str(chain[0])) and "study" not in ends) or chain[-1] == "study" and backward:
+            chain = chain[::-1]
+        way_ids = list(dict.fromkeys(links[a, b][0]["id"] for a, b in zip(chain, chain[1:])))
+        tags = links[chain[0], chain[1]][0].get("tags", {})
+        minor = tags.get("name") not in SITE_A_MAIN_ROADS  # every road off the two main roads, Gazmen included: route choice avoids it unless a closure needs it
+        shape = simplify_leg([points[node] for node in chain])
+        shape = straighten_mouth(straighten_mouth(shape)[::-1])[::-1]
+        shape = round_corners(shape)  # a sharp map corner swings side-by-side bodies into each other, on main roads too
+        road_id = known.get((chain[0], chain[-1]))
+        if road_id is None and names[chain[0]] == "tagum_site_a_j2" and main_name(chain) == "Capitol Circumferential Road":
+            road_id = "road4"
+        elif road_id is None and names[chain[0]] == "tagum_site_a_j3" and main_name(chain) == "Dalisay Gante Road":
+            road_id = "road5"
+        elif road_id is None and names[chain[0]] == "tagum_site_a_j2" and minor and points[chain[1]][1] > points[chain[0]][1]:
+            road_id = "road6"  # the former side-street loop's first piece, j2 northward
+        roads.append({"id": road_id, "source": names[chain[0]], "target": names[chain[-1]], "shape": [[round(x, 3), round(y, 3)] for x, y in shape],
+                      "oneway": not (forward and backward), "name": tags["name"] if tags.get("name") in SITE_A_MAIN_ROADS else "Unnamed road",  # owner: new roads stay unnamed
+                      "osm_way_id": way_ids[0], "osm_node_ids": [node for node in chain if isinstance(node, int)],
+                      "osm_tags": tags if len(way_ids) == 1 else {**tags, "note": "OSM ways " + ", ".join(str(w) for w in way_ids)},
+                      "speed_mps": 8.33, **({"minor": True} if minor else {})})
+    taken = {road["id"] for road in roads if road["id"]}
+    if taken != {f"road{i}" for i in range(7)}:
+        raise ValueError(f"Expected Site A's roads road0-road6 to keep their ids, found {sorted(taken)}")
+    for number, road in enumerate(sorted((r for r in roads if not r["id"]), key=lambda r: (min(math.hypot(*r["shape"][0]), math.hypot(*r["shape"][-1])), r["source"], r["target"])), 7):
+        road["id"] = f"road{number}"
+    roads.sort(key=lambda road: int(road["id"][4:]))
+    market = json.loads(market_path.read_text(encoding="utf-8"))
+    centre = [sum(p[0] for p in market["market"]["shape"])/len(market["market"]["shape"]), sum(p[1] for p in market["market"]["shape"])/len(market["market"]["shape"])]
+    labelled = min(market["buildings"], key=lambda b: math.dist(centre, [sum(p[0] for p in b["shape"])/len(b["shape"]), sum(p[1] for p in b["shape"])/len(b["shape"])]))
+    features = [{"id": "public_market_lot", "kind": "plaza", "shape": market["market"]["shape"]}]
+    features += [{"id": f"public_market_{building['osm_way_id']}", "kind": "building", "tone": "light", "shape": building["shape"],
+                  **({"label": market["market"]["name"]} if building is labelled else {})} for building in market["buildings"]]
+    source = {**raw["smartflow_source"], "origin": {"lat": lat, "lon": lon}, "projection": "local equirectangular, metres; study area only", "assumptions": [
+        "Lane counts from OSM lanes tags; carriageway widths need field measurement", "30 km/h study speed; not a verified posted limit",
+        "No traffic signal exists today; signal plans are proposals", "Synthetic demand until Field Observer counts are imported",
+        f"Every public street inside the owner's crop (west {west:g} m, east {east:g} m, south {south:g} m, north {north:g} m) is modelled from OpenStreetMap, not field-checked; service lanes, the market aisles and the 48 m street west of Site A are not",
+        f"Map bends under {LEG_SIMPLIFY_TOLERANCE_M:g} m are drawn straight, the first {JUNCTION_MOUTH_STRAIGHT_M:g} m at each end of a road is drawn straight, and bends are circular arcs of {LOOP_BEND_RADIUS_M:g} m radius",
+        "Side-street junctions use first-come right-of-way; Site A stays the only signal and RL candidate",
+        "Generated traffic starts and ends only at the four main-road ends; side-street ends only let diverted vehicles leave, and route choice keeps to the main roads unless a closure forces a detour",
+        f"The Tagum Public Market outline and buildings are OSM footprints ({market['source']['file']}); drawn only, they do not affect traffic"]}
+    payload = {"id": "tagum_site_a", "version": 1, "name": SITE_A_NAME, "source": source, "nodes": nodes, "roads": roads, "site_features": features}
+    RoadNetwork(payload)
+    return payload
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--junctions", help="Comma-separated OSM node ids to keep instead of auto-selecting five")
@@ -372,10 +542,14 @@ if __name__ == "__main__":
     parser.add_argument("--approach-m", type=float, default=250.0)
     parser.add_argument("--approach", action="append", default=[])
     parser.add_argument("--assumption", action="append", default=[])
-    parser.add_argument("--site-a", action="store_true", help="Rebuild the installed Site A (with its West-North loop) from the cached OSM extract")
+    parser.add_argument("--site-a", action="store_true", help="Rebuild the installed Site A (the street grid in the owner's crop) from the cached OSM extract")
+    parser.add_argument("--site-a-loop", action="store_true", help="Rebuild the earlier Site A with only the West-North loop (kept under data/networks/history)")
     args = parser.parse_args()
+    site_a_source = args.source if args.source != NETWORK_PATH.with_name("tagum_osm.json") else NETWORK_PATH.with_name("osm_site_a.json")
     if args.site_a:
-        payload = build_site_a_network(args.source if args.source != NETWORK_PATH.with_name("tagum_osm.json") else NETWORK_PATH.with_name("osm_site_a.json"))
+        payload = build_site_a_street_grid(site_a_source)
+    elif args.site_a_loop:
+        payload = build_site_a_network(site_a_source)
     elif args.site_b_corridor:
         from tools.site_b_corridor import build_site_b_corridor
         payload = build_site_b_corridor(args.source)

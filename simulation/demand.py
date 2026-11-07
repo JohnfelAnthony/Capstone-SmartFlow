@@ -17,7 +17,7 @@ class Arrival:
 
 def build_schedule(config: dict, network, seed: int, duration: float) -> list[Arrival]:
     rng = random.Random(seed)
-    pairs = [(a, b) for a in network.boundaries for b in network.boundaries if a != b and network.route(a, b)]
+    pairs = [(a, b) for a in network.demand_boundaries for b in network.demand_boundaries if a != b and network.route(a, b)]
     mix = config["vehicle_mix"]
     windows = config["demand_windows"]
     if not windows and not config["trips"] and config["traffic_density"] not in {"none", "single"}:

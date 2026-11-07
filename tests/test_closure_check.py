@@ -32,7 +32,7 @@ def test_options_describe_each_lane_for_the_closure_picker():
     from services.native_scenario_service import configuration_options
     lanes = {lane["id"]: lane for lane in configuration_options("tagum_site_a")["lanes"]}
     entries = [lane for lane in lanes.values() if lane["kind"] == "entry"]
-    assert len(entries) == 4 and all(lane["road_id"] == lane["id"][:-1] for lane in lanes.values())
+    assert len(entries) == 9 and all(lane["road_id"] == lane["id"][:-1] for lane in lanes.values())
     assert {lane["direction"] for lane in lanes.values()} <= {"northbound", "southbound", "eastbound", "westbound"}
 
 
@@ -60,7 +60,7 @@ def test_timed_closures_are_checked_with_the_selection():
 def test_options_say_where_each_road_piece_lies():
     from services.native_scenario_service import configuration_options
     where = {lane["road_id"]: lane["where"] for lane in configuration_options("tagum_site_a")["lanes"]}
-    assert where["road2"].startswith("west, 0–226") and where["road4"].startswith("west, 226–2")
+    assert where["road2"].startswith("west, 0–226") and where["road4"].startswith("west, 226–310")
 
 @pytest.mark.parametrize("other_start, detour_available", [(30, True), (20, True), (15, False)])
 def test_detour_options_and_badge_follow_the_active_closures(other_start, detour_available):

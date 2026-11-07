@@ -16,7 +16,7 @@ def test_site_network_has_one_junction_and_four_approaches(filename, network_id,
     payload = json.loads((NETWORKS / filename).read_text(encoding="utf-8"))
     network = RoadNetwork(payload)
     assert network.id == network_id
-    assert len(network.intersections) == (2 if network_id == "tagum_site_b" else 3)  # Site A: the study junction and the two West-North loop junctions
+    assert len(network.intersections) == (2 if network_id == "tagum_site_b" else 13)  # Site A: the study junction first, then the street grid around the public market (D41)
     assert sorted(network.lanes[lane].approach for lane in network.incoming[network.intersections[0]]) == ["east", "north", "south", "west"]
     assert streets <= {road["name"] for road in payload["roads"]}
     assert payload["source"]["provider"] == "OpenStreetMap"

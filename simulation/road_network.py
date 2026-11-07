@@ -182,6 +182,11 @@ def convex_hull(points: list[Point]) -> list[Point]:
     return lower[:-1]+upper[:-1]
 
 
+# Provisional: a side street counts three times its driving time in route choice, so trips keep to the main roads through the
+# study junction (owner's decision, 7 November) and a closure still finds the side-street detour when it is the only way.
+MINOR_ROUTE_FACTOR = 3.0
+
+
 @dataclass(frozen=True)
 class Lane:
     id: str
@@ -193,6 +198,7 @@ class Lane:
     approach: str
     lane_count: int = 1
     width: float = LANE_WIDTH_M
+    minor: bool = False  # a side street: route choice avoids it unless a closure leaves no main-road route (MINOR_ROUTE_FACTOR)
 
 
 class RoadNetwork:
@@ -260,6 +266,8 @@ class RoadNetwork:
             for endpoint, node_id in ((shape[0], road["source"]), (shape[-1], road["target"])):
                 if distance(endpoint, (self.nodes[node_id]["x"], self.nodes[node_id]["y"])) > 1:
                     raise ValueError("Road geometry must meet its endpoint nodes within one metre")
+            if not isinstance(road.get("minor", False), bool):
+                raise ValueError("A road's minor flag must be true or false")
             speed = road.get("speed_mps", 8.33)
             if not isinstance(speed, (int, float)) or not math.isfinite(speed) or not .5 <= speed <= 40:
                 raise ValueError("Road speed must be between 0.5 and 40 m/s")
@@ -280,7 +288,7 @@ class RoadNetwork:
                 approach = ("west", "south", "east", "north")[round(heading / (math.pi / 2)) % 4]
                 lane_id = f"{road['id']}{'r' if reverse else 'f'}"
                 lane = Lane(lane_id, source, target, lane_shape, length(lane_shape), road.get("speed_mps", 8.33), approach,
-                            lanes_per_direction(road), width)
+                            lanes_per_direction(road), width, road.get("minor", False))
                 self.lanes[lane_id] = lane
                 self.outgoing[source].append(lane_id)
                 self.incoming[target].append(lane_id)
@@ -297,6 +305,14 @@ class RoadNetwork:
         self.boundaries = [node_id for node_id in self.nodes if self.nodes[node_id].get("boundary")]
         if len(self.boundaries) < 2:
             raise ValueError("Network needs at least two boundary nodes")
+        if any(not isinstance(node.get("generated_demand", True), bool) for node in self.nodes.values()):
+            raise ValueError("generated_demand must be true or false")
+        # Generated traffic starts and ends only at these boundaries, and generated pedestrians cross only at these junctions; a node
+        # marked "generated_demand": false is reached only by vehicles a closure diverts.
+        self.demand_boundaries = [node_id for node_id in self.boundaries if self.nodes[node_id].get("generated_demand", True)]
+        self.pedestrian_junctions = [node_id for node_id in self.intersections if self.nodes[node_id].get("generated_demand", True)]
+        if len(self.demand_boundaries) < 2 or not self.pedestrian_junctions:
+            raise ValueError("Network needs two boundaries and one junction that take generated traffic")
         reached, frontier = set(), [next(iter(self.nodes))]
         while frontier:
             node = frontier.pop()
@@ -353,7 +369,8 @@ class RoadNetwork:
                 prohibited = incoming and not self.turn_allowed(incoming, lane_id)
                 if lane_id in closed or prohibited:
                     continue
-                heapq.heappush(queue, (cost + max(0.01, costs.get(lane_id, lane.length / lane.speed)), lane.target, lane_id, path + [lane_id]))
+                step = max(0.01, costs.get(lane_id, lane.length / lane.speed))*(MINOR_ROUTE_FACTOR if lane.minor else 1.0)
+                heapq.heappush(queue, (cost + step, lane.target, lane_id, path + [lane_id]))
         return []
 
     def open_exits(self, source: str) -> set[str]:
@@ -362,7 +379,7 @@ class RoadNetwork:
 
     def has_legal_movement(self, closed: set[str]) -> bool:
         """True when some entry can still reach some exit; U-turns are not allowed, so a few closed roads can strand everything."""
-        return any(self.route(source, self.open_exits(source), closed=closed) for source in self.boundaries if self.outgoing[source])
+        return any(self.route(source, self.open_exits(source), closed=closed) for source in self.demand_boundaries if self.outgoing[source])
 
     def visual(self) -> dict:
         roads, internal_lanes, signal_groups, signals = [], [], [], []

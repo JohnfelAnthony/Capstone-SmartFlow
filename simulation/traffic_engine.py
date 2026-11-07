@@ -25,6 +25,7 @@ from .contraflow import kept_lane, road_of, shared_network, strip_geometry
 from .road_network import NETWORK_ID, SHARP_TURN_DEGREES, RoadNetwork, body_swing, length, load_network, sample
 
 STEP_LENGTH = 0.1
+BEND_SWEEP_STEP_M = 0.1  # spacing of the body positions checked ahead on a bent lane; on a short arc the rear swings out only briefly
 # A turning body sweeps across the centre line beside the opposite stop line; vehicles this close to their stop line
 # yield to committed sweeps, and a vehicle may not commit while its sweep would hit one of them.
 SWEEP_ZONE_M = 15.0
@@ -580,8 +581,8 @@ class TrafficEngine:
         return {lane.id: lane.length/(lane.speed*self.slow_lanes.get(lane.id, 1)) + queues[lane.id]*2.5 for lane in self.network.lanes.values()}
 
     def _demand_pair(self):
-        sources = [node for node in self.network.boundaries if self.network.outgoing[node]]
-        destinations = [node for node in self.network.boundaries if self.network.incoming[node]]
+        sources = [node for node in self.network.demand_boundaries if self.network.outgoing[node]]
+        destinations = [node for node in self.network.demand_boundaries if self.network.incoming[node]]
         pairs = [(source, target) for source in sources for target in destinations if source != target]
         self.random.shuffle(pairs)
         candidates = []
@@ -738,7 +739,7 @@ class TrafficEngine:
                 self.dropped_pedestrians += 1
         while self.pedestrian_density != "none" and self.simulation_time >= self.next_pedestrian_time and self.next_pedestrian_time < self.duration_limit:
             self.pedestrian_serial += 1
-            junction = self.pedestrian_random.choice(self.network.intersections)
+            junction = self.pedestrian_random.choice(self.network.pedestrian_junctions)
             if len(self.pedestrians) < 1000:
                 pedestrian = Pedestrian(f"ped-{self.pedestrian_serial}", junction)
                 self.pedestrians[pedestrian.id] = pedestrian
@@ -1551,8 +1552,13 @@ class TrafficEngine:
         the longest of travel, travel/2 ... travel/16 whose body clears every such vehicle, else 0."""
         if travel <= 0 or lane.id not in self._bent_lanes:
             return travel
-        ahead = [self._lane_body(other, lane, other.position, other.lateral, other.yaw) for other in self._candidates(("on_lane", lane.id))
-                 if other.connector is None and other.route[0] == lane.id and other.position > vehicle.position]
+        # A vehicle beside the tail of one ahead also clears where that one will stand until it is a body length on: moving through the
+        # bend, its turned rear keeps swinging sideways and would meet whoever stopped there.
+        reach = vehicle.position+vehicle.length/2+travel+1.0
+        ahead = [self._lane_body(other, lane, other.position+step*BEND_SWEEP_STEP_M, other.lateral, other.yaw)
+                 for other in self._candidates(("on_lane", lane.id))
+                 if other.connector is None and other.route[0] == lane.id and other.position > vehicle.position
+                 for step in range(math.ceil(other.length/BEND_SWEEP_STEP_M)+1 if other.position-other.length/2 <= reach else 1)]
         for step in (travel, travel/2, travel/4, travel/8, travel/16):
             body = self._lane_body(vehicle, lane, vehicle.position+step, vehicle.lateral, vehicle.yaw)
             if not any(rectangles_overlap(body, other) for other in ahead):

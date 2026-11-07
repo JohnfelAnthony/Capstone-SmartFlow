@@ -3,13 +3,13 @@
 stuck_junction_vehicles only sees vehicles holding a reservation or held at a closed exit, and gridlock_seconds needs the whole network
 to stand still, so a few vehicles frozen at a line with an empty junction read as clean (seed 108 at Site A, 958 s).
 """
-from simulation.network_registry import load_registered_network
 from simulation.traffic_engine import TrafficEngine
+from tests.test_site_a_loop import loop_network
 from tests.mixed_traffic_helpers import hold_green, junction_network, place, started_engine
 
 
 def site_a_scene(kinds):
-    engine = TrafficEngine(seed=7, network=load_registered_network("tagum_site_a"))
+    engine = TrafficEngine(seed=7, network=loop_network())  # the earlier loop layout (D41 history): its short west stub is where the freeze was seen
     engine.configure(traffic_density="none", pedestrian_density="none", routing_mode="static")
     engine.enable_no_signal_control()
     engine.driver_variation_scale = 0
