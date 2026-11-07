@@ -1475,7 +1475,7 @@ def compare_line_time(line: str) -> float:
 
 @functools.lru_cache(maxsize=4)
 def _compare_timeline_lines(path_text: str, mtime_ns: int, size: int) -> tuple[tuple[float, ...], tuple[str, ...]]:
-    # shortcut: keeps each recording's raw lines in memory (up to the file size, four files), upgrade to a seek index if hour-long recordings are compared often.
+    # shortcut: keeps each recording's raw lines in memory at their decompressed size (a 17 MB .gz held 120 MB), four files; upgrade to a seek index if long recordings are compared often.
     path = Path(path_text)
     opener = gzip.open if path.suffix == ".gz" else open
     times: list[float] = []

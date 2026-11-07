@@ -72,6 +72,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EMPTY_VALUE, formatServerDate } from "@/lib/display-format"
+import { resumeTargetCompatible } from "@/lib/rl-resume"
 import { rewardSeries } from "@/lib/reward-series"
 import { cn } from "@/lib/utils"
 import "@/styles/admin-user-management.css"
@@ -654,7 +655,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
 
             <div className="rl-secondary-actions">
               <Button variant="outline" onClick={() => { setSettings((current) => ({ ...current, resume_model_id: null, resume_checkpoint_id: null })); setSelectedCheckpointId(null); setAlert("Resume selection cleared.") }}>Clear resume selection</Button>
-              <Button variant="outline" onClick={resumeSelectedModel} disabled={!canRunTraining || !selectedModel?.compatible || Boolean(serverActiveJobId) || pendingAction}>
+              <Button variant="outline" onClick={resumeSelectedModel} disabled={!canRunTraining || !resumeTargetCompatible(selectedModel, selectedCheckpointId) || Boolean(serverActiveJobId) || pendingAction}>
                 <RotateCcwIcon data-icon="inline-start" />
                 Resume selected
               </Button>

@@ -43,3 +43,12 @@ export function studyJunctionId(frame: ControlsFrame | null | undefined): string
   const entries = Object.entries(frame?.junction_controls ?? {})
   return (entries.find(([, control]) => control.selected_for_rl) ?? [null])[0]
 }
+
+/** Windows still to fetch: not loaded and not already on their way (a window dropped from the cache is fetched again). */
+export function windowsToRequest(wanted: number[], loaded: Record<number, unknown>, inFlight: ReadonlySet<number>): number[] {
+  return wanted.filter((start) => !(start in loaded) && !inFlight.has(start))
+}
+
+export function windowsNear<T>(windows: Record<number, T>, start: number, reach: number): Record<number, T> {
+  return Object.fromEntries(Object.entries(windows).filter(([key]) => Math.abs(Number(key) - start) <= reach))
+}

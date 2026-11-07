@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue } from "./compare-view"
+import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "./compare-view"
 
 describe("kpiChange", () => {
   it("marks a drop in a lower-is-better metric as better and a rise as worse", () => {
@@ -54,5 +54,19 @@ describe("studyJunctionId", () => {
     expect(studyJunctionId({ junction_controls: { a: { selected_for_rl: false }, b: { selected_for_rl: true } } })).toBe("b")
     expect(studyJunctionId({ junction_controls: { a: {} } })).toBeNull()
     expect(studyJunctionId(null)).toBeNull()
+  })
+})
+
+describe("windowsToRequest", () => {
+  it("asks again for a window that was dropped from the cache, but not for loaded or in-flight ones", () => {
+    expect(windowsToRequest([0, 10], { 20: 1, 30: 1 }, new Set())).toEqual([0, 10])
+    expect(windowsToRequest([0, 10], { 0: 1 }, new Set())).toEqual([10])
+    expect(windowsToRequest([0, 10], {}, new Set([10]))).toEqual([0])
+  })
+})
+
+describe("windowsNear", () => {
+  it("keeps only the windows within reach of the requested one", () => {
+    expect(Object.keys(windowsNear({ 0: 1, 10: 1, 50: 1, 60: 1 }, 50, 30)).map(Number)).toEqual([50, 60])
   })
 })

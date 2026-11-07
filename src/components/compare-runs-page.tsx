@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue } from "@/lib/compare-view"
+import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "@/lib/compare-view"
 import { controlLabel, isRlControl } from "@/lib/control-labels"
 import { EMPTY_VALUE } from "@/lib/display-format"
 import { normalizeSceneGeometry, type SceneGeometry } from "@/simulation/scene-geometry"
@@ -71,6 +71,7 @@ const noSelection = "none"
 const WINDOW_SECONDS = 10
 const PREFETCH_SECONDS = 5
 const MIN_STEP_MS = 66
+const RETRY_DELAY_MS = 2000
 const CHART_POINTS = 400
 const kpiRows = ["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
   "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles",
@@ -304,7 +305,9 @@ export function CompareRunsPage() {
   const [notice, setNotice] = React.useState<string | null>(null)
   const timeRef = React.useRef(0)
   const windowsRef = React.useRef<Record<number, ComparePairFramesResponse>>({})
-  const requestedRef = React.useRef(new Set<string>())
+  const inFlightRef = React.useRef(new Set<string>())
+  const pairIdsRef = React.useRef<string | null>(null)
+  const [retryCount, setRetryCount] = React.useState(0)
   const rightRunIdRef = React.useRef(rightRunId)
 
   const pairIds = leftRunId !== noSelection && rightRunId !== noSelection ? `${leftRunId}:${rightRunId}` : null
@@ -326,6 +329,7 @@ export function CompareRunsPage() {
   React.useEffect(() => { timeRef.current = time }, [time])
   React.useEffect(() => { windowsRef.current = byStart ?? {} }, [byStart])
   React.useEffect(() => { rightRunIdRef.current = rightRunId }, [rightRunId])
+  React.useEffect(() => { pairIdsRef.current = pairIds }, [pairIds])
 
   const loadRuns = React.useCallback(async () => {
     setIsLoading(true)
@@ -389,27 +393,32 @@ export function CompareRunsPage() {
   }, [networkId, loadedGeometry])
 
   // Fetch the window that holds the playback position, and the next one shortly before it ends.
+  // A window that was dropped from the cache, or whose request failed, is requested again when it is needed.
   React.useEffect(() => {
     if (!pair || !pairIds) return
     const wanted = [windowStart, ...(needsNextWindow && windowStart + WINDOW_SECONDS <= duration ? [windowStart + WINDOW_SECONDS] : [])]
-    for (const start of wanted) {
+    const inFlight = new Set([...inFlightRef.current].filter((key) => key.startsWith(`${pairIds}:`)).map((key) => Number(key.split(":").pop())))
+    for (const start of windowsToRequest(wanted, byStart ?? {}, inFlight)) {
       const requestKey = `${pairIds}:${start}`
-      if (requestedRef.current.has(requestKey)) continue
-      requestedRef.current.add(requestKey)
+      inFlightRef.current.add(requestKey)
       getComparePairFrames(pair.left.option.run.id, pair.right.option.run.id, start, start + WINDOW_SECONDS)
         .then((response) => {
+          inFlightRef.current.delete(requestKey)
+          if (pairIdsRef.current !== pairIds) return
+          setFramesError(null)
           setFrameWindows((current) => {
             const kept = current.ids === pairIds ? current.byStart : {}
-            const nearby = Object.fromEntries(Object.entries(kept).filter(([key]) => Math.abs(Number(key) - start) <= WINDOW_SECONDS * 3))
-            return { ids: pairIds, byStart: { ...nearby, [start]: response } }
+            return { ids: pairIds, byStart: { ...windowsNear(kept, start, WINDOW_SECONDS * 3), [start]: response } }
           })
         })
         .catch((error) => {
-          requestedRef.current.delete(requestKey)
+          inFlightRef.current.delete(requestKey)
+          if (pairIdsRef.current !== pairIds) return
           setFramesError(compareErrorMessage(error, "Unable to load playback frames."))
+          window.setTimeout(() => setRetryCount((count) => count + 1), RETRY_DELAY_MS)
         })
     }
-  }, [pair, pairIds, windowStart, needsNextWindow, duration])
+  }, [pair, pairIds, windowStart, needsNextWindow, duration, byStart, retryCount])
 
   // Playback follows simulation time, not a fixed delay per frame, and waits for frames rather than skipping.
   React.useEffect(() => {
@@ -436,7 +445,7 @@ export function CompareRunsPage() {
     setTime(0)
     setIsPlaying(false)
     setFramesError(null)
-    requestedRef.current = new Set()
+    inFlightRef.current = new Set()
   }
 
   function selectBaseline(value: string) {
