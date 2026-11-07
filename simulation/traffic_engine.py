@@ -39,7 +39,7 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-10"
+ENGINE_VERSION = "native-12"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
@@ -2029,7 +2029,7 @@ class TrafficEngine:
 
     def pedestrian_paths(self):
         paths = []
-        for junction in self.signals:
+        for junction in self.network.pedestrian_junctions:
             x, y = self._pedestrian_path_origin(junction)
             crossing = self.network.nodes[junction].get("pedestrian_crossing")
             paths.append({"id": f"pedestrian-path:{junction}", "junction_id": junction,

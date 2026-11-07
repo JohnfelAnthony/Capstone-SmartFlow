@@ -355,7 +355,7 @@ SITE_A_WEST_NORTH_LOOP = {"name": "Unnamed side street", "osm_nodes": [138756681
 
 
 def build_site_a_network(source_path: Path, *, with_loop: bool = True) -> dict:
-    """Site A as installed (`with_loop`) or as it was with one junction (kept under data/networks/history)."""
+    """Site A as installed (`with_loop`) or as it was with one junction (registered as a historical revision)."""
     return build_site_network(source_path, SITE_A_CENTRE, network_id="tagum_site_a", name=SITE_A_NAME,
                               detour_loops=[SITE_A_WEST_NORTH_LOOP] if with_loop else None)
 
@@ -474,8 +474,7 @@ def build_site_a_street_grid(source_path: Path, market_path: Path = SITE_A_MARKE
             entry.update(lat=lat+y/111320, lon=lon+x/(111320*math.cos(math.radians(lat))), boundary=False)
             if node != "study":
                 entry["default_control_mode"] = "first_come"
-                if node not in (SITE_A_J2_OSM, SITE_A_J3_OSM):
-                    entry["generated_demand"] = False  # no generated pedestrians here, so Site A, j2 and j3 keep today's share
+                entry["generated_demand"] = False  # owner's decision: generated pedestrians cross only at the study junction
         nodes.append(entry)
     known = {("study", legs["south"][0][-1]): "road0", ("study", legs["north"][0][-1]): "road1", ("study", legs["west"][0][-1]): "road2", ("study", legs["east"][0][-1]): "road3"}
     roads = []
@@ -523,6 +522,7 @@ def build_site_a_street_grid(source_path: Path, market_path: Path = SITE_A_MARKE
         f"Every public street inside the owner's crop (west {west:g} m, east {east:g} m, south {south:g} m, north {north:g} m) is modelled from OpenStreetMap, not field-checked; service lanes, the market aisles and the 48 m street west of Site A are not",
         f"Map bends under {LEG_SIMPLIFY_TOLERANCE_M:g} m are drawn straight, the first {JUNCTION_MOUTH_STRAIGHT_M:g} m at each end of a road is drawn straight, and bends are circular arcs of {LOOP_BEND_RADIUS_M:g} m radius",
         "Side-street junctions use first-come right-of-way; Site A stays the only signal and RL candidate",
+        "Pedestrians cross only at the Site A study junction. People crossing side streets are not modelled.",
         "Generated traffic starts and ends only at the four main-road ends; side-street ends only let diverted vehicles leave, and route choice keeps to the main roads unless a closure forces a detour",
         f"The Tagum Public Market outline and buildings are OSM footprints ({market['source']['file']}); drawn only, they do not affect traffic"]}
     payload = {"id": "tagum_site_a", "version": 1, "name": SITE_A_NAME, "source": source, "nodes": nodes, "roads": roads, "site_features": features}
@@ -543,7 +543,7 @@ if __name__ == "__main__":
     parser.add_argument("--approach", action="append", default=[])
     parser.add_argument("--assumption", action="append", default=[])
     parser.add_argument("--site-a", action="store_true", help="Rebuild the installed Site A (the street grid in the owner's crop) from the cached OSM extract")
-    parser.add_argument("--site-a-loop", action="store_true", help="Rebuild the earlier Site A with only the West-North loop (kept under data/networks/history)")
+    parser.add_argument("--site-a-loop", action="store_true", help="Rebuild the earlier Site A with only the West-North loop (registered as a historical revision)")
     args = parser.parse_args()
     site_a_source = args.source if args.source != NETWORK_PATH.with_name("tagum_osm.json") else NETWORK_PATH.with_name("osm_site_a.json")
     if args.site_a:

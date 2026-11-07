@@ -29,6 +29,7 @@
       "Every public street inside the owner's crop (west -309 m, east 365 m, south -175 m, north 260 m) is modelled from OpenStreetMap, not field-checked; service lanes, the market aisles and the 48 m street west of Site A are not",
       "Map bends under 5 m are drawn straight, the first 30 m at each end of a road is drawn straight, and bends are circular arcs of 25 m radius",
       "Side-street junctions use first-come right-of-way; Site A stays the only signal and RL candidate",
+      "Pedestrians cross only at the Site A study junction. People crossing side streets are not modelled.",
       "Generated traffic starts and ends only at the four main-road ends; side-street ends only let diverted vehicles leave, and route choice keeps to the main roads unless a closure forces a detour",
       "The Tagum Public Market outline and buildings are OSM footprints (Intersect.osm (owner's export, bounds 7.459741–7.464007 N, 125.798092–125.805795 E)); drawn only, they do not affect traffic"
     ]
@@ -49,7 +50,8 @@
       "lat": 7.4618513,
       "lon": 125.8005746,
       "boundary": false,
-      "default_control_mode": "first_come"
+      "default_control_mode": "first_come",
+      "generated_demand": false
     },
     {
       "id": "tagum_site_a_j3",
@@ -58,7 +60,8 @@
       "lat": 7.4623419,
       "lon": 125.8026759,
       "boundary": false,
-      "default_control_mode": "first_come"
+      "default_control_mode": "first_come",
+      "generated_demand": false
     },
     {
       "id": "tagum_site_a_j4",

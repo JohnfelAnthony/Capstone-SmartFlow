@@ -182,8 +182,7 @@ def convex_hull(points: list[Point]) -> list[Point]:
     return lower[:-1]+upper[:-1]
 
 
-# Provisional: a side street counts three times its driving time in route choice, so trips keep to the main roads through the
-# study junction (owner's decision, 7 November) and a closure still finds the side-street detour when it is the only way.
+# Provisional cost multiplier when comparing routes that can use side streets.
 MINOR_ROUTE_FACTOR = 3.0
 
 
@@ -198,7 +197,7 @@ class Lane:
     approach: str
     lane_count: int = 1
     width: float = LANE_WIDTH_M
-    minor: bool = False  # a side street: route choice avoids it unless a closure leaves no main-road route (MINOR_ROUTE_FACTOR)
+    minor: bool = False
 
 
 class RoadNetwork:
@@ -300,6 +299,7 @@ class RoadNetwork:
                         for lane_id in incoming}
             for lane_id, approach in assign_approach_names(headings).items():
                 self.lanes[lane_id] = replace(self.lanes[lane_id], approach=approach)
+        self.minor_lanes = frozenset(lane.id for lane in self.lanes.values() if lane.minor)
         if not self.lanes or not self.intersections:
             raise ValueError("Network needs roads and intersections")
         self.boundaries = [node_id for node_id in self.nodes if self.nodes[node_id].get("boundary")]
@@ -351,9 +351,18 @@ class RoadNetwork:
         return [tuple((1-t)**3*a[k] + 3*(1-t)**2*t*c[k] + 3*(1-t)*t*t*d[k] + t**3*b[k] for k in (0, 1)) for t in (i / 20 for i in range(21))]
 
     def route(self, source: str, destination: str | set[str], *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None) -> list[str]:
-        """Cheapest lane list to a node, or to the cheapest of several nodes; [] when none can be reached."""
+        """Route to a destination, or find the cheapest reachable exit from a set."""
         closed, costs = closed or set(), costs or {}
         targets = {destination} if isinstance(destination, str) else destination
+        # A trip with a known destination stays on main roads while they can reach it.
+        # Choosing an alternative exit still compares the costs of all open exits.
+        if isinstance(destination, str) and self.minor_lanes:
+            main_route = self._shortest_route(source, targets, closed | self.minor_lanes, costs, previous)
+            if main_route:
+                return main_route
+        return self._shortest_route(source, targets, closed, costs, previous)
+
+    def _shortest_route(self, source: str, targets: set[str], closed: set[str], costs: dict[str, float], previous: str | None) -> list[str]:
         queue = [(0.0, source, previous or "", [])]
         visited = set()
         while queue:

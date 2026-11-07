@@ -194,7 +194,7 @@ class SiteALoopTests(unittest.TestCase):
         return build_site_a_network(self.SOURCE, **options)
 
     def test_generator_reproduces_the_kept_loop_network(self):
-        kept = json.loads((self.NETWORKS / "history" / "tagum_site_a_loop.json").read_text(encoding="utf-8"))
+        kept = json.loads((self.NETWORKS / "tagum_site_a_loop.json").read_text(encoding="utf-8"))
         self.assertEqual(self.build(), kept)
 
     def test_generator_reproduces_the_kept_single_junction_network(self):
@@ -265,20 +265,40 @@ class SiteAStreetGridTests(unittest.TestCase):
             if road["name"] not in main:
                 self.assertEqual(road["name"], "Unnamed road")
 
-    def test_only_the_four_main_road_ends_and_today_s_three_junctions_take_generated_demand(self):
+    def test_only_the_four_main_road_ends_and_the_study_junction_take_generated_demand(self):
         self.assertEqual(self.network.demand_boundaries, ["boundary_0", "boundary_1", "boundary_2", "boundary_3"])
-        self.assertEqual(self.network.pedestrian_junctions, ["tagum_site_a_j", "tagum_site_a_j2", "tagum_site_a_j3"])
+        self.assertEqual(self.network.pedestrian_junctions, ["tagum_site_a_j"])  # owner's decision: pedestrians cross only at Site A
         self.assertGreater(len(self.network.boundaries), 4)
 
     def test_every_main_road_trip_goes_through_site_a_unless_a_closure_forces_a_detour(self):
         ends = self.network.demand_boundaries
-        for source in ends:
-            for target in ends:
-                if source != target:
-                    self.assertIn("tagum_site_a_j", [self.network.lanes[lane].target for lane in self.network.route(source, target)])
-        detour = self.network.route("boundary_2", "boundary_1", closed={"road2r"})
+        congested = {
+            lane.id: lane.length / lane.speed + (0 if lane.minor else 200)
+            for lane in self.network.lanes.values()
+        }
+        for costs in (None, congested):
+            for source in ends:
+                for target in ends:
+                    if source == target:
+                        continue
+                    route = self.network.route(source, target, costs=costs)
+                    self.assertTrue(route)
+                    self.assertFalse(any(self.network.lanes[lane].minor for lane in route))
+                    self.assertIn("tagum_site_a_j", [self.network.lanes[lane].target for lane in route])
+        detour = self.network.route("boundary_2", "boundary_1", closed={"road2r"}, costs=congested)
         self.assertTrue(detour)
         self.assertTrue(any(self.network.lanes[lane].minor for lane in detour))
+
+    def test_scheduled_pedestrians_and_published_paths_use_only_the_study_junction(self):
+        from simulation.traffic_engine import TrafficEngine
+
+        engine = TrafficEngine(network=self.network)
+        for junction in self.network.intersections[1:]:
+            with self.subTest(junction=junction), self.assertRaisesRegex(ValueError, "Pedestrian crossings are disabled"):
+                engine.configure(pedestrian_trips=[{"time": 1, "junction": junction}])
+
+        engine.configure(pedestrian_trips=[{"time": 1, "junction": "tagum_site_a_j"}])
+        self.assertEqual([path["junction_id"] for path in engine.pedestrian_paths()], ["tagum_site_a_j"])
 
     def test_the_market_is_drawn_and_labelled(self):
         features = self.payload["site_features"]

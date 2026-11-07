@@ -360,6 +360,8 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         trip["time"] = number(trip.get("time"), "pedestrian trip time")
         if trip.get("junction") not in network.intersections:
             raise ValueError("Unknown pedestrian trip junction")
+        if trip["junction"] not in network.pedestrian_junctions:
+            raise ValueError(f"Pedestrian crossings are disabled at {trip['junction']}")
     result["pedestrian_trips"].sort(key=lambda trip: trip["time"])
     return result
 

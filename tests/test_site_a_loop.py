@@ -1,6 +1,6 @@
 """Site A's earlier West -> North side-street loop, kept as an engine regression bed: detours, closures and the one-junction assumptions.
 
-The installed Site A is now the street grid (D41); this layout is data/networks/history/tagum_site_a_loop.json.
+The installed Site A is now the street grid (D41); this layout is data/networks/tagum_site_a_loop.json.
 
 Lane ids: road2 is the study junction -> west loop junction piece (`road2r` runs towards the study junction), road4 is the
 boundary stub beyond it, road1 is study junction -> north loop junction, road5 the north stub, road6 the loop street
@@ -19,7 +19,7 @@ from simulation.traffic_engine import TrafficEngine
 
 WEST, NORTH, SOUTH, EAST = "boundary_2", "boundary_1", "boundary_0", "boundary_3"
 SITE = "tagum_site_a"
-LOOP_PATH = Path(__file__).resolve().parents[1]/"data/networks/history/tagum_site_a_loop.json"
+LOOP_PATH = Path(__file__).resolve().parents[1]/"data/networks/tagum_site_a_loop.json"
 
 
 def loop_network() -> RoadNetwork:

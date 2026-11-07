@@ -75,7 +75,8 @@ export type VisualNetwork = {
   /** Physical raised islands, in native metres. Absent on older embedded recordings. */
   islands?: Array<{ id: string; shape: VisualPoint[]; planted?: boolean }>
   network_id?: string
-  junctions?: Array<{ id: string; x: number; y: number; name?: string; label?: string }>
+  /** `generated_demand: false` marks a junction where no generated pedestrians cross (D41). */
+  junctions?: Array<{ id: string; x: number; y: number; name?: string; label?: string; generated_demand?: boolean }>
   source?: { [key: string]: unknown }
   version: number
   source_net: string
