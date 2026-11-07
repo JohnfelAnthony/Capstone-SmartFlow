@@ -93,8 +93,7 @@ def test_turn_connector_vertices_have_centerline_distance_from_barrier_edges():
 
 # A long body turning right from the median-side edge swings its tail into the median, because bodies pivot about their centre.
 # The widest arc that fits does not clear it and cutting the median back would contradict the imagery, so this is a stated limit.
-KNOWN_TAIL_CONTACTS = {("bus", "road2f", "road1f", -3.25, "median_study_ne_tip"), ("truck", "road2f", "road1f", -3.25, "median_study_ne_tip"),
-                       ("bus", "road9f", "road7f", -3.25, "median_ne"), ("truck", "road9f", "road7f", -3.25, "median_ne")}
+KNOWN_TAIL_CONTACTS = {("bus", "road9f", "road7f", -3.25, "median_ne"), ("truck", "road9f", "road7f", -3.25, "median_ne")}
 
 
 def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
@@ -106,7 +105,7 @@ def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
         for node in NETWORK.intersections:
             for incoming in NETWORK.incoming[node]:
                 for outgoing in NETWORK.outgoing[node]:
-                    if not NETWORK.turn_allowed(incoming, outgoing):
+                    if not NETWORK.turn_allowed(incoming, outgoing, vehicle_type=kind):
                         continue
                     connector = NETWORK.connector(incoming, outgoing)
                     total = length(connector)

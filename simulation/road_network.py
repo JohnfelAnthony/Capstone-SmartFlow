@@ -308,14 +308,29 @@ class RoadNetwork:
         if len(reached) != len(self.nodes):
             raise ValueError("Study network must be connected with no isolated nodes")
         self.prohibited_turns = set()
+        from .scenario_config import VEHICLE_TYPES
+        restrictions = payload.get("lane_vehicle_restrictions", {})
+        if not isinstance(restrictions, dict):
+            raise ValueError("Lane vehicle restrictions must be an object")
+        self.lane_vehicle_restrictions = {}
+        for lane_id, kinds in restrictions.items():
+            if lane_id not in self.lanes or not isinstance(kinds, list) or any(
+                not isinstance(kind, str) or kind not in VEHICLE_TYPES for kind in kinds
+            ):
+                raise ValueError("Lane vehicle restrictions need known lane IDs and vehicle classes")
+            self.lane_vehicle_restrictions[lane_id] = frozenset(kinds)
         for turn in payload.get("prohibited_turns", []):
             if len(turn) != 2 or any(lane not in self.lanes for lane in turn) or self.lanes[turn[0]].target != self.lanes[turn[1]].source:
                 raise ValueError("Turn restrictions must reference connected lanes")
             self.prohibited_turns.add(tuple(turn))
 
-    def turn_allowed(self, incoming: str, outgoing: str) -> bool:
+    def lane_allows(self, lane_id: str, vehicle_type: str | None = None) -> bool:
+        return vehicle_type is None or vehicle_type not in self.lane_vehicle_restrictions.get(lane_id, ())
+
+    def turn_allowed(self, incoming: str, outgoing: str, *, vehicle_type: str | None = None) -> bool:
         first, second = self.lanes[incoming], self.lanes[outgoing]
-        return first.target == second.source and first.source != second.target and (incoming, outgoing) not in self.prohibited_turns
+        return (first.target == second.source and first.source != second.target and (incoming, outgoing) not in self.prohibited_turns
+                and self.lane_allows(incoming, vehicle_type) and self.lane_allows(outgoing, vehicle_type))
 
     @lru_cache(maxsize=512)
     def connector(self, incoming: str, outgoing: str) -> list[Point]:
@@ -334,7 +349,7 @@ class RoadNetwork:
         d = (b[0] - math.cos(bh) * control_distance, b[1] - math.sin(bh) * control_distance)
         return [tuple((1-t)**3*a[k] + 3*(1-t)**2*t*c[k] + 3*(1-t)*t*t*d[k] + t**3*b[k] for k in (0, 1)) for t in (i / 20 for i in range(21))]
 
-    def route(self, source: str, destination: str | set[str], *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None) -> list[str]:
+    def route(self, source: str, destination: str | set[str], *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None, vehicle_type: str | None = None) -> list[str]:
         """Cheapest lane list to a node, or to the cheapest of several nodes; [] when none can be reached."""
         closed, costs = closed or set(), costs or {}
         targets = {destination} if isinstance(destination, str) else destination
@@ -350,8 +365,8 @@ class RoadNetwork:
             visited.add(key)
             for lane_id in self.outgoing.get(node, []):
                 lane = self.lanes[lane_id]
-                prohibited = incoming and not self.turn_allowed(incoming, lane_id)
-                if lane_id in closed or prohibited:
+                prohibited = incoming and not self.turn_allowed(incoming, lane_id, vehicle_type=vehicle_type)
+                if lane_id in closed or prohibited or not self.lane_allows(lane_id, vehicle_type):
                     continue
                 heapq.heappush(queue, (cost + max(0.01, costs.get(lane_id, lane.length / lane.speed)), lane.target, lane_id, path + [lane_id]))
         return []

@@ -33,6 +33,8 @@ def review(network: RoadNetwork) -> dict:
                 if not network.turn_allowed(incoming, outgoing):
                     continue
                 for name, spec in VEHICLE_TYPES.items():
+                    if not network.turn_allowed(incoming, outgoing, vehicle_type=name):
+                        continue
                     low, high = lateral_bounds(network.lanes[incoming].width, spec["width"])
                     exit_low, exit_high = lateral_bounds(network.lanes[outgoing].width, spec["width"])
                     for lateral in sorted({low, (low + high) / 2, high}):
@@ -87,6 +89,8 @@ def review_lanes(network: RoadNetwork, *, spacing_m: float = 0.5) -> dict:
     for lane in network.lanes.values():
         steps = max(1, math.ceil(lane.length / spacing_m))
         for vehicle_class, spec in VEHICLE_TYPES.items():
+            if not network.lane_allows(lane.id, vehicle_class):
+                continue
             low, high = lateral_bounds(lane.width, spec["width"])
             for lateral in sorted({low, (low + high) / 2, high}):
                 found = set()

@@ -18,8 +18,8 @@ NETWORKS = Path(__file__).resolve().parents[1]/"data"/"networks"
 NATIVE_8_DIGESTS = {
     ("history/tagum_site_a_single_junction.json", "high", "fixed"): "56bcd0fa913f644f",
     ("history/tagum_site_a_single_junction.json", "high", "nosignal"): "4982d7b46e8f8e91",
-    ("tagum_site_b.json", "high", "fixed"): "dbe1d481cfbb4884",
-    ("tagum_site_b.json", "high", "nosignal"): "6d1cc02720105f4e",
+    ("tagum_site_b_pre_sobrecarey_access.json", "high", "fixed"): "dbe1d481cfbb4884",
+    ("tagum_site_b_pre_sobrecarey_access.json", "high", "nosignal"): "6d1cc02720105f4e",
     ("tagum_network.json", "medium", "fixed"): "3fe956f18578a291",
     ("tagum_network.json", "medium", "static"): "7209b4f79c0c88d2",
 }

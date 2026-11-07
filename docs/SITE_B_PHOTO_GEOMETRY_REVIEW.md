@@ -77,3 +77,10 @@ As a further isolated experiment, a 20 m minimum junction clip was applied in th
 The owner's overhead imagery and Street View now drive the registered network through `tools/site_b_measured_layout.py`; see decision D32 in [the architecture document](ARCHITECTURE_AND_PLAN.md) and the evidence in `reports/site-b-measured-acceptance.json`. This supersedes the proposals above, which remain as history and refer to the retained OSM corridor at `data/networks/history/tagum_site_b_osm_corridor.json`.
 
 Item 2 above asked for frontage lanes with their own geometry: they are drawn from measured geometry, but carry no simulated traffic. The owner accepted that, because frontage links of 14–25 m are shorter than the engine's 26 m minimum. Item 5 is met except for one stated limit: a bus or truck turning right onto Sobrecarey or Bonifacio from the median-side edge can brush the median with its tail. The yellow box markings in the May 2025 imagery are not drawn until the owner confirms they are still painted. Every size still needs checking in the field.
+
+
+## November 7 — Sobrecarey access correction
+
+The owner confirmed that buses and trucks cannot use Sobrecarey Street in either direction. Only Sobrecarey is restricted; Bonifacio is unchanged. The builder now emits class restrictions on `road1f`/`road1r`, enforced in native-11 routing, arrivals, insertion and closure diversions. Dimensions and island shapes have not changed. Source: owner's local knowledge, not independent signage/legal verification. The previous network is preserved in `data/networks/tagum_site_b_pre_sobrecarey_access.json` and the registry history.
+
+The permitted-movement diagnostic now examines 324 sweeps rather than 360. Sobrecarey's bus/truck contacts are excluded because those movements cannot be scheduled or driven. Two actual-size bus/truck contacts and one conservative car-envelope warning remain at Bonifacio (`road9f` to `road7f`). This is not complete Site B clearance or field validation. Full frontage traffic remains outside the implemented graph.

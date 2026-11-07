@@ -325,10 +325,13 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Demand source kind must be synthetic, observed or field_counts")
     if result["demand_source"]["kind"] in {"observed", "field_counts"} and not result["demand_source"].get("description"):
         raise ValueError("Observed demand and field counts need their survey/source description")
-    def validate_od(item):
+    def validate_od(item, kinds=()):
         source, target = item.get("source"), item.get("destination")
         if source not in network.boundaries or target not in network.boundaries or not network.route(source, target):
             raise ValueError("Demand needs distinct, connected boundary source/destination IDs")
+        for kind in kinds:
+            if not network.route(source, target, vehicle_type=kind):
+                raise ValueError(f"Demand violates vehicle access restrictions: {kind} cannot travel from {source} to {target}. Review the counted class or movement; counts were not changed.")
     for window in result["demand_windows"]:
         if window.keys() - {"start", "end", "vehicles_per_hour", "od", "label", "vehicle_type"}:
             raise ValueError("Unknown demand window field")
@@ -344,16 +347,17 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         for od in window.get("od", []):
             if od.keys() - {"source", "destination", "weight"}:
                 raise ValueError("Unknown OD field")
-            validate_od(od)
+            kinds = [window["vehicle_type"]] if "vehicle_type" in window else [kind for kind, weight in result["vehicle_mix"].items() if weight > 0]
+            validate_od(od, kinds)
             od["weight"] = number(od.get("weight", 1), "OD weight", .00001, 1e6)
     for trip in result["trips"]:
         if trip.keys() - {"time", "source", "destination", "vehicle_type"}:
             raise ValueError("Unknown trip field")
         trip["time"] = number(trip.get("time"), "trip time")
-        validate_od(trip)
         trip.setdefault("vehicle_type", "car")
         if not isinstance(trip["vehicle_type"], str) or trip["vehicle_type"] not in VEHICLE_TYPES:
             raise ValueError("Unknown trip vehicle type")
+        validate_od(trip, [trip["vehicle_type"]])
     for trip in result["pedestrian_trips"]:
         if trip.keys() - {"time", "junction"}:
             raise ValueError("Unknown pedestrian trip field")

@@ -38,7 +38,7 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-10"
+ENGINE_VERSION = "native-11"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
@@ -367,7 +367,7 @@ class TrafficEngine:
         self.pending_demand: list[Arrival] = []
         self.completed = self.completed_pedestrians = self.reroutes = self.deferred_demand = self.diverted_vehicles = 0
         self.completed_wait = self.completed_travel = self.completed_pedestrian_wait = 0.0
-        self._blocked_sources: tuple[frozenset, frozenset] = (frozenset(), frozenset())
+        self._blocked_sources: tuple[frozenset, dict] = (frozenset(), {})
         self.queue_integral = self.max_queue = 0.0
         self.metric_ticks = 0
         self.charts = {key: [] for key in ("traffic_flow", "wait_time", "queue_length", "throughput")}
@@ -570,10 +570,10 @@ class TrafficEngine:
         responses = self.config["closure_responses"]
         return {lane for lane in self.closed_lanes if responses.get(lane) == "nearest_exit"} if responses else set()
 
-    def _best_open_exit(self, node: str, previous: str | None, costs: dict | None) -> list[str]:
+    def _best_open_exit(self, node: str, previous: str | None, costs: dict | None, *, vehicle_type: str | None = None) -> list[str]:
         """Lanes from `node` to the cheapest exit still open, for a vehicle whose own destination can no longer be reached."""
         exits = {boundary for boundary in self.network.boundaries if self.network.incoming[boundary]}
-        return self.network.route(node, exits - {node}, closed=self.closed_lanes, costs=costs, previous=previous)
+        return self.network.route(node, exits - {node}, closed=self.closed_lanes, costs=costs, previous=previous, vehicle_type=vehicle_type)
 
     def _travel_costs(self):
         queues = self._lane_queues()
@@ -606,6 +606,8 @@ class TrafficEngine:
             raise ValueError("A vehicle route must finish at a boundary")
         if vehicle_type not in VEHICLE_TYPES:
             raise ValueError("Unknown vehicle type")
+        if any(not self.network.lane_allows(lane, vehicle_type) for lane in route):
+            raise ValueError(f"Route violates vehicle access restrictions for {vehicle_type}")
         speed = number(speed, "initial speed", 0, 60)
         spec = VEHICLE_TYPES[vehicle_type]
         spawn_position = spec["length"]/2
@@ -714,11 +716,11 @@ class TrafficEngine:
             if costs is None and self.config["routing_mode"] == "adaptive":
                 costs = self._travel_costs()
             cut = self._cut_nearest_exit_lanes()
-            route = [] if cut and cut & set(self.network.route(arrival.source, arrival.destination)) else self.network.route(
-                arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None)
+            route = [] if cut and cut & set(self.network.route(arrival.source, arrival.destination, vehicle_type=arrival.vehicle_type)) else self.network.route(
+                arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None, vehicle_type=arrival.vehicle_type)
             diverting = not route and bool(self.closed_lanes)
             if diverting:
-                route = self._best_open_exit(arrival.source, None, costs if self.config["routing_mode"] == "adaptive" else None)
+                route = self._best_open_exit(arrival.source, None, costs if self.config["routing_mode"] == "adaptive" else None, vehicle_type=arrival.vehicle_type)
             vehicle = self.add_vehicle(route, vehicle_type=arrival.vehicle_type, requested_at=arrival.time) if route else None
             if vehicle:
                 self.pending_demand.remove(arrival)
@@ -1621,14 +1623,14 @@ class TrafficEngine:
         vehicle.reroute_at = self.simulation_time+self.config["reroute_interval"]
         current = self.network.lanes[vehicle.route[0]]
         costs = self._travel_costs()
-        alternative = self.network.route(current.target, vehicle.destination, closed=self.closed_lanes, costs=costs, previous=current.id)
+        alternative = self.network.route(current.target, vehicle.destination, closed=self.closed_lanes, costs=costs, previous=current.id, vehicle_type=vehicle.vehicle_type)
         # The destination can no longer be reached (also from the last junction before it): go to the best open exit.
         cut = self._cut_nearest_exit_lanes()
         if cut and cut & set(vehicle.route[1:]):
             alternative = []
         diverting = route_blocked and not alternative
         if diverting:
-            alternative = self._best_open_exit(current.target, current.id, costs)
+            alternative = self._best_open_exit(current.target, current.id, costs, vehicle_type=vehicle.vehicle_type)
         if alternative and alternative != vehicle.route[1:]:
             current_cost = sum(costs[lane] for lane in vehicle.route[1:])
             alternative_cost = sum(costs[lane] for lane in alternative)
@@ -1878,15 +1880,16 @@ class TrafficEngine:
             return True
         return not self._exit_has_space(head.route[1], head) and self._full_exit_clears(head.route[1], visited)
 
-    def _closure_blocked_sources(self) -> frozenset:
+    def _closure_blocked_sources(self, vehicle_type: str | None = None) -> frozenset:
         """Entries whose demand cannot start at all: the entry road is closed, or no exit can be reached from it."""
         closed = frozenset(self.closed_lanes)
         if self._blocked_sources[0] != closed:
+            self._blocked_sources = (closed, {})
+        if vehicle_type not in self._blocked_sources[1]:
             blocked = frozenset(source for source in self.network.boundaries if self.network.outgoing[source]
-                                and (all(lane in closed for lane in self.network.outgoing[source])
-                                     or not self.network.route(source, self.network.open_exits(source), closed=closed)))
-            self._blocked_sources = (closed, blocked)
-        return self._blocked_sources[1]
+                                and not self.network.route(source, self.network.open_exits(source), closed=closed, vehicle_type=vehicle_type))
+            self._blocked_sources[1][vehicle_type] = blocked
+        return self._blocked_sources[1][vehicle_type]
 
     def _gridlock_seconds(self):
         """Time with no vehicle movement while someone holds a green; normal red waits do not count."""
@@ -1984,7 +1987,7 @@ class TrafficEngine:
             "peak_stalled_vehicles": self.peak_stalled_vehicles,
             "first_stall_seconds": self.first_stall_seconds,
             "diverted_vehicles": self.diverted_vehicles,
-            "closure_blocked_vehicles": sum(1 for item in self.pending_demand if item.source in self._closure_blocked_sources()) if self.closed_lanes else 0,
+            "closure_blocked_vehicles": sum(1 for item in self.pending_demand if item.source in self._closure_blocked_sources(item.vehicle_type)) if self.closed_lanes else 0,
             "closure_held_vehicles": sum(1 for vehicle in self.vehicles.values() if self._held_at_closed_exit(vehicle)) if self.closed_lanes else 0,
             "gridlock_seconds": self._gridlock_seconds(),
             "boundary_wait_seconds": sum(self.simulation_time-item.time for item in self.pending_demand),

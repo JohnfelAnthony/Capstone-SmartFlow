@@ -34,7 +34,8 @@ ASSUMPTIONS = [
     "Carriageways, median, islands, openings and stop lines are estimated from the owner's overhead imagery (scale bar; imagery dated 2025-05-03) and Street View (June-July 2026); check every size in the field",
     "Service lanes, concrete strips, aprons, sheds, street lights and buildings are drawn only: no simulated traffic uses them",
     "The median and islands are not engine obstacles; lanes and turn paths are placed around them and acceptance counts any vehicle contact",
-    "A bus or truck turning right onto Sobrecarey or Bonifacio from the median-side edge of its carriageway can brush the median end with its tail: known limit, since a body pivots about its centre here and such a vehicle would really approach from the kerb side",
+    "Owner-confirmed access rule (2026-11-07): buses and trucks are prohibited on Sobrecarey Street in both directions; this is local knowledge, not independently verified signage or a cited ordinance",
+    "Bonifacio remains unrestricted: a bus or truck turning from the median-side edge can brush the median end with its tail; this known geometry limit remains",
     "No U-turns are simulated at the mid-block median gaps, and their zebras and stop lines are paint only",
     "The yellow box markings in the 2025 imagery are not drawn: the 2026 Street View shows no yellow, pending confirmation",
     "Beyond the imagery (more than about 175 m southwest of the study junction) the same layout is assumed",
@@ -108,6 +109,7 @@ def build_measured_site_b(corridor: dict, *, island_builder=None) -> dict:
 
     # The two far ends have separate entry and exit nodes, so the parser would otherwise allow a U-turn through the opening.
     payload["prohibited_turns"] = [["road5f", "road4f"], ["road9f", "road8f"]]
+    payload["lane_vehicle_restrictions"] = {lane: ["bus", "truck"] for lane in ("road1f", "road1r")}
     payload["islands"] = (island_builder or _islands)(span, rounded)
     payload["site_features"] = _site_features(span, at, box)
     payload["source"]["assumptions"] = ASSUMPTIONS

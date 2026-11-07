@@ -1,6 +1,18 @@
 {
   "networks": [
-    {"id": "tagum_site_a", "file": "tagum_site_a.json"},
-    {"id": "tagum_site_b", "file": "tagum_site_b.json"}
+    {
+      "id": "tagum_site_a",
+      "file": "tagum_site_a.json"
+    },
+    {
+      "id": "tagum_site_b",
+      "file": "tagum_site_b.json",
+      "revision_history": [
+        {
+          "file": "tagum_site_b_pre_sobrecarey_access.json",
+          "sha256": "b2a951536ed1cac8dd575dfc8977d23e7ab422b1060b66942dbe7c04832c2f2e"
+        }
+      ]
+    }
   ]
 }
