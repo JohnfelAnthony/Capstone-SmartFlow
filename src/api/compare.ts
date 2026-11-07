@@ -1,5 +1,6 @@
 import { apiRequest } from "@/api/client"
 import type { SimulationRunRecord } from "@/api/simulation"
+import type { RenderFrame } from "@/simulation/frame-types"
 
 export type CompareTimelineMeta = {
   intersection_id: string | null
@@ -70,5 +71,18 @@ export function listCompatibleCompareRuns(leftRunId: number) {
 export function getComparePair(leftRunId: number, rightRunId: number) {
   return apiRequest<ComparePairResponse>(
     `/api/compare/pair?left_run_id=${leftRunId}&right_run_id=${rightRunId}`,
+  )
+}
+
+export type ComparePairFramesResponse = {
+  times: number[]
+  left: RenderFrame[]
+  right: RenderFrame[]
+  duration: number
+}
+
+export function getComparePairFrames(leftRunId: number, rightRunId: number, start: number, end: number) {
+  return apiRequest<ComparePairFramesResponse>(
+    `/api/compare/pair/frames?left_run_id=${leftRunId}&right_run_id=${rightRunId}&start=${start}&end=${end}`,
   )
 }
