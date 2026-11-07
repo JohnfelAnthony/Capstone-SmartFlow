@@ -5,6 +5,7 @@ import csv
 import functools
 import gzip
 import json
+import re
 import secrets
 import shutil
 import string
@@ -1435,7 +1436,7 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
         warnings.append("Some sampled frame times differ; playback shows matching times only.")
     left_metrics = compare_run_metrics(left_option.run.id)
     right_metrics = compare_run_metrics(right_option.run.id)
-    for label, metrics in (("Left", left_metrics), ("Right", right_metrics)):
+    for label, metrics in (("Baseline", left_metrics), ("Compared", right_metrics)):
         raw = metrics.get("raw_metrics") or {}
         issues = run_safety_issues(raw)
         if issues:
@@ -1463,6 +1464,15 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
 COMPARE_RENDER_WINDOW_SECONDS = 60.0
 
 
+_COMPARE_LINE_TIME = re.compile(r'^\{[^\[\{]{0,200}?"time":\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)')
+
+
+def compare_line_time(line: str) -> float:
+    # The recorder writes "time" before the large lists; reading it from the line start avoids parsing every frame to index a recording.
+    match = _COMPARE_LINE_TIME.match(line)
+    return round(float(match.group(1)), 6) if match else round(compare_float(json.loads(line).get("time")), 6)
+
+
 @functools.lru_cache(maxsize=4)
 def _compare_timeline_lines(path_text: str, mtime_ns: int, size: int) -> tuple[tuple[float, ...], tuple[str, ...]]:
     # shortcut: keeps each recording's raw lines in memory (up to the file size, four files), upgrade to a seek index if hour-long recordings are compared often.
@@ -1474,7 +1484,7 @@ def _compare_timeline_lines(path_text: str, mtime_ns: int, size: int) -> tuple[t
         for line in timeline_file:
             stripped_line = line.strip()
             if stripped_line:
-                times.append(round(compare_float(json.loads(stripped_line).get("time")), 6))
+                times.append(compare_line_time(stripped_line))
                 lines.append(stripped_line)
     return tuple(times), tuple(lines)
 

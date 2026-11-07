@@ -113,6 +113,11 @@ class ComparePairFramesTests(unittest.TestCase):
         first, _ = self.record_pair()
         self.assertEqual(self.get_frames(first, first, 0, 1).status_code, 422)
 
+    def test_frame_time_is_read_from_the_line_start_or_by_parsing(self):
+        self.assertEqual(backend_main.compare_line_time('{"engine_version": "x", "time": 12.5, "vehicles": [{"time": 99}]}'), 12.5)
+        self.assertEqual(backend_main.compare_line_time('{"vehicles": [], "time": 3.25}'), 3.25)
+        self.assertEqual(backend_main.compare_line_time('{"status": "x"}'), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

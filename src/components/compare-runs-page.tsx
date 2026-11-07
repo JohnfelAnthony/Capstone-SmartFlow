@@ -67,8 +67,9 @@ import type { RenderFrame } from "@/simulation/frame-types"
 import "@/styles/compare-runs.css"
 
 const noSelection = "none"
-const WINDOW_SECONDS = 60
-const PREFETCH_SECONDS = 10
+// Each frame is about 30 KB per run, so the page asks for 10 s at a time (the server allows up to 60 s).
+const WINDOW_SECONDS = 10
+const PREFETCH_SECONDS = 5
 const MIN_STEP_MS = 66
 const CHART_POINTS = 400
 const kpiRows = ["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
@@ -212,9 +213,13 @@ function KpiCards({ pair }: { pair: ComparePairResponse }) {
           {kpiRows.map((row) => {
             const left = metricValue(pair.left.metrics, row.key)
             const right = metricValue(pair.right.metrics, row.key)
-            const { delta, tone } = kpiChange(left, right, row.lowerIsBetter)
+            const change = kpiChange(left, right, row.lowerIsBetter)
             const digits = kpiDigits(row.key)
-            const Icon = delta === null || tone === "neutral" && delta === 0 ? MinusIcon : delta > 0 ? ArrowUpIcon : ArrowDownIcon
+            const { delta } = change
+            // A change that rounds to zero on screen is shown as no change, not as "-0 Better".
+            const roundsToZero = delta !== null && Number(Math.abs(delta).toFixed(digits)) === 0
+            const tone = roundsToZero ? "neutral" : change.tone
+            const Icon = delta === null || roundsToZero ? MinusIcon : delta > 0 ? ArrowUpIcon : ArrowDownIcon
             return (
               <div className="compare-kpi-card-item" data-tone={tone} key={row.key} title={metricDescription(row.key)}>
                 <span className="compare-kpi-label">{row.label}</span>
@@ -223,7 +228,7 @@ function KpiCards({ pair }: { pair: ComparePairResponse }) {
                 </span>
                 <span className="compare-kpi-delta">
                   <Icon aria-hidden="true" />
-                  {delta === null ? EMPTY_VALUE : `${delta > 0 ? "+" : ""}${formatNumber(delta, digits)}`}
+                  {delta === null ? EMPTY_VALUE : roundsToZero ? "0" : `${delta > 0 ? "+" : ""}${formatNumber(delta, digits)}`}
                   {tone !== "neutral" ? <em>{tone === "better" ? "Better" : "Worse"}</em> : null}
                 </span>
               </div>
@@ -395,7 +400,7 @@ export function CompareRunsPage() {
         .then((response) => {
           setFrameWindows((current) => {
             const kept = current.ids === pairIds ? current.byStart : {}
-            const nearby = Object.fromEntries(Object.entries(kept).filter(([key]) => Math.abs(Number(key) - start) <= WINDOW_SECONDS * 2))
+            const nearby = Object.fromEntries(Object.entries(kept).filter(([key]) => Math.abs(Number(key) - start) <= WINDOW_SECONDS * 3))
             return { ids: pairIds, byStart: { ...nearby, [start]: response } }
           })
         })
