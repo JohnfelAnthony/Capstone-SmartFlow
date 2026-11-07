@@ -96,9 +96,12 @@ class OperationsTests(unittest.TestCase):
         network_dir = self.root / "networks"
         network_dir.mkdir()
         original_dir = Path(__file__).resolve().parents[1] / "data" / "networks"
-        for name in ("registry.json", "tagum_site_a.json", "tagum_site_b.json", "tagum_site_a_loop.json"):  # the loop is Site A's listed revision history
-            shutil.copyfile(original_dir / name, network_dir / name)
         registry = network_dir / "registry.json"
+        shutil.copyfile(original_dir / registry.name, registry)
+        entries = json.loads(registry.read_text(encoding="utf-8"))["networks"]
+        for entry in entries:
+            for item in [entry, *entry.get("revision_history", [])]:
+                shutil.copyfile(original_dir / item["file"], network_dir / item["file"])
         original = json.loads((network_dir / "tagum_site_a.json").read_text(encoding="utf-8"))
         old = registry_module.load_registered_network("tagum_site_a", registry_path=registry)
         candidate = json.loads(json.dumps(original))
@@ -115,13 +118,25 @@ class OperationsTests(unittest.TestCase):
         restored_registry = Path(env["SMARTFLOW_NETWORK_REGISTRY_PATH"])
         restored_network = registry_module.load_registered_network("tagum_site_a", registry_path=restored_registry)
         self.assertEqual(restored_network.fingerprint, revision["new_sha256"])
-        restored_history = json.loads(restored_registry.read_text(encoding="utf-8"))["networks"][0]["revision_history"]
+        restored_entries = json.loads(restored_registry.read_text(encoding="utf-8"))["networks"]
+        for entry in entries:
+            restored_entry = next(item for item in restored_entries if item["id"] == entry["id"])
+            for historical in entry.get("revision_history", []):
+                assert historical in restored_entry["revision_history"]
+                self.assertEqual((restored_registry.parent / historical["file"]).read_bytes(),
+                                 (original_dir / historical["file"]).read_bytes())
+        restored_history = next(item for item in restored_entries if item["id"] == "tagum_site_a")["revision_history"]
         self.assertEqual(restored_history[-1]["sha256"], old.fingerprint)  # the newest revision; earlier history stays ahead of it
         restored_previous = restored_registry.parent / restored_history[-1]["file"]
         self.assertEqual(json.loads(restored_previous.read_text(encoding="utf-8")), original)
         rollback = store_revision(restored_registry, "tagum_site_a", revision["new_sha256"], original)
         self.assertEqual(rollback["new_sha256"], old.fingerprint)
         self.assertTrue((restored_registry.parent / revision["file"]).is_file())
+        (network_dir / entries[0]["revision_history"][0]["file"]).unlink()
+        with patch.object(registry_module, "REGISTRY_PATH", registry), patch.object(registry_module, "registered_networks", lambda: list_networks(registry)):
+            missing = self.client.post("/api/admin/backups")
+        self.assertEqual(missing.status_code, 409, missing.text)
+        self.assertIn("Network revision history file is missing or unsafe", missing.text)
 
     def test_backup_keeps_configured_replacement_network(self):
         replacement = self.root / "replacement-network.json"

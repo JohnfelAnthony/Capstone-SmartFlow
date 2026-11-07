@@ -39,7 +39,7 @@ STOP_SETBACK_STEP_M = 0.1
 # (network fingerprint, lane) -> setback in metres; pure geometry, shared by every engine on that network.
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
-ENGINE_VERSION = "native-13"
+ENGINE_VERSION = "native-14"
 NO_SIGNAL_LABEL = "No signal (first come, first served)"
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
@@ -674,13 +674,23 @@ class TrafficEngine:
         def room(lateral):
             return min((rear for rear, other_lateral, other_width in occupancy
                         if bands_overlap(lateral, spec["width"], other_lateral, other_width)), default=math.inf)
-        if vehicle_type in LANE_KEEPING_CLASSES:
+        kerb = self._entry_kerb_position(lane, vehicle_type, spec["width"])
+        if kerb is not None:
+            candidates = [kerb]
+        elif vehicle_type in LANE_KEEPING_CLASSES:
             positions = [keeping_position(vehicle_type, spec["width"], self._room_width[lane.id], lane.lane_count, sub_lane) for sub_lane in range(lane.lane_count)]
             candidates = [positions[index] for index in sorted(range(len(positions)), key=lambda index: (-room(positions[index]), index))]
         else:
             # Tricycles and motorcycles take the free position nearest the kerb.
             candidates = list(reversed(candidate_laterals(self._room_width[lane.id], spec["width"])))
         return next((lateral for lateral in candidates if room(lateral) >= needed), None)
+
+    def _entry_kerb_position(self, lane, vehicle_type: str, width: float) -> float | None:
+        if vehicle_type in self.network.entry_kerb_vehicle_types.get(lane.id, ()):
+            room = self._room_width[lane.id]
+            low, high = lateral_bounds(room, width)
+            return min(high, low + room*(lane.lane_count-1)/lane.lane_count)
+        return None
 
     def _spawn_demand(self):
         # Built at the first entry check of this spawn step (most ticks have none); it then includes vehicles added before it.
@@ -802,7 +812,7 @@ class TrafficEngine:
         from .model_contract import native_contract, validate_metadata
         policy_metadata = getattr(policy, "artifact_metadata", {})
         if "native_contract" in policy_metadata:
-            validate_metadata(policy_metadata, self.network)
+            validate_metadata(policy_metadata, self.base_network)
         elif self.base_network.fingerprint != native_contract()["network_sha256"]:
             raise ValueError("This model was not trained for the current Python engine and road network. Train a new model; artifacts from earlier engine or observation versions cannot be reused.")
         if "native_contract" in policy_metadata:
@@ -1220,6 +1230,10 @@ class TrafficEngine:
         if ((self.ticks+serial) % LATERAL_DECISION_TICKS or vehicle.lateral != vehicle.lateral_target
                 or self.simulation_time < vehicle.lateral_cooldown_until or self._lateral_speed_limit(vehicle) <= 0
                 or vehicle.reserved_junction == lane.target):
+            return
+        # These vehicles enter in the kerb lane and stay there so a reroute into a tight turn
+        # never requires them to cross queued traffic at the stop line.
+        if vehicle.vehicle_type in self.network.entry_kerb_vehicle_types.get(lane.id, ()):
             return
         neighbours = self._lane_neighbours(vehicle, lane)
         front = vehicle.position+self._box(vehicle)[0]/2

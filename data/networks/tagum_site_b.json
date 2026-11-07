@@ -27,7 +27,7 @@
       "Service lanes, concrete strips, aprons, sheds, street lights and buildings are drawn only: no simulated traffic uses them",
       "The median and islands are not engine obstacles; lanes and turn paths are placed around them and acceptance counts any vehicle contact",
       "Owner-confirmed access rule (2026-11-07): buses and trucks are prohibited on Sobrecarey Street in both directions; this is local knowledge, not independently verified signage or a cited ordinance",
-      "Bonifacio remains unrestricted: a bus or truck turning from the median-side edge can brush the median end with its tail; this known geometry limit remains",
+      "Bonifacio stays open to buses and trucks. The simulation keeps them in the kerb lane on the highway approach from the northeast so their tail clears the median during the turn. Confirm real lane use in the field",
       "No U-turns are simulated at the mid-block median gaps, and their zebras and stop lines are paint only",
       "The yellow box markings in the 2025 imagery are not drawn: the 2026 Street View shows no yellow, pending confirmation",
       "Beyond the imagery (more than about 175 m southwest of the study junction) the same layout is assumed",
@@ -666,6 +666,12 @@
       "truck"
     ],
     "road1r": [
+      "bus",
+      "truck"
+    ]
+  },
+  "entry_kerb_vehicle_types": {
+    "road9f": [
       "bus",
       "truck"
     ]

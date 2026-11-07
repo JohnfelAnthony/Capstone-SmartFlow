@@ -137,7 +137,7 @@ class SimulationRuntime:
                 from simulation.network_registry import load_registered_network
                 candidate = TrafficEngine(seed=candidate_seed, network=load_registered_network(scenario.get("network_id")))
             elif isinstance(self._engine, TrafficEngine):
-                candidate = TrafficEngine(seed=candidate_seed, network=self._engine.network)
+                candidate = TrafficEngine(seed=candidate_seed, network=self._engine.base_network)
             else:
                 candidate = TrafficEngine(seed=candidate_seed)
             if isinstance(self._engine, TrafficEngine) and payload.scenario_id is None:

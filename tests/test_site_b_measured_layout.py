@@ -9,6 +9,7 @@ from simulation.footprints import overlapping_pairs, rectangle
 from simulation.mixed_traffic import lateral_bounds
 from simulation.road_network import RoadNetwork, distance, length, sample
 from simulation.scenario_config import VEHICLE_TYPES
+from simulation.traffic_engine import TrafficEngine
 from tools.mixed_traffic_report import build_engine, case_options, count_island_intrusions, polygons_touch_or_overlap
 from tools.site_b_measured_layout import CARRIAGEWAY_WIDTH_M, MEDIAN_WIDTH_M, build_measured_site_b
 
@@ -91,13 +92,9 @@ def test_turn_connector_vertices_have_centerline_distance_from_barrier_edges():
                         assert distance_to_polygon(point, island["shape"]) >= half_bus_width, (incoming, outgoing, island["id"])
 
 
-# A long body turning right from the median-side edge swings its tail into the median, because bodies pivot about their centre.
-# The widest arc that fits does not clear it and cutting the median back would contradict the imagery, so this is a stated limit.
-KNOWN_TAIL_CONTACTS = {("bus", "road9f", "road7f", -3.25, "median_ne"), ("truck", "road9f", "road7f", -3.25, "median_ne")}
-
-
-def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
-    """Each class from both edges of its lane and the middle, along the whole turn: placement is all that keeps traffic off the islands."""
+def test_no_actual_size_contacts_on_allowed_turns():
+    """Check reachable entry offsets on both sides of each turn, including the designated kerb lane."""
+    engine = TrafficEngine(network=NETWORK)
     islands = [(island, min(p[0] for p in island["shape"]), min(p[1] for p in island["shape"]), max(p[0] for p in island["shape"]), max(p[1] for p in island["shape"]))
                for island in NETWORK.islands]
     contacts = set()
@@ -111,7 +108,8 @@ def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
                     total = length(connector)
                     low, high = lateral_bounds(NETWORK.lanes[incoming].width, spec["width"])
                     exit_low, exit_high = lateral_bounds(NETWORK.lanes[outgoing].width, spec["width"])
-                    for entry in (low, 0.0, high):
+                    kerb = engine._entry_kerb_position(NETWORK.lanes[incoming], kind, spec["width"])
+                    for entry in (low, 0.0, high) if kerb is None else (kerb,):
                         exit_lateral = min(exit_high, max(exit_low, entry))
                         for step in range(int(total/.2)+2):
                             at = min(total, step*.2)
@@ -122,7 +120,7 @@ def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
                             for island, left, bottom, right, top in islands:
                                 if min(xs) <= right and left <= max(xs) and min(ys) <= top and bottom <= max(ys) and polygons_touch_or_overlap(body, island["shape"]):
                                     contacts.add((kind, incoming, outgoing, round(entry, 2), island["id"]))
-    assert contacts == KNOWN_TAIL_CONTACTS
+    assert not contacts
 
 
 def _net_reversal(connector, entry, exit_lateral):
@@ -275,4 +273,20 @@ def test_medium_no_signal_traffic_stays_on_the_road(seed):
         records = engine.vehicle_records()
         assert not overlapping_pairs(records), f"overlap at {engine.simulation_time}s"
         assert not count_island_intrusions(records, engine.network.islands), f"island contact at {engine.simulation_time}s"
+    assert engine._last_metrics["vehicle_conservation_error"] == 0
+
+
+@pytest.mark.parametrize("kind", ["bus", "truck"])
+def test_bonifacio_heavy_vehicle_completes_turn_with_opposing_traffic(kind):
+    engine = build_engine("siteB", "none", {"car": 1}, 45, 101, no_signal=True)
+    heavy = engine.add_vehicle(["road9f", "road7f"], vehicle_type=kind, speed=3)
+    heavy.position = engine.network.lanes["road9f"].length-12
+    opposing = engine.add_vehicle(["road7r", "road8f"], speed=3)
+    opposing.position = engine.network.lanes["road7r"].length-12
+    while engine.status == "running":
+        engine.step(1)
+        records = engine.vehicle_records()
+        assert not overlapping_pairs(records)
+        assert not count_island_intrusions(records, engine.network.islands)
+    assert engine.completed == 2
     assert engine._last_metrics["vehicle_conservation_error"] == 0

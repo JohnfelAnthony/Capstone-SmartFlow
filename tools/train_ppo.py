@@ -62,10 +62,10 @@ class SeedCyclingSmartFlowRLEnv(SmartFlowRLEnv):
         self._reset_count = 0
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
-        if seed is None:
-            seed = self.seed_set[self._reset_count % len(self.seed_set)]
-            self._reset_count += 1
-        return super().reset(seed=seed, options=options)
+        # SB3 may pass its optimizer seed at reset. Road demand only uses the recorded traffic seeds.
+        traffic_seed = self.seed_set[self._reset_count % len(self.seed_set)]
+        self._reset_count += 1
+        return super().reset(seed=traffic_seed, options=options)
 
 
 def _build_parser() -> argparse.ArgumentParser:

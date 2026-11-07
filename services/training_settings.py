@@ -8,6 +8,7 @@ from services.scenario_identity import validate_resume_snapshot
 from services.observation_identity import validate_observed_holdout
 from simulation.model_contract import artifact_metadata, training_junction
 from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_TRAINING_EPISODES, DEFAULT_WARMUP_SECONDS
+from simulation.study_seeds import validate_study_seeds
 from simulation.traffic_engine import TrafficEngine
 
 
@@ -62,7 +63,9 @@ def prepare_settings(settings: dict) -> dict:
         seeds = [value.strip() for value in str(settings.get(key, default)).split(",")]
         if not 1 <= len(seeds) <= 100 or any(not value.isdecimal() for value in seeds):
             raise ValueError(f"{key} must be 1–100 comma-separated non-negative integers")
-        normalized[key] = ",".join(str(numeric(value, key, 0, 2**32-1, integer=True)) for value in seeds)
+        parsed = [numeric(value, key, 0, 2**32-1, integer=True) for value in seeds]
+        validate_study_seeds(parsed)
+        normalized[key] = ",".join(map(str, parsed))
     if set(normalized["seeds"].split(",")) & set(normalized["evaluation_seeds"].split(",")):
         raise ValueError("Training and held-out evaluation seeds must not overlap.")
     engine.configure_rl_control(decision_interval=normalized["decision_interval_seconds"],
@@ -95,6 +98,7 @@ def prepare_settings(settings: dict) -> dict:
                 raise ValueError("Checkpoint does not belong to the selected model")
             resume_path = checkpoint["path"]
         metadata = validate_model_for_settings(model, normalized, path=resume_path)
+        validate_study_seeds(metadata.get("seed_set", []))
         trained_scenario = metadata.get("scenario")
         validate_resume_snapshot(trained_scenario, snapshot)
         if isinstance(trained_scenario, dict) and trained_scenario.get("id") == evaluation_scenario_id:

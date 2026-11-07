@@ -17,6 +17,10 @@
         {
           "file": "tagum_site_b_pre_sobrecarey_access.json",
           "sha256": "b2a951536ed1cac8dd575dfc8977d23e7ab422b1060b66942dbe7c04832c2f2e"
+        },
+        {
+          "file": "tagum_site_b_pre_bonifacio_kerb.json",
+          "sha256": "404b45fab29f8f6e5caaf2dd15c51f8b5d9163b2d454fadca76a100a3c9e7227"
         }
       ]
     }

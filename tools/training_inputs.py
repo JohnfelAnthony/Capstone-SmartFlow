@@ -5,9 +5,11 @@ from pathlib import Path
 from services.scenario_identity import validate_resume_snapshot
 from services.scenario_migration import import_snapshot, native_snapshot
 from simulation.scenario_config import is_study_site
+from simulation.study_seeds import validate_study_seeds
 
 
 def cumulative_training_seeds(seeds: tuple[int, ...], resume_model: Path | None, algorithm: str, scenario: dict) -> tuple[int, ...]:
+    validate_study_seeds(seeds)
     if resume_model is None:
         return seeds
     metadata_path = resume_model if algorithm == "ql" else resume_model.with_suffix(".metadata.json")
@@ -16,6 +18,7 @@ def cumulative_training_seeds(seeds: tuple[int, ...], resume_model: Path | None,
     previous_seeds = metadata.get("seed_set")
     if not isinstance(previous_seeds, list) or not previous_seeds:
         raise ValueError("Resume artifact lacks its training seed history.")
+    validate_study_seeds(previous_seeds)
     validate_resume_snapshot(metadata.get("scenario"), scenario)
     return tuple(sorted(set(seeds) | {int(seed) for seed in previous_seeds}))
 

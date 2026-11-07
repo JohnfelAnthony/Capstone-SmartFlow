@@ -102,6 +102,16 @@ class WorkflowIntegrityTests(unittest.TestCase):
         self.assertEqual(failed.status_code, 409)
         self.assertEqual(self.client.get("/api/simulation/state").json()["seed"], 11)
 
+    def test_training_api_rejects_reserved_training_and_held_out_seeds(self):
+        for field, seed in (("seeds", "201"), ("evaluation_seeds", "220")):
+            with self.subTest(field=field):
+                response = self.client.post("/api/rl/jobs", json={
+                    "algorithms": ["ql"], "settings": {**self.settings, field: seed},
+                })
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertIn("reserved for the final evaluation", response.json()["detail"])
+        self.assertEqual(database.list_rl_training_jobs(), [])
+
     def test_reformatted_duplicate_rejected_for_every_training_algorithm_without_rows(self):
         self.save_pair(self.observed(), self.observed(formatted=True, date="2026-01-02"))
         for algorithm in ("ql", "dql", "ppo"):

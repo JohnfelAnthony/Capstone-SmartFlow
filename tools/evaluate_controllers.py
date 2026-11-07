@@ -32,12 +32,12 @@ from services.rl_reporting_service import (
 from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_WARMUP_SECONDS
 from simulation.rl_policy_runtime import RuntimePolicy, load_runtime_policy
 from simulation.scenario_config import number
+from simulation.study_seeds import validate_study_seeds
 from simulation.traffic_engine import STEP_LENGTH
 from simulation.traffic_engine import TrafficEngine
 
 
 DEFAULT_SEEDS = (101, 102, 103, 104, 105)  # development seeds; 11-55 are for training
-FINAL_EVALUATION_SEEDS = tuple(range(201, 221))  # reserved for the final study (plan Task 29)
 SUPPORTED_CONTROLLERS = ("fixed-time", "no-signal", "ql", "dql", "ppo")
 DEFAULT_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
 
@@ -494,8 +494,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
-    if not args.final and any(int(seed) in FINAL_EVALUATION_SEEDS for seed in args.seeds):
-        raise ValueError("Seeds 201–220 are reserved for the final evaluation (Task 29); pass --final to use them")
+    validate_study_seeds(args.seeds, final=args.final)
     database.init_db()
 
     scenario = {
@@ -522,6 +521,8 @@ def main() -> int:
         if model_path is None:
             raise SystemExit(f"No {controller.upper()} model found. Pass --{controller}-model or train {controller.upper()} first.")
         metadata = artifact_metadata(controller, model_path, scenario_network)
+        if args.final:
+            validate_study_seeds(metadata.get("seed_set", []))
         trained_scenario = metadata.get("scenario")
         if not isinstance(trained_scenario, dict):
             if has_observed_inputs(scenario):

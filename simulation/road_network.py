@@ -335,6 +335,17 @@ class RoadNetwork:
             ):
                 raise ValueError("Lane vehicle restrictions need known lane IDs and vehicle classes")
             self.lane_vehicle_restrictions[lane_id] = frozenset(kinds)
+        kerb_classes = payload.get("entry_kerb_vehicle_types", {})
+        if not isinstance(kerb_classes, dict):
+            raise ValueError("Entry kerb vehicle types must be an object")
+        self.entry_kerb_vehicle_types = {}
+        for lane_id, kinds in kerb_classes.items():
+            lane = self.lanes.get(lane_id)
+            if lane is None or lane.source not in self.boundaries or self.incoming[lane.source] or not isinstance(kinds, list) or any(
+                not isinstance(kind, str) or kind not in VEHICLE_TYPES for kind in kinds
+            ):
+                raise ValueError("Entry kerb vehicle types need a source-only boundary lane and known vehicle classes")
+            self.entry_kerb_vehicle_types[lane_id] = frozenset(kinds)
         for turn in payload.get("prohibited_turns", []):
             if len(turn) != 2 or any(lane not in self.lanes for lane in turn) or self.lanes[turn[0]].target != self.lanes[turn[1]].source:
                 raise ValueError("Turn restrictions must reference connected lanes")
