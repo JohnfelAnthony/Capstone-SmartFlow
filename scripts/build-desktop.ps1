@@ -10,8 +10,7 @@ $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 $py = Join-Path $root ".venv-desktop\Scripts\python.exe"
 if (-not (Test-Path $py)) { throw "Create .venv-desktop first." }
-$frontend = Join-Path $root "tmp\fe-desktop"
-if (Test-Path $frontend) { Remove-Item -Recurse -Force $frontend }
+$frontend = Join-Path $root ("tmp\fe-desktop-" + [guid]::NewGuid().ToString("N").Substring(0, 12))
 $env:VITE_SMARTFLOW_DESKTOP = "1"
 npx.cmd vite build --outDir $frontend
 if ($LASTEXITCODE) { throw "Frontend build failed" }

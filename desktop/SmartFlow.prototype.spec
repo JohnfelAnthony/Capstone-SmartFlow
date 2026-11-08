@@ -4,13 +4,18 @@ import os
 from PyInstaller.utils.hooks import collect_data_files
 
 root = Path(SPECPATH).parent
+import sys
+sys.path.insert(0, str(root))
+from desktop.paths import network_resource_names
+
+icon = root / "desktop" / "smartflow.ico"
 files = [(str(p), "simulation") for p in sorted((root / "simulation").glob("*.py"))]
 files += [(str(root / "simulation" / "metric_definitions.json"), "simulation"), (os.environ["SMARTFLOW_PROTOTYPE_FRONTEND"], "dist")]
-files += [(os.environ["SMARTFLOW_PROTOTYPE_MANIFEST"], ".")]
+files += [(os.environ["SMARTFLOW_PROTOTYPE_MANIFEST"], "."), (str(icon), "desktop")]
 if os.environ.get("SMARTFLOW_PROTOTYPE_FULL_ML") == "1":
     files += collect_data_files("stable_baselines3")
 files += [(str(root / "data" / "networks" / name), "data/networks") for name in
-          ("registry.json", "tagum_network.json", "tagum_site_a.json", "tagum_site_b.json")]
+          network_resource_names(root / "data" / "networks")]
 
 a = Analysis([str(root / "desktop" / "frozen_shell.py"), str(root / "desktop" / "worker_entry.py")],
              pathex=[str(root)], binaries=[], datas=files,
@@ -19,6 +24,6 @@ a = Analysis([str(root / "desktop" / "frozen_shell.py"), str(root / "desktop" / 
 pyz = PYZ(a.pure)
 shell_scripts = [item for item in a.scripts if item[0] != "worker_entry"]
 worker_scripts = [item for item in a.scripts if item[0] != "frozen_shell"]
-shell = EXE(pyz, shell_scripts, [], exclude_binaries=True, name="SmartFlow", console=False, upx=False)
+shell = EXE(pyz, shell_scripts, [], exclude_binaries=True, name="SmartFlow", console=False, upx=False, icon=str(icon))
 worker = EXE(pyz, worker_scripts, [], exclude_binaries=True, name="SmartFlowWorker", console=True, upx=False)
 bundle = COLLECT(shell, worker, a.binaries, a.datas, strip=False, upx=False, name="SmartFlowPrototype")

@@ -181,3 +181,126 @@ class LegSimplificationTests(JunctionMouthTests):
     def test_a_real_bend_keeps_its_shape(self):
         north = next(road for road in self.wobbly(12.0)["roads"] if road["osm_way_id"] == 101)
         self.assertGreater(len(north["shape"]), 2)
+
+
+class SiteALoopTests(unittest.TestCase):
+    """Site A before the street grid (kept under history): the single-junction network plus the West-North side-street loop, reproducible."""
+
+    SOURCE = ROOT / "data" / "networks" / "osm_site_a.json"
+    NETWORKS = ROOT / "data" / "networks"
+
+    def build(self, **options):
+        from tools.build_study_network import build_site_a_network
+        return build_site_a_network(self.SOURCE, **options)
+
+    def test_generator_reproduces_the_kept_loop_network(self):
+        kept = json.loads((self.NETWORKS / "tagum_site_a_loop.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.build(), kept)
+
+    def test_generator_reproduces_the_kept_single_junction_network(self):
+        kept = json.loads((self.NETWORKS / "history" / "tagum_site_a_single_junction.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.build(with_loop=False), kept)
+
+    def test_loop_adds_two_first_come_junctions_and_keeps_the_study_junction_first(self):
+        payload = self.build()
+        network = RoadNetwork(payload)
+        self.assertEqual(network.intersections, ["tagum_site_a_j", "tagum_site_a_j2", "tagum_site_a_j3"])
+        modes = {node["id"]: node.get("default_control_mode") for node in payload["nodes"] if not node["boundary"]}
+        self.assertEqual(modes, {"tagum_site_a_j": None, "tagum_site_a_j2": "first_come", "tagum_site_a_j3": "first_come"})
+        self.assertEqual([road["id"] for road in payload["roads"][:4]], ["road0", "road1", "road2", "road3"])
+
+    def test_loop_street_is_about_275_metres_and_labelled_provisional(self):
+        payload = self.build()
+        loop = next(road for road in payload["roads"] if road["name"] == "Unnamed side street")
+        self.assertAlmostEqual(length(loop["shape"]), 275.0, delta=30)
+        assumptions = " ".join(payload["source"]["assumptions"])
+        for phrase in ("provisional", "not field-checked", "start empty", "no traffic was observed"):
+            self.assertIn(phrase, assumptions)
+
+    def test_loop_end_off_the_drawn_leg_is_refused(self):
+        from tools.build_study_network import build_site_network, SITE_A_CENTRE
+        loop = {"name": "x", "osm_nodes": [1387566813, 1527791811]}
+        with self.assertRaises(ValueError):
+            build_site_network(self.SOURCE, SITE_A_CENTRE, network_id="tagum_site_a", name="x", detour_loops=[loop])
+
+
+class SiteAStreetGridTests(unittest.TestCase):
+    """Site A as installed: every public street in the owner's crop, with the owner's three choices of 7 November."""
+
+    SOURCE = ROOT / "data" / "networks" / "osm_site_a.json"
+
+    @classmethod
+    def setUpClass(cls):
+        from tools.build_study_network import build_site_a_street_grid
+        cls.payload = build_site_a_street_grid(cls.SOURCE)
+        cls.network = RoadNetwork(cls.payload)
+
+    def test_generator_reproduces_the_installed_network(self):
+        installed = json.loads((ROOT / "data" / "networks" / "tagum_site_a.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.payload, installed)
+
+    def test_site_a_stays_first_and_the_only_junction_without_first_come(self):
+        self.assertEqual(self.network.intersections[0], "tagum_site_a_j")
+        modes = {node["id"]: node.get("default_control_mode") for node in self.payload["nodes"] if not node["boundary"]}
+        self.assertIsNone(modes.pop("tagum_site_a_j"))
+        self.assertEqual(set(modes.values()), {"first_come"})
+        self.assertIn("tagum_site_a_j2", modes); self.assertIn("tagum_site_a_j3", modes)
+
+    def test_main_roads_keep_their_ids_names_and_the_west_approach_length(self):
+        roads = {road["id"]: road for road in self.payload["roads"]}
+        expected = {"road0": ("tagum_site_a_j", "Dalisay Gante Road"), "road1": ("tagum_site_a_j", "Dalisay Gante Road"),
+                    "road2": ("tagum_site_a_j", "Capitol Circumferential Road"), "road3": ("tagum_site_a_j", "Capitol Circumferential Road"),
+                    "road4": ("tagum_site_a_j2", "Capitol Circumferential Road"), "road5": ("tagum_site_a_j3", "Dalisay Gante Road")}
+        for road_id, (source, name) in expected.items():
+            self.assertEqual((roads[road_id]["source"], roads[road_id]["name"]), (source, name))
+        self.assertEqual((roads["road2"]["target"], roads["road1"]["target"]), ("tagum_site_a_j2", "tagum_site_a_j3"))
+        # Owner: the 48 m street west of Site A is left out, so the west approach still reaches j2, 226 m out.
+        self.assertAlmostEqual(length(roads["road2"]["shape"]), 226.0, delta=1)
+        self.assertFalse(any(761662360 == road["osm_way_id"] for road in self.payload["roads"]))
+
+    def test_new_roads_are_unnamed_side_streets(self):
+        main = {"Capitol Circumferential Road", "Dalisay Gante Road"}
+        for road in self.payload["roads"]:
+            self.assertEqual(road["name"] in main, not road.get("minor", False), road["id"])
+            if road["name"] not in main:
+                self.assertEqual(road["name"], "Unnamed road")
+
+    def test_only_the_four_main_road_ends_and_the_study_junction_take_generated_demand(self):
+        self.assertEqual(self.network.demand_boundaries, ["boundary_0", "boundary_1", "boundary_2", "boundary_3"])
+        self.assertEqual(self.network.pedestrian_junctions, ["tagum_site_a_j"])  # owner's decision: pedestrians cross only at Site A
+        self.assertGreater(len(self.network.boundaries), 4)
+
+    def test_every_main_road_trip_goes_through_site_a_unless_a_closure_forces_a_detour(self):
+        ends = self.network.demand_boundaries
+        congested = {
+            lane.id: lane.length / lane.speed + (0 if lane.minor else 200)
+            for lane in self.network.lanes.values()
+        }
+        for costs in (None, congested):
+            for source in ends:
+                for target in ends:
+                    if source == target:
+                        continue
+                    route = self.network.route(source, target, costs=costs)
+                    self.assertTrue(route)
+                    self.assertFalse(any(self.network.lanes[lane].minor for lane in route))
+                    self.assertIn("tagum_site_a_j", [self.network.lanes[lane].target for lane in route])
+        detour = self.network.route("boundary_2", "boundary_1", closed={"road2r"}, costs=congested)
+        self.assertTrue(detour)
+        self.assertTrue(any(self.network.lanes[lane].minor for lane in detour))
+
+    def test_scheduled_pedestrians_and_published_paths_use_only_the_study_junction(self):
+        from simulation.traffic_engine import TrafficEngine
+
+        engine = TrafficEngine(network=self.network)
+        for junction in self.network.intersections[1:]:
+            with self.subTest(junction=junction), self.assertRaisesRegex(ValueError, "Pedestrian crossings are disabled"):
+                engine.configure(pedestrian_trips=[{"time": 1, "junction": junction}])
+
+        engine.configure(pedestrian_trips=[{"time": 1, "junction": "tagum_site_a_j"}])
+        self.assertEqual([path["junction_id"] for path in engine.pedestrian_paths()], ["tagum_site_a_j"])
+
+    def test_the_market_is_drawn_and_labelled(self):
+        features = self.payload["site_features"]
+        self.assertEqual([f["label"] for f in features if f.get("label")], ["Tagum Public Market"])
+        self.assertEqual(sum(1 for f in features if f["kind"] == "building"), 11)

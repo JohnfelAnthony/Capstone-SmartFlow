@@ -7,17 +7,24 @@ import pytest
 
 from simulation.footprints import overlapping_pairs, rectangle
 from simulation.mixed_traffic import lateral_bounds
-from simulation.road_network import RoadNetwork, distance, length, sample
+from simulation.road_network import RoadNetwork, clip, distance, length, sample
 from simulation.scenario_config import VEHICLE_TYPES
+from simulation.traffic_engine import TrafficEngine
 from tools.mixed_traffic_report import build_engine, case_options, count_island_intrusions, polygons_touch_or_overlap
 from tools.site_b_measured_layout import CARRIAGEWAY_WIDTH_M, MEDIAN_WIDTH_M, build_measured_site_b
 
 ROOT = Path(__file__).resolve().parents[1]/"data"/"networks"
 INSTALLED = json.loads((ROOT/"tagum_site_b.json").read_text(encoding="utf-8"))
+MEASURED = json.loads((ROOT/"tagum_site_b_pre_street_grid.json").read_text(encoding="utf-8"))  # the measured core on its own: the installed Site B before the street grid (D46)
 CORRIDOR = json.loads((ROOT/"history"/"tagum_site_b_osm_corridor.json").read_text(encoding="utf-8"))
 NETWORK = RoadNetwork(INSTALLED)
-STUDY, NEIGHBOR = NETWORK.intersections
+STUDY, NEIGHBOR = NETWORK.intersections[:2]
 HIGHWAY = {"road2", "road3", "road4", "road5", "road8", "road9"}
+
+
+def to_boundary(network, route, vehicle_type=None):
+    """The route continued by the cheapest way on to a boundary, for tests that place a vehicle on a turn at a junction that no longer ends at one."""
+    return route + network.route(network.lanes[route[-1]].target, set(network.boundaries), previous=route[-1], vehicle_type=vehicle_type)
 
 
 def along_across(point):
@@ -38,13 +45,15 @@ def distance_to_polygon(point, polygon):
     return best
 
 
-def test_generator_reproduces_the_installed_network():
-    assert build_measured_site_b(CORRIDOR) == INSTALLED
+def test_generator_reproduces_the_measured_core():
+    assert build_measured_site_b(CORRIDOR) == MEASURED
 
 
 def test_ids_and_control_are_preserved_from_the_corridor():
-    assert [node["id"] for node in INSTALLED["nodes"]] == [node["id"] for node in CORRIDOR["nodes"]]
-    assert [road["id"] for road in INSTALLED["roads"]] == [road["id"] for road in CORRIDOR["roads"]]
+    assert [node["id"] for node in MEASURED["nodes"]] == [node["id"] for node in CORRIDOR["nodes"]]
+    assert [road["id"] for road in MEASURED["roads"]] == [road["id"] for road in CORRIDOR["roads"]]
+    assert [node["id"] for node in INSTALLED["nodes"][:2]] == [node["id"] for node in CORRIDOR["nodes"][:2]]
+    assert {road["id"] for road in CORRIDOR["roads"]} <= {road["id"] for road in INSTALLED["roads"]}
     assert NETWORK.nodes[NEIGHBOR]["default_control_mode"] == "first_come"
     assert NETWORK.visual()["junctions"][0]["id"] == STUDY
 
@@ -91,14 +100,9 @@ def test_turn_connector_vertices_have_centerline_distance_from_barrier_edges():
                         assert distance_to_polygon(point, island["shape"]) >= half_bus_width, (incoming, outgoing, island["id"])
 
 
-# A long body turning right from the median-side edge swings its tail into the median, because bodies pivot about their centre.
-# The widest arc that fits does not clear it and cutting the median back would contradict the imagery, so this is a stated limit.
-KNOWN_TAIL_CONTACTS = {("bus", "road2f", "road1f", -3.25, "median_study_ne_tip"), ("truck", "road2f", "road1f", -3.25, "median_study_ne_tip"),
-                       ("bus", "road9f", "road7f", -3.25, "median_ne"), ("truck", "road9f", "road7f", -3.25, "median_ne")}
-
-
-def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
-    """Each class from both edges of its lane and the middle, along the whole turn: placement is all that keeps traffic off the islands."""
+def test_no_actual_size_contacts_on_allowed_turns():
+    """Check reachable entry offsets on both sides of each turn, including the designated kerb lane."""
+    engine = TrafficEngine(network=NETWORK)
     islands = [(island, min(p[0] for p in island["shape"]), min(p[1] for p in island["shape"]), max(p[0] for p in island["shape"]), max(p[1] for p in island["shape"]))
                for island in NETWORK.islands]
     contacts = set()
@@ -106,13 +110,14 @@ def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
         for node in NETWORK.intersections:
             for incoming in NETWORK.incoming[node]:
                 for outgoing in NETWORK.outgoing[node]:
-                    if not NETWORK.turn_allowed(incoming, outgoing):
+                    if not NETWORK.turn_allowed(incoming, outgoing, vehicle_type=kind):
                         continue
                     connector = NETWORK.connector(incoming, outgoing)
                     total = length(connector)
                     low, high = lateral_bounds(NETWORK.lanes[incoming].width, spec["width"])
                     exit_low, exit_high = lateral_bounds(NETWORK.lanes[outgoing].width, spec["width"])
-                    for entry in (low, 0.0, high):
+                    kerb = engine._entry_kerb_position(NETWORK.lanes[incoming], kind, spec["width"])
+                    for entry in (low, 0.0, high) if kerb is None else (kerb,):
                         exit_lateral = min(exit_high, max(exit_low, entry))
                         for step in range(int(total/.2)+2):
                             at = min(total, step*.2)
@@ -123,7 +128,7 @@ def test_only_the_known_tail_contacts_touch_a_barrier_on_any_allowed_turn():
                             for island, left, bottom, right, top in islands:
                                 if min(xs) <= right and left <= max(xs) and min(ys) <= top and bottom <= max(ys) and polygons_touch_or_overlap(body, island["shape"]):
                                     contacts.add((kind, incoming, outgoing, round(entry, 2), island["id"]))
-    assert contacts == KNOWN_TAIL_CONTACTS
+    assert not contacts
 
 
 def _net_reversal(connector, entry, exit_lateral):
@@ -151,8 +156,8 @@ def test_no_lane_position_runs_backward_round_a_sharp_turn(incoming, outgoing):
 
 
 def _vehicle_turning_ahead_of_a_follower(engine, incoming, outgoing, entry, exit_lateral):
-    leader = engine.add_vehicle([incoming, outgoing], vehicle_type="motorcycle")
-    follower = engine.add_vehicle([incoming, outgoing], vehicle_type="motorcycle")
+    leader = engine.add_vehicle(to_boundary(NETWORK, [incoming, outgoing]), vehicle_type="motorcycle")
+    follower = engine.add_vehicle(to_boundary(NETWORK, [incoming, outgoing]), vehicle_type="motorcycle")
     connector = NETWORK.connector(incoming, outgoing)
     leader.position, leader.connector, leader.connector_position = NETWORK.lanes[incoming].length, connector, .9*length(connector)
     leader.connector_entry_lateral, leader.connector_exit_lateral = entry, exit_lateral
@@ -165,7 +170,7 @@ def test_a_sharp_turn_goes_one_vehicle_at_a_time():
     engine = build_engine("siteB", "none", {"car": 1}, 120, 1)
     leader, follower = _vehicle_turning_ahead_of_a_follower(engine, "road2f", "road1f", 2.9, 2.9)
     assert engine._must_wait_at_line(follower)
-    leader.connector, leader.route = None, ["road1f"]
+    leader.connector, leader.route = None, to_boundary(NETWORK, ["road1f"])
     assert not engine._must_wait_at_line(follower)
 
 
@@ -182,7 +187,7 @@ def test_crowded_sharp_turn_traffic_all_gets_through(incoming, outgoing):
     classes = ["motorcycle", "motorcycle", "tricycle", "car", "motorcycle", "motorcycle", "tricycle", "motorcycle"]
     added, longest_stop = 0, 0.0
     while engine.status == "running" and engine.simulation_time < 400:
-        if added < 32 and engine.simulation_time >= added*1.2 and engine.add_vehicle([incoming, outgoing], vehicle_type=classes[added % len(classes)]):
+        if added < 32 and engine.simulation_time >= added*1.2 and engine.add_vehicle(to_boundary(NETWORK, [incoming, outgoing]), vehicle_type=classes[added % len(classes)]):
             added += 1
         engine.step(1)
         longest_stop = max([longest_stop, *[vehicle.stopped_for for vehicle in engine.vehicles.values() if vehicle.reserved_junction]])
@@ -196,6 +201,9 @@ def test_side_roads_are_straight_past_the_junction():
     """Opposing bodies pivot into each other at any bend in a two-way road, and the imagery shows these roads straight."""
     for lane_id in ("road0f", "road0r", "road1f", "road1r", "road6f", "road6r", "road7f", "road7r"):
         shape = NETWORK.lanes[lane_id].shape
+        if lane_id.startswith("road6"):  # Acacia now turns into the inner link, 163 m on; only its first 30 m by the junction are checked
+            total = NETWORK.lanes[lane_id].length
+            shape = clip(shape, 0, 30) if lane_id == "road6f" else clip(shape, total-30, total)
         headings = [math.atan2(b[1]-a[1], b[0]-a[0]) for a, b in zip(shape, shape[1:])]
         turns = [abs((second-first+math.pi) % (2*math.pi)-math.pi) for first, second in zip(headings, headings[1:])]
         assert math.degrees(max(turns, default=0)) < .01, lane_id
@@ -257,7 +265,7 @@ def test_sweep_caches_stay_bounded_without_changing_results(monkeypatch):
     import simulation.traffic_engine as traffic_engine
     monkeypatch.setattr(traffic_engine, "SWEEP_CACHE_LIMIT", 3)
     engine = build_engine("siteB", "none", {"car": 1}, 30, 101, no_signal=True)
-    first = engine.add_vehicle(["road2f", "road4f"], vehicle_type="car")
+    first = engine.add_vehicle(to_boundary(NETWORK, ["road2f", "road4f"]), vehicle_type="car")
     expected = engine._build_sweep("road2f", "road4f", first.lateral, engine._exit_lateral(first), first.length, first.width)
     for lateral in (-1.0, -.5, 0.0, .5, 1.0):
         sweep = engine._sweep_for(first, lateral, 0.0)
@@ -276,4 +284,20 @@ def test_medium_no_signal_traffic_stays_on_the_road(seed):
         records = engine.vehicle_records()
         assert not overlapping_pairs(records), f"overlap at {engine.simulation_time}s"
         assert not count_island_intrusions(records, engine.network.islands), f"island contact at {engine.simulation_time}s"
+    assert engine._last_metrics["vehicle_conservation_error"] == 0
+
+
+@pytest.mark.parametrize("kind", ["bus", "truck"])
+def test_bonifacio_heavy_vehicle_completes_turn_with_opposing_traffic(kind):
+    engine = build_engine("siteB", "none", {"car": 1}, 300, 101, no_signal=True)  # Bonifacio now runs 446 m on, so the vehicles need time to finish their routes
+    heavy = engine.add_vehicle(to_boundary(NETWORK, ["road9f", "road7f"], kind), vehicle_type=kind, speed=3)
+    heavy.position = engine.network.lanes["road9f"].length-12
+    opposing = engine.add_vehicle(to_boundary(NETWORK, ["road7r", "road8f"]), speed=3)
+    opposing.position = engine.network.lanes["road7r"].length-12
+    while engine.status == "running":
+        engine.step(1)
+        records = engine.vehicle_records()
+        assert not overlapping_pairs(records)
+        assert not count_island_intrusions(records, engine.network.islands)
+    assert engine.completed == 2
     assert engine._last_metrics["vehicle_conservation_error"] == 0

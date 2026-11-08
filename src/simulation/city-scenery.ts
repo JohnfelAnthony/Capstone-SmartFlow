@@ -36,18 +36,49 @@ function dominantAngle(geometry: SceneGeometry) {
   return Math.atan2(y, x) / 4
 }
 
-/** Metres from the nearest engine pavement (negative inside it); a pedestrian walkway counts as sidewalk. */
+function boundedShape(points: readonly VisualPoint[]) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const { x, y } of points) {
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x)
+    maxY = Math.max(maxY, y)
+  }
+  return { points, minX, minY, maxX, maxY }
+}
+
+// A lower bound on the distance to any segment in the shape.
+function boxGap(point: VisualPoint, shape: ReturnType<typeof boundedShape>) {
+  return Math.max(0, shape.minX - point.x, point.x - shape.maxX, shape.minY - point.y, point.y - shape.maxY)
+}
+
+/** Metres from the nearest pavement, optionally capped when the caller only needs a clearance threshold. */
 export function sceneryClearance(geometry: SceneGeometry, walkways: readonly VisualPoint[][]) {
   const roads = geometry.lanes.filter((lane) => lane.kind === "road")
-  const rings = [...geometry.junctions.map((junction) => junction.kerb), ...geometry.siteFeatures.filter((feature) => OCCUPYING_FEATURES.has(feature.kind)).map((feature) => feature.shape)].map((shape) => [...shape, shape[0]])
-  return (point: VisualPoint) => {
-    let clearance = Infinity
-    for (const lane of roads) clearance = Math.min(clearance, distanceToPolyline(point, lane.centerline) - lane.width / 2)
-    for (const ring of rings) {
-      if (pointInPolygon(point, ring)) return -1
-      clearance = Math.min(clearance, distanceToPolyline(point, ring))
+    .map(lane => ({ ...boundedShape(lane.centerline), halfWidth: lane.width / 2 }))
+  const rings = [...geometry.junctions.map(junction => junction.kerb),
+    ...geometry.siteFeatures.filter(feature => OCCUPYING_FEATURES.has(feature.kind)).map(feature => feature.shape)]
+    .map(shape => boundedShape([...shape, shape[0]]))
+  const paths = walkways.map(boundedShape)
+  return (point: VisualPoint, cap = Infinity) => {
+    let clearance = cap
+    for (const road of roads) {
+      if (boxGap(point, road) - road.halfWidth <= clearance) {
+        clearance = Math.min(clearance, distanceToPolyline(point, road.points) - road.halfWidth)
+      }
     }
-    for (const walkway of walkways) clearance = Math.min(clearance, distanceToPolyline(point, walkway) - WALKWAY_HALF_WIDTH + STREET_EDGE.sidewalk + STREET_EDGE.verge)
+    for (const ring of rings) {
+      const gap = boxGap(point, ring)
+      if (gap === 0 && pointInPolygon(point, ring.points)) return Math.min(cap, -1)
+      if (gap <= clearance) clearance = Math.min(clearance, distanceToPolyline(point, ring.points))
+    }
+    for (const path of paths) {
+      const gap = boxGap(point, path) - WALKWAY_HALF_WIDTH + STREET_EDGE.sidewalk + STREET_EDGE.verge
+      if (gap <= clearance) {
+        const distance = distanceToPolyline(point, path.points) - WALKWAY_HALF_WIDTH + STREET_EDGE.sidewalk + STREET_EDGE.verge
+        clearance = Math.min(clearance, distance)
+      }
+    }
     return clearance
   }
 }
@@ -70,7 +101,7 @@ export function cityScenery(geometry: SceneGeometry, walkways: readonly VisualPo
   const toMap = (u: number, v: number) => ({ x: origin.x + along.x * u + across.x * v, y: origin.y + along.y * u + across.y * v })
   const rectangle = (u: number, v: number, width: number, depth: number) => [toMap(u - width / 2, v - depth / 2), toMap(u + width / 2, v - depth / 2), toMap(u + width / 2, v + depth / 2), toMap(u - width / 2, v + depth / 2)]
   const edge = STREET_EDGE.sidewalk + STREET_EDGE.verge + LOT_MARGIN, clearance = sceneryClearance(geometry, walkways)
-  const clear = (u: number, v: number, halfU: number, halfV = halfU) => [[0, 0], [-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].every(([du, dv]) => clearance(toMap(u + du * halfU, v + dv * halfV)) >= edge)
+  const clear = (u: number, v: number, halfU: number, halfV = halfU) => [[0, 0], [-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].every(([du, dv]) => clearance(toMap(u + du * halfU, v + dv * halfV), edge) >= edge)
   const tree = (u: number, v: number, key: string, chance: number) => {
     const hash = stableHash(key)
     if (hash % chance === 0 && clear(u, v, 1.5)) trees.push({ kind: "tree", center: toMap(u + ((hash >>> 3) % 5 - 2) * .4, v + ((hash >>> 6) % 5 - 2) * .4), radius: 1.8 + (hash % 4) * .35, tone: (hash >>> 9) % 3 })
@@ -128,7 +159,7 @@ function islandPalms(geometry: SceneGeometry): SceneryItem[] {
 }
 
 /** A tree row along every verge, kept clear of junction corners and of other streets. */
-function streetTrees(geometry: SceneGeometry, clearance: (point: VisualPoint) => number): SceneryItem[] {
+function streetTrees(geometry: SceneGeometry, clearance: ReturnType<typeof sceneryClearance>): SceneryItem[] {
   const trees: SceneryItem[] = [], vergeMiddle = STREET_EDGE.sidewalk + STREET_EDGE.verge / 2
   for (const [lineIndex, line] of vergeLines(geometry).entries()) {
     for (let index = 1; index < line.length; index++) {
@@ -136,7 +167,7 @@ function streetTrees(geometry: SceneGeometry, clearance: (point: VisualPoint) =>
       for (let distance = 6; distance < length - 6; distance += 12) {
         const center = { x: a.x + (b.x - a.x) * distance / length, y: a.y + (b.y - a.y) * distance / length }, hash = stableHash(`${lineIndex}:${index}:${distance}`)
         const nearJunction = geometry.junctions.some((junction) => Math.hypot(center.x - junction.center.x, center.y - junction.center.y) < 18)
-        if (hash % 4 === 0 || nearJunction || clearance(center) < vergeMiddle - 0.01) continue
+        if (hash % 4 === 0 || nearJunction || clearance(center, vergeMiddle - 0.01) < vergeMiddle - 0.01) continue
         trees.push({ kind: "tree", center, radius: 1.5 + (hash % 3) * .25, tone: hash % 3 })
       }
     }

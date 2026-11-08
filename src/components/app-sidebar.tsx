@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/sidebar"
 import {
   CircleHelpIcon,
-  FlaskConicalIcon,
   ClipboardListIcon,
   DatabaseIcon,
   FileTextIcon,
@@ -62,12 +61,6 @@ const data = {
       url: "#",
       icon: <GraduationCapIcon />,
       page: "rl-training",
-    },
-    {
-      title: "Calibration & Validation",
-      url: "#",
-      icon: <FlaskConicalIcon />,
-      page: "scenarios",
     },
   ],
   navSecondary: [
@@ -138,8 +131,7 @@ export function AppSidebar({
     email: currentUser?.email || currentUser?.role || "smartflow.local",
   }
   const visibleMainItems = data.navMain.filter((item) => canViewPage(currentUser, item.page))
-  const visibleResearchItems = data.navResearch.filter((item) => canViewPage(currentUser, item.page) &&
-    (item.title !== "Calibration & Validation" || canViewPage(currentUser, "runs-reports")))
+  const visibleResearchItems = data.navResearch.filter((item) => canViewPage(currentUser, item.page))
   const visibleSecondaryItems = data.navSecondary.filter((item) => canViewPage(currentUser, item.page))
   const visibleAdminItems = data.admin.filter((item) => canViewPage(currentUser, item.page))
 

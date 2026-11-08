@@ -1,4 +1,6 @@
 import { metricValue, metricLabel, metricDescription, metricDefinition, formatMetric } from "@/lib/metrics"
+import { toast } from "sonner"
+import { ConfirmAction } from "@/components/ui/confirm-action"
 import { MetricDefinitions } from "@/components/metric-definitions"
 import * as React from "react"
 import {
@@ -188,13 +190,14 @@ function MetricTiles({ run, keys }: { run: SimulationRunRecord; keys: string[] }
   </div>
 }
 
-export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare }: {
+export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
   onOpenDashboard?: () => void;
-  onOpenResearch?: () => void; onOpenCompare?: () => void;
+  onOpenCompare?: () => void;
 }) {
   const [runs, setRuns] = React.useState<SimulationRunRecord[]>([])
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [filters, setFilters] = React.useState<FilterState>(defaultFilters)
+  const [pendingDelete, setPendingDelete] = React.useState<number[]>([])
   const [selectedRunIds, setSelectedRunIds] = React.useState<number[]>([])
   const [selectedRunId, setSelectedRunId] = React.useState<number | null>(null)
   const [timelinePreview, setTimelinePreview] = React.useState<RunTimelineResponse | null>(null)
@@ -284,25 +287,32 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
     try {
       const updated = await favoriteRun(run.id, !run.is_favorite)
       setRuns((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(updated.is_favorite ? "Added to favorites" : "Removed from favorites")
       setAlert(`Run #${run.id} ${updated.is_favorite ? "marked as favorite" : "removed from favorites"}.`)
     } catch (error) {
-      setAlert(runsErrorMessage(error, `Unable to update favorite for run #${run.id}.`))
+      const message = runsErrorMessage(error, `Unable to update favorite for run #${run.id}.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
   async function deleteSelectedRuns() {
-    if (!selectedIds.length) {
-      setAlert("Select at least one run first.")
-      return
-    }
-    try {
-      await Promise.all(selectedIds.map((runId) => deleteRun(runId)))
-      setRuns((current) => current.filter((run) => !selectedIds.includes(run.id)))
-      setSelectedRunIds([])
-      setSelectedRunId(null)
-      setAlert(`Deleted ${selectedIds.length} selected run${selectedIds.length === 1 ? "" : "s"}.`)
-    } catch (error) {
-      setAlert(runsErrorMessage(error, "Unable to delete selected runs."))
+    const results = await Promise.allSettled(pendingDelete.map((id) => deleteRun(id)))
+    const deleted = new Set(pendingDelete.filter((_, index) => results[index].status === "fulfilled"))
+    setRuns((current) => current.filter((run) => !deleted.has(run.id)))
+    setSelectedRunIds((current) => current.filter((id) => !deleted.has(id)))
+    setSelectedRunId((current) => current !== null && deleted.has(current) ? null : current)
+
+    const failure = results.find((result) => result.status === "rejected")
+    const summary = `Deleted ${deleted.size} run${deleted.size === 1 ? "" : "s"}.`
+    if (failure) {
+      const detail = runsErrorMessage(failure.reason, "Unable to delete selected runs.")
+      const message = `${summary} ${pendingDelete.length - deleted.size} could not be deleted.`
+      setAlert(`${message} ${detail}`)
+      toast.error(message)
+    } else {
+      setAlert(summary)
+      toast.success(summary)
     }
   }
 
@@ -313,6 +323,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
     }
     try {
       await exportRuns(selectedIds, format)
+      toast.success(`${format.toUpperCase()} export downloaded`)
       setAlert(`Exported ${selectedIds.length} run${selectedIds.length === 1 ? "" : "s"} as ${format.toUpperCase()}.`)
     } catch (error) {
       setAlert(runsErrorMessage(error, "Unable to export selected runs."))
@@ -327,6 +338,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
     try {
       const response = await loadPlayback(selectedRun.id)
       setAlert(response.message)
+      toast.success("Recording loaded for replay")
       onOpenDashboard?.()
     } catch (error) {
       setAlert(runsErrorMessage(error, `Unable to load run #${selectedRun.id} for replay.`))
@@ -479,7 +491,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
                 JSON
               </Button>
             </div>
-            <Button variant="destructive" disabled={!selectedIds.length} onClick={() => void deleteSelectedRuns()}>
+            <Button variant="destructive" disabled={!selectedIds.length} onClick={() => setPendingDelete([...selectedIds])}>
               <Trash2Icon data-icon="inline-start" />
               Delete {selectedIds.length === 1 ? `run #${selectedIds[0]}` : `${selectedIds.length} runs`}
             </Button>
@@ -536,7 +548,6 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
                 <div>
                   <h3 className="runs-group-title">Inputs</h3>
                   <RunSourceSummary run={selectedRun} />
-                  {onOpenResearch ? <Button className="mt-2" variant="outline" size="sm" onClick={onOpenResearch}>Review baseline evidence</Button> : null}
                 </div>
                 <details className="runs-prose"><summary>Saved settings for reproducing this run</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(rawRunMetrics(selectedRun).experiment ?? { note: "This older run kept no saved settings." }, null, 2)}</pre></details>
                 <MetricDefinitions />
@@ -545,6 +556,9 @@ export function RunsReportsPage({ onOpenDashboard, onOpenResearch, onOpenCompare
           </CardContent> : null}
         </Card>
       </section>
+      <ConfirmAction open={pendingDelete.length > 0} title={pendingDelete.length === 1 ? `Delete run #${pendingDelete[0]}?` : `Delete ${pendingDelete.length} runs?`}
+        description="This permanently removes the selected run records and any saved recordings. This action cannot be undone."
+        actionLabel="Delete" onCancel={() => setPendingDelete([])} onConfirm={deleteSelectedRuns} />
     </main>
   )
 }

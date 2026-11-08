@@ -8,8 +8,9 @@ import sys
 import urllib.error
 import urllib.request
 from contextlib import closing
-from datetime import date
 from pathlib import Path
+
+from desktop.paths import network_resource_names
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -20,9 +21,6 @@ from desktop.restore_switch import RestoreSwitch, RestoreSwitchError
 from services.reviewed_revision_store import revision_path
 from tests.test_reviewed_revision_store import archive
 from tests.test_field_observer_import import build, vehicle
-from tests.test_field_observer_import import mapping as synthetic_mapping
-from tests.test_study_gate import CRITERIA, LEDGER
-from services.field_observer_import import site_mapping_template
 from simulation.road_network import RoadNetwork
 
 
@@ -42,7 +40,7 @@ def test_desktop_api_backup_and_staging_keep_networks_and_evidence(tmp_path, mon
         resources = tmp_path / "resources"
         networks = resources / "data" / "networks"
         networks.mkdir(parents=True)
-        for name in ("registry.json", "tagum_network.json", "tagum_site_a.json", "tagum_site_b.json"):
+        for name in network_resource_names(ROOT / "data" / "networks"):
             shutil.copyfile(ROOT / "data" / "networks" / name, networks / name)
         frontend = resources / "dist"
         frontend.mkdir()
@@ -100,32 +98,11 @@ def test_desktop_api_backup_and_staging_keep_networks_and_evidence(tmp_path, mon
         list_request = urllib.request.Request(upload_url, headers={"Cookie": cookie})
         with urllib.request.urlopen(list_request, timeout=10) as response:
             assert json.load(response)["revisions"][0]["id"] == reviewed_id
-        template = site_mapping_template(RoadNetwork(edited_payload))
-        west, east = [item for item in template["boundaries"] if item["road_name"] == "Capitol Circumferential Road"][:2]
-        site_mapping = {**template, "lead_out_s": 120, "initialization": synthetic_mapping()["initialization"],
-                        "locations": {"arrival_west": {"role": "arrival", "boundary": west["boundary"], "approach_id": "west", "distance_from_junction_m": west["length_m"]},
-                                      "exit_east": {"role": "exit", "boundary": east["boundary"], "approach_id": "east", "distance_from_junction_m": east["length_m"]}}}
-        inputs_url = origin + "/api/desktop/study-inputs/tagum_site_a"
-        with urllib.request.urlopen(urllib.request.Request(inputs_url, headers={"Cookie": cookie}), timeout=10) as response:
-            current_inputs = json.load(response)["inputs"]
-        for kind, document in (("mapping", site_mapping), ("criteria", {"sites": {"tagum_site_a": CRITERIA}}), ("ledger", LEDGER)):
-            data = json.dumps({"document": document, "expected_sha256": current_inputs[kind]["sha256"]}).encode()
-            request = urllib.request.Request(inputs_url + "/" + kind, data=data, headers=headers)
-            with urllib.request.urlopen(request, timeout=30) as response:
-                assert json.load(response)["changed"]
-        convert_payload = {"mapping": site_mapping, "origin_s": 0, "start_s": 0, "end_s": 900}
-        preview_request = urllib.request.Request(upload_url + f"/{reviewed_id}/conversion-preview", data=json.dumps(convert_payload).encode(), headers=headers)
-        with urllib.request.urlopen(preview_request, timeout=30) as response:
-            preview = json.load(response)
-        create_payload = {**convert_payload, "name": "Synthetic reviewed backup", "collected_on": date.today().isoformat(), "source_kind": "synthetic",
-                          "expected_network_sha256": preview["network_sha256"], "expected_mapping_sha256": preview["provenance"]["mapping_sha256"],
-                          "expected_manifest_sha256": preview["provenance"]["manifest_sha256"]}
-        create_request = urllib.request.Request(upload_url + f"/{reviewed_id}/create-scenario", data=json.dumps(create_payload).encode(), headers=headers)
-        with urllib.request.urlopen(create_request, timeout=30) as response:
-            scenario_id = json.load(response)["scenario_id"]
         job_id = "a" * 32
         job_file = root / "data" / "validation-jobs" / (job_id + ".json")
-        job_file.write_text(json.dumps({"id": job_id, "status": "running", "site": "tagum_site_a", "purpose": "calibration", "result": None, "error": None}), encoding="utf-8")
+        job_file.parent.mkdir()
+        historical_job = {"id": job_id, "status": "completed", "site": "tagum_site_a", "purpose": "calibration"}
+        job_file.write_text(json.dumps(historical_job), encoding="utf-8")
         request = urllib.request.Request(origin + "/api/admin/backups", data=b"{}", headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
@@ -233,23 +210,10 @@ def test_desktop_api_backup_and_staging_keep_networks_and_evidence(tmp_path, mon
         with closing(sqlite3.connect(requested_candidate / "data" / "smartflow.db")) as connection:
             model_path = Path(connection.execute("SELECT checkpoint_path FROM rl_models WHERE name = 'synthetic'").fetchone()[0])
             assert Path(_windows_long_path(model_path)).is_relative_to(Path(_windows_long_path(requested_candidate))) and model_path.read_bytes() == model.read_bytes()
-            saved = json.loads(connection.execute("SELECT engine_config FROM scenarios WHERE id = ?", (scenario_id,)).fetchone()[0])
-            assert saved["trips"][0]["vehicle_type"] == "car"
-            dataset = saved["demand_source"]["datasets"][0]
-            restored_csv = Path(dataset["source_path"])
-            extended_candidate = Path(_windows_long_path(requested_candidate))
-            assert Path(_windows_long_path(restored_csv)).is_relative_to(extended_candidate) and restored_csv.is_file()
-            assert dataset["provenance"]["manifest_sha256"] == preview["provenance"]["manifest_sha256"]
-        mapping_path = requested_candidate / "data/sites" / f"mapping-{preview['provenance']['mapping_sha256']}.json"
-        assert json.loads(Path(_windows_long_path(mapping_path)).read_text(encoding="utf-8")) == site_mapping
-        assert (requested_candidate / "data/sites/tagum_site_a_mapping.json").read_text(encoding="utf-8") == evidence.read_text(encoding="utf-8")
-        history = list((requested_candidate / "data" / "sites").glob("history-mapping-a-*.json"))
-        assert len(history) == 1 and Path(_windows_long_path(history[0])).read_text(encoding="utf-8") == '{"note":"synthetic evidence"}'
-        assert json.loads((requested_candidate / "data/sites/validation_criteria.json").read_text(encoding="utf-8"))["sites"]["tagum_site_a"] == CRITERIA
-        assert json.loads((requested_candidate / "data/sites/tagum_site_a_ledger.json").read_text(encoding="utf-8")) == LEDGER
+        assert (requested_candidate / "data/sites/tagum_site_a_mapping.json").read_bytes() == evidence.read_bytes()
         assert (revision_path(requested_candidate, reviewed_id) / "events.csv").read_bytes() == (source_revision / "events.csv").read_bytes()
         restored_job = requested_candidate / "data" / "validation-jobs" / (job_id + ".json")
-        assert json.loads(Path(_windows_long_path(restored_job)).read_text(encoding="utf-8"))["status"] == "interrupted"
+        assert json.loads(Path(_windows_long_path(restored_job)).read_text(encoding="utf-8")) == historical_job
         new_backup = urllib.request.Request(restored_origin + "/api/admin/backups", data=b"{}", headers={"Content-Type": "application/json", "Origin": restored_origin, "Cookie": restored_cookie})
         try:
             with urllib.request.urlopen(new_backup, timeout=30) as response:

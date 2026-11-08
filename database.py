@@ -843,7 +843,7 @@ def validated_native_scenario(network_id=None, engine_config=None):
     engine.configure_from_scenario({'network_id': requested, 'engine_config': settings})
     serialized = json.dumps(engine.config)
     _validate_json_object('engine_config', serialized)
-    return {'network_id': requested, 'network_sha256': engine.network.fingerprint, 'engine_config': serialized}
+    return {'network_id': requested, 'network_sha256': engine.base_network.fingerprint, 'engine_config': serialized}
 
 
 def create_scenario(name, network_id=None, description='', engine_config=None,
@@ -1673,20 +1673,8 @@ def delete_backup_from_db(backup_id):
 
 # ─── Login Attempt Tracking ──────────────────────────────────────
 
-MAX_LOGIN_ATTEMPTS = 5
-LOGIN_LOCKOUT_BASE_SECONDS = 300
-LOGIN_LOCKOUT_MAX_SECONDS = 3600
-
-
 def _utc_sqlite_timestamp(offset_seconds: int = 0) -> str:
     return (datetime.now(UTC) + timedelta(seconds=offset_seconds)).strftime('%Y-%m-%d %H:%M:%S')
-
-
-def _lockout_window_seconds(failure_count: int) -> int:
-    if failure_count < MAX_LOGIN_ATTEMPTS:
-        return 0
-    escalation_steps = failure_count - MAX_LOGIN_ATTEMPTS
-    return min(LOGIN_LOCKOUT_MAX_SECONDS, LOGIN_LOCKOUT_BASE_SECONDS * (2 ** escalation_steps))
 
 
 def prune_login_attempts(retention_days: int | None = None):
@@ -1718,27 +1706,3 @@ def record_login_attempt(username: str, success: bool, ip_address: str | None = 
         )
 
 
-def is_login_blocked(username: str, ip_address: str | None = None) -> bool:
-    normalized_ip = (ip_address or '').strip()
-    with get_db() as conn:
-        cursor = conn.execute(
-            """SELECT COUNT(*) AS failure_count, MAX(timestamp) AS last_failure
-               FROM login_attempts
-               WHERE username = ?
-                 AND COALESCE(ip_address, '') = ?
-                 AND success = 0
-                 AND datetime(timestamp) >= datetime(?)""",
-            (username, normalized_ip, _utc_sqlite_timestamp(-LOGIN_LOCKOUT_MAX_SECONDS)),
-        )
-        row = cursor.fetchone()
-        failures = int(row['failure_count'] or 0) if row else 0
-        if failures < MAX_LOGIN_ATTEMPTS:
-            return False
-
-        last_failure = row['last_failure'] if row else None
-        if not last_failure:
-            return False
-
-        lockout_window = _lockout_window_seconds(failures)
-        cutoff = _utc_sqlite_timestamp(-lockout_window)
-        return last_failure >= cutoff

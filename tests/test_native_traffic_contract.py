@@ -169,7 +169,8 @@ class NativeTrafficContractTests(unittest.TestCase):
         self.hold_phase(engine, "west")
         vehicle = engine.add_vehicle(["wf", "er"])
         vehicle.position = engine.network.lanes["wf"].length-vehicle.length/2
-        engine.close_lane("er")
+        for exit_lane in ("er", "nr", "sr"):  # with an open exit left the vehicle would divert (native-9); closing all leaves it waiting
+            engine.close_lane(exit_lane)
         engine.step(100)
         self.assertEqual(vehicle.route, ["wf", "er"])
         self.assertIsNone(vehicle.reserved_junction)

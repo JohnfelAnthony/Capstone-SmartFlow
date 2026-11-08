@@ -26,7 +26,7 @@ describe("Python / HTTP presentation parity", () => {
       // Production HTTP supplies the authoritative Python allocation. A raw
       // historical fallback uses its own actual JavaScript JSON byte encoding.
       const source = fixture.name === "byte-budget" ? { ...simulation, render_frame: fixture.expected } : simulation
-      expect(renderFrameFromSimulation(source, 0)).toEqual(fixture.expected)
+      expect(renderFrameFromSimulation(source, 0)).toEqual({ ...fixture.expected, speed_multiplier: 1 })
     })
   }
 

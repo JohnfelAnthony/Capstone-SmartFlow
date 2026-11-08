@@ -17,7 +17,8 @@ from simulation.model_contract import native_contract, phase_plan
 from simulation.network_registry import engine_for_scenario, load_registered_network
 from simulation.traffic_engine import TrafficEngine
 from tools import evaluate_controllers
-from tools.evaluate_controllers import DEFAULT_SEEDS, FINAL_EVALUATION_SEEDS, _build_summary, _run_controller_once
+from simulation.study_seeds import FINAL_EVALUATION_SEEDS
+from tools.evaluate_controllers import DEFAULT_SEEDS, _build_summary, _run_controller_once
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = "tagum_site_a"
@@ -54,7 +55,7 @@ class EvaluationReferenceTests(unittest.TestCase):
 
     def test_evaluation_defaults_to_the_development_seeds(self):
         self.assertEqual(DEFAULT_SEEDS, (101, 102, 103, 104, 105))
-        self.assertEqual(FINAL_EVALUATION_SEEDS, tuple(range(201, 221)))
+        self.assertEqual(tuple(FINAL_EVALUATION_SEEDS), tuple(range(201, 221)))
 
     def test_final_seeds_need_the_final_flag(self):
         environment = {**os.environ, "SMARTFLOW_DB_PATH": self.db_path}
@@ -82,7 +83,7 @@ class EvaluationReferenceTests(unittest.TestCase):
 
         def recording_step(engine, num_ticks=1):
             if engine.simulation_time < 3:
-                modes.append({signal.mode for signal in engine.signals.values()})
+                modes.append({engine.signals[engine.controlled_junction].mode})  # the loop junctions are always first-come
             return original_step(engine, num_ticks)
 
         with patch.object(TrafficEngine, "step", recording_step):

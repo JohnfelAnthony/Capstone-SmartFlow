@@ -4,6 +4,8 @@ Source: package metadata from `.venv-desktop` (exact versions in `desktop/requir
 
 ## Python runtime packages
 
+The comparison PDF also uses ReportLab 4.4.9 (BSD) and charset-normalizer 3.5.2 (MIT).
+
 | Licence | Packages |
 | --- | --- |
 | MIT / MIT-0 / MIT-CMU | altgraph, annotated-types, anyio, bottle, cffi, fastapi, filelock, fonttools, gymnasium, h11, pefile, pillow, proxy_tools, pydantic, pydantic_core, pyparsing, pythonnet, stable_baselines3, typing-inspection, Farama-Notifications |

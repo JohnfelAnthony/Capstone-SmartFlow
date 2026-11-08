@@ -18,7 +18,7 @@ def apply_controller(engine, control_mode: str | None):
     if not record or str(record["algorithm"]).lower() != algorithm or not record.get("checkpoint_path"):
         raise ValueError("Registered model not found or algorithm mismatch")
     from simulation.rl_policy_runtime import load_runtime_policy
-    policy = load_runtime_policy(algorithm, record["checkpoint_path"], network=engine.network)
+    policy = load_runtime_policy(algorithm, record["checkpoint_path"], network=engine.base_network)
     policy.artifact_metadata["model_id"] = int(model_id)
     engine.disable_no_signal_control()
     engine.set_runtime_policy(policy,

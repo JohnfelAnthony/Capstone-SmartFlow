@@ -38,7 +38,7 @@ def _parse_timestamp(value: str | None) -> datetime | None:
 
 def request_ip_address(request: Request) -> str:
     # The client controls X-Forwarded-For unless a trusted proxy has already
-    # resolved it into request.client. Never use that header for lockout keys.
+    # resolved it into request.client. Never use that header for login attempt records.
     return (request.client.host if request.client else "").strip()
 
 
@@ -60,6 +60,7 @@ def user_model(user: dict) -> CurrentUser:
         status=str(user["status"]),
         must_change_password=bool(user["must_change_password"]),
         permissions=_permission_models(int(user["role_id"])),
+        created_at=user.get("created_at"),
     )
 
 
@@ -73,6 +74,12 @@ def create_api_session(response: Response, user: dict) -> str:
         target="auth",
         details=f"User '{user['username']}' logged in through the FastAPI bridge.",
     )
+    renew_api_cookie(response, token)
+    return token
+
+
+def renew_api_cookie(response: Response, token: str) -> None:
+    """Match the browser lifetime to the database's existing sliding timeout."""
     response.set_cookie(
         API_SESSION_COOKIE,
         token,
@@ -82,7 +89,6 @@ def create_api_session(response: Response, user: dict) -> str:
         samesite=config.SESSION_COOKIE_SAMESITE.lower(),
         path="/",
     )
-    return token
 
 
 def clear_api_session(response: Response, token: str | None, user: dict | None = None) -> None:
@@ -118,18 +124,24 @@ def _user_from_token(token: str | None, *, refresh_session: bool = True) -> dict
 
 
 def require_current_user(
+    response: Response,
     smartflow_api_session: str | None = Cookie(default=None, alias=API_SESSION_COOKIE),
 ) -> dict:
     user = _user_from_token(smartflow_api_session)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    renew_api_cookie(response, smartflow_api_session)
     return user
 
 
 def optional_current_user(
+    response: Response,
     smartflow_api_session: str | None = Cookie(default=None, alias=API_SESSION_COOKIE),
 ) -> dict | None:
-    return _user_from_token(smartflow_api_session)
+    user = _user_from_token(smartflow_api_session)
+    if user:
+        renew_api_cookie(response, smartflow_api_session)
+    return user
 
 
 def api_user_from_session_token(token: str | None, *, refresh_session: bool = False) -> dict | None:
@@ -148,9 +160,6 @@ def require_permission(user: dict, page: str, action: str = "view") -> None:
 def authenticate_for_api(username: str, password: str, request: Request) -> tuple[dict | None, str | None]:
     normalized_username = username.strip()
     ip_address = request_ip_address(request)
-    if database.is_login_blocked(normalized_username, ip_address):
-        return None, "locked"
-
     user = database.get_user_by_username(normalized_username)
     if not user or not auth.verify_password(password, user["password_hash"]):
         database.record_login_attempt(normalized_username, False, ip_address)

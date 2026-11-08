@@ -3,7 +3,7 @@ import json
 
 from tools.mixed_traffic_report import QUICK_CASES, main
 
-CASE_FIELDS = {"runtime_s", "max_overlapping_pairs", "max_stuck_junction_vehicles", "max_gridlock_seconds",
+CASE_FIELDS = {"runtime_s", "max_overlapping_pairs", "max_stuck_junction_vehicles", "max_stalled_vehicles", "max_gridlock_seconds",
                "final_vehicle_conservation_error", "completed", "queue_count_p95", "active_count_p95",
                "front_row_motorcycle_share", "queue_motorcycle_share", "mean_discharge_first_10s",
                "network_id", "network_fingerprint", "island_count", "max_island_intrusions", "requested_vehicles",
@@ -108,3 +108,24 @@ def test_a_case_reports_the_queue_distribution_the_ql_bin_rule_needs():
     assert result["queue_count_p50"] == 0 and result["queue_count_p75"] == 9 and result["queue_count_p90"] == 20
     assert result["nonzero_samples"] == 8 and result["nonzero_share_above_8"] == 5 / 8
     assert queue_distribution([0, 0])["nonzero_share_above_8"] is None
+
+
+def test_site_a_closure_cases_close_the_west_inbound_piece_under_static_routing():
+    from tools.mixed_traffic_report import CASES, case_options
+    for density in ("medium", "high"):
+        for control in ("nosignal", "fixed"):
+            plain, closed = f"siteA-static-{density}-{control}", f"siteA-static-{density}-{control}-closure"
+            assert CASES[plain][0] == CASES[closed][0] == "siteA"
+            assert case_options(plain)[3]["routing_mode"] == case_options(closed)[3]["routing_mode"] == "static"
+            assert "events" not in case_options(plain)[3]
+            assert case_options(closed)[3]["events"] == [{"time": 300.0, "lane_id": "road2r", "closed": True}, {"time": 1200.0, "lane_id": "road2r", "closed": False}]
+
+
+def test_a_closure_case_reports_what_the_closure_did():
+    from tools.mixed_traffic_report import run_case
+    from simulation.scenario_config import TAGUM_PROVISIONAL_MIX
+    report = run_case("siteA", "medium", TAGUM_PROVISIONAL_MIX, 60, 101, routing_mode="static",
+                      events=[{"time": 5.0, "lane_id": "road2r", "closed": True}])
+    for key in ("reroutes", "diverted_vehicles", "closure_blocked_vehicles", "max_closure_held_vehicles", "loop_exits"):
+        assert key in report
+    assert report["loop_exits"].keys() == {"road6f", "road6r"}

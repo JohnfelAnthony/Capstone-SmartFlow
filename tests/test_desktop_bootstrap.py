@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from desktop.paths import network_resource_names
+
 from werkzeug.security import check_password_hash
 
 
@@ -17,7 +19,7 @@ def setup(root, password):
     resources = root.parent / "packaged resources"
     target = resources / "data" / "networks"
     target.mkdir(parents=True, exist_ok=True)
-    for name in ("registry.json", "tagum_network.json", "tagum_site_a.json", "tagum_site_b.json"):
+    for name in network_resource_names(ROOT / "data" / "networks"):
         shutil.copyfile(ROOT / "data" / "networks" / name, target / name)
     environment = {key: value for key, value in os.environ.items() if not key.startswith("SMARTFLOW_")}
     return subprocess.run([sys.executable, "-m", "desktop.bootstrap"], cwd=ROOT, env=environment,

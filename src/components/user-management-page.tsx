@@ -1,4 +1,7 @@
 import * as React from "react"
+import { toast } from "sonner"
+import { ConfirmAction } from "@/components/ui/confirm-action"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   ArrowUpCircleIcon,
   BadgeCheckIcon,
@@ -256,6 +259,10 @@ export function UserManagementPage() {
   const [selectedUserId, setSelectedUserId] = React.useState<number | null>(null)
   const [sheetMode, setSheetMode] = React.useState<SheetMode>("view")
   const [isSheetOpen, setIsSheetOpen] = React.useState(false)
+  const [sheetBusy, setSheetBusy] = React.useState(false)
+  const [sheetError, setSheetError] = React.useState("")
+  const [temporaryPassword, setTemporaryPassword] = React.useState("")
+  const [pendingDelete, setPendingDelete] = React.useState<{ user: UserAccount; reject: boolean } | null>(null)
   const [draft, setDraft] = React.useState<UserDraft>(emptyDraft)
   const [alert, setAlert] = React.useState("Loading user directory from SQLite.")
   const [isLoading, setIsLoading] = React.useState(false)
@@ -346,6 +353,8 @@ export function UserManagementPage() {
   ]
 
   function openView(user: UserAccount) {
+    setSheetError("")
+    setTemporaryPassword("")
     setSelectedUserId(user.id)
     setDraft(draftFromUser(user))
     setSheetMode("view")
@@ -353,6 +362,8 @@ export function UserManagementPage() {
   }
 
   function openEdit(user: UserAccount) {
+    setSheetError("")
+    setTemporaryPassword("")
     setSelectedUserId(user.id)
     setDraft(draftFromUser(user))
     setSheetMode("edit")
@@ -360,6 +371,8 @@ export function UserManagementPage() {
   }
 
   function openCreate() {
+    setSheetError("")
+    setTemporaryPassword("")
     setSelectedUserId(null)
     setDraft(emptyDraft)
     setSheetMode("create")
@@ -378,6 +391,7 @@ export function UserManagementPage() {
     const account = apiUserToAccount(user)
     setUsers((current) => current.map((item) => (item.id === account.id ? account : item)))
     setAlert(message)
+    toast.success(message)
   }
 
   async function approveUser(user: UserAccount) {
@@ -385,7 +399,9 @@ export function UserManagementPage() {
       const updated = await updateAdminUser(user.id, { role_id: roleIdForRole("user"), status: "active", must_change_password: true })
       mergeUser(updated, `User '${user.username}' approved successfully.`)
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to approve '${user.username}'.`))
+      const message = adminErrorMessage(error, `Unable to approve '${user.username}'.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
@@ -394,8 +410,11 @@ export function UserManagementPage() {
       await deleteAdminUser(user.id)
       setUsers((current) => current.filter((target) => target.id !== user.id))
       setAlert(`Inactive user '${user.username}' was rejected.`)
+      toast.success("Registration rejected")
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to reject '${user.username}'.`))
+      const message = adminErrorMessage(error, `Unable to reject '${user.username}'.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
@@ -404,7 +423,9 @@ export function UserManagementPage() {
       const updated = await updateAdminUser(user.id, { status: "active" })
       mergeUser(updated, `User '${user.username}' activated successfully.`)
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to activate '${user.username}'.`))
+      const message = adminErrorMessage(error, `Unable to activate '${user.username}'.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
@@ -418,7 +439,9 @@ export function UserManagementPage() {
       const updated = await updateAdminUser(user.id, { status: "inactive" })
       mergeUser(updated, `User '${user.username}' deactivated successfully.`)
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to deactivate '${user.username}'.`))
+      const message = adminErrorMessage(error, `Unable to deactivate '${user.username}'.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
@@ -427,7 +450,9 @@ export function UserManagementPage() {
       const updated = await updateAdminUser(user.id, { role_id: roleIdForRole("admin") })
       mergeUser(updated, `User '${user.username}' promoted to Admin.`)
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to promote '${user.username}'.`))
+      const message = adminErrorMessage(error, `Unable to promote '${user.username}'.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
@@ -437,14 +462,16 @@ export function UserManagementPage() {
       return
     }
 
+    openView(user)
+    setSheetBusy(true)
     try {
       const response = await resetAdminPassword(user.id)
-      mergeUser(
-        response.user,
-        `Temporary password for '${user.username}': ${response.temporary_password}. Copy it now; it is shown once.`
-      )
+      mergeUser(response.user, `Password reset for '${user.username}'.`)
+      setTemporaryPassword(response.temporary_password)
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to reset password for '${user.username}'.`))
+      setSheetError(adminErrorMessage(error, `Unable to reset password for '${user.username}'.`))
+    } finally {
+      setSheetBusy(false)
     }
   }
 
@@ -463,24 +490,30 @@ export function UserManagementPage() {
       await deleteAdminUser(user.id)
       setUsers((current) => current.filter((target) => target.id !== user.id))
       setAlert(`User '${user.username}' permanently deleted.`)
+      toast.success("User deleted")
       if (selectedUserId === user.id) {
         setIsSheetOpen(false)
         setSelectedUserId(null)
       }
     } catch (error) {
-      setAlert(adminErrorMessage(error, `Unable to delete '${user.username}'.`))
+      const message = adminErrorMessage(error, `Unable to delete '${user.username}'.`)
+      setAlert(message)
+      toast.error(message)
     }
   }
 
   async function saveDraft() {
+    setSheetError("")
     const fullName = draft.fullName.trim()
     const username = draft.username.trim()
     const email = draft.email.trim() || null
     if (!fullName || !username) {
-      setAlert("Full name and username are required.")
+      setSheetError("Full name and username are required.")
       return
     }
 
+    if (sheetBusy) return
+    setSheetBusy(true)
     if (sheetMode === "create") {
       try {
         const response = await createAdminUser({
@@ -495,9 +528,13 @@ export function UserManagementPage() {
         setUsers((current) => [createdUser, ...current])
         setSelectedUserId(createdUser.id)
         setSheetMode("view")
-        setAlert(`User '${createdUser.username}' created. Temporary password: ${response.temporary_password}. Copy it now; it is shown once.`)
+        setTemporaryPassword(response.temporary_password)
+        setAlert(`User '${createdUser.username}' created.`)
+        toast.success("User created")
       } catch (error) {
-        setAlert(adminErrorMessage(error, "Unable to create user."))
+        setSheetError(adminErrorMessage(error, "Unable to create user."))
+      } finally {
+        setSheetBusy(false)
       }
       return
     }
@@ -515,9 +552,10 @@ export function UserManagementPage() {
         mergeUser(updated, `User '${username}' updated successfully.`)
         setSheetMode("view")
       } catch (error) {
-        setAlert(adminErrorMessage(error, `Unable to update '${selectedUser.username}'.`))
+        setSheetError(adminErrorMessage(error, `Unable to update '${selectedUser.username}'.`))
       }
     }
+    setSheetBusy(false)
   }
 
   return (
@@ -611,7 +649,7 @@ export function UserManagementPage() {
                         <CheckCircle2Icon data-icon="inline-start" />
                         Approve
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={() => rejectUser(user)}>
+                      <Button variant="destructive" size="sm" onClick={() => setPendingDelete({ user, reject: true })}>
                         <XCircleIcon data-icon="inline-start" />
                         Reject
                       </Button>
@@ -739,7 +777,7 @@ export function UserManagementPage() {
                               </Button>
                             ) : null}
                             {!user.isSelf ? (
-                              <Button variant="destructive" size="icon-sm" title="Delete User" onClick={() => deleteUser(user)}>
+                              <Button variant="destructive" size="icon-sm" title="Delete User" onClick={() => setPendingDelete({ user, reject: false })}>
                                 <Trash2Icon />
                               </Button>
                             ) : null}
@@ -761,7 +799,11 @@ export function UserManagementPage() {
         </div>
       </section>
 
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+      <Sheet open={isSheetOpen} onOpenChange={(open, details) => {
+        if (!open && sheetBusy) { details.cancel(); return }
+        setIsSheetOpen(open)
+        if (!open) setTemporaryPassword("")
+      }}>
         <SheetContent className="user-management-sheet" side="right">
           <SheetHeader>
             <SheetTitle>
@@ -775,6 +817,12 @@ export function UserManagementPage() {
           </SheetHeader>
 
           <div className="user-sheet-body">
+            {sheetError && <Alert variant="destructive"><AlertDescription>{sheetError}</AlertDescription></Alert>}
+            {temporaryPassword && <Alert><AlertDescription>
+              Copy the temporary password now. It is shown once.
+              <code className="block break-all font-semibold">{temporaryPassword}</code>
+              <Button type="button" size="sm" variant="outline" onClick={() => setTemporaryPassword("")}>Dismiss</Button>
+            </AlertDescription></Alert>}
             {sheetMode === "view" && selectedUser ? (
               <>
                 <div className="user-sheet-profile">
@@ -857,13 +905,13 @@ export function UserManagementPage() {
                       </Button>
                     ) : null}
                     {!selectedUser.isSelf ? (
-                      <Button variant="outline" onClick={() => resetPassword(selectedUser)}>
+                      <Button variant="outline" disabled={sheetBusy} onClick={() => resetPassword(selectedUser)}>
                         <KeyRoundIcon data-icon="inline-start" />
                         Reset Password
                       </Button>
                     ) : null}
                     {!selectedUser.isSelf ? (
-                      <Button variant="destructive" onClick={() => deleteUser(selectedUser)}>
+                      <Button variant="destructive" disabled={sheetBusy} onClick={() => setPendingDelete({ user: selectedUser, reject: false })}>
                         <Trash2Icon data-icon="inline-start" />
                         Delete
                       </Button>
@@ -943,11 +991,11 @@ export function UserManagementPage() {
 
           {sheetMode !== "view" ? (
             <SheetFooter className="user-sheet-footer">
-              <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
+              <Button variant="outline" disabled={sheetBusy} onClick={() => setIsSheetOpen(false)}>
                 <XCircleIcon data-icon="inline-start" />
                 Cancel
               </Button>
-              <Button onClick={saveDraft}>
+              <Button onClick={saveDraft} disabled={sheetBusy}>
                 <SaveIcon data-icon="inline-start" />
                 Save User
               </Button>
@@ -955,6 +1003,14 @@ export function UserManagementPage() {
           ) : null}
         </SheetContent>
       </Sheet>
+      <ConfirmAction open={pendingDelete !== null} title={pendingDelete?.reject ? "Reject registration?" : "Delete user?"}
+        description={`This permanently removes the account '${pendingDelete?.user.username ?? ""}'. This action cannot be undone.`}
+        actionLabel={pendingDelete?.reject ? "Reject registration" : "Delete user"}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (!pendingDelete) return
+          await (pendingDelete.reject ? rejectUser(pendingDelete.user) : deleteUser(pendingDelete.user))
+        }} />
     </main>
   )
 }

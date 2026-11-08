@@ -1,6 +1,32 @@
 {
   "networks": [
-    {"id": "tagum_site_a", "file": "tagum_site_a.json"},
-    {"id": "tagum_site_b", "file": "tagum_site_b.json"}
+    {
+      "id": "tagum_site_a",
+      "file": "tagum_site_a.json",
+      "revision_history": [
+        {
+          "file": "tagum_site_a_loop.json",
+          "sha256": "91cf11fe3045f61b1d97bb9602a95610479b9b744269f5c00aad5bf1cc31f422"
+        }
+      ]
+    },
+    {
+      "id": "tagum_site_b",
+      "file": "tagum_site_b.json",
+      "revision_history": [
+        {
+          "file": "tagum_site_b_pre_sobrecarey_access.json",
+          "sha256": "b2a951536ed1cac8dd575dfc8977d23e7ab422b1060b66942dbe7c04832c2f2e"
+        },
+        {
+          "file": "tagum_site_b_pre_bonifacio_kerb.json",
+          "sha256": "404b45fab29f8f6e5caaf2dd15c51f8b5d9163b2d454fadca76a100a3c9e7227"
+        },
+        {
+          "file": "tagum_site_b_pre_street_grid.json",
+          "sha256": "16de74e904023311d6fc36b07a2f96efedccd3bc3fc35b4c807fa5b71298296b"
+        }
+      ]
+    }
   ]
 }

@@ -1,42 +1,42 @@
 {
   "network_id": "tagum_site_b",
-  "network_sha256": "5bcd30ae38510dcc2f44d5712e927f76f59ec9cd16995ba9cb27fdc168bf9b79",
+  "network_sha256": "00abb0c0cc5a635be01f5abe06a709b5eb37c6d01d5bbae6ac933d2ee415c211",
   "boundaries": [
     {
       "boundary": "boundary_0",
       "road_name": "Dao Street",
-      "road_id": "road0",
-      "length_m": 248.68
+      "road_id": "road18",
+      "length_m": 60.0
     },
     {
       "boundary": "boundary_1",
-      "road_name": "Davao-Agusan National Highway",
-      "road_id": "road1",
-      "length_m": 176.32
-    },
-    {
-      "boundary": "boundary_2",
-      "road_name": "Davao-Agusan National Highway",
-      "road_id": "road2",
-      "length_m": 249.28
-    },
-    {
-      "boundary": "boundary_3",
       "road_name": "Sobrecarey Street",
-      "road_id": "road3",
-      "length_m": 249.89
+      "road_id": "road22",
+      "length_m": 60.0
     },
     {
       "boundary": "boundary_4",
       "road_name": "Davao-Agusan National Highway",
-      "road_id": "road4",
-      "length_m": 176.29
+      "road_id": "road15",
+      "length_m": 56.67
     },
     {
       "boundary": "boundary_5",
       "road_name": "Davao-Agusan National Highway",
-      "road_id": "road5",
-      "length_m": 249.51
+      "road_id": "road14",
+      "length_m": 56.67
+    },
+    {
+      "boundary": "boundary_8",
+      "road_name": "Davao-Agusan National Highway",
+      "road_id": "road20",
+      "length_m": 81.06
+    },
+    {
+      "boundary": "boundary_9",
+      "road_name": "Davao-Agusan National Highway",
+      "road_id": "road19",
+      "length_m": 81.06
     }
   ],
   "locations": {},

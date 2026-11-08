@@ -233,11 +233,12 @@ def test_disconnected_components_and_missing_study_junction_are_actionable():
 
 def test_study_reachability_is_checked_even_when_a_boundary_has_other_exits():
     payload = json.loads(json.dumps(load_registered_network("tagum_site_b").payload))
-    payload["prohibited_turns"] = [["road6r", "road2f"], ["road3f", "road6f"]]
+    # The Sobrecarey end (boundary_1) joins the grid at one junction: no turn in from it or out to it leaves it cut off, though other streets meet there.
+    payload["prohibited_turns"] = [*payload["prohibited_turns"], ["road22r", "road17r"], ["road22r", "road23f"], ["road17f", "road22f"], ["road23r", "road22f"]]
     result = validate(payload)
     assert not result["structurally_valid"]
-    assert any(issue["code"] == "study_unreachable_from_boundary" and issue["node_id"] == "boundary_6" for issue in result["issues"])
-    assert any(issue["code"] == "boundary_unreachable_from_study" and issue["node_id"] == "boundary_6" for issue in result["issues"])
+    assert any(issue["code"] == "study_unreachable_from_boundary" and issue["node_id"] == "boundary_1" for issue in result["issues"])
+    assert any(issue["code"] == "boundary_unreachable_from_study" and issue["node_id"] == "boundary_1" for issue in result["issues"])
     assert not any(issue["code"] == "boundary_no_exit" and issue["node_id"] == "boundary_6" for issue in result["issues"])
 
 

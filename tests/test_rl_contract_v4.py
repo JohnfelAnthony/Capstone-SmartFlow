@@ -42,9 +42,9 @@ class StubPolicy:
 
 
 def test_contract_names_and_engine_version():
-    assert ENGINE_VERSION == "native-8"
+    assert ENGINE_VERSION == "native-14"
     assert {key: value for key, value in native_contract(NETWORK).items() if key != "network_sha256"} == {
-        "engine": "native-8", "observation": "native-local-20-v4", "actions": "phase-service-5-v2"}
+        "engine": "native-14", "observation": "native-local-20-v4", "actions": "phase-service-5-v2"}
     assert RL_SERVICE_ACTIONS == ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
 
 
@@ -121,6 +121,31 @@ def test_the_phase_plan_names_the_junction_and_the_keys():
     assert trained(None) == {"junction": JUNCTION, "phase_keys": ["north", "east", "south", "west", "pedestrian"]}
 
 
+def test_registered_model_loads_before_during_and_after_sharing(tmp_path, monkeypatch):
+    from services import native_controller
+    from simulation.ql_agent import TabularQLearningAgent
+
+    path = tmp_path / "model.json"
+    scenario = {"network_id": SITE, "engine_config": {"traffic_density": "none", "pedestrian_density": "none"}}
+    TabularQLearningAgent(action_count=5).save(path, metadata={
+        "scenario": scenario, "decision_interval_seconds": 5, "minimum_green_hold_seconds": 10,
+    })
+    monkeypatch.setattr(native_controller.database, "get_rl_model_by_id", lambda _: {
+        "id": 1, "algorithm": "ql", "checkpoint_path": str(path),
+    })
+    for lane_config in ({}, {"closed_lanes": ["road2r"], "closure_responses": {"road2r": "share"}}):
+        engine = engine_for_scenario({**scenario, "engine_config": {**scenario["engine_config"], **lane_config}})
+        assert (engine.network.fingerprint != engine.base_network.fingerprint) == bool(lane_config)
+        native_controller.apply_controller(engine, "ql:1")
+        engine.start(1)
+        engine.step(10)
+        assert engine.runtime_policy is not None
+        if lane_config:
+            engine.configure(closed_lanes=[], closure_responses={})
+            assert engine.network.fingerprint == NETWORK.fingerprint
+            native_controller.apply_controller(engine, "ql:1")
+
+
 def test_training_metadata_records_the_phase_plan(tmp_path):
     scenario = tmp_path / "scenario.json"
     scenario.write_text(json.dumps({"network_id": SITE, "network_sha256": NETWORK.fingerprint, "name": "Synthetic",
@@ -132,4 +157,4 @@ def test_training_metadata_records_the_phase_plan(tmp_path):
     assert result.returncode == 0, result.stderr + result.stdout
     metadata = json.loads(output.read_text(encoding="utf-8"))["metadata"]
     assert metadata["phase_plan"] == {"junction": JUNCTION, "phase_keys": ["north+south", "east+west", "pedestrian"]}
-    assert metadata["native_contract"]["engine"] == "native-8"
+    assert metadata["native_contract"]["engine"] == "native-14"

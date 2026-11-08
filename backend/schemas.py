@@ -264,6 +264,7 @@ class CurrentUser(BaseModel):
     status: str
     must_change_password: bool
     permissions: list[Permission] = Field(default_factory=list)
+    created_at: str | None = None
 
 
 class LoginResponse(BaseModel):
@@ -309,10 +310,21 @@ class ObservationImportRequest(BaseModel):
     network_id: str | None = None
 
 
+class ClosureCheckRequest(BaseModel):
+    closed_lanes: list[str] = Field(default_factory=list)
+    events: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class MovementCountsRequest(BaseModel):
     csv_text: str
     network_id: str
     engine_config: dict[str, Any] = Field(default_factory=dict)
+
+
+class FieldObserverCountsRequest(BaseModel):
+    network_id: str
+    engine_config: dict[str, Any] = Field(default_factory=dict)
+    files: dict[str, str]
 
 
 class ObservationImportResponse(BaseModel):
@@ -434,12 +446,27 @@ class CompareRunBundle(BaseModel):
     metrics: dict[str, Any] = Field(default_factory=dict)
 
 
+class ComparePairFramesResponse(BaseModel):
+    times: list[float]
+    left: list[dict[str, Any]]
+    right: list[dict[str, Any]]
+    duration: float
+
+
 class ComparePairResponse(BaseModel):
     left: CompareRunBundle
     right: CompareRunBundle
     frame_count: int
     comparison_type: str
+    playback_times: list[float]
+    geometry: dict[str, Any] | None = None
+    opening_frames: ComparePairFramesResponse | None = None
     warnings: list[str] = Field(default_factory=list)
+
+
+class ComparePairHistoryResponse(BaseModel):
+    left: list[CompareTimelineFrame]
+    right: list[CompareTimelineFrame]
 
 
 class RunTimelineResponse(BaseModel):

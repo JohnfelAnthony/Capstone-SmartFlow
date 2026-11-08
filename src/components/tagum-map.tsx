@@ -3,14 +3,13 @@ import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 
 import { Button } from "@/components/ui/button"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { STUDY_SITES } from "@/lib/study-sites"
 
 const TAGUM_VIEW = { center: [7.45, 125.803] as L.LatLngTuple, zoom: 14 }
 const SITE_ZOOM = 18
 const BASEMAPS = {
   default: {
-    label: "Default", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    label: "Map", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     options: { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
   },
   satellite: {
@@ -20,12 +19,16 @@ const BASEMAPS = {
   },
 }
 type Basemap = keyof typeof BASEMAPS
+// One zoom-15 tile over Tagum, used as the preview picture on the layer button.
+const PREVIEW_TILE = { z: "15", x: "27834", y: "15703" }
+const previewUrl = (key: Basemap) => BASEMAPS[key].url.replace(/\{(z|x|y)\}/g, (_, part: "z" | "x" | "y") => PREVIEW_TILE[part])
 
 /** OpenStreetMap of Tagum City; each study site is a marker that zooms in when clicked. */
 export function TagumMap() {
   const host = React.useRef<HTMLDivElement | null>(null)
   const map = React.useRef<L.Map | null>(null)
   const [basemap, setBasemap] = React.useState<Basemap>("default")
+  const other: Basemap = basemap === "default" ? "satellite" : "default"
   React.useEffect(() => {
     if (!host.current) return
     const instance = L.map(host.current).setView(TAGUM_VIEW.center, TAGUM_VIEW.zoom)
@@ -45,13 +48,14 @@ export function TagumMap() {
   }, [basemap])
   return <div className="relative">
     <div ref={host} role="region" aria-label="Map of Tagum City with the two study sites" className="h-[min(72vh,680px)] w-full rounded-xl border" />
-    <div className="absolute top-3 right-3 z-[1000] flex flex-wrap justify-end gap-2">
-      <ToggleGroup value={[basemap]} onValueChange={(values) => values[0] && setBasemap(values[0] as Basemap)} variant="outline" size="sm" className="rounded-lg bg-background" aria-label="Map style">
-        {(Object.keys(BASEMAPS) as Basemap[]).map((key) => <ToggleGroupItem key={key} value={key} className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">{BASEMAPS[key].label}</ToggleGroupItem>)}
-      </ToggleGroup>
+    <div className="absolute top-3 right-3 z-[1000] flex items-start gap-2">
       {Object.values(STUDY_SITES).map((site) =>
         <Button key={site.label} size="sm" variant="secondary" onClick={() => map.current?.flyTo([site.lat, site.lon], SITE_ZOOM)}>{site.label}</Button>)}
-      <Button size="sm" variant="secondary" onClick={() => map.current?.flyTo(TAGUM_VIEW.center, TAGUM_VIEW.zoom)}>All of Tagum</Button>
+      <button type="button" onClick={() => setBasemap(other)} aria-label={`Show the ${BASEMAPS[other].label.toLowerCase()} view`}
+        className="relative size-16 overflow-hidden rounded-lg border-2 border-white bg-muted bg-cover bg-center shadow-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ backgroundImage: `url(${previewUrl(other)})` }}>
+        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent pb-1 pt-3 text-center text-xs font-medium text-white">{BASEMAPS[other].label}</span>
+      </button>
     </div>
   </div>
 }

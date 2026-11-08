@@ -1,13 +1,14 @@
+import { toast } from "sonner"
 import * as React from "react"
-import { CheckIcon, CircleIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, UserRoundIcon } from "lucide-react"
+import { BadgeCheckIcon, CalendarDaysIcon, CheckIcon, CircleIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react"
+import "@/styles/admin-user-management.css"
 import { openFieldObserver } from "@/api/admin"
 import { changePassword, type CurrentUser } from "@/api/auth"
+import { parseServerTimestamp } from "@/lib/display-format"
 import { applyTheme, clearRandomPalette, getInitialTheme, type ThemeMode } from "@/lib/appearance"
 import { writePreference } from "@/lib/local-preference-store"
 import { NetworkRevisionReviewCard } from "@/components/network-revision-review-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -27,24 +28,20 @@ function passwordRules(password: string, confirmation: string) {
   ]
 }
 
-function ProfileCard({ user }: { user: CurrentUser }) {
-  const details = [
-    ["Username", user.username],
-    ["Email", user.email || "Not supplied"],
-    ["Role", user.role],
-    ["Status", user.status],
+function AccountStrip({ user }: { user: CurrentUser }) {
+  const created = parseServerTimestamp(user.created_at)
+  const metrics = [
+    { label: "User", value: user.username, hint: user.full_name, icon: UserRoundIcon, tone: "info" },
+    { label: "Created", value: created ? created.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }) : "Unknown",
+      hint: created ? `at ${created.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" })}` : "Not recorded", icon: CalendarDaysIcon, tone: "success" },
+    { label: "Role", value: user.role, hint: user.email || "No email on file", icon: ShieldCheckIcon, tone: "warning" },
+    { label: "Status", value: user.status, hint: user.must_change_password ? "Change your password" : "Account in good standing", icon: BadgeCheckIcon, tone: user.must_change_password ? "danger" : "info" },
   ]
-  return <Card><CardHeader><CardTitle>Account</CardTitle><CardDescription>Profile details are managed by your administrator.</CardDescription></CardHeader>
-    <CardContent className="flex flex-col gap-5">
-      <div className="flex items-center gap-4">
-        <Avatar className="size-14"><AvatarFallback><UserRoundIcon className="size-7 text-muted-foreground" /></AvatarFallback></Avatar>
-        <div className="min-w-0"><p className="truncate text-lg font-semibold">{user.full_name}</p>
-          <div className="mt-1 flex flex-wrap gap-2"><Badge variant="secondary">{user.role}</Badge><Badge variant="outline">{user.status}</Badge></div></div>
-      </div>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-3 border-t pt-4 text-sm">
-        {details.map(([label, value]) => <React.Fragment key={label}><dt className="text-muted-foreground">{label}</dt><dd className="break-all">{value}</dd></React.Fragment>)}
-      </dl>
-    </CardContent></Card>
+  return <section className="audit-metric-strip" aria-label="Your account">
+    {metrics.map(({ label, value, hint, icon: Icon, tone }) => <div key={label} className={`audit-strip-metric ${tone}`}>
+      <Icon aria-hidden="true" className="shrink-0" /><div className="min-w-0"><div className="flex-wrap"><strong className={`whitespace-nowrap ${label === "User" ? "" : "capitalize"}`}>{value}</strong><span>{label}</span></div><small>{hint}</small></div>
+    </div>)}
+  </section>
 }
 
 function PasswordCard({ mustChange, onChanged }: { mustChange: boolean; onChanged: () => void }) {
@@ -71,6 +68,7 @@ function PasswordCard({ mustChange, onChanged }: { mustChange: boolean; onChange
     try {
       const response = await changePassword({ current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword })
       setSuccess(response.message)
+      toast.success("Password updated")
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswords(false)
       onChanged()
     } catch (changeError) {
@@ -113,6 +111,7 @@ function PreferencesCard() {
       applyTheme(theme)
       window.dispatchEvent(new Event("smartflow-appearance"))
       setNotice(import.meta.env.VITE_SMARTFLOW_DESKTOP === "1" ? "Theme saved on this computer." : "Theme saved on this browser.")
+      toast.success("Preferences saved")
     } catch {
       setNotice("Could not save preferences. Please try again.")
     }
@@ -150,9 +149,10 @@ export function SettingsPage({ user, onPasswordChanged }: {
 }) {
   return <main className="flex flex-col gap-6 p-4 lg:p-6">
     <div><h1 className="text-2xl font-semibold">Settings</h1><p className="text-muted-foreground">Your account, password and display preferences.</p></div>
+    <AccountStrip user={user} />
     <div className="grid items-start gap-6 lg:grid-cols-2">
-      <div className="flex flex-col gap-6"><ProfileCard user={user} /><PreferencesCard /></div>
-      <div className="flex flex-col gap-6"><PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} />{user.role.toLowerCase() === "admin" && <><ToolsCard /><NetworkRevisionReviewCard /></>}</div>
+      <div className="flex flex-col gap-6"><PreferencesCard />{user.role.toLowerCase() === "admin" && <>{import.meta.env.VITE_SMARTFLOW_DESKTOP !== "1" && <ToolsCard />}<NetworkRevisionReviewCard /></>}</div>
+      <div className="flex flex-col gap-6"><PasswordCard mustChange={user.must_change_password} onChanged={onPasswordChanged} /></div>
     </div>
   </main>
 }

@@ -20,7 +20,8 @@ import config
 import database
 from services.timeline_artifacts import timeline_artifact_paths
 from services.observation_identity import has_observed_inputs, validate_observed_holdout
-from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, run_safety_issues
+from simulation.footprints import overlapping_pairs
 from simulation.model_contract import artifact_metadata
 from services.rl_reporting_service import (
     build_combined_ranking,
@@ -32,12 +33,12 @@ from services.rl_reporting_service import (
 from simulation.rl_env import DEFAULT_EPISODE_SECONDS, DEFAULT_WARMUP_SECONDS
 from simulation.rl_policy_runtime import RuntimePolicy, load_runtime_policy
 from simulation.scenario_config import number
+from simulation.study_seeds import validate_study_seeds
 from simulation.traffic_engine import STEP_LENGTH
 from simulation.traffic_engine import TrafficEngine
 
 
 DEFAULT_SEEDS = (101, 102, 103, 104, 105)  # development seeds; 11-55 are for training
-FINAL_EVALUATION_SEEDS = tuple(range(201, 221))  # reserved for the final study (plan Task 29)
 SUPPORTED_CONTROLLERS = ("fixed-time", "no-signal", "ql", "dql", "ppo")
 DEFAULT_CONTROLLERS = ("fixed-time", "ql", "dql", "ppo")
 
@@ -194,7 +195,7 @@ def _build_manifest(
     return {
         "manifest_version": 2,
         "experiment": engine.experiment_metadata(),
-        "network": engine.network.payload,
+        "network": engine.base_network.payload,
         "generated_at": _utc_now_iso(),
         "app": {
             "name": config.APP_NAME,
@@ -287,6 +288,7 @@ def _run_controller_once(
     frame_count = 0
     metrics = {}
     official_metrics_reset = warmup_seconds <= 0
+    max_overlaps = 0
 
     try:
         engine.start(duration_limit=total_duration_seconds)
@@ -306,11 +308,14 @@ def _run_controller_once(
             if not official_metrics_reset and engine.simulation_time >= warmup_seconds:
                 _reset_official_metrics(engine)
                 official_metrics_reset = True
+            if official_metrics_reset:
+                max_overlaps = max(max_overlaps, len(overlapping_pairs(engine.vehicle_records())))
             if record_timeline and engine.status in {"running", "completed"}:
                 timeline_file.write(json.dumps(engine.to_dict()) + "\n")
                 frame_count += 1
 
         metrics = dict(engine.to_dict().get("metrics", {}))
+        metrics["max_overlapping_pairs"] = max_overlaps
         metrics["experiment"] = engine.experiment_metadata()
         metrics["rl_total_phase_switches"] = int(getattr(engine, "rl_total_phase_switches", 0) or 0)
         database.save_run_metrics(
@@ -407,6 +412,30 @@ def _build_summary(results: list[dict]) -> dict:
     return summary
 
 
+def stalled_vehicle_runs(results: list[dict]) -> list[dict]:
+    """List measured stalls, with end counts as fallback for older results."""
+    stalled = []
+    for result in results:
+        metrics = result["metrics"]
+        issues = run_safety_issues(metrics)
+        if "peak_stalled_vehicles" not in issues and "stalled_vehicles" not in issues:
+            continue
+        evidence = {key: metrics[key] for key in ("stalled_vehicles", "peak_stalled_vehicles", "first_stall_seconds") if key in metrics}
+        stalled.append({**{key: result[key] for key in ("controller", "seed", "run_id")}, **evidence})
+    return stalled
+
+
+def failed_matched_seeds(results: list[dict]) -> dict[int, list[dict]]:
+    failed = {}
+    for result in results:
+        issues = run_safety_issues(result["metrics"])
+        if issues:
+            failed.setdefault(result["seed"], []).append({
+                "controller": result["controller"], "run_id": result["run_id"], "issues": issues,
+            })
+    return failed
+
+
 def _build_model_learning(
     *,
     controllers: tuple[str, ...],
@@ -452,7 +481,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
     parser.add_argument("--final", action="store_true", help="Allow the protected final-evaluation seeds 201-220 (final study only)")
-    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site without the validation gate; the artifact is marked as not study evidence")
+    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site; the artifact is marked as not study evidence")
     parser.add_argument("--scenario-name", default="SMARTFLOW Evaluation Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")
@@ -466,8 +495,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
-    if not args.final and any(int(seed) in FINAL_EVALUATION_SEEDS for seed in args.seeds):
-        raise ValueError("Seeds 201–220 are reserved for the final evaluation (Task 29); pass --final to use them")
+    validate_study_seeds(args.seeds, final=args.final)
     database.init_db()
 
     scenario = {
@@ -494,6 +522,8 @@ def main() -> int:
         if model_path is None:
             raise SystemExit(f"No {controller.upper()} model found. Pass --{controller}-model or train {controller.upper()} first.")
         metadata = artifact_metadata(controller, model_path, scenario_network)
+        if args.final:
+            validate_study_seeds(metadata.get("seed_set", []))
         trained_scenario = metadata.get("scenario")
         if not isinstance(trained_scenario, dict):
             if has_observed_inputs(scenario):
@@ -555,7 +585,9 @@ def main() -> int:
         / f"controller_eval_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    summary = _build_summary(results)
+    excluded_seeds = failed_matched_seeds(results)
+    included = [result for result in results if result["seed"] not in excluded_seeds]
+    summary = _build_summary(included)
     model_learning = _build_model_learning(
         controllers=args.controllers,
         model_paths=model_paths,
@@ -587,11 +619,17 @@ def main() -> int:
             if controller in model_paths and model_paths[controller]
         },
         "results": results,
+        "excluded_matched_seeds": excluded_seeds,
+        "excluded_run_count": len(results) - len(included),
+        "all_runs_summary": _build_summary(results) if excluded_seeds else summary,
+        "stalled_vehicle_runs": stalled_vehicle_runs(results),
         "summary": summary,
         "model_learning": model_learning,
         "combined_ranking": build_combined_ranking(summary, model_learning),
     }
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    if excluded_seeds:
+        print(f"WARNING: Excluded {len(results) - len(included)} matched runs from performance summaries: {json.dumps(excluded_seeds)}", file=sys.stderr)
     print(f"Saved evaluation summary: {output_path}")
     return 0
 

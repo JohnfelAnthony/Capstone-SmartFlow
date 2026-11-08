@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import functools
 import gzip
 import json
+import math
+import re
 import secrets
 import shutil
 import string
 import subprocess
 import threading
+from bisect import bisect_left, bisect_right
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -18,7 +23,7 @@ from fastapi.responses import FileResponse
 import auth
 import config
 import database
-from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics
+from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics, run_safety_issues
 from services.control_labels import condition_label
 from backend.schemas import (
     AdminPasswordResetResponse,
@@ -35,6 +40,8 @@ from backend.schemas import (
     BackupListResponse,
     BackupRecord,
     ChangePasswordRequest,
+    ComparePairFramesResponse,
+    ComparePairHistoryResponse,
     ComparePairResponse,
     CompareRunBundle,
     CompareRunListResponse,
@@ -46,6 +53,8 @@ from backend.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    ClosureCheckRequest,
+    FieldObserverCountsRequest,
     MovementCountsRequest,
     NetworkRevisionPreviewRequest,
     NetworkRevisionApplyRequest,
@@ -195,7 +204,7 @@ FIELD_OBSERVER_LAUNCHER = Path(config.BASE_DIR) / "tools" / "field_observer" / "
 def simulation_presentation_response(simulation: SimulationStateResponse) -> SimulationStateResponse:
     """HTTP fallback uses the same snapshot and display allocation as streaming."""
     try:
-        frame = render_frame_service.build_render_frame(simulation.state)
+        frame = render_frame_service.build_render_frame(simulation.state, speed_multiplier=simulation.speed_multiplier)
     except render_frame_service.RenderFrameBudgetError as exc:
         return simulation.model_copy(update={"render_frame": None, "render_frame_error": str(exc)})
     return simulation.model_copy(update={"render_frame": frame, "render_frame_error": None})
@@ -427,11 +436,6 @@ def login(payload: LoginRequest, request: Request, response: Response) -> LoginR
     from backend.security import authenticate_for_api
 
     user, failure_reason = authenticate_for_api(payload.username, payload.password, request)
-    if failure_reason == "locked":
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed login attempts. Try again later.",
-        )
     if failure_reason == "inactive":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1102,6 +1106,10 @@ def run_report_row(run: SimulationRunRecord) -> dict[str, object]:
         "Throughput": run_metric_value(run, "throughput"),
         "Scheduled Vehicles": raw.get("scheduled_vehicles", ""),
         "Unfinished Vehicles": raw.get("unfinished_vehicles", ""),
+        "Stalled Vehicles At Run End": raw.get("stalled_vehicles", ""),
+        "Peak Stalled Vehicles": raw.get("peak_stalled_vehicles", ""),
+        "First Stall Measurement Seconds": raw.get("first_stall_seconds", ""),
+        "Peak Overlapping Vehicle Pairs": raw.get("max_overlapping_pairs", ""),
         "Dropped Vehicles": raw.get("dropped_vehicles", ""),
         "Unfinished Pedestrians": raw.get("active_pedestrian_count", ""),
         "Average Pedestrian Delay": run_metric_value(run, "avg_pedestrian_delay"),
@@ -1158,8 +1166,8 @@ def completed_run_record(run_id: int) -> SimulationRunRecord:
 
 
 COMPARE_FRAME_LIMIT = 5000
+COMPARE_CHART_FRAME_LIMIT = 400
 COMPARE_APPROACHES = ("north", "east", "south", "west")
-_COMPARE_TIMELINE_FRAME_CACHE: dict[str, dict] = {}
 
 
 def compare_float(value: object, default: float = 0.0) -> float:
@@ -1228,26 +1236,27 @@ def compare_signature(run: SimulationRunRecord, timeline: CompareTimelineMeta) -
     return (run.scenario_id, timeline.intersection_id, run.seed, duration)
 
 
-def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta, manifest: dict) -> str:
+def compare_key(run: SimulationRunRecord, timeline: CompareTimelineMeta, manifest: dict, *, with_routing: bool = True) -> str:
     import hashlib
     experiment = manifest.get("experiment", {})
     if not experiment:
         return f"legacy-unverified-{run.id}"
-    # Group runs with identical exogenous inputs. Routing mode is the single
-    # permitted configuration difference for a routing comparison; the pair
-    # validator below checks controller identity before accepting that case.
+    # Runs with identical exogenous inputs share a key, routing mode included, so a routing mismatch never pairs silently.
+    # compare_kind alone asks for the key without it: a routing comparison is the one pairing that is meant to differ in routing.
     settings = dict(experiment.get("config") or {})
-    settings.pop("routing_mode", None)
+    if not with_routing:
+        settings.pop("routing_mode", None)
     signature = {key: experiment.get(key) for key in ("engine_version", "network_sha256", "seed", "duration_seconds", "measurement_start", "demand_sha256")}
-    signature["config_except_routing_mode"] = settings
+    signature["config" if with_routing else "config_except_routing_mode"] = settings
     return hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
 
 
 def compare_kind(left: CompareRunOption, right: CompareRunOption) -> str | None:
-    if left.compatibility_key != right.compatibility_key:
+    left_manifest, right_manifest = compare_manifest(left.run.timeline_path), compare_manifest(right.run.timeline_path)
+    if (compare_key(left.run, left.timeline, left_manifest, with_routing=False)
+            != compare_key(right.run, right.timeline, right_manifest, with_routing=False)):
         return None
-    left_experiment = compare_manifest(left.run.timeline_path).get("experiment") or {}
-    right_experiment = compare_manifest(right.run.timeline_path).get("experiment") or {}
+    left_experiment, right_experiment = left_manifest.get("experiment") or {}, right_manifest.get("experiment") or {}
     if not left_experiment or not right_experiment:
         return None
     left_config = left_experiment.get("config") or {}
@@ -1374,34 +1383,14 @@ def condense_compare_frame(index: int, raw_frame: dict) -> CompareTimelineFrame:
 
 
 def read_compare_frames(timeline_path: str | None) -> list[CompareTimelineFrame]:
-    path = resolve_artifact_path(timeline_path)
-    if not path or not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timeline artifact was not found on disk.")
-    stat = path.stat()
-    cache_key = str(path.resolve())
-    cached = _COMPARE_TIMELINE_FRAME_CACHE.get(cache_key)
-    if cached and cached.get("mtime_ns") == stat.st_mtime_ns and cached.get("size") == stat.st_size:
-        return cached["frames"]
-
-    opener = gzip.open if path.suffix == ".gz" else open
-    raw_frames = []
-    with opener(path, "rt", encoding="utf-8") as timeline_file:
-        for line in timeline_file:
-            stripped_line = line.strip()
-            if stripped_line:
-                raw_frames.append(json.loads(stripped_line))
-
-    indices = sample_frame_indices(len(raw_frames))
-    frames = [condense_compare_frame(index, raw_frames[index]) for index in indices]
-    _COMPARE_TIMELINE_FRAME_CACHE[cache_key] = {
-        "mtime_ns": stat.st_mtime_ns,
-        "size": stat.st_size,
-        "frames": frames,
-    }
-    return frames
+    path, offsets = compare_timeline_index(timeline_path)
+    times = tuple(offsets)
+    indices = sample_frame_indices(len(times))
+    return [condense_compare_frame(index, raw)
+            for index, raw in zip(indices, read_indexed_frames(path, (offsets[times[i]] for i in indices)))]
 
 
-def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairResponse:
+def validated_compare_pair(left_run_id: int, right_run_id: int) -> tuple[CompareRunOption, CompareRunOption, str]:
     if int(left_run_id) == int(right_run_id):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Select two different runs to compare.")
     left_option = compare_option_by_run_id(left_run_id)
@@ -1412,36 +1401,163 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Selected runs must match network, demand, seed and duration; change either the signal controller or routing mode, not both.",
         )
+    return left_option, right_option, comparison_type
 
-    left_frames = read_compare_frames(left_option.run.timeline_path)
-    right_frames = read_compare_frames(right_option.run.timeline_path)
-    left_times = {round(frame.time, 6): frame for frame in left_frames}
-    right_times = {round(frame.time, 6): frame for frame in right_frames}
-    shared_times = sorted(left_times.keys() & right_times.keys())
-    if not shared_times:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
-    aligned_left = [left_times[time] for time in shared_times]
-    aligned_right = [right_times[time] for time in shared_times]
-    frame_count = len(shared_times)
+
+TimelineIndex = tuple[Path, dict[float, int]]
+
+
+def read_compare_history(left: TimelineIndex, right: TimelineIndex, times: list[float], limit: int) -> ComparePairHistoryResponse:
+    indices = sample_frame_indices(len(times), limit)
+
+    def condensed(timeline: TimelineIndex) -> list[CompareTimelineFrame]:
+        path, offsets = timeline
+        frames = read_indexed_frames(path, (offsets[times[index]] for index in indices))
+        return [condense_compare_frame(index, frame) for index, frame in zip(indices, frames)]
+
+    return ComparePairHistoryResponse(left=condensed(left), right=condensed(right))
+
+
+def compare_pair_response(
+    left_run_id: int, right_run_id: int, *, include_history: bool = True, include_opening: bool = False
+) -> ComparePairResponse:
+    left_option, right_option, comparison_type = validated_compare_pair(left_run_id, right_run_id)
+    left_index = compare_timeline_index(left_option.run.timeline_path)
+    right_index = compare_timeline_index(right_option.run.timeline_path)
+    left_offsets, right_offsets = left_index[1], right_index[1]
+    shared_times = shared_compare_times(left_offsets, right_offsets)
+
     warnings = ["This pair shows per-metric tradeoffs, not an overall performance winner. Average waits exclude pending arrivals; review completed, unfinished and dropped demand and pedestrians. Missing or empty-population averages are unavailable, not zero."]
-    if frame_count < min(len(left_frames), len(right_frames)):
-        warnings.append("Some sampled frame times differ; playback shows matching times only.")
+    if len(shared_times) < max(len(left_offsets), len(right_offsets)):
+        warnings.append("Some recorded frame times differ. Playback holds the last shared frame across gaps.")
+    manifest = compare_manifest(left_option.run.timeline_path)
+    try:
+        geometry = visual_network_service.load_recorded_visual_network(
+            left_option.timeline.intersection_id, left_option.provenance.get("network_sha256"), manifest.get("network")
+        )
+    except (OSError, TypeError, ValueError, KeyError):
+        geometry = None
+        warnings.append("The recorded road geometry could not be verified. Metrics are available, but the maps cannot be shown.")
     left_metrics = compare_run_metrics(left_option.run.id)
     right_metrics = compare_run_metrics(right_option.run.id)
-    for label, metrics in (("Left", left_metrics), ("Right", right_metrics)):
+    for label, metrics in (("Baseline", left_metrics), ("Compared", right_metrics)):
         raw = metrics.get("raw_metrics") or {}
+        issues = run_safety_issues(raw)
+        if issues:
+            peak = issues.get("peak_stalled_vehicles", issues.get("stalled_vehicles", 0))
+            overlaps = raw.get("max_overlapping_pairs", "unavailable")
+            first = raw.get("first_stall_seconds")
+            onset = f" First stall at measured second {first:g}." if isinstance(first, (int, float)) else ""
+            warnings.append(f"{label} run failed a safety check and should be excluded from performance conclusions. "
+                            f"Recorded stalls: {peak:g}; stalls at end: {raw.get('stalled_vehicles', 'unavailable')}; "
+                            f"peak overlaps: {overlaps}.{onset}")
         unfinished = int(raw.get("unfinished_vehicles") or 0)
         if unfinished:
             warnings.append(f"{label} run has {unfinished} unfinished vehicles at the horizon.")
     if left_option.provenance.get("demand_source") != "observed" or right_option.provenance.get("demand_source") != "observed":
-        warnings.append("At least one run uses synthetic demand; do not interpret this pair as observed field performance.")
+        warnings.append("At least one run's demand is synthetic or from field counts, not an observed dataset; scenario-based, not calibrated or validated. Do not interpret this pair as observed field performance.")
+    history = read_compare_history(left_index, right_index, shared_times, COMPARE_FRAME_LIMIT) if include_history else None
+    opening = None
+    if include_opening and geometry is not None:
+        opening = render_compare_frames(left_index, right_index, shared_times[:1], 0, shared_times[-1])
     return ComparePairResponse(
-        left=CompareRunBundle(option=left_option, frames=aligned_left, metrics=left_metrics),
-        right=CompareRunBundle(option=right_option, frames=aligned_right, metrics=right_metrics),
-        frame_count=frame_count,
+        left=CompareRunBundle(option=left_option, frames=history.left if history else [], metrics=left_metrics),
+        right=CompareRunBundle(option=right_option, frames=history.right if history else [], metrics=right_metrics),
+        frame_count=len(history.left) if history else len(shared_times),
+        playback_times=shared_times,
+        geometry=geometry,
+        opening_frames=opening,
         comparison_type=comparison_type,
         warnings=warnings,
     )
+
+
+COMPARE_RENDER_WINDOW_SECONDS = 60.0
+
+
+_COMPARE_LINE_TIME = re.compile(r'^\{[^\[\{]{0,200}?"time":\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)')
+
+_COMPARE_LINE_TIME_BYTES = re.compile(_COMPARE_LINE_TIME.pattern.encode("ascii"))
+
+
+def compare_line_time(line: str) -> float:
+    # The recorder writes "time" before the large lists; reading it from the line start avoids parsing every frame to index a recording.
+    match = _COMPARE_LINE_TIME.match(line)
+    return round(float(match.group(1)), 6) if match else round(compare_float(json.loads(line).get("time")), 6)
+
+
+def open_compare_timeline(path: Path):
+    return gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
+
+
+@functools.lru_cache(maxsize=4)
+def _compare_timeline_offsets(path: Path, mtime_ns: int, size: int) -> dict[float, int]:
+    """Index byte offsets without retaining decompressed frames in memory."""
+    offsets: dict[float, int] = {}
+    with open_compare_timeline(path) as timeline_file:
+        offset = 0
+        for line in timeline_file:
+            match = _COMPARE_LINE_TIME_BYTES.match(line)
+            if match:
+                offsets[round(float(match.group(1)), 6)] = offset
+            elif line.strip():
+                offsets[compare_line_time(line.decode("utf-8").strip())] = offset
+            offset += len(line)
+    return offsets
+
+
+def compare_timeline_index(timeline_path: str | None) -> tuple[Path, dict[float, int]]:
+    path = resolve_artifact_path(timeline_path)
+    if not path or not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timeline artifact was not found on disk.")
+    stat = path.stat()
+    return path, _compare_timeline_offsets(path, stat.st_mtime_ns, stat.st_size)
+
+
+def read_indexed_frames(path: Path, offsets: Iterable[int]) -> Iterator[dict]:
+    with open_compare_timeline(path) as timeline_file:
+        for offset in offsets:
+            timeline_file.seek(offset)
+            yield json.loads(timeline_file.readline())
+
+
+def shared_compare_times(left_offsets: dict[float, int], right_offsets: dict[float, int]) -> list[float]:
+    times = sorted(left_offsets.keys() & right_offsets.keys())
+    if not times:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
+    return times
+
+
+def compare_pair_frames_response(left_run_id: int, right_run_id: int, start: float, end: float) -> ComparePairFramesResponse:
+    if not (math.isfinite(start) and math.isfinite(end)) or end < start or end - start > COMPARE_RENDER_WINDOW_SECONDS + 1e-9:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Ask for a window of at most {COMPARE_RENDER_WINDOW_SECONDS:g} seconds, with the end at or after the start.",
+        )
+    left_option, right_option, _ = validated_compare_pair(left_run_id, right_run_id)
+    left_index = compare_timeline_index(left_option.run.timeline_path)
+    right_index = compare_timeline_index(right_option.run.timeline_path)
+    shared_times = shared_compare_times(left_index[1], right_index[1])
+    first = bisect_left(shared_times, start)
+    window_times = shared_times[first:bisect_right(shared_times, end)]
+    return render_compare_frames(left_index, right_index, window_times, first, shared_times[-1])
+
+
+def render_compare_frames(
+    left: TimelineIndex, right: TimelineIndex, times: list[float], first: int, duration: float
+) -> ComparePairFramesResponse:
+    def render_window(timeline: TimelineIndex) -> list[dict]:
+        path, offsets = timeline
+        result = []
+        for position, frame in enumerate(read_indexed_frames(path, (offsets[time] for time in times)), first):
+            rendered = render_frame_service.build_render_frame(frame, sequence=position)
+            queues = frame.get("queues")
+            if isinstance(queues, dict) and queues:
+                rendered["queues"] = {key: compare_float(queues.get(key)) for key in COMPARE_APPROACHES}
+            result.append(rendered)
+        return result
+
+    return ComparePairFramesResponse(times=times, left=render_window(left), right=render_window(right), duration=duration)
 
 
 @app.post("/api/scenarios", response_model=Scenario)
@@ -1512,6 +1628,16 @@ def import_movement_counts(payload: MovementCountsRequest, user: dict = Depends(
     from services.movement_counts import import_movement_counts as convert
     try:
         return convert(**payload.model_dump())
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
+
+
+@app.post("/api/scenarios/field-observer-counts")
+def import_field_observer_counts(payload: FieldObserverCountsRequest, user: dict = Depends(require_current_user)) -> dict:
+    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
+    from services.field_observer_counts import import_field_counts
+    try:
+        return import_field_counts(**payload.model_dump())
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
 
@@ -1768,10 +1894,77 @@ def list_compatible_compare_runs(
 def get_compare_pair(
     left_run_id: int = Query(ge=1),
     right_run_id: int = Query(ge=1),
+    interactive: bool = False,
     user: dict = Depends(require_current_user),
 ) -> ComparePairResponse:
     require_permission(user, "compare", "view")
-    return compare_pair_response(left_run_id, right_run_id)
+    return compare_pair_response(left_run_id, right_run_id, include_history=not interactive, include_opening=interactive)
+
+
+@app.get("/api/compare/pair/history", response_model=ComparePairHistoryResponse)
+def get_compare_pair_history(
+    left_run_id: int = Query(ge=1),
+    right_run_id: int = Query(ge=1),
+    user: dict = Depends(require_current_user),
+) -> ComparePairHistoryResponse:
+    require_permission(user, "compare", "view")
+    left, right, _ = validated_compare_pair(left_run_id, right_run_id)
+    left_index = compare_timeline_index(left.run.timeline_path)
+    right_index = compare_timeline_index(right.run.timeline_path)
+    times = shared_compare_times(left_index[1], right_index[1])
+    return read_compare_history(left_index, right_index, times, COMPARE_CHART_FRAME_LIMIT)
+
+
+@app.get("/api/compare/pair/frames", response_model=ComparePairFramesResponse)
+def get_compare_pair_frames(
+    left_run_id: int = Query(ge=1),
+    right_run_id: int = Query(ge=1),
+    start: float = Query(ge=0),
+    end: float = Query(ge=0),
+    user: dict = Depends(require_current_user),
+) -> ComparePairFramesResponse:
+    require_permission(user, "compare", "view")
+    return compare_pair_frames_response(left_run_id, right_run_id, start, end)
+
+
+def compare_signal_evidence(left_run_id: int, right_run_id: int) -> dict:
+    from services.compare_signals import recorded_signals
+    left, right, _ = validated_compare_pair(left_run_id, right_run_id)
+    indexed = [compare_timeline_index(option.run.timeline_path) for option in (left, right)]
+    shared = shared_compare_times(indexed[0][1], indexed[1][1])
+    start, end = shared[0], shared[-1]
+    result = {"start": start, "end": end}
+    for side, option, (path, _) in zip(("left", "right"), (left, right), indexed):
+        experiment = compare_manifest(option.run.timeline_path).get("experiment") or {}
+        settings = experiment.get("config") or {}
+        step = option.timeline.step_length_seconds
+        if step <= 0:
+            raise HTTPException(status_code=409, detail="Recording sample interval is missing; signal durations cannot be verified.")
+        result[side] = {**recorded_signals(path, step=step, start=start, end=end,
+                                         junction_id=settings.get("controlled_junction")),
+                        "control": experiment.get("control") or {}}
+    return result
+
+
+@app.get("/api/compare/pair/signals")
+def get_compare_signals(left_run_id: int, right_run_id: int,
+                        user: dict = Depends(require_current_user)) -> dict:
+    require_permission(user, "compare", "view")
+    return compare_signal_evidence(left_run_id, right_run_id)
+
+
+@app.get("/api/compare/pair/report")
+def download_compare_report(left_run_id: int, right_run_id: int, response: Response,
+                            user: dict = Depends(require_current_user)) -> Response:
+    require_permission(user, "compare", "view")
+    from services.compare_report import build_comparison_pdf
+    pair = compare_pair_response(left_run_id, right_run_id, include_history=False)
+    signals = compare_signal_evidence(left_run_id, right_run_id)
+    content = build_comparison_pdf(pair.model_dump(), signals)
+    return Response(content, media_type="application/pdf", headers={
+        **dict(response.headers), "Cache-Control": "no-store",
+        "Content-Disposition": f'attachment; filename="smartflow-comparison-{left_run_id}-{right_run_id}.pdf"',
+    })
 
 
 @app.post("/api/simulation/timelines", response_model=TimelineGenerateResponse)
@@ -2005,6 +2198,15 @@ async def simulation_websocket(
     await websocket.accept()
     sequence = 0
     had_active_run = False
+
+    def build_frame(sequence: int):
+        # Off the event loop: waiting for the engine lock and serialising must not delay other sockets.
+        simulation, ticks = simulation_runtime.stream_snapshot()
+        frame = render_frame_service.build_render_frame(
+            simulation.state, sequence=sequence, speed_multiplier=simulation.speed_multiplier
+        )
+        return simulation, ticks, render_frame_service.encode_render_frame(frame)
+
     try:
         while True:
             if sequence % 10 == 0:
@@ -2017,17 +2219,13 @@ async def simulation_websocket(
                 except HTTPException:
                     await websocket.close(code=1008)
                     return
-            simulation = simulation_runtime.get_state()
             try:
-                frame = render_frame_service.build_render_frame(
-                    simulation.state,
-                    sequence=sequence,
-                )
+                simulation, ticks, text = await asyncio.to_thread(build_frame, sequence)
             except render_frame_service.RenderFrameBudgetError as exc:
                 await websocket.send_json({"type": "stream_error", "code": "render_metadata_budget", "message": str(exc)})
                 await websocket.close(code=1009)
                 return
-            await websocket.send_text(render_frame_service.encode_render_frame(frame))
+            await websocket.send_text(text)
             sequence += 1
 
             if simulation.status in {"running", "paused"}:
@@ -2036,7 +2234,11 @@ async def simulation_websocket(
                 await websocket.close(code=1000)
                 return
 
-            await asyncio.sleep(0.1)
+            if simulation.status == "running":
+                # Wait from the tick actually sent so a delayed snapshot cannot shorten the next interval.
+                await asyncio.to_thread(simulation_runtime.wait_for_ticks, ticks, simulation_runtime.ticks_per_frame(), 0.5)
+            else:
+                await asyncio.sleep(0.1)
     except WebSocketDisconnect:
         return
     except RuntimeError:
@@ -2075,6 +2277,19 @@ def design_signal_plan(payload: SignalDesignRequest, user: dict = Depends(requir
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"network_id": network.id, "junction": junction, "plan": plan, "result": asdict(result)}
+
+
+@app.post("/api/networks/{network_id}/closure-check")
+def closure_check(network_id: str, payload: ClosureCheckRequest, user: dict = Depends(require_current_user)) -> dict:
+    """Detour status per road piece and whether the chosen closures leave any legal movement."""
+    require_any_permission(user, [("scenarios", "view"), ("simulation", "view"),
+                                  ("dashboard", "view"), ("rl-training", "view")])
+    from services.closure_check import closure_report
+    from simulation.network_registry import load_registered_network
+    try:
+        return closure_report(load_registered_network(network_id), payload.closed_lanes, payload.events)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/networks")

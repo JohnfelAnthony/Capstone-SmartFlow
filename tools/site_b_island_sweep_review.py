@@ -33,9 +33,12 @@ def review(network: RoadNetwork) -> dict:
                 if not network.turn_allowed(incoming, outgoing):
                     continue
                 for name, spec in VEHICLE_TYPES.items():
+                    if not network.turn_allowed(incoming, outgoing, vehicle_type=name):
+                        continue
                     low, high = lateral_bounds(network.lanes[incoming].width, spec["width"])
                     exit_low, exit_high = lateral_bounds(network.lanes[outgoing].width, spec["width"])
-                    for lateral in sorted({low, (low + high) / 2, high}):
+                    kerb = engine._entry_kerb_position(network.lanes[incoming], name, spec["width"])
+                    for lateral in sorted({low, (low + high) / 2, high}) if kerb is None else (kerb,):
                         exit_lateral = max(exit_low, min(exit_high, lateral))
                         sweep = engine._build_sweep(incoming, outgoing, lateral, exit_lateral, spec["length"], spec["width"])
                         connector = network.connector(incoming, outgoing)
@@ -65,7 +68,7 @@ def review(network: RoadNetwork) -> dict:
     return {"network_id": network.id, "fingerprint": network.fingerprint,
             "status": "diagnostic only; no clearance or field-validation claim",
             "sample_spacing_m": SWEEP_SAMPLE_M, "sampled_sweeps": checked,
-            "limitations": ["Entry lateral positions sampled at centre and lane limits only",
+            "limitations": ["Entry lateral positions sampled at centre and lane limits, or the configured kerb position",
                             "Conservative expanded footprints can yield false positives",
                             "Actual-size contacts are sampled poses, not a continuous trajectory proof",
                             "Lane travel, actual vehicle paths, traffic interactions and dynamics are not checked"],
@@ -87,6 +90,8 @@ def review_lanes(network: RoadNetwork, *, spacing_m: float = 0.5) -> dict:
     for lane in network.lanes.values():
         steps = max(1, math.ceil(lane.length / spacing_m))
         for vehicle_class, spec in VEHICLE_TYPES.items():
+            if not network.lane_allows(lane.id, vehicle_class):
+                continue
             low, high = lateral_bounds(lane.width, spec["width"])
             for lateral in sorted({low, (low + high) / 2, high}):
                 found = set()

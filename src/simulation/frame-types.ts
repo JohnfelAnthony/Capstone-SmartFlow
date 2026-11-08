@@ -1,3 +1,5 @@
+export type SharedRoad = { road_id: string; shared_lane: string; kept_lane: string; width: number; lanes: Record<string, Array<[number, number]>> }
+
 export type RenderVehicle = {
   id: string
   x: number
@@ -43,6 +45,7 @@ export type RenderFrame = {
   time: number
   render_ts: number
   step_length: number
+  speed_multiplier?: number
   status: string
   flow_state: string
   intersection_id: string
@@ -61,11 +64,14 @@ export type RenderFrame = {
     active: boolean
     frame_index: number
     frame_count: number
+    seek_revision?: number
   }
   vehicles: RenderVehicle[]
   pedestrians: RenderPedestrian[]
   visual: {
     closed_lanes: string[]
+    /** Roads whose closed direction currently shares the opposite pavement (hypothetical), with both lanes' centre lines. */
+    shared_roads?: SharedRoad[]
     slow_lanes: Record<string, number>
     pedestrian_paths?: PedestrianPath[]
     constraint_marker?: {

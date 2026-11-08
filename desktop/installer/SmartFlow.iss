@@ -24,6 +24,7 @@ MinVersion=10.0.22000
 ; The running app holds this mutex (desktop/launcher.py); setup stops rather than replace live binaries.
 AppMutex=SmartFlowDesktopRunning
 CloseApplications=no
+SetupIconFile=..\smartflow.ico
 UninstallDisplayIcon={app}\SmartFlow.exe
 OutputBaseFilename=SmartFlow-Setup-{#AppVersion}
 Compression=lzma2

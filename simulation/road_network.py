@@ -8,7 +8,7 @@ import json
 import math
 import os
 from dataclasses import dataclass, replace
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from itertools import combinations
 from pathlib import Path
 
@@ -105,6 +105,20 @@ def sample(shape: list[Point], position: float) -> tuple[float, float, float]:
     return *shape[-1], 0.0
 
 
+def body_swing(shape: list[Point], body_length: float, step: float = 0.5) -> float:
+    """How far a straight body of this length, centred on the line and pointing along it, has its ends off the line at the worst position."""
+    if len(shape) < 3:
+        return 0.0
+    total, worst, position = length(shape), 0.0, 0.0
+    while position <= total:
+        x, y, heading = sample(shape, position)
+        for end in (-body_length / 2, body_length / 2):
+            end_x, end_y, _ = sample(shape, min(total, max(0.0, position + end)))
+            worst = max(worst, abs(-(end_x - x) * math.sin(heading) + (end_y - y) * math.cos(heading)))
+        position += step
+    return worst
+
+
 def widest_arc(a: Point, a_heading: float, b: Point, b_heading: float) -> list[Point] | None:
     """A sharp turn on the widest circular arc that fits, holding the farther lane's line until the arc begins.
 
@@ -168,6 +182,10 @@ def convex_hull(points: list[Point]) -> list[Point]:
     return lower[:-1]+upper[:-1]
 
 
+# Provisional cost multiplier when comparing routes that can use side streets.
+MINOR_ROUTE_FACTOR = 3.0
+
+
 @dataclass(frozen=True)
 class Lane:
     id: str
@@ -179,6 +197,7 @@ class Lane:
     approach: str
     lane_count: int = 1
     width: float = LANE_WIDTH_M
+    minor: bool = False
 
 
 class RoadNetwork:
@@ -236,6 +255,7 @@ class RoadNetwork:
             for node_id in (road.get("source"), road.get("target")):
                 widest_at[node_id] = max(widest_at.get(node_id, 0.0), total_width)
         clearance = {node_id: max(self.nodes.get(node_id, {}).get("junction_clearance_m", JUNCTION_CLEARANCE_M), widest/2 + STOP_LINE_SETBACK_M) for node_id, widest in widest_at.items()}
+        self.clearance = clearance
         for road in payload["roads"]:
             if road.get("source") not in self.nodes or road.get("target") not in self.nodes or road["source"] == road["target"]:
                 raise ValueError("Road endpoints must reference distinct nodes")
@@ -245,6 +265,8 @@ class RoadNetwork:
             for endpoint, node_id in ((shape[0], road["source"]), (shape[-1], road["target"])):
                 if distance(endpoint, (self.nodes[node_id]["x"], self.nodes[node_id]["y"])) > 1:
                     raise ValueError("Road geometry must meet its endpoint nodes within one metre")
+            if not isinstance(road.get("minor", False), bool):
+                raise ValueError("A road's minor flag must be true or false")
             speed = road.get("speed_mps", 8.33)
             if not isinstance(speed, (int, float)) or not math.isfinite(speed) or not .5 <= speed <= 40:
                 raise ValueError("Road speed must be between 0.5 and 40 m/s")
@@ -265,7 +287,7 @@ class RoadNetwork:
                 approach = ("west", "south", "east", "north")[round(heading / (math.pi / 2)) % 4]
                 lane_id = f"{road['id']}{'r' if reverse else 'f'}"
                 lane = Lane(lane_id, source, target, lane_shape, length(lane_shape), road.get("speed_mps", 8.33), approach,
-                            lanes_per_direction(road), width)
+                            lanes_per_direction(road), width, road.get("minor", False))
                 self.lanes[lane_id] = lane
                 self.outgoing[source].append(lane_id)
                 self.incoming[target].append(lane_id)
@@ -277,11 +299,20 @@ class RoadNetwork:
                         for lane_id in incoming}
             for lane_id, approach in assign_approach_names(headings).items():
                 self.lanes[lane_id] = replace(self.lanes[lane_id], approach=approach)
+        self.minor_lanes = frozenset(lane.id for lane in self.lanes.values() if lane.minor)
         if not self.lanes or not self.intersections:
             raise ValueError("Network needs roads and intersections")
         self.boundaries = [node_id for node_id in self.nodes if self.nodes[node_id].get("boundary")]
         if len(self.boundaries) < 2:
             raise ValueError("Network needs at least two boundary nodes")
+        if any(not isinstance(node.get("generated_demand", True), bool) for node in self.nodes.values()):
+            raise ValueError("generated_demand must be true or false")
+        # Generated traffic starts and ends only at these boundaries, and generated pedestrians cross only at these junctions; a node
+        # marked "generated_demand": false is reached only by vehicles a closure diverts.
+        self.demand_boundaries = [node_id for node_id in self.boundaries if self.nodes[node_id].get("generated_demand", True)]
+        self.pedestrian_junctions = [node_id for node_id in self.intersections if self.nodes[node_id].get("generated_demand", True)]
+        if len(self.demand_boundaries) < 2 or not self.pedestrian_junctions:
+            raise ValueError("Network needs two boundaries and one junction that take generated traffic")
         reached, frontier = set(), [next(iter(self.nodes))]
         while frontier:
             node = frontier.pop()
@@ -293,14 +324,40 @@ class RoadNetwork:
         if len(reached) != len(self.nodes):
             raise ValueError("Study network must be connected with no isolated nodes")
         self.prohibited_turns = set()
+        from .scenario_config import VEHICLE_TYPES
+        restrictions = payload.get("lane_vehicle_restrictions", {})
+        if not isinstance(restrictions, dict):
+            raise ValueError("Lane vehicle restrictions must be an object")
+        self.lane_vehicle_restrictions = {}
+        for lane_id, kinds in restrictions.items():
+            if lane_id not in self.lanes or not isinstance(kinds, list) or any(
+                not isinstance(kind, str) or kind not in VEHICLE_TYPES for kind in kinds
+            ):
+                raise ValueError("Lane vehicle restrictions need known lane IDs and vehicle classes")
+            self.lane_vehicle_restrictions[lane_id] = frozenset(kinds)
+        kerb_classes = payload.get("entry_kerb_vehicle_types", {})
+        if not isinstance(kerb_classes, dict):
+            raise ValueError("Entry kerb vehicle types must be an object")
+        self.entry_kerb_vehicle_types = {}
+        for lane_id, kinds in kerb_classes.items():
+            lane = self.lanes.get(lane_id)
+            if lane is None or not isinstance(kinds, list) or any(
+                not isinstance(kind, str) or kind not in VEHICLE_TYPES for kind in kinds
+            ):
+                raise ValueError("Entry kerb vehicle types need known lanes and vehicle classes")
+            self.entry_kerb_vehicle_types[lane_id] = frozenset(kinds)
         for turn in payload.get("prohibited_turns", []):
             if len(turn) != 2 or any(lane not in self.lanes for lane in turn) or self.lanes[turn[0]].target != self.lanes[turn[1]].source:
                 raise ValueError("Turn restrictions must reference connected lanes")
             self.prohibited_turns.add(tuple(turn))
 
-    def turn_allowed(self, incoming: str, outgoing: str) -> bool:
+    def lane_allows(self, lane_id: str, vehicle_type: str | None = None) -> bool:
+        return vehicle_type is None or vehicle_type not in self.lane_vehicle_restrictions.get(lane_id, ())
+
+    def turn_allowed(self, incoming: str, outgoing: str, *, vehicle_type: str | None = None) -> bool:
         first, second = self.lanes[incoming], self.lanes[outgoing]
-        return first.target == second.source and first.source != second.target and (incoming, outgoing) not in self.prohibited_turns
+        return (first.target == second.source and first.source != second.target and (incoming, outgoing) not in self.prohibited_turns
+                and self.lane_allows(incoming, vehicle_type) and self.lane_allows(outgoing, vehicle_type))
 
     @lru_cache(maxsize=512)
     def connector(self, incoming: str, outgoing: str) -> list[Point]:
@@ -319,13 +376,33 @@ class RoadNetwork:
         d = (b[0] - math.cos(bh) * control_distance, b[1] - math.sin(bh) * control_distance)
         return [tuple((1-t)**3*a[k] + 3*(1-t)**2*t*c[k] + 3*(1-t)*t*t*d[k] + t**3*b[k] for k in (0, 1)) for t in (i / 20 for i in range(21))]
 
-    def route(self, source: str, destination: str, *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None) -> list[str]:
+    @cached_property
+    def side_street_only_pairs(self) -> frozenset:
+        """Boundary pairs that nothing closed reaches except through a side street, such as the two ends of one highway (a U-turn apart).
+        Generated demand skips them, so a side street carries traffic only when a closure sends it there; explicit trips and `od` streams are never filtered."""
+        if not self.minor_lanes:
+            return frozenset()
+        return frozenset((a, b) for a in self.demand_boundaries for b in self.demand_boundaries
+                         if a != b and self.minor_lanes.intersection(self.route(a, b)))
+
+    def route(self, source: str, destination: str | set[str], *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None, vehicle_type: str | None = None) -> list[str]:
+        """Route to a destination, or find the cheapest reachable exit from a set."""
         closed, costs = closed or set(), costs or {}
+        targets = {destination} if isinstance(destination, str) else destination
+        # A trip with a known destination stays on main roads while they can reach it.
+        # Choosing an alternative exit still compares the costs of all open exits.
+        if isinstance(destination, str) and self.minor_lanes:
+            main_route = self._shortest_route(source, targets, closed | self.minor_lanes, costs, previous, vehicle_type)
+            if main_route:
+                return main_route
+        return self._shortest_route(source, targets, closed, costs, previous, vehicle_type)
+
+    def _shortest_route(self, source: str, targets: set[str], closed: set[str], costs: dict[str, float], previous: str | None, vehicle_type: str | None) -> list[str]:
         queue = [(0.0, source, previous or "", [])]
         visited = set()
         while queue:
             cost, node, incoming, path = heapq.heappop(queue)
-            if node == destination:
+            if node in targets:
                 return path
             key = (node, incoming)
             if key in visited:
@@ -333,11 +410,20 @@ class RoadNetwork:
             visited.add(key)
             for lane_id in self.outgoing.get(node, []):
                 lane = self.lanes[lane_id]
-                prohibited = incoming and not self.turn_allowed(incoming, lane_id)
-                if lane_id in closed or prohibited:
+                prohibited = incoming and not self.turn_allowed(incoming, lane_id, vehicle_type=vehicle_type)
+                if lane_id in closed or prohibited or not self.lane_allows(lane_id, vehicle_type):
                     continue
-                heapq.heappush(queue, (cost + max(0.01, costs.get(lane_id, lane.length / lane.speed)), lane.target, lane_id, path + [lane_id]))
+                step = max(0.01, costs.get(lane_id, lane.length / lane.speed))*(MINOR_ROUTE_FACTOR if lane.minor else 1.0)
+                heapq.heappush(queue, (cost + step, lane.target, lane_id, path + [lane_id]))
         return []
+
+    def open_exits(self, source: str) -> set[str]:
+        """Boundary nodes a vehicle entering at `source` could leave by: every exit but its own."""
+        return {node for node in self.boundaries if self.incoming[node] and node != source}
+
+    def has_legal_movement(self, closed: set[str]) -> bool:
+        """True when some entry can still reach some exit; U-turns are not allowed, so a few closed roads can strand everything."""
+        return any(self.route(source, self.open_exits(source), closed=closed) for source in self.demand_boundaries if self.outgoing[source])
 
     def visual(self) -> dict:
         roads, internal_lanes, signal_groups, signals = [], [], [], []

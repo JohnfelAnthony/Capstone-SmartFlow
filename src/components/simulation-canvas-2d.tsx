@@ -163,6 +163,24 @@ function drawWalkSignal(ctx: CanvasRenderingContext2D, point: VisualPoint, state
   }
   ctx.restore()
 }
+type MapScenery = { walkways: VisualPoint[][]; scenery: SceneryItem[] }
+const mapSceneryCache = new WeakMap<SceneGeometry, Map<string, MapScenery>>()
+
+function mapScenery(geometry: SceneGeometry, key: string, paths: RenderFrame["visual"]["pedestrian_paths"]): MapScenery {
+  let variants = mapSceneryCache.get(geometry)
+  if (!variants) {
+    variants = new Map()
+    mapSceneryCache.set(geometry, variants)
+  }
+  const cached = variants.get(key)
+  if (cached) return cached
+  const walkways = pedestrianWalkways(paths ?? [])
+  const result = { walkways, scenery: cityScenery(geometry, walkways) }
+  if (variants.size >= 4) variants.clear()
+  variants.set(key, result)
+  return result
+}
+
 const sceneryPaths = new WeakMap<SceneryItem[], Map<string, Path2D>>()
 /** One Path2D per scenery colour role, in native metres, so a camera move redraws scenery in a few fills. */
 function sceneryLayers(items: SceneryItem[]) {
@@ -267,9 +285,6 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
     const pole = screen(feature.shape[Math.floor(feature.shape.length / 2)], transform)
     ctx.beginPath(); ctx.arc(pole.x, pole.y, Math.max(1.5, metres * .3), 0, Math.PI * 2); ctx.fillStyle = colors.housing; ctx.fill()
   }
-  for (const feature of features("building")) if (feature.label) {
-    label(ctx, feature.label, { x: feature.shape.reduce((sum, point) => sum + point.x, 0) / feature.shape.length, y: feature.shape.reduce((sum, point) => sum + point.y, 0) / feature.shape.length }, transform, colors)
-  }
 }
 function pointBeforeEnd(points: readonly VisualPoint[], metres: number) {
   let remaining = metres
@@ -284,6 +299,10 @@ function pointBeforeEnd(points: readonly VisualPoint[], metres: number) {
 type SignalReport = { approaches: Record<string, SignalColor>; walk: Record<string, WalkSignal | null> }
 function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, frame: RenderFrame | null, presentation: PresentationState, transform: Transform, hover: Selection | null, colors: Palette): SignalReport {
   occupiedLabels.set(ctx, [])
+  // Landmark names are drawn each frame, first, so junction and lane labels keep clear of them.
+  for (const feature of geometry.siteFeatures) if (feature.kind === "building" && feature.label) {
+    label(ctx, feature.label, { x: feature.shape.reduce((sum, point) => sum + point.x, 0) / feature.shape.length, y: feature.shape.reduce((sum, point) => sum + point.y, 0) / feature.shape.length }, transform, colors)
+  }
   const report: SignalReport = { approaches: {}, walk: {} }, laneLabels: Array<[string, VisualPoint]> = [], tags: Array<{ id: string; rect: LabelRect }> = []
   const focusedJunction = geometry.junctions.find((junction) => junction.id === presentation.junctionId)
   const orderedJunctions = focusedJunction ? [focusedJunction, ...geometry.junctions.filter((junction) => junction !== focusedJunction)] : geometry.junctions
@@ -322,6 +341,15 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
       }
       if (presentation.selection?.kind === "lane" && presentation.selection.id === lane.id) path(ctx, lane.centerline, transform, undefined, palette.selected, Math.max(2, lane.width * transform.scale * .35), true)
       else if (hover?.kind === "lane" && hover.id === lane.id) path(ctx, lane.centerline, transform, undefined, "rgba(178,229,207,.8)", Math.max(2, lane.width * transform.scale * .25))
+    }
+    // Roads sharing a pavement (hypothetical): both lanes drawn as amber half-width bands on the open pavement, labelled.
+    for (const road of frame.visual.shared_roads ?? []) {
+      for (const [laneId, points] of Object.entries(road.lanes)) {
+        const line = points.map(([x, y]) => ({ x, y }))
+        path(ctx, line, transform, undefined, laneId === road.shared_lane ? "rgba(245,158,11,.42)" : "rgba(245,158,11,.22)", Math.max(2, road.width * transform.scale * .9))
+      }
+      const middle = road.lanes[road.kept_lane]?.[Math.floor((road.lanes[road.kept_lane]?.length ?? 0) / 2)]
+      if (middle) laneLabels.push(["Shared lane (hypothetical)", { x: middle[0], y: middle[1] }])
     }
     for (const vehicle of frame.vehicles) {
       const p = screen(vehicle, transform), margin = Math.max(vehicle.length, vehicle.width) * transform.scale
@@ -381,8 +409,8 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     let width = 1, height = 1, dpr = 1, transform = fit(geometry.bounds, width, height), previousFocus = "", cacheKey = ""
     let animationId = 0, displayedFrame: RenderFrame | null = null, pointerPosition: VisualPoint | null = null, hover: Selection | null = null, followSuspended = false
     let lastDrawAt = 0, sampleStarted = performance.now(), drawnFrames = 0, totalPaints = 0, frameIntervals: number[] = []
-    let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "", previousScaleLabel = ""
-    let walkways: VisualPoint[][] = [], scenery = cityScenery(geometry, walkways), sceneryPathsKey = "[]"
+    let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "[]", previousScaleLabel = ""
+    let decoration: MapScenery | undefined, sceneryPathsKey = ""
     const currentTheme = (): Theme => document.documentElement.classList.contains("dark") ? "dark" : "light"
     let theme = currentTheme()
     // The app theme is a class on <html>; follow it without re-rendering React.
@@ -431,7 +459,11 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         if (vehicle) { transform.ox = width / 2 - vehicle.x * transform.scale; transform.oy = height / 2 + vehicle.y * transform.scale }
       }
       if (current.frame?.visual.pedestrian_paths !== previousPathSource) { previousPathSource = current.frame?.visual.pedestrian_paths; pathsKey = JSON.stringify(previousPathSource ?? []) }
-      if (pathsKey !== sceneryPathsKey) { walkways = pedestrianWalkways(previousPathSource ?? []); scenery = cityScenery(geometry, walkways); sceneryPathsKey = pathsKey }
+      if (!decoration || pathsKey !== sceneryPathsKey) {
+        decoration = mapScenery(geometry, pathsKey, previousPathSource)
+        sceneryPathsKey = pathsKey
+      }
+      const { scenery, walkways } = decoration
       const colors = CITY[theme], key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${pathsKey}:${theme}`
       if (cached && cacheKey !== key) {
         cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform, colors, scenery, walkways); cacheKey = key
@@ -447,7 +479,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       canvas!.dataset.theme = theme
       canvas!.dataset.mapCamera = JSON.stringify({ scale: transform.scale, ox: transform.ox, oy: transform.oy, width, height })
       canvas!.dataset.paintCount = String(++totalPaints)
-      canvas!.dataset.interpolating = String(stream.moving(now))
+      canvas!.dataset.interpolating = String(stream.moving())
       const firstVehicle = displayedFrame?.vehicles[0], firstPerson = displayedFrame?.pedestrians[0]
       canvas!.dataset.displayVehicle = firstVehicle ? JSON.stringify({ id: firstVehicle.id, x: firstVehicle.x, y: firstVehicle.y }) : ""
       canvas!.dataset.displayPedestrian = firstPerson ? JSON.stringify({ id: firstPerson.id, x: firstPerson.x, y: firstPerson.y }) : ""
@@ -465,7 +497,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))] })
         sampleStarted = now; drawnFrames = 0; frameIntervals = []
       }
-      if (stream.moving(now)) schedule()
+      if (stream.moving()) schedule()
     }
     const resize = () => {
       const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, 1.5)

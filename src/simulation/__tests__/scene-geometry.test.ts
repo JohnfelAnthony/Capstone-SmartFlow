@@ -196,6 +196,13 @@ describe("explicit junction pavement", () => {
     const listed = all.slice(0, 2).map((crosswalk) => crosswalk.laneId)
     expect(withPavement(listed).junctions[0].crosswalks.map((crosswalk) => crosswalk.laneId)).toEqual(listed)
   })
+  it("paints no crosswalk where no pedestrians cross, and keeps them on older networks without the flag", () => {
+    const network = crossNetwork(60), junction = network.signals[0]
+    network.junctions = [{ id: junction.id, x: junction.x, y: junction.y, generated_demand: false }]
+    expect(normalizeSceneGeometry(network).junctions[0].crosswalks).toEqual([])
+    network.junctions = [{ id: junction.id, x: junction.x, y: junction.y }]
+    expect(normalizeSceneGeometry(network).junctions[0].crosswalks.length).toBeGreaterThan(2)
+  })
   it("exposes site features, and none for older recordings", () => {
     expect(withPavement().siteFeatures.map((feature) => feature.id)).toEqual(["pave"])
     expect(normalizeSceneGeometry(crossNetwork(60)).siteFeatures).toEqual([])

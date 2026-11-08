@@ -1,5 +1,7 @@
 # SmartFlow
 
+**November 8 — comparison PDF:** In **Compare Runs**, select two compatible recorded runs, then use **Download PDF report**. The report includes metric comparisons, the saved junction layout and actual signal-phase timelines/green-duration ranges. Trained models must first be used to record matched runs. The PDF describes simulation evidence; RL timings are observed decisions, not a recommended field timing plan. Update Python dependencies with `npm run venv:install` when pulling this feature, then restart the API.
+
 **November 1 — 2D-only scope:** the owner removed 3D rendering, models, camera/quality controls and Three.js dependencies. The interactive Canvas map is the only simulation view. Earlier dated 3D descriptions are historical. The pre-removal source is saved in branch and tag `before-removing-3d`.
 
 Documentation reviewed: **2026-10-24** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend. Application checks retain their individual dates and scopes in progress.
@@ -37,7 +39,7 @@ Open **this SmartFlow folder** as the workspace. Read [AGENTS.md](AGENTS.md), th
 | [Progress and handoff](docs/PROGRESS_AND_HANDOFF.md) | Current status pointer, dated verification evidence and remaining research/release work; preserves earlier checkpoints and the resolved interruption. |
 | [October 21 progress report](docs/reports/SMARTFLOW_PROGRESS_REPORT_2026-10-21.docx) | Adviser/panel summary of revision `30da696`, milestones through October 12 and the limited October 21 source checks. |
 | [Research preparation](docs/RESEARCH_METHOD.md) | Observation form, calibration/evaluation protocol, metric definitions and open study decisions. |
-| [Settings, search and research workspace](docs/RESEARCH_WORKSPACE.md) | Using preferences, record search, baseline-fit comparisons, independent validation, permissions and exports. |
+| [Settings, search and counts import](docs/RESEARCH_WORKSPACE.md) | Using preferences, record search and the Field Observer counts import; the calibration and validation workspace was removed (D38). |
 | [Field recording procedure](docs/FIELD_RECORDING_PROTOCOL.md) | Roadside phone placement, coverage, signal and pedestrian observations, collection forms and pilot quality checks. |
 | [Video observation tool plan](docs/VIDEO_OBSERVATION_TOOL_PLAN.md) | Temporary offline Python tool inside SmartFlow, selected open-source stack, review workflow and evidence exports. |
 | [Field data integration plan](docs/FIELD_DATA_SMARTFLOW_INTEGRATION.md) | Required demand/signal fidelity changes, dataset conversion, calibration, validation and field-informed RL experiments. |
@@ -211,3 +213,5 @@ python -m tools.build_study_network
 ```
 
 Refreshing may change geometry and invalidate model/recording compatibility. Preserve the exact network snapshot used in capstone experiments.
+
+The installed Site A (with its provisional West → North side-street loop) is reproduced from the cached `data/networks/osm_site_a.json`, with no download, by `python tools/build_study_network.py --site-a --output data/networks/tagum_site_a.json`; `tests/test_build_site_network.py` checks that it matches the installed file. The earlier one-junction Site A is kept in `data/networks/history/`.

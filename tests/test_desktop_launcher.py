@@ -83,6 +83,7 @@ def test_window_starts_only_after_setup_and_stops_owned_backend(tmp_path, monkey
     closing = Event()
 
     def create_window(title, origin, **_kwargs):
+        assert title == "SmartFlow"
         assert origin == "http://127.0.0.1:12345"
         events.append("window")
         return SimpleNamespace(events=SimpleNamespace(initialized=initialized, closing=closing))
@@ -115,7 +116,7 @@ def test_cancellation_does_not_start_or_create_data(tmp_path):
 
 def test_missing_frontend_does_not_create_data(tmp_path):
     paths = DesktopPaths.discover(data_root=tmp_path / "data", resources=tmp_path / "resources")
-    with pytest.raises(RuntimeError, match="Build the desktop frontend"):
+    with pytest.raises(RuntimeError, match="SmartFlow desktop interface is missing"):
         launcher.run(paths, window_module=SimpleNamespace(), dialogs=SimpleNamespace())
     assert not paths.root.exists()
 

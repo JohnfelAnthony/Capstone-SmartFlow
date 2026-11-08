@@ -63,10 +63,10 @@ class SeedCyclingSmartFlowRLEnv(SmartFlowRLEnv):
         self._reset_count = 0
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
-        if seed is None:
-            seed = self.seed_set[self._reset_count % len(self.seed_set)]
-            self._reset_count += 1
-        return super().reset(seed=seed, options=options)
+        # SB3 may pass its optimizer seed at reset. Road demand only uses the recorded traffic seeds.
+        traffic_seed = self.seed_set[self._reset_count % len(self.seed_set)]
+        self._reset_count += 1
+        return super().reset(seed=traffic_seed, options=options)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -83,7 +83,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--intersection-id", default=None)
     parser.add_argument("--scenario-id", type=int, help="Use the complete saved scenario, including native engine_config")
     parser.add_argument("--scenario-file", type=Path, help="Immutable scenario snapshot for this job")
-    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site without the validation gate; the artifact is marked as not study evidence")
+    parser.add_argument("--synthetic-smoke-test", action="store_true", help="Code check on a study site; the artifact is marked as not study evidence")
     parser.add_argument("--scenario-name", default="SMARTFLOW DQL Training Scenario")
     parser.add_argument("--traffic-density", default="medium")
     parser.add_argument("--pedestrian-density", default="medium")

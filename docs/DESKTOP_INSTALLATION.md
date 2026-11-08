@@ -10,7 +10,7 @@ Windows 11 x64, about 2 GB free disk, and the Microsoft WebView2 runtime (includ
 2. Choose Start menu shortcut (desktop shortcut optional). Finish.
 
 ## First run
-1. Start SmartFlow. Read and accept the prototype notice.
+1. Open SmartFlow from the Start menu. Read the development-build notice.
 2. When asked, set the administrator password (twice). Weak passwords are refused; correct and retry.
 3. Sign in. A second SmartFlow on the same Windows user is refused or focuses the first.
 
@@ -22,6 +22,10 @@ Backup & Restore (administrator): create and download a backup ZIP regularly and
 
 ## Update
 Close SmartFlow (setup refuses to run while it is open), then run the newer setup over the old one. Data and password are kept. Before every start the app saves a database snapshot (newest 10 kept). A database from a newer SmartFlow is refused rather than opened.
+
+Version 0.2.0-dev moves unedited 0.1.x study networks to the current Site A and Site B revisions and keeps their old geometry in the network history. Custom or restored network selections are kept. Check the active network before running an older scenario or model. Compare Runs can continue to use compatible recordings tied to preserved geometry.
+
+The Windows package uses the same reviewed-count import in Scenarios as the web app. Run Field Observer separately to create its five input files.
 
 ## If startup fails after an update
 1. Close SmartFlow. 2. In PowerShell:
@@ -38,4 +42,4 @@ Settings > Apps > SmartFlow > Uninstall. Your data folder is kept. To delete all
 - Blank/refused window: WebView2 missing; install it from Microsoft (offline "Evergreen Standalone" installer).
 - "Another instance": close it from the taskbar or Task Manager (SmartFlow.exe, SmartFlowWorker.exe).
 - Close is refused during a run: stop the simulation/training first, then close.
-- Study-site training refuses to start: expected until the independent validation gate passes.
+- A saved scenario or model can require its original engine and network revision. Check the compatibility message before using older study artifacts.

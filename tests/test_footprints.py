@@ -24,6 +24,28 @@ def test_rotated_rectangles_use_true_geometry():
     assert not rectangles_overlap(rectangle(0, 0, 0.0, 4.5, 1.8), rectangle(0, 3.35, math.pi/2, 4.5, 1.8))
 
 
+def test_the_fast_rectangle_test_gives_the_general_loops_answer_to_the_bit():
+    """The 4-corner path is written out for speed; it must agree with the general loop everywhere, edge cases included."""
+    def general(a, b, tolerance=1e-6):
+        for corners in (a, b):
+            for index in range(2):
+                (x1, y1), (x2, y2) = corners[index], corners[index+1]
+                axis_x, axis_y = y1-y2, x2-x1
+                norm = math.hypot(axis_x, axis_y)
+                projected_a = [(px*axis_x+py*axis_y)/norm for px, py in a]
+                projected_b = [(px*axis_x+py*axis_y)/norm for px, py in b]
+                if max(projected_a) <= min(projected_b)+tolerance or max(projected_b) <= min(projected_a)+tolerance:
+                    return False
+        return True
+    rng = random.Random(3)
+    for index in range(50000):
+        a = rectangle(rng.uniform(-5, 5), rng.uniform(-5, 5), rng.uniform(-4, 4), rng.uniform(.5, 12), rng.uniform(.3, 3))
+        b = rectangle(rng.uniform(-5, 5), rng.uniform(-5, 5), rng.uniform(-4, 4), rng.uniform(.5, 12), rng.uniform(.3, 3))
+        if index % 5 == 0:  # nearly coincident: answers decided at the tolerance
+            b = [(x+rng.uniform(-2e-6, 2e-6), y+rng.uniform(-2e-6, 2e-6)) for x, y in a]
+        assert rectangles_overlap(a, b) == general(a, b)
+
+
 def test_overlapping_pairs_reads_engine_records():
     records = [{"id": "a", "x": 0, "y": 0, "angle": 90, "length": 4.5, "width": 1.8},
                {"id": "b", "x": 1, "y": 0, "angle": 90, "length": 4.5, "width": 1.8},

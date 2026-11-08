@@ -1,0 +1,72 @@
+t 1500.0 pending {'road2': ('end', 'road2r')} draining {'road2r', 'road2f'} closed {'road2r', 'road2f'}
+car-367 tricycle lane road0r pos 96.5 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-369 motorcycle lane road0r pos 102.0 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-366 motorcycle lane road0r pos 105.0 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-332 tricycle lane road0r pos 110.0 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-340 motorcycle lane road0r pos 111.0 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-324 truck lane road0r pos 117.0 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-316 motorcycle lane road0r pos 124.5 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-317 motorcycle lane road0r pos 124.5 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-357 motorcycle lane road1r pos 41.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-318 motorcycle lane road1r pos 44.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-330 motorcycle lane road1r pos 44.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-337 motorcycle lane road1r pos 44.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-344 motorcycle lane road1r pos 44.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-315 motorcycle lane road2r pos 129.8 spd 0.71 next ['road0f'] conn False resv None
+car-313 motorcycle lane road2r pos 129.8 spd 0.72 next ['road1f', 'road5f'] conn False resv None
+car-310 motorcycle lane road2r pos 133.3 spd 0.91 next ['road3f'] conn False resv None
+car-311 motorcycle lane road2r pos 135.6 spd 1.22 next ['road1f', 'road5f'] conn False resv None
+car-304 motorcycle lane road2r pos 137.0 spd 1.15 next ['road1f', 'road5f'] conn False resv None
+car-309 motorcycle lane road2r pos 139.7 spd 1.56 next ['road0f'] conn False resv None
+car-299 tricycle lane road2r pos 141.5 spd 1.45 next ['road3f'] conn False resv None
+car-303 motorcycle lane road2r pos 143.8 spd 1.85 next ['road0f'] conn False resv None
+car-296 motorcycle lane road2r pos 148.2 spd 2.17 next ['road0f'] conn False resv None
+car-294 motorcycle lane road2r pos 148.3 spd 2.19 next ['road0f'] conn False resv None
+car-291 car lane road2r pos 154.3 spd 2.55 next ['road0f'] conn False resv None
+car-287 tricycle lane road2r pos 163.0 spd 3.0 next ['road1f', 'road5f'] conn False resv None
+car-286 car lane road2r pos 172.3 spd 3.3 next ['road3f'] conn False resv None
+car-281 tricycle lane road2r pos 181.8 spd 2.93 next ['road1f', 'road5f'] conn False resv None
+car-285 motorcycle lane road2r pos 185.4 spd 2.2 next ['road3f'] conn False resv None
+car-283 car lane road2r pos 191.4 spd 1.13 next ['road0f'] conn False resv None
+car-279 tricycle lane road2r pos 197.8 spd 0.03 next ['road3f'] conn False resv None
+car-274 motorcycle lane road2r pos 201.9 spd 0.01 next ['road1f', 'road5f'] conn False resv None
+car-271 truck lane road2r pos 208.1 spd 5.14 next ['road3f'] conn True resv tagum_site_a_j
+car-280 motorcycle lane road2r pos 208.3 spd 4.84 next ['road3f'] conn True resv tagum_site_a_j
+car-381 tricycle lane road3r pos 66.4 spd 6.12 next ['road2f', 'road4f'] conn False resv None
+car-374 bus lane road3r pos 132.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-378 motorcycle lane road3r pos 137.6 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-352 motorcycle lane road3r pos 154.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-293 tricycle lane road3r pos 172.6 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-260 motorcycle lane road3r pos 184.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-301 motorcycle lane road3r pos 186.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-254 motorcycle lane road3r pos 187.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-258 tricycle lane road3r pos 188.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-247 motorcycle lane road3r pos 196.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-263 motorcycle lane road3r pos 196.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-244 motorcycle lane road3r pos 199.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-233 car lane road3r pos 199.9 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-236 motorcycle lane road3r pos 202.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-223 tricycle lane road3r pos 205.6 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-191 tricycle lane road3r pos 210.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-190 motorcycle lane road3r pos 211.1 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-167 tricycle lane road3r pos 214.6 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-202 motorcycle lane road3r pos 229.6 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-165 car lane road3r pos 234.4 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-178 motorcycle lane road3r pos 235.6 spd 0.0 next ['road2f', 'road4f'] conn False resv None
+car-371 motorcycle lane road4r pos 1.9 spd 0.0 next ['road2r', 'road3f'] conn False resv None
+car-380 motorcycle lane road4r pos 1.9 spd 0.0 next ['road2r', 'road0f'] conn False resv None
+car-364 motorcycle lane road4r pos 2.4 spd 0.0 next ['road2r', 'road1f'] conn False resv None
+car-336 tricycle lane road4r pos 4.4 spd 0.0 next ['road2r', 'road1f'] conn False resv None
+car-365 motorcycle lane road4r pos 4.9 spd 0.0 next ['road2r', 'road3f'] conn False resv None
+car-353 motorcycle lane road4r pos 5.4 spd 0.0 next ['road2r', 'road3f'] conn False resv None
+car-329 car lane road4r pos 6.2 spd 0.0 next ['road2r', 'road1f'] conn False resv None
+car-354 motorcycle lane road4r pos 7.9 spd 0.0 next ['road2r', 'road0f'] conn False resv None
+car-328 tricycle lane road4r pos 8.9 spd 0.0 next ['road2r', 'road0f'] conn False resv None
+car-346 motorcycle lane road4r pos 10.9 spd 0.0 next ['road2r', 'road3f'] conn False resv None
+car-326 car lane road4r pos 12.7 spd 0.0 next ['road2r', 'road1f'] conn False resv None
+car-320 tricycle lane road4r pos 13.4 spd 0.0 next ['road2r', 'road0f'] conn False resv None
+car-331 motorcycle lane road4r pos 13.9 spd 0.0 next ['road2r', 'road3f'] conn False resv None
+signal tagum_site_a_j phase WEST_YELLOW dead []
+signal tagum_site_a_j2 phase NORTH_GREEN dead ['east']
+signal tagum_site_a_j3 phase NORTH_GREEN dead []
+

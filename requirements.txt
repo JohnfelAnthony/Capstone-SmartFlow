@@ -6,3 +6,4 @@ stable-baselines3==2.8.0
 torch==2.12.0
 uvicorn==0.34.0
 websockets>=14,<17
+reportlab==4.4.9

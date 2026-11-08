@@ -81,40 +81,8 @@ def desktop_app(app: FastAPI, frontend: Path, origin: str, preferences_path: Pat
 
     if restore_requests is not None:
         from fastapi import Depends, HTTPException
-        from pydantic import BaseModel, Field, ValidationError
         from backend.security import require_current_user
         from backend.main import require_admin
-        from desktop.site_validation_jobs import DesktopValidationJobs
-        from services.workload_admission import WorkloadConflict
-
-        validation_jobs = DesktopValidationJobs(restore_requests.paths.root)
-
-        class ConversionPreviewRequest(BaseModel):
-            mapping: dict
-            origin_s: float = Field(ge=0, allow_inf_nan=False)
-            start_s: float = Field(ge=0, allow_inf_nan=False)
-            end_s: float = Field(ge=0, allow_inf_nan=False)
-
-        class ConversionCreateRequest(ConversionPreviewRequest):
-            name: str = Field(min_length=1, max_length=150)
-            collected_on: str = Field(min_length=10, max_length=10)
-            source_kind: str
-            expected_network_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-            expected_mapping_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-            expected_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-        class SiteValidationRequest(BaseModel):
-            scenario_id: int = Field(ge=1, strict=True)
-            revision_id: str = Field(pattern=r"^[0-9a-f]{32}$")
-            purpose: str
-            origin_s: float = Field(ge=0, allow_inf_nan=False, strict=True)
-            start_s: float = Field(ge=0, allow_inf_nan=False, strict=True)
-            end_s: float = Field(ge=0, allow_inf_nan=False, strict=True)
-
-        class StudyInputRequest(BaseModel):
-            document: dict
-            expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-
         @app.post("/api/desktop/backups/{backup_id}/activate", include_in_schema=False)
         def activate_backup(backup_id: int, user: dict = Depends(require_current_user)):
             require_admin(user)
@@ -143,103 +111,6 @@ def desktop_app(app: FastAPI, frontend: Path, origin: str, preferences_path: Pat
                 import asyncio
                 return await asyncio.to_thread(import_reviewed_zip, bytes(content), restore_requests.paths.root)
             except (ValueError, OSError) as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-        @app.post("/api/desktop/reviewed-revisions/{revision_id}/conversion-preview", include_in_schema=False)
-        async def conversion_preview(revision_id: str, request: Request, user: dict = Depends(require_current_user)):
-            require_admin(user)
-            from desktop.reviewed_conversion import preview_conversion
-            import asyncio
-            import json
-            body = bytearray()
-            async for chunk in request.stream():
-                if len(body) + len(chunk) > 2 * 1024 * 1024:
-                    raise HTTPException(status_code=413, detail="Mapping request exceeds 2 MB")
-                body.extend(chunk)
-            try:
-                data = ConversionPreviewRequest.model_validate(json.loads(body))
-                return await asyncio.to_thread(preview_conversion, study_root=restore_requests.paths.root,
-                                               revision_id=revision_id, **data.model_dump())
-            except (ValueError, OSError, TypeError, KeyError, ValidationError) as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-        @app.post("/api/desktop/reviewed-revisions/{revision_id}/create-scenario", include_in_schema=False)
-        async def create_reviewed_scenario(revision_id: str, request: Request, user: dict = Depends(require_current_user)):
-            require_admin(user)
-            from desktop.reviewed_conversion import create_scenario_from_review
-            import asyncio
-            import json
-            body = bytearray()
-            async for chunk in request.stream():
-                if len(body) + len(chunk) > 2 * 1024 * 1024:
-                    raise HTTPException(status_code=413, detail="Mapping request exceeds 2 MB")
-                body.extend(chunk)
-            try:
-                data = ConversionCreateRequest.model_validate(json.loads(body))
-                return await asyncio.to_thread(create_scenario_from_review, study_root=restore_requests.paths.root,
-                                               revision_id=revision_id, user_id=user["id"], **data.model_dump())
-            except (ValueError, OSError, TypeError, KeyError, ValidationError) as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-        @app.post("/api/desktop/site-validation-jobs", include_in_schema=False)
-        async def start_site_validation(request: Request, user: dict = Depends(require_current_user)):
-            require_admin(user)
-            import asyncio
-            import json
-            body = bytearray()
-            async for chunk in request.stream():
-                if len(body) + len(chunk) > 16384:
-                    raise HTTPException(status_code=413, detail="Validation request exceeds 16 KB")
-                body.extend(chunk)
-            try:
-                data = SiteValidationRequest.model_validate(json.loads(body))
-                return await asyncio.to_thread(validation_jobs.start, **data.model_dump())
-            except WorkloadConflict as exc:
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
-            except (ValueError, OSError, TypeError, KeyError, ValidationError) as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-        @app.get("/api/desktop/site-validation-jobs", include_in_schema=False)
-        def list_site_validation(user: dict = Depends(require_current_user)):
-            require_admin(user)
-            return {"jobs": validation_jobs.list()}
-
-        @app.get("/api/desktop/site-validation-jobs/{job_id}", include_in_schema=False)
-        def get_site_validation(job_id: str, user: dict = Depends(require_current_user)):
-            require_admin(user)
-            job = validation_jobs.get(job_id)
-            if job is None:
-                raise HTTPException(status_code=404, detail="Validation job not found")
-            return job
-
-        @app.get("/api/desktop/study-inputs/{site}", include_in_schema=False)
-        def study_input_status(site: str, user: dict = Depends(require_current_user)):
-            require_admin(user)
-            from desktop.study_inputs import status
-            try:
-                return status(restore_requests.paths.root, site)
-            except (ValueError, OSError) as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-        @app.post("/api/desktop/study-inputs/{site}/{kind}", include_in_schema=False)
-        async def import_study_input(site: str, kind: str, request: Request, user: dict = Depends(require_current_user)):
-            require_admin(user)
-            from desktop.study_inputs import StaleStudyInput, import_input
-            from database import log_audit_event
-            import asyncio
-            import json
-            body = bytearray()
-            async for chunk in request.stream():
-                if len(body) + len(chunk) > 2 * 1024 * 1024:
-                    raise HTTPException(status_code=413, detail="Study input request exceeds 2 MB")
-                body.extend(chunk)
-            try:
-                data = StudyInputRequest.model_validate(json.loads(body))
-                return await asyncio.to_thread(import_input, root=restore_requests.paths.root, site=site, kind=kind,
-                                               user_id=user["id"], audit=log_audit_event, **data.model_dump())
-            except (StaleStudyInput, WorkloadConflict) as exc:
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
-            except (ValueError, OSError, TypeError, KeyError, ValidationError) as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/{path:path}", include_in_schema=False)

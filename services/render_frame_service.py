@@ -120,6 +120,8 @@ def _serialize_visual_payload(raw_visual: dict | None) -> dict:
     }
     if isinstance(raw_visual.get("pedestrian_paths"), list):
         visual["pedestrian_paths"] = copy.deepcopy(raw_visual["pedestrian_paths"])
+    if raw_visual.get("shared_roads"):  # only while a closed direction shares the opposite pavement (hypothetical)
+        visual["shared_roads"] = copy.deepcopy(raw_visual["shared_roads"])
     return visual
 
 
@@ -206,6 +208,7 @@ def build_render_frame(
     render_ts: float | None = None,
     sequence: int | None = None,
     current_intersection_id: str | None = None,
+    speed_multiplier: float | None = None,
 ) -> dict:
     """Build the compact renderer payload shared by native state fallbacks and WebSocket streaming."""
 
@@ -263,5 +266,9 @@ def build_render_frame(
                                       for key in ("last_policy_decision", "last_safety_override")}
     if sequence is not None:
         frame["sequence"] = int(sequence)
+    if speed_multiplier is not None:
+        frame["speed_multiplier"] = speed_multiplier
+    if playback.get("seek_revision"):
+        frame["playback"]["seek_revision"] = int(playback["seek_revision"])
     _set_coverage(frame, "entity_limit")
     return _enforce_byte_budget(frame)

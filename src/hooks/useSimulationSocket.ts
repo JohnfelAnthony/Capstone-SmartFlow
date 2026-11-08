@@ -21,6 +21,7 @@ function validFrame(value: unknown): value is RenderFrame {
   const pedestrians = frame.pedestrians
   const visual = frame.visual
   if (!Number.isFinite(frame.time) || !Number.isFinite(frame.render_ts) || !Number.isFinite(frame.step_length) ||
+    (frame.speed_multiplier !== undefined && ![0.25, 0.5, 1, 2, 4].includes(frame.speed_multiplier)) ||
     typeof frame.status !== "string" || typeof frame.flow_state !== "string" ||
     typeof frame.intersection_id !== "string" || typeof frame.phase !== "string" ||
     !Number.isSafeInteger(frame.vehicle_count) || !Number.isSafeInteger(frame.pedestrian_count) ||

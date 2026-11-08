@@ -230,10 +230,9 @@ function middleOf(points: readonly VisualPoint[]) {
 }
 
 export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
-  const metadata = network as VisualNetwork & { network_id?: string; junctions?: Array<{ id: string; label?: string; name?: string }> }
   const outlines = network.signals.map((signal, index) => {
-    const node = metadata.junctions?.find((junction) => junction.id === signal.id)
-    return { id: signal.id, label: node?.label || node?.name || `Junction ${index + 1}`, center: { x: signal.x, y: signal.y }, polygon: clonePoints(signal.shape) }
+    const node = network.junctions?.find((junction) => junction.id === signal.id)
+    return { id: signal.id, label: node?.label || node?.name || `Junction ${index + 1}`, center: { x: signal.x, y: signal.y }, polygon: clonePoints(signal.shape), pedestrians: node?.generated_demand !== false }
   })
   const lanes: SceneLane[] = []
   const laneById = new Map<string, SceneLane>()
@@ -265,7 +264,7 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
     const reach = Math.max(...outline.polygon.map((point) => distance(point, outline.center)), 0) + 1
     const ends = roads.filter((lane) => lane.junctionIds.includes(outline.id)).map((lane) => laneEndAt(lane, outline)).filter((end) => distance(end.point, outline.center) <= reach)
     const pavement = siteFeatures.find((feature) => feature.kind === "junction_pavement" && feature.junction === outline.id)
-    const zebraEnds = pavement?.zebra_lanes ? ends.filter((end) => pavement.zebra_lanes!.includes(end.lane.id)) : ends
+    const zebraEnds = !outline.pedestrians ? [] : pavement?.zebra_lanes ? ends.filter((end) => pavement.zebra_lanes!.includes(end.lane.id)) : ends
     return { ...outline, kerb: pavement ? clonePoints(pavement.shape) : junctionKerbOutline(outline, ends), crosswalks: zebraEnds.map((end) => crosswalkAt(end, outline)) }
   })
   const signalGroups = network.signal_groups.map((group) => {
@@ -276,11 +275,11 @@ export function normalizeSceneGeometry(network: VisualNetwork): SceneGeometry {
   })
   const fallbackBounds = boundsOfPoints([...lanes.flatMap((lane) => lane.polygon), ...junctions.flatMap((junction) => junction.polygon)])
   const bounds = network.bounds && Object.values(network.bounds).every(Number.isFinite) && network.bounds.max_x > network.bounds.min_x && network.bounds.max_y > network.bounds.min_y ? { ...network.bounds } : fallbackBounds
-  return { islands: network.islands?.map(island => ({ ...island, shape: clonePoints(island.shape) })), siteFeatures, networkId: metadata.network_id || network.source_net, bounds, lanes, connectors: lanes.filter((lane) => lane.kind === "connector"), junctions, signalGroups, laneById, junctionById: new Map(junctions.map((junction) => [junction.id, junction])) }
+  return { islands: network.islands?.map(island => ({ ...island, shape: clonePoints(island.shape) })), siteFeatures, networkId: network.network_id || network.source_net, bounds, lanes, connectors: lanes.filter((lane) => lane.kind === "connector"), junctions, signalGroups, laneById, junctionById: new Map(junctions.map((junction) => [junction.id, junction])) }
 }
 
 /** Clip only the camera fitting sample; the displayed lane geometry remains untouched. */
-function immediateApproach(points: readonly VisualPoint[], junction: SceneJunction, distanceMetres: number) {
+export function immediateApproach(points: readonly VisualPoint[], junction: SceneJunction, distanceMetres: number) {
   if (!points.length) return []
   const ordered = distance(points[0], junction.center) <= distance(points[points.length - 1], junction.center) ? points : [...points].reverse()
   const result = [{ ...ordered[0] }]

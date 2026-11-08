@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import sqlite3
@@ -158,6 +159,9 @@ def _files_for_references(references: set[str]) -> dict[str, Path]:
     return files
 
 
+LEGACY_VALIDATION_JOB_ID = re.compile(r"[0-9a-f]{32}")
+
+
 def _desktop_evidence() -> tuple[dict[str, Path], dict[str, str]]:
     """Include only explicitly selected desktop study evidence and preferences."""
     raw = os.environ.get("SMARTFLOW_STUDY_ROOT")
@@ -167,9 +171,8 @@ def _desktop_evidence() -> tuple[dict[str, Path], dict[str, str]]:
     candidates = [root / "config" / "preferences.json"]
     candidates.extend((root / "data" / "sites").glob("*.json"))
     candidates.extend((root / "docs" / "reports").glob("site-validation-*.json"))
-    from desktop.site_validation_jobs import JOB_ID
     for path in (root / "data" / "validation-jobs").glob("*.json"):
-        if path.is_symlink() or not JOB_ID.fullmatch(path.stem):
+        if path.is_symlink() or not LEGACY_VALIDATION_JOB_ID.fullmatch(path.stem):
             raise ValueError("Unsafe desktop validation-job record")
         candidates.append(path)
     from services.reviewed_revision_store import REVISION_ID, SAFE_NAME, revision_path
@@ -209,14 +212,13 @@ def _desktop_evidence_layout(staged: Path, manifest: dict, restored: dict[str, P
         raise ValueError("Invalid desktop evidence manifest")
     destination_root = staged / "desktop"
     from services.reviewed_revision_store import REVISION_ID, SAFE_NAME
-    from desktop.site_validation_jobs import JOB_ID
     for name, member in entries.items():
         if not isinstance(name, str) or not isinstance(member, str):
             raise ValueError("Invalid desktop evidence entry")
         parts = name.split("/")
         allowed = (name == "config/preferences.json" or
                    (len(parts) == 3 and parts[:2] == ["data", "sites"] and parts[2].endswith(".json")) or
-                   (len(parts) == 3 and parts[:2] == ["data", "validation-jobs"] and parts[2].endswith(".json") and JOB_ID.fullmatch(parts[2][:-5])) or
+                   (len(parts) == 3 and parts[:2] == ["data", "validation-jobs"] and parts[2].endswith(".json") and LEGACY_VALIDATION_JOB_ID.fullmatch(parts[2][:-5])) or
                    (len(parts) == 3 and parts[:2] == ["docs", "reports"] and parts[2].startswith("site-validation-") and parts[2].endswith(".json")) or
                    (len(parts) == 4 and parts[:2] == ["data", "reviewed-revisions"] and REVISION_ID.fullmatch(parts[2]) and SAFE_NAME.fullmatch(parts[3])))
         if not allowed or any(part in ("", ".", "..") or "\\" in part or ":" in part for part in parts):

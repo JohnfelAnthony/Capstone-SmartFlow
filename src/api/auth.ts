@@ -1,4 +1,4 @@
-import { apiRequest } from "@/api/client"
+import { apiRequest, sessionRestored } from "@/api/client"
 
 export type Permission = {
   page: string
@@ -15,6 +15,7 @@ export type CurrentUser = {
   status: string
   must_change_password: boolean
   permissions: Permission[]
+  created_at?: string | null
 }
 
 export type LoginResponse = {
@@ -27,11 +28,13 @@ export type RegisterResponse = {
   account_status: string
 }
 
-export function login(username: string, password: string) {
-  return apiRequest<LoginResponse>("/api/auth/login", {
+export async function login(username: string, password: string) {
+  const result = await apiRequest<LoginResponse>("/api/auth/login", {
     method: "POST",
     body: { username, password },
   })
+  sessionRestored()
+  return result
 }
 
 export function registerAccount(payload: {

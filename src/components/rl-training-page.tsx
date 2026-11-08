@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import * as React from "react"
 import {
   BrainIcon,
@@ -15,6 +16,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -49,6 +51,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -68,7 +71,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { EMPTY_VALUE, formatServerDate } from "@/lib/display-format"
+import { resumeTargetCompatible } from "@/lib/rl-resume"
+import { rewardSeries } from "@/lib/reward-series"
 import { cn } from "@/lib/utils"
+import "@/styles/admin-user-management.css"
 import "@/styles/rl-training.css"
 
 type AlgorithmId = "ql" | "dql" | "ppo"
@@ -127,25 +134,13 @@ function rlErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return "Never"
-  }
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value))
-}
-
 function statusLabel(value: string | null | undefined) {
   return String(value || "idle").replaceAll("_", " ").replaceAll("-", " ")
 }
 
 function selectedAlgorithmLabel(algorithms: string[]) {
   if (!algorithms.length) {
-    return "--"
+    return EMPTY_VALUE
   }
   return algorithms.map((algorithm) => algorithm.toUpperCase()).join(", ")
 }
@@ -168,7 +163,7 @@ function parseRewardPoints(lines: RLLogLine[]): RewardPoint[] {
 
 function compactNumber(value: number | null | undefined, digits = 1) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "--"
+    return EMPTY_VALUE
   }
   return value.toLocaleString(undefined, {
     maximumFractionDigits: digits,
@@ -238,10 +233,9 @@ function NumberField({
 function StatusBadge({ status }: { status: string }) {
   const normalized = status.toLowerCase()
   const isDanger = ["error", "interrupted"].includes(normalized)
-  const isDone = normalized === "completed"
   return (
     <Badge
-      variant={isDanger ? "destructive" : isDone ? "secondary" : "outline"}
+      variant={isDanger ? "destructive" : "outline"}
       className={cn("rl-status-badge", normalized)}
     >
       {statusLabel(status)}
@@ -285,6 +279,9 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
 
   const scenarioConfig = scenarioResolution?.id === selectedScenarioId ? scenarioResolution.config : null
   const scenarioLoading = Boolean(selectedScenarioId && scenarioResolution?.id !== selectedScenarioId)
+  // Models from an older contract cannot run or resume; they are hidden here, never deleted.
+  const shownModels = status.models.filter((model) => model.compatible || model.checkpoints.some((checkpoint) => checkpoint.compatible))
+  const hiddenModelCount = status.models.length - shownModels.length
   const selectedModel = status.models.find((model) => model.id === selectedModelId) ?? null
   const selectedModelMatchesScenario = Boolean(selectedModel && scenarioConfig && selectedModel.controlled_junction === scenarioConfig.controlled_junction)
   const viewedJob = status.job
@@ -293,7 +290,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   const canStopActiveJob = Boolean(canRunTraining && serverActiveJobId && (isAdmin || activeJob?.user_id === currentUserId))
   const selectedScenario = scenarios.find((item) => String(item.id) === selectedScenarioId) ?? null
   const activeItem = status.items.find((item) => item.id === viewedJob?.current_item_id) ?? status.items[0] ?? null
-  const rewardPoints = React.useMemo(() => parseRewardPoints(status.log_lines), [status.log_lines])
+  const rewardChart = React.useMemo(() => rewardSeries(parseRewardPoints(status.log_lines)), [status.log_lines])
   const consoleText = status.log_lines.length
     ? status.log_lines.slice(-140).map((line) => line.text).join("\n")
     : "No training output yet."
@@ -436,6 +433,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
       })
       viewJob(response.job_id)
       setAlert(response.message)
+      toast.success(response.message)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to start RL training."))
     } finally {
@@ -449,6 +447,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     try {
       const response = await stopRLTrainingJob(serverActiveJobId)
       setAlert(response.message)
+      toast.success(response.message)
       viewJob(serverActiveJobId)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to stop RL training."))
@@ -490,6 +489,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
       const response = await evaluateRLModel({ model_id: selectedModel.id, settings: evaluationSettings })
       viewJob(response.job_id)
       setAlert(response.message)
+      toast.success(response.message)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to evaluate selected model."))
     } finally {
@@ -501,7 +501,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     { label: "Job", value: statusLabel(viewedJob?.status), hint: viewedJob?.message ?? "Idle", icon: ListChecksIcon, tone: "info" },
     { label: "Algorithm", value: (viewedJob?.current_algorithm ?? activeItem?.algorithm ?? selectedAlgorithmLabel(algorithms)).toUpperCase(), hint: "Viewed job", icon: BrainIcon, tone: "success" },
     { label: "Progress", value: `${compactNumber(viewedJob?.progress_percent ?? 0)}%`, hint: "Viewed job", icon: GaugeIcon, tone: "warning" },
-    { label: "Reward", value: compactNumber(activeItem?.latest_reward, 3), hint: "Latest episode", icon: ChartLineIcon, tone: "purple" },
+    { label: "Reward", value: compactNumber(activeItem?.latest_reward, 3), hint: "Latest episode", icon: ChartLineIcon, tone: "info" },
   ]
 
   return (
@@ -519,7 +519,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
           </Button>
           <Button onClick={startTraining} disabled={!canRunTraining || Boolean(serverActiveJobId) || pendingAction || scenarioLoading}>
             <PlayIcon data-icon="inline-start" />
-            Start Queue
+            Start queue
           </Button>
           <Button variant="destructive" onClick={stopTraining} disabled={!canStopActiveJob || pendingAction}>
             <SquareIcon data-icon="inline-start" />
@@ -528,11 +528,11 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
         </div>
       </section>
 
-      <section className="rl-metric-strip" aria-label="RL training metrics">
+      <section className="audit-metric-strip" aria-label="RL training metrics">
         {metrics.map((metric) => {
           const Icon = metric.icon
           return (
-            <div key={metric.label} className={cn("rl-strip-metric", metric.tone)}>
+            <div key={metric.label} className={cn("audit-strip-metric", metric.tone)}>
               <Icon />
               <div>
                 <div>
@@ -654,14 +654,14 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
             </div>
 
             <div className="rl-secondary-actions">
-              <Button variant="outline" onClick={() => { setSettings((current) => ({ ...current, resume_model_id: null, resume_checkpoint_id: null })); setSelectedCheckpointId(null); setAlert("New training selected.") }}>Start new training</Button>
-              <Button variant="outline" onClick={resumeSelectedModel}>
+              <Button variant="outline" onClick={() => { setSettings((current) => ({ ...current, resume_model_id: null, resume_checkpoint_id: null })); setSelectedCheckpointId(null); setAlert("Resume selection cleared.") }}>Clear resume selection</Button>
+              <Button variant="outline" onClick={resumeSelectedModel} disabled={!canRunTraining || !resumeTargetCompatible(selectedModel, selectedCheckpointId) || Boolean(serverActiveJobId) || pendingAction}>
                 <RotateCcwIcon data-icon="inline-start" />
-                Resume Selected
+                Resume selected
               </Button>
               <Button variant="outline" onClick={evaluateSelectedModel} disabled={!canRunTraining || !selectedModel?.compatible || !selectedModelMatchesScenario || Boolean(serverActiveJobId) || pendingAction}>
                 <ChartLineIcon data-icon="inline-start" />
-                Evaluate Selected
+                Evaluate selected
               </Button>
               {settings.resume_model_id ? <Badge variant="outline">Resume model #{settings.resume_model_id}{settings.resume_checkpoint_id ? ` checkpoint #${settings.resume_checkpoint_id}` : ""}</Badge> : null}
             </div>
@@ -690,15 +690,27 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
             <CardDescription>Parsed from live training output.</CardDescription>
           </CardHeader>
           <CardContent className="rl-chart-shell">
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={rewardPoints}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="episode" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="reward" stroke="var(--primary)" dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            {rewardChart.data.length ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={rewardChart.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="episode" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  {rewardChart.algorithms.map((algorithm, index) => (
+                    <Line key={algorithm} type="monotone" dataKey={algorithm} stroke={`var(--chart-${(index % 5) + 1})`} dot={false} connectNulls />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>No rewards yet</EmptyTitle>
+                  <EmptyDescription>They appear here while a job trains.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
           </CardContent>
         </Card>
 
@@ -737,7 +749,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                     <TableCell>
                       <ProgressBar value={job.progress_percent} />
                     </TableCell>
-                    <TableCell>{formatDate(job.created_at)}</TableCell>
+                    <TableCell>{formatServerDate(job.created_at)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -751,9 +763,9 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
               <DatabaseIcon />
               Trained Models
             </CardTitle>
-            <CardDescription>Select a registered model explicitly. A checkpoint can resume even when the final artifact is missing, if that checkpoint is compatible. The evaluation score is negative mean stopped vehicle wait, not an overall recommendation. Historical scores may lack population evidence; different input sets are not comparable.</CardDescription>
+            <CardDescription>Pick a model to resume or evaluate. Historical scores may lack evidence about which vehicles were counted. Compare wait only across runs with matching inputs.</CardDescription>
             <CardAction>
-              <Badge variant="secondary">{status.models.length} models</Badge>
+              <Badge variant="secondary">{shownModels.length} models</Badge>
             </CardAction>
           </CardHeader>
           <CardContent className="rl-table-shell">
@@ -763,12 +775,12 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                   <TableHead>ID</TableHead>
                   <TableHead>Algorithm</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Recorded −wait (s)</TableHead>
+                  <TableHead>Mean stopped wait (s)</TableHead>
                   <TableHead>Trained</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {status.models.map((model: RLModelRecord) => (
+                {shownModels.map((model: RLModelRecord) => (
                   <TableRow
                     key={model.id}
                     className={cn(selectedModel?.id === model.id && "selected")}
@@ -777,12 +789,13 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                     <TableCell>#{model.id}</TableCell>
                     <TableCell><Badge variant="outline">{model.algorithm}</Badge></TableCell>
                     <TableCell>{model.name ?? "RL Model"} · {model.compatible ? "compatible" : model.compatibility_message}</TableCell>
-                    <TableCell>{compactNumber(model.best_evaluation_score, 3)}</TableCell>
-                    <TableCell>{formatDate(model.training_date)}</TableCell>
+                    <TableCell>{compactNumber(model.best_evaluation_score == null ? null : Math.abs(model.best_evaluation_score), 3)}</TableCell>
+                    <TableCell>{formatServerDate(model.training_date)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            {hiddenModelCount > 0 ? <p role="note" className="p-3 text-sm text-muted-foreground">{hiddenModelCount} older model{hiddenModelCount === 1 ? "" : "s"} from before the current controller contract {hiddenModelCount === 1 ? "is" : "are"} hidden because {hiddenModelCount === 1 ? "it" : "they"} cannot run or resume. Nothing was deleted.</p> : null}
             {selectedModel ? (
               <div className="flex flex-col gap-2 p-3">
                 <p>Model #{selectedModel.id}: {selectedModel.compatible ? "compatible artifact" : selectedModel.compatibility_message}. Junction {selectedModel.controlled_junction ?? "unknown"}; decision every {selectedModel.decision_interval_seconds}s; minimum green hold {selectedModel.minimum_green_hold_seconds}s. Status: {selectedModel.training_status ?? "unknown"}. {selectedModelMatchesScenario ? "Matches the selected scenario junction." : "Choose a scenario with this controlled junction to use this model."}</p>
@@ -821,10 +834,13 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                 {status.items.map((item: RLTrainingJobItem) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.algorithm.toUpperCase()}</TableCell>
-                    <TableCell><StatusBadge status={item.status} /></TableCell>
+                    <TableCell>
+                      <StatusBadge status={item.status} />
+                      {item.message && ["error", "interrupted"].includes(item.status.toLowerCase()) ? <small className="rl-item-message">{item.message}</small> : null}
+                    </TableCell>
                     <TableCell>{item.latest_episode}</TableCell>
                     <TableCell>{compactNumber(item.latest_reward, 3)}</TableCell>
-                    <TableCell className="rl-path-cell">{item.artifact_path ?? item.evaluation_path ?? "--"}</TableCell>
+                    <TableCell className="rl-path-cell">{item.artifact_path ?? item.evaluation_path ?? EMPTY_VALUE}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

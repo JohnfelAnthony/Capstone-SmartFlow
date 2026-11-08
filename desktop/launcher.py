@@ -1,4 +1,4 @@
-"""Source-only desktop window prototype; not a distributable launcher."""
+"""Launch the SmartFlow desktop window and its private backend."""
 from __future__ import annotations
 
 import argparse
@@ -74,7 +74,7 @@ def run(paths: DesktopPaths, *, window_module=None, dialogs=None) -> bool:
 
             @staticmethod
             def warning():
-                return messagebox.askokcancel("SmartFlow desktop prototype", "This is an unfinished prototype for synthetic data. Training and restore have not completed packaged acceptance. Closing it stops its backend. Continue?", parent=hidden)
+                return messagebox.askokcancel("SmartFlow", "This development build is unsigned. Use synthetic data for software testing. Continue?", parent=hidden)
 
             @staticmethod
             def confirm_close():
@@ -97,7 +97,7 @@ def run(paths: DesktopPaths, *, window_module=None, dialogs=None) -> bool:
     try:
         frontend = paths.resources / "dist"
         if not (frontend / "index.html").is_file():
-            raise RuntimeError("Build the desktop frontend before starting the prototype")
+            raise RuntimeError("The SmartFlow desktop interface is missing. Reinstall the application or rebuild the desktop frontend.")
         if not dialogs.warning():
             return False
         control_root = paths.root
@@ -127,7 +127,7 @@ def run(paths: DesktopPaths, *, window_module=None, dialogs=None) -> bool:
         window_module.settings["ALLOW_DOWNLOADS"] = True
         window_module.settings["ALLOW_FILE_URLS"] = False
         window_module.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
-        window = window_module.create_window("SmartFlow — desktop prototype", origin, width=1280, height=800, min_size=(1000, 650), confirm_close=False)
+        window = window_module.create_window("SmartFlow", origin, width=1280, height=800, min_size=(1000, 650), confirm_close=False)
         selected_renderer = []
 
         def require_edge(renderer):
@@ -175,7 +175,9 @@ def run(paths: DesktopPaths, *, window_module=None, dialogs=None) -> bool:
         if hasattr(backend, "poll_restore"):
             monitor = threading.Thread(target=monitor_restore, daemon=True)
             monitor.start()
-        window_module.start(gui="edgechromium", private_mode=False, storage_path=str(paths.root / "webview"))
+        icon = paths.resources / "desktop" / "smartflow.ico"
+        window_module.start(gui="edgechromium", private_mode=False, storage_path=str(paths.root / "webview"),
+                            icon=str(icon) if icon.is_file() else None)
         if selected_renderer and selected_renderer[0] != "edgechromium":
             raise RuntimeError("Microsoft Edge WebView2 is required. Install the WebView2 runtime and retry.")
         return True
@@ -194,7 +196,7 @@ def run(paths: DesktopPaths, *, window_module=None, dialogs=None) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the unfinished SmartFlow desktop source prototype")
+    parser = argparse.ArgumentParser(description="Run SmartFlow for Windows")
     parser.add_argument("--data-dir", type=Path)
     args = parser.parse_args()
     try:
@@ -205,7 +207,7 @@ def main() -> None:
             from tkinter import messagebox
             root = tk.Tk()
             root.withdraw()
-            messagebox.showerror("SmartFlow desktop prototype", str(exc), parent=root)
+            messagebox.showerror("SmartFlow", str(exc), parent=root)
             root.destroy()
         except Exception:
             print(f"Desktop startup failed: {exc}", file=sys.stderr)

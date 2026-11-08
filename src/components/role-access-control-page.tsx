@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import * as React from "react"
 import {
   BadgeCheckIcon,
@@ -311,14 +312,14 @@ export function RoleAccessControlPage() {
   const [alert, setAlert] = React.useState("Loading permission matrix from SQLite.")
   const [isLoading, setIsLoading] = React.useState(false)
 
-  const loadRoles = React.useCallback(async () => {
+  const loadRoles = React.useCallback(async (announce = true) => {
     setIsLoading(true)
     try {
       const response = await listAdminRoles()
       const mapped = permissionMapFromRoles(response.roles)
       setBasePermissions(mapped.permissions)
       setServerRoleIds(mapped.roleIds)
-      setAlert("Permission matrix loaded from SQLite. Toggle editable permissions, then save.")
+      if (announce) setAlert("Permission matrix loaded from SQLite. Toggle editable permissions, then save.")
     } catch (error) {
       setAlert(roleErrorMessage(error, "Unable to load role permissions."))
     } finally {
@@ -460,9 +461,12 @@ export function RoleAccessControlPage() {
       setPending({})
       setShowProtectedConfirm(false)
       setAlert("Permissions saved successfully to SQLite.")
-      await loadRoles()
+      toast.success("Permissions saved")
+      await loadRoles(false)
     } catch (error) {
-      setAlert(roleErrorMessage(error, "Unable to save permission changes."))
+      const message = roleErrorMessage(error, "Unable to save permission changes.")
+      setAlert(message)
+      toast.error(message)
     }
   }
 

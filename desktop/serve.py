@@ -62,12 +62,15 @@ async def _serve_locked(request: dict, paths: DesktopPaths) -> None:
                 del os.environ[name]
         os.environ.update({**paths.environment(), "SMARTFLOW_SECRET_KEY": secret,
                            "SMARTFLOW_PUBLIC_BASE_URL": origin, "SMARTFLOW_ALLOWED_ORIGINS": origin})
+        control_root = Path(request.get("control_root", str(paths.root))).resolve()
+        if paths.root == control_root:
+            paths.upgrade_stock_networks()
+
         import uvicorn
         from backend.main import app
         from desktop.server import desktop_app
 
         from desktop.restore_requests import RestoreRequests
-        control_root = Path(request.get("control_root", str(paths.root))).resolve()
         restores = RestoreRequests(paths, control_root, frontend)
         server = uvicorn.Server(uvicorn.Config(desktop_app(app, frontend, origin, paths.root / "config" / "preferences.json", restores), log_level="warning", access_log=False))
         task = asyncio.create_task(server.serve(sockets=[listener]))

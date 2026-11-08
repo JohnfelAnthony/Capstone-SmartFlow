@@ -5,6 +5,7 @@ from pathlib import Path
 
 from simulation.road_network import load_network
 from simulation.scenario_config import number, read_trip_csv
+from simulation.study_seeds import validate_study_seeds
 from simulation.traffic_engine import TrafficEngine
 from services.metric_definitions import metric_report_metadata
 
@@ -41,6 +42,7 @@ def main():
     parser.add_argument("--model", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    validate_study_seeds(args.seeds)
     scenario = json.loads(args.scenario.read_text(encoding="utf-8"))
     if args.trips:
         scenario.setdefault("engine_config", {})["trips"] = read_trip_csv(args.trips)

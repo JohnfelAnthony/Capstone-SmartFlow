@@ -10,6 +10,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from desktop.paths import network_resource_names
+
 import pytest
 
 from desktop.lifecycle import DesktopBackend
@@ -23,7 +25,7 @@ def test_source_backend_readiness_and_authentication(tmp_path):
     resources = tmp_path / "resources"
     networks = resources / "data" / "networks"
     networks.mkdir(parents=True)
-    for name in ("registry.json", "tagum_network.json", "tagum_site_a.json", "tagum_site_b.json"):
+    for name in network_resource_names(ROOT / "data" / "networks"):
         shutil.copyfile(ROOT / "data" / "networks" / name, networks / name)
     frontend = resources / "dist"
     frontend.mkdir()

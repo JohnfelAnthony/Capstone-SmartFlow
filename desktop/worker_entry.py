@@ -14,6 +14,10 @@ def dispatch(arguments: list[str]) -> None:
     modes = {**WORKERS, **SERVICES}
     if not arguments or arguments[0] not in modes:
         raise ValueError("Choose an allowed SmartFlow worker mode: " + ", ".join(modes))
+    if getattr(sys, "frozen", False) and arguments[0] != "recover":
+        from pathlib import Path
+        from desktop.engine_manifest import verify_manifest
+        verify_manifest(Path(sys._MEIPASS))
     module = modes[arguments[0]]
     sys.argv = [module, *arguments[1:]]
     runpy.run_module(module, run_name="__main__")
