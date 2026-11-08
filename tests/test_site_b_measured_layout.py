@@ -15,7 +15,7 @@ from tools.site_b_measured_layout import CARRIAGEWAY_WIDTH_M, MEDIAN_WIDTH_M, bu
 
 ROOT = Path(__file__).resolve().parents[1]/"data"/"networks"
 INSTALLED = json.loads((ROOT/"tagum_site_b.json").read_text(encoding="utf-8"))
-MEASURED = json.loads((ROOT/"tagum_site_b_pre_street_grid.json").read_text(encoding="utf-8"))  # the measured core on its own: the installed Site B before the street grid (D45)
+MEASURED = json.loads((ROOT/"tagum_site_b_pre_street_grid.json").read_text(encoding="utf-8"))  # the measured core on its own: the installed Site B before the street grid (D46)
 CORRIDOR = json.loads((ROOT/"history"/"tagum_site_b_osm_corridor.json").read_text(encoding="utf-8"))
 NETWORK = RoadNetwork(INSTALLED)
 STUDY, NEIGHBOR = NETWORK.intersections[:2]

@@ -4,6 +4,7 @@ import {
   ArrowLeftRightIcon,
   ArrowUpIcon,
   ChevronDownIcon,
+  DownloadIcon,
   GitCompareArrowsIcon,
   MinusIcon,
   PauseIcon,
@@ -24,10 +25,12 @@ import {
 
 import { metricDefinition, metricDescription, metricValue, formatMetric } from "@/lib/metrics"
 import { MetricDefinitions } from "@/components/metric-definitions"
-import { ApiError } from "@/api/client"
+import { ApiError, SESSION_EXPIRED_EVENT, SESSION_RESTORED_EVENT } from "@/api/client"
+import { toast } from "sonner"
 import {
   getComparePair,
   getComparePairFrames,
+  getCompareReport,
   listCompareRuns,
   listCompatibleCompareRuns,
   type ComparePairFramesResponse,
@@ -35,8 +38,8 @@ import {
   type CompareRunBundle,
   type CompareRunOption,
 } from "@/api/compare"
-import { getVisualNetwork } from "@/api/visual-network"
 import { CompareMap } from "@/components/compare-map"
+import { CompareSignalsCard } from "@/components/compare-signals"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,10 +62,10 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { advancePlayback, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "@/lib/compare-view"
+import { advancePlayback, compareFrameWindow, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "@/lib/compare-view"
 import { controlLabel, isRlControl } from "@/lib/control-labels"
 import { EMPTY_VALUE } from "@/lib/display-format"
-import { normalizeSceneGeometry, type SceneGeometry } from "@/simulation/scene-geometry"
+import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
 import type { RenderFrame } from "@/simulation/frame-types"
 import "@/styles/compare-runs.css"
 
@@ -71,7 +74,6 @@ const noSelection = "none"
 const WINDOW_SECONDS = 10
 const PREFETCH_SECONDS = 5
 const MIN_STEP_MS = 66
-const RETRY_DELAY_MS = 2000
 const CHART_POINTS = 400
 const kpiRows = ["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
   "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles",
@@ -117,11 +119,6 @@ function runOptionLabel(option: CompareRunOption) {
   return `${runTitle(option)} · run #${run.id} · ${run.scenario_name ?? "Unknown scenario"} · seed ${run.seed ?? "none"}`
 }
 
-function networkIdOf(pair: ComparePairResponse) {
-  const rawMetrics = pair.left.metrics.raw_metrics as { experiment?: { network_id?: string } } | undefined
-  return rawMetrics?.experiment?.network_id ?? pair.left.option.timeline.intersection_id ?? null
-}
-
 function matchSummary(pair: ComparePairResponse) {
   const { run, timeline } = pair.left.option
   const same = `Same scenario (${run.scenario_name ?? "unknown"}), seed ${run.seed ?? "none"}, ${formatNumber(timeline.actual_duration_seconds, 0)} s`
@@ -130,16 +127,11 @@ function matchSummary(pair: ComparePairResponse) {
   return `${same}; ${differs}`
 }
 
-/** The frame pair for `time`, taken only from the window that holds `time`, never from a neighbouring window. */
-function framesAt(byStart: Record<number, ComparePairFramesResponse>, time: number): { left: RenderFrame; right: RenderFrame } | null {
-  const { start } = frameWindow(time, WINDOW_SECONDS)
+function framesAt(byStart: Record<number, ComparePairFramesResponse>, start: number, time: number): { left: RenderFrame; right: RenderFrame } | null {
   const loaded = byStart[start]
   if (!loaded) return null
-  const index = frameAtTime(loaded.times, time)
-  if (index >= 0) return { left: loaded.left[index], right: loaded.right[index] }
-  const before = byStart[start - WINDOW_SECONDS]
-  const last = before ? before.times.length - 1 : -1
-  return before && last >= 0 ? { left: before.left[last], right: before.right[last] } : null
+  const index = Math.max(0, frameAtTime(loaded.times, time))
+  return loaded.times.length ? { left: loaded.left[index], right: loaded.right[index] } : null
 }
 
 function RunSelect({
@@ -203,15 +195,17 @@ function RunMetaCard({ bundle, role }: { bundle: CompareRunBundle; role: "Baseli
 }
 
 function KpiCards({ pair }: { pair: ComparePairResponse }) {
+  const [expanded, setExpanded] = React.useState(false)
+  const primary = ["avg_wait", "throughput", "avg_queue", "max_queue", "unfinished_vehicles", "avg_ped_delay"]
   return (
     <Card className="compare-kpi-card">
       <CardHeader>
         <CardTitle>What changed</CardTitle>
-        <CardDescription>Baseline value → compared value, per metric. The arrow shows the change from the baseline and whether it helps for that metric; there is no overall winner. Unavailable values are not zero. Average waits exclude pending arrivals, so read completion, pedestrians and unfinished demand together.</CardDescription>
+        <CardDescription>Baseline → compared. Each change applies to that metric; read wait, completed trips and unfinished demand together.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="compare-kpi-grid">
-          {kpiRows.map((row) => {
+          {(expanded ? kpiRows : primary.map(key => kpiRows.find(row => row.key === key)!)).map((row) => {
             const left = metricValue(pair.left.metrics, row.key)
             const right = metricValue(pair.right.metrics, row.key)
             const change = kpiChange(left, right, row.lowerIsBetter)
@@ -236,6 +230,9 @@ function KpiCards({ pair }: { pair: ComparePairResponse }) {
             )
           })}
         </div>
+        <Button variant="ghost" size="sm" className="mt-3" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+          <ChevronDownIcon data-icon="inline-start" />{expanded ? "Show key results" : "All metrics and measurement details"}
+        </Button>
         <MetricDefinitions keys={kpiRows.map((row) => row.key)} />
       </CardContent>
     </Card>
@@ -295,41 +292,69 @@ export function CompareRunsPage() {
   const [leftRunId, setLeftRunId] = React.useState(noSelection)
   const [rightRunId, setRightRunId] = React.useState(noSelection)
   const [loadedPair, setLoadedPair] = React.useState<{ ids: string; pair: ComparePairResponse | null; error: string | null } | null>(null)
-  const [loadedGeometry, setLoadedGeometry] = React.useState<{ networkId: string; geometry: SceneGeometry } | null>(null)
   const [frameWindows, setFrameWindows] = React.useState<FrameWindows>({ ids: null, byStart: {} })
   const [framesError, setFramesError] = React.useState<string | null>(null)
   const [time, setTime] = React.useState(0)
   const [isPlaying, setIsPlaying] = React.useState(false)
+  const [seekRevision, setSeekRevision] = React.useState(0)
   const [speed, setSpeed] = React.useState<1 | 2 | 4>(1)
   const [isLoading, setIsLoading] = React.useState(false)
   const [notice, setNotice] = React.useState<string | null>(null)
   const timeRef = React.useRef(0)
   const windowsRef = React.useRef<Record<number, ComparePairFramesResponse>>({})
   const inFlightRef = React.useRef(new Set<string>())
+  const requestedWindowsRef = React.useRef<number[]>([])
   const pairIdsRef = React.useRef<string | null>(null)
   const [retryCount, setRetryCount] = React.useState(0)
+  const [sessionRevision, setSessionRevision] = React.useState(0)
+  const [isExporting, setIsExporting] = React.useState(false)
+  const frameRequestsBlocked = React.useRef(false)
   const rightRunIdRef = React.useRef(rightRunId)
 
   const pairIds = leftRunId !== noSelection && rightRunId !== noSelection ? `${leftRunId}:${rightRunId}` : null
   const pairResult = loadedPair?.ids === pairIds ? loadedPair : null
   const pair = pairResult?.pair ?? null
-  const duration = pair?.left.frames.at(-1)?.time ?? 0
+  const playbackTimes = pair?.playback_times
+  const duration = playbackTimes?.at(-1) ?? 0
+  const windowStart = compareFrameWindow(playbackTimes, time, WINDOW_SECONDS)
   const byStart = frameWindows.ids === pairIds ? frameWindows.byStart : null
-  const currentFrames = byStart ? framesAt(byStart, time) : null
-  const isBuffering = Boolean(pair) && !currentFrames
-  const networkId = pair ? networkIdOf(pair) : null
-  const geometry = loadedGeometry && loadedGeometry.networkId === networkId ? loadedGeometry.geometry : null
+  const currentFrames = byStart ? framesAt(byStart, windowStart, time) : null
+  const geometry = React.useMemo(() => pair?.geometry ? normalizeSceneGeometry(pair.geometry) : null, [pair])
+  const isBuffering = Boolean(geometry) && !currentFrames
   const firstLoaded = byStart ? Object.values(byStart)[0] : undefined
   const junctionId = studyJunctionId(currentFrames?.left ?? firstLoaded?.left[0])
   const condensedTimes = React.useMemo(() => pair?.left.frames.map((frame) => frame.time) ?? [], [pair])
   const condensedIndex = frameAtTime(condensedTimes, time)
-  const windowStart = frameWindow(time, WINDOW_SECONDS).start
-  const needsNextWindow = time >= windowStart + WINDOW_SECONDS - PREFETCH_SECONDS
+  const nextFrameIndex = playbackTimes ? frameAtTime(playbackTimes, windowStart + WINDOW_SECONDS - 1e-7) + 1 : 0
+  const nextFrameTime = playbackTimes?.[nextFrameIndex]
+  const prefetchStart = nextFrameTime !== undefined && nextFrameTime - time <= PREFETCH_SECONDS
+    ? frameWindow(nextFrameTime, WINDOW_SECONDS).start : null
 
   React.useEffect(() => { timeRef.current = time }, [time])
   React.useEffect(() => { windowsRef.current = byStart ?? {} }, [byStart])
   React.useEffect(() => { rightRunIdRef.current = rightRunId }, [rightRunId])
   React.useEffect(() => { pairIdsRef.current = pairIds }, [pairIds])
+  React.useEffect(() => {
+    const expired = () => {
+      frameRequestsBlocked.current = true
+      setIsPlaying(false)
+      setFramesError("Session ended. Sign in to continue from this comparison.")
+    }
+    const restored = () => {
+      frameRequestsBlocked.current = false
+      inFlightRef.current = new Set()
+      setFramesError(null)
+      setSessionRevision(value => value + 1)
+      setRetryCount(value => value + 1)
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, expired)
+    window.addEventListener(SESSION_RESTORED_EVENT, restored)
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, expired)
+      window.removeEventListener(SESSION_RESTORED_EVENT, restored)
+      inFlightRef.current = new Set()
+    }
+  }, [])
 
   const loadRuns = React.useCallback(async () => {
     setIsLoading(true)
@@ -348,7 +373,7 @@ export function CompareRunsPage() {
     let active = true
     queueMicrotask(() => { if (active) void loadRuns() })
     return () => { active = false }
-  }, [loadRuns])
+  }, [loadRuns, sessionRevision])
 
   React.useEffect(() => {
     if (leftRunId === noSelection) return
@@ -368,7 +393,7 @@ export function CompareRunsPage() {
         setNotice(compareErrorMessage(error, "Unable to load compatible runs."))
       })
     return () => { isMounted = false }
-  }, [leftRunId])
+  }, [leftRunId, sessionRevision])
 
   // The pair loads as soon as both runs are chosen.
   React.useEffect(() => {
@@ -380,49 +405,44 @@ export function CompareRunsPage() {
       .catch((error) => { if (active) setLoadedPair({ ids: pairIds, pair: null, error: compareErrorMessage(error, "Unable to load compare pair.") }) })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
-  }, [pairIds, leftRunId, rightRunId])
-
-  // One network geometry serves both maps, because pairing guarantees the same network.
-  React.useEffect(() => {
-    if (!networkId || loadedGeometry?.networkId === networkId) return
-    let active = true
-    getVisualNetwork(networkId)
-      .then((network) => { if (active) setLoadedGeometry({ networkId, geometry: normalizeSceneGeometry(network) }) })
-      .catch((error) => { if (active) setFramesError(compareErrorMessage(error, "Unable to load the network map.")) })
-    return () => { active = false }
-  }, [networkId, loadedGeometry])
+  }, [pairIds, leftRunId, rightRunId, sessionRevision])
 
   // Fetch the window that holds the playback position, and the next one shortly before it ends.
   // A window that was dropped from the cache, or whose request failed, is requested again when it is needed.
   React.useEffect(() => {
-    if (!pair || !pairIds) return
-    const wanted = [windowStart, ...(needsNextWindow && windowStart + WINDOW_SECONDS <= duration ? [windowStart + WINDOW_SECONDS] : [])]
-    const inFlight = new Set([...inFlightRef.current].filter((key) => key.startsWith(`${pairIds}:`)).map((key) => Number(key.split(":").pop())))
+    if (!pair || !pairIds || !geometry || frameRequestsBlocked.current) return
+    const wanted = prefetchStart === null ? [windowStart] : [windowStart, prefetchStart]
+    requestedWindowsRef.current = wanted
+    const requests = inFlightRef.current
+    const inFlight = new Set([...requests].filter((key) => key.startsWith(`${pairIds}:`)).map((key) => Number(key.split(":").pop())))
     for (const start of windowsToRequest(wanted, byStart ?? {}, inFlight)) {
       const requestKey = `${pairIds}:${start}`
-      inFlightRef.current.add(requestKey)
+      requests.add(requestKey)
       getComparePairFrames(pair.left.option.run.id, pair.right.option.run.id, start, start + WINDOW_SECONDS)
         .then((response) => {
-          inFlightRef.current.delete(requestKey)
-          if (pairIdsRef.current !== pairIds) return
+          requests.delete(requestKey)
+          const stillWanted = requestedWindowsRef.current
+          if (frameRequestsBlocked.current || inFlightRef.current !== requests || pairIdsRef.current !== pairIds || !stillWanted.includes(start)) return
           setFramesError(null)
           setFrameWindows((current) => {
             const kept = current.ids === pairIds ? current.byStart : {}
-            return { ids: pairIds, byStart: { ...windowsNear(kept, start, WINDOW_SECONDS * 3), [start]: response } }
+            return { ids: pairIds, byStart: { ...windowsNear(kept, stillWanted[0], WINDOW_SECONDS * 3, stillWanted[1]), [start]: response } }
           })
         })
         .catch((error) => {
-          inFlightRef.current.delete(requestKey)
-          if (pairIdsRef.current !== pairIds) return
+          requests.delete(requestKey)
+          const stillWanted = requestedWindowsRef.current
+          if (inFlightRef.current !== requests || pairIdsRef.current !== pairIds || !stillWanted.includes(start)) return
           setFramesError(compareErrorMessage(error, "Unable to load playback frames."))
-          window.setTimeout(() => setRetryCount((count) => count + 1), RETRY_DELAY_MS)
+          frameRequestsBlocked.current = true
+          setIsPlaying(false)
         })
     }
-  }, [pair, pairIds, windowStart, needsNextWindow, duration, byStart, retryCount])
+  }, [pair, pairIds, geometry, windowStart, prefetchStart, byStart, retryCount])
 
   // Playback follows simulation time, not a fixed delay per frame, and waits for frames rather than skipping.
   React.useEffect(() => {
-    if (!isPlaying || duration <= 0) return
+    if (!isPlaying || duration <= 0 || !geometry) return
     let frameId = 0
     let last = performance.now()
     const tick = (now: number) => {
@@ -430,15 +450,15 @@ export function CompareRunsPage() {
       const elapsed = now - last
       if (elapsed < MIN_STEP_MS) return
       last = now
-      const next = advancePlayback(timeRef.current, elapsed, speed, duration)
-      if (!windowsRef.current[frameWindow(next.time, WINDOW_SECONDS).start]) return
+      const next = advancePlayback(timeRef.current, Math.min(elapsed, 250), speed, duration)
+      if (!windowsRef.current[compareFrameWindow(playbackTimes, next.time, WINDOW_SECONDS)]) return
       timeRef.current = next.time
       setTime(next.time)
       if (next.finished) setIsPlaying(false)
     }
     frameId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frameId)
-  }, [isPlaying, speed, duration])
+  }, [isPlaying, speed, duration, geometry, playbackTimes])
 
   function resetPlayback() {
     timeRef.current = 0
@@ -446,6 +466,30 @@ export function CompareRunsPage() {
     setIsPlaying(false)
     setFramesError(null)
     inFlightRef.current = new Set()
+    frameRequestsBlocked.current = false
+  }
+
+  async function exportReport() {
+    if (!pair || isExporting) return
+    setIsExporting(true)
+    try {
+      const blob = await getCompareReport(pair.left.option.run.id, pair.right.option.run.id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `smartflow-comparison-${pair.left.option.run.id}-${pair.right.option.run.id}.pdf`
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success("Comparison PDF downloaded")
+    } catch (error) { toast.error(compareErrorMessage(error, "Unable to create the PDF.")) }
+    finally { setIsExporting(false) }
+  }
+
+  function retryFrames() {
+    frameRequestsBlocked.current = false
+    inFlightRef.current = new Set()
+    setFramesError(null)
+    setRetryCount(value => value + 1)
   }
 
   function selectBaseline(value: string) {
@@ -473,17 +517,18 @@ export function CompareRunsPage() {
     const bounded = Math.min(Math.max(next, 0), duration)
     timeRef.current = bounded
     setTime(bounded)
+    setSeekRevision((revision) => revision + 1)
     if (!keepPlaying) setIsPlaying(false)
   }
 
   function togglePlayback() {
-    if (!pair || duration <= 0) return
+    if (!geometry || duration <= 0 || frameRequestsBlocked.current) return
     if (!isPlaying && time >= duration) seek(0, true)
     setIsPlaying((current) => !current)
   }
 
   function handlePlayerKeys(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!pair) return
+    if (!geometry || event.defaultPrevented || (event.target as HTMLElement).closest("[data-compare-speed]")) return
     const onButton = (event.target as HTMLElement).closest("button") !== null
     if (event.key === " " && !onButton) {
       event.preventDefault()
@@ -506,6 +551,9 @@ export function CompareRunsPage() {
           <p>Watch two compatible recordings play side by side, then see what changed.</p>
         </div>
         <div className="compare-hero-actions">
+          <Button type="button" onClick={exportReport} disabled={!pair || isExporting}>
+            <DownloadIcon data-icon="inline-start" />{isExporting ? "Preparing PDF…" : "Download PDF report"}
+          </Button>
           <Button variant="outline" type="button" onClick={loadRuns} disabled={isLoading}>
             <RefreshCcwIcon data-icon="inline-start" />
             Refresh
@@ -530,13 +578,23 @@ export function CompareRunsPage() {
 
       {notice ? <Alert><GitCompareArrowsIcon /><AlertDescription role="status">{notice}</AlertDescription></Alert> : null}
       {pairResult?.error ? <Alert variant="destructive"><TriangleAlertIcon /><AlertDescription>{pairResult.error}</AlertDescription></Alert> : null}
-      {framesError ? <Alert variant="destructive"><TriangleAlertIcon /><AlertDescription>{framesError}</AlertDescription></Alert> : null}
-      {pair?.warnings.map((warning) => (
+      {framesError ? <Alert variant="destructive"><TriangleAlertIcon /><AlertDescription>
+        {framesError} <Button variant="outline" size="sm" onClick={retryFrames}>Retry playback</Button>
+      </AlertDescription></Alert> : null}
+      {pair?.warnings.filter(failedSafety).map((warning) => (
         <Alert key={warning} variant={failedSafety(warning) ? "destructive" : "default"}>
           <TriangleAlertIcon />
           <AlertDescription>{warning}</AlertDescription>
         </Alert>
       ))}
+      {pair ? <Collapsible className="compare-evidence">
+        <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+          <ChevronDownIcon data-icon="inline-start" />About this comparison · simulation evidence
+        </CollapsibleTrigger>
+        <CollapsibleContent><ul className="flex flex-col gap-2 p-4 text-sm text-muted-foreground">
+          {pair.warnings.filter(warning => !failedSafety(warning)).map(warning => <li key={warning}>{warning}</li>)}
+        </ul></CollapsibleContent>
+      </Collapsible> : null}
 
       {!pair ? (
         <Empty className="compare-empty">
@@ -550,18 +608,22 @@ export function CompareRunsPage() {
           <section className="compare-maps">
             {geometry ? (
               <>
-                <CompareMap geometry={geometry} frame={currentFrames?.left ?? null} title={`Baseline · ${baselineTitle}`} runKey={`${pairIds}:left`} junctionId={junctionId} queue={condensedIndex >= 0 ? studyQueue(pair.left.frames[condensedIndex].queues) : null} />
-                <CompareMap geometry={geometry} frame={currentFrames?.right ?? null} title={`Compared · ${comparedTitle}`} runKey={`${pairIds}:right`} junctionId={junctionId} queue={condensedIndex >= 0 ? studyQueue(pair.right.frames[condensedIndex].queues) : null} />
+                <CompareMap geometry={geometry} frame={currentFrames?.left ?? null} title={`Baseline · ${baselineTitle}`} runKey={`${pairIds}:left`} junctionId={junctionId} playing={isPlaying} speed={speed} seekRevision={seekRevision} queue={condensedIndex >= 0 ? studyQueue(pair.left.frames[condensedIndex].queues) : null} />
+                <CompareMap geometry={geometry} frame={currentFrames?.right ?? null} title={`Compared · ${comparedTitle}`} runKey={`${pairIds}:right`} junctionId={junctionId} playing={isPlaying} speed={speed} seekRevision={seekRevision} queue={condensedIndex >= 0 ? studyQueue(pair.right.frames[condensedIndex].queues) : null} />
               </>
-            ) : <p className="compare-maps-loading" role="status">Loading the network map…</p>}
+            ) : <p className="compare-maps-loading" role="status">Recorded map unavailable.</p>}
           </section>
 
           <section className="compare-player" aria-label="Playback" onKeyDown={handlePlayerKeys}>
-            <Button type="button" onClick={togglePlayback} disabled={duration <= 0} aria-label={isPlaying ? "Pause" : "Play"}>
+            <Button type="button" onClick={togglePlayback} disabled={!geometry || duration <= 0 || Boolean(framesError)} aria-label={isPlaying ? "Pause" : "Play"}>
               {isPlaying ? <PauseIcon data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
               {isPlaying ? "Pause" : "Play"}
             </Button>
-            <ToggleGroup aria-label="Playback speed" variant="outline" value={[String(speed)]} onValueChange={(values) => values[0] && setSpeed(Number(values[0]) as 1 | 2 | 4)}>
+            <ToggleGroup data-compare-speed aria-label="Playback speed" variant="outline" value={[String(speed)]} onValueChange={(values) => {
+              if (!values[0] || Number(values[0]) === speed) return
+              setSpeed(Number(values[0]) as 1 | 2 | 4)
+              setSeekRevision((revision) => revision + 1)
+            }}>
               {[1, 2, 4].map((option) => <ToggleGroupItem key={option} value={String(option)}>{option}×</ToggleGroupItem>)}
             </ToggleGroup>
             <input
@@ -572,7 +634,7 @@ export function CompareRunsPage() {
               max={duration}
               step="any"
               value={Math.min(time, duration)}
-              disabled={duration <= 0}
+              disabled={!geometry || duration <= 0}
               onChange={(event) => seek(Number(event.target.value))}
             />
             <strong className="compare-time">{formatNumber(time, 0)} s / {formatNumber(duration, 0)} s</strong>
@@ -581,6 +643,7 @@ export function CompareRunsPage() {
           </section>
 
           <KpiCards pair={pair} />
+          <CompareSignalsCard left={pair.left.option.run.id} right={pair.right.option.run.id} />
           <HistoryChart pair={pair} time={time} duration={duration} onSeek={seek} />
 
           <Collapsible className="compare-details">

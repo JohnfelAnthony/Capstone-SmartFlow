@@ -1,5 +1,6 @@
-import { apiRequest } from "@/api/client"
+import { apiDownload, apiRequest } from "@/api/client"
 import type { SimulationRunRecord } from "@/api/simulation"
+import type { VisualNetwork } from "@/api/visual-network"
 import type { RenderFrame } from "@/simulation/frame-types"
 
 export type CompareTimelineMeta = {
@@ -56,6 +57,8 @@ export type ComparePairResponse = {
   left: CompareRunBundle
   right: CompareRunBundle
   frame_count: number
+  playback_times: number[]
+  geometry: VisualNetwork | null
   comparison_type: "signal" | "routing" | "repeat"
   warnings: string[]
 }
@@ -85,4 +88,21 @@ export function getComparePairFrames(leftRunId: number, rightRunId: number, star
   return apiRequest<ComparePairFramesResponse>(
     `/api/compare/pair/frames?left_run_id=${leftRunId}&right_run_id=${rightRunId}&start=${start}&end=${end}`,
   )
+}
+
+export type SignalEvidence = {
+  junction_id: string | null
+  start: number; end: number; step_seconds: number; unavailable_seconds: number
+  settings: Record<string, unknown>
+  segments: Array<{ start: number; end: number; phase: string; stage: string }>
+  phases: Array<{ phase: string; total_seconds: number; complete_count: number; mean_seconds: number | null; min_seconds: number | null; max_seconds: number | null }>
+}
+export type CompareSignals = { start: number; end: number; left: SignalEvidence; right: SignalEvidence }
+
+export function getCompareSignals(left: number, right: number) {
+  return apiRequest<CompareSignals>(`/api/compare/pair/signals?left_run_id=${left}&right_run_id=${right}`)
+}
+
+export function getCompareReport(left: number, right: number) {
+  return apiDownload(`/api/compare/pair/report?left_run_id=${left}&right_run_id=${right}`)
 }

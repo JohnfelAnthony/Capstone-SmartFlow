@@ -451,6 +451,8 @@ class ComparePairResponse(BaseModel):
     right: CompareRunBundle
     frame_count: int
     comparison_type: str
+    playback_times: list[float]
+    geometry: dict[str, Any] | None = None
     warnings: list[str] = Field(default_factory=list)
 
 

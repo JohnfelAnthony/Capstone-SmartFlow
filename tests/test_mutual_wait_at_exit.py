@@ -1,6 +1,6 @@
 """Two vehicles from different approaches level at the mouth of one exit must not wait for each other for good.
 
-Found at Site B's neighbouring junction (D45): with the Dao road closed, three vehicles from the south-west carriageway and two from
+Found at Site B's neighbouring junction (D46): with the Dao road closed, three vehicles from the south-west carriageway and two from
 the north-east one stopped inside the junction, all turning into Acacia Street, each seeing the other level with it as the leader it
 had to wait for. Neither body touched the other.
 """

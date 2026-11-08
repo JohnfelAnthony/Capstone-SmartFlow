@@ -5,12 +5,15 @@ import csv
 import functools
 import gzip
 import json
+import math
 import re
 import secrets
 import shutil
 import string
 import subprocess
 import threading
+from bisect import bisect_left, bisect_right
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -1162,7 +1165,6 @@ def completed_run_record(run_id: int) -> SimulationRunRecord:
 
 COMPARE_FRAME_LIMIT = 5000
 COMPARE_APPROACHES = ("north", "east", "south", "west")
-_COMPARE_TIMELINE_FRAME_CACHE: dict[str, dict] = {}
 
 
 def compare_float(value: object, default: float = 0.0) -> float:
@@ -1378,31 +1380,11 @@ def condense_compare_frame(index: int, raw_frame: dict) -> CompareTimelineFrame:
 
 
 def read_compare_frames(timeline_path: str | None) -> list[CompareTimelineFrame]:
-    path = resolve_artifact_path(timeline_path)
-    if not path or not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timeline artifact was not found on disk.")
-    stat = path.stat()
-    cache_key = str(path.resolve())
-    cached = _COMPARE_TIMELINE_FRAME_CACHE.get(cache_key)
-    if cached and cached.get("mtime_ns") == stat.st_mtime_ns and cached.get("size") == stat.st_size:
-        return cached["frames"]
-
-    opener = gzip.open if path.suffix == ".gz" else open
-    raw_frames = []
-    with opener(path, "rt", encoding="utf-8") as timeline_file:
-        for line in timeline_file:
-            stripped_line = line.strip()
-            if stripped_line:
-                raw_frames.append(json.loads(stripped_line))
-
-    indices = sample_frame_indices(len(raw_frames))
-    frames = [condense_compare_frame(index, raw_frames[index]) for index in indices]
-    _COMPARE_TIMELINE_FRAME_CACHE[cache_key] = {
-        "mtime_ns": stat.st_mtime_ns,
-        "size": stat.st_size,
-        "frames": frames,
-    }
-    return frames
+    path, offsets = compare_timeline_index(timeline_path)
+    times = tuple(offsets)
+    indices = sample_frame_indices(len(times))
+    return [condense_compare_frame(index, raw)
+            for index, raw in zip(indices, read_indexed_frames(path, (offsets[times[i]] for i in indices)))]
 
 
 def validated_compare_pair(left_run_id: int, right_run_id: int) -> tuple[CompareRunOption, CompareRunOption, str]:
@@ -1421,19 +1403,26 @@ def validated_compare_pair(left_run_id: int, right_run_id: int) -> tuple[Compare
 
 def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairResponse:
     left_option, right_option, comparison_type = validated_compare_pair(left_run_id, right_run_id)
-    left_frames = read_compare_frames(left_option.run.timeline_path)
-    right_frames = read_compare_frames(right_option.run.timeline_path)
-    left_times = {round(frame.time, 6): frame for frame in left_frames}
-    right_times = {round(frame.time, 6): frame for frame in right_frames}
-    shared_times = sorted(left_times.keys() & right_times.keys())
-    if not shared_times:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
-    aligned_left = [left_times[time] for time in shared_times]
-    aligned_right = [right_times[time] for time in shared_times]
-    frame_count = len(shared_times)
+    left_path, left_offsets = compare_timeline_index(left_option.run.timeline_path)
+    right_path, right_offsets = compare_timeline_index(right_option.run.timeline_path)
+    shared_times = shared_compare_times(left_offsets, right_offsets)
+    sampled = sample_frame_indices(len(shared_times))
+
+    def condensed(path: Path, offsets: dict[float, int]) -> list[CompareTimelineFrame]:
+        frames = read_indexed_frames(path, (offsets[shared_times[index]] for index in sampled))
+        return [condense_compare_frame(index, frame) for index, frame in zip(sampled, frames)]
+
     warnings = ["This pair shows per-metric tradeoffs, not an overall performance winner. Average waits exclude pending arrivals; review completed, unfinished and dropped demand and pedestrians. Missing or empty-population averages are unavailable, not zero."]
-    if frame_count < min(len(left_frames), len(right_frames)):
-        warnings.append("Some sampled frame times differ; playback shows matching times only.")
+    if len(shared_times) < max(len(left_offsets), len(right_offsets)):
+        warnings.append("Some recorded frame times differ. Playback holds the last shared frame across gaps.")
+    manifest = compare_manifest(left_option.run.timeline_path)
+    try:
+        geometry = visual_network_service.load_recorded_visual_network(
+            left_option.timeline.intersection_id, left_option.provenance.get("network_sha256"), manifest.get("network")
+        )
+    except (OSError, TypeError, ValueError, KeyError):
+        geometry = None
+        warnings.append("The recorded road geometry could not be verified. Metrics are available, but the maps cannot be shown.")
     left_metrics = compare_run_metrics(left_option.run.id)
     right_metrics = compare_run_metrics(right_option.run.id)
     for label, metrics in (("Baseline", left_metrics), ("Compared", right_metrics)):
@@ -1453,9 +1442,11 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
     if left_option.provenance.get("demand_source") != "observed" or right_option.provenance.get("demand_source") != "observed":
         warnings.append("At least one run's demand is synthetic or from field counts, not an observed dataset; scenario-based, not calibrated or validated. Do not interpret this pair as observed field performance.")
     return ComparePairResponse(
-        left=CompareRunBundle(option=left_option, frames=aligned_left, metrics=left_metrics),
-        right=CompareRunBundle(option=right_option, frames=aligned_right, metrics=right_metrics),
-        frame_count=frame_count,
+        left=CompareRunBundle(option=left_option, frames=condensed(left_path, left_offsets), metrics=left_metrics),
+        right=CompareRunBundle(option=right_option, frames=condensed(right_path, right_offsets), metrics=right_metrics),
+        frame_count=len(sampled),
+        playback_times=shared_times,
+        geometry=geometry,
         comparison_type=comparison_type,
         warnings=warnings,
     )
@@ -1466,6 +1457,8 @@ COMPARE_RENDER_WINDOW_SECONDS = 60.0
 
 _COMPARE_LINE_TIME = re.compile(r'^\{[^\[\{]{0,200}?"time":\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)')
 
+_COMPARE_LINE_TIME_BYTES = re.compile(_COMPARE_LINE_TIME.pattern.encode("ascii"))
+
 
 def compare_line_time(line: str) -> float:
     # The recorder writes "time" before the large lists; reading it from the line start avoids parsing every frame to index a recording.
@@ -1473,49 +1466,70 @@ def compare_line_time(line: str) -> float:
     return round(float(match.group(1)), 6) if match else round(compare_float(json.loads(line).get("time")), 6)
 
 
+def open_compare_timeline(path: Path):
+    return gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
+
+
 @functools.lru_cache(maxsize=4)
-def _compare_timeline_lines(path_text: str, mtime_ns: int, size: int) -> tuple[tuple[float, ...], tuple[str, ...]]:
-    # shortcut: keeps each recording's raw lines in memory at their decompressed size (a 17 MB .gz held 120 MB), four files; upgrade to a seek index if long recordings are compared often.
-    path = Path(path_text)
-    opener = gzip.open if path.suffix == ".gz" else open
-    times: list[float] = []
-    lines: list[str] = []
-    with opener(path, "rt", encoding="utf-8") as timeline_file:
+def _compare_timeline_offsets(path: Path, mtime_ns: int, size: int) -> dict[float, int]:
+    """Index byte offsets without retaining decompressed frames in memory."""
+    offsets: dict[float, int] = {}
+    with open_compare_timeline(path) as timeline_file:
+        offset = 0
         for line in timeline_file:
-            stripped_line = line.strip()
-            if stripped_line:
-                times.append(compare_line_time(stripped_line))
-                lines.append(stripped_line)
-    return tuple(times), tuple(lines)
+            match = _COMPARE_LINE_TIME_BYTES.match(line)
+            if match:
+                offsets[round(float(match.group(1)), 6)] = offset
+            elif line.strip():
+                offsets[compare_line_time(line.decode("utf-8").strip())] = offset
+            offset += len(line)
+    return offsets
 
 
-def compare_timeline_lines(timeline_path: str | None) -> tuple[tuple[float, ...], tuple[str, ...]]:
+def compare_timeline_index(timeline_path: str | None) -> tuple[Path, dict[float, int]]:
     path = resolve_artifact_path(timeline_path)
     if not path or not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timeline artifact was not found on disk.")
     stat = path.stat()
-    return _compare_timeline_lines(str(path.resolve()), stat.st_mtime_ns, stat.st_size)
+    return path, _compare_timeline_offsets(path, stat.st_mtime_ns, stat.st_size)
+
+
+def read_indexed_frames(path: Path, offsets: Iterable[int]) -> Iterator[dict]:
+    with open_compare_timeline(path) as timeline_file:
+        for offset in offsets:
+            timeline_file.seek(offset)
+            yield json.loads(timeline_file.readline())
+
+
+def shared_compare_times(left_offsets: dict[float, int], right_offsets: dict[float, int]) -> list[float]:
+    times = sorted(left_offsets.keys() & right_offsets.keys())
+    if not times:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
+    return times
 
 
 def compare_pair_frames_response(left_run_id: int, right_run_id: int, start: float, end: float) -> ComparePairFramesResponse:
-    if end < start or end - start > COMPARE_RENDER_WINDOW_SECONDS + 1e-9:
+    if not (math.isfinite(start) and math.isfinite(end)) or end < start or end - start > COMPARE_RENDER_WINDOW_SECONDS + 1e-9:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Ask for a window of at most {COMPARE_RENDER_WINDOW_SECONDS:g} seconds, with the end after the start.",
+            detail=f"Ask for a window of at most {COMPARE_RENDER_WINDOW_SECONDS:g} seconds, with the end at or after the start.",
         )
     left_option, right_option, _ = validated_compare_pair(left_run_id, right_run_id)
-    left_times, left_lines = compare_timeline_lines(left_option.run.timeline_path)
-    right_times, right_lines = compare_timeline_lines(right_option.run.timeline_path)
-    left_index = {time: index for index, time in enumerate(left_times)}
-    right_index = {time: index for index, time in enumerate(right_times)}
-    shared_times = sorted(left_index.keys() & right_index.keys())
-    if not shared_times:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recordings have no matching frame times.")
-    window = [(position, time) for position, time in enumerate(shared_times) if start <= time <= end]
+    left_path, left_offsets = compare_timeline_index(left_option.run.timeline_path)
+    right_path, right_offsets = compare_timeline_index(right_option.run.timeline_path)
+    shared_times = shared_compare_times(left_offsets, right_offsets)
+    first = bisect_left(shared_times, start)
+    window_times = shared_times[first:bisect_right(shared_times, end)]
+
+    def render_window(path: Path, offsets: dict[float, int]) -> list[dict]:
+        frames = read_indexed_frames(path, (offsets[time] for time in window_times))
+        return [render_frame_service.build_render_frame(frame, sequence=position)
+                for position, frame in enumerate(frames, first)]
+
     return ComparePairFramesResponse(
-        times=[time for _, time in window],
-        left=[render_frame_service.build_render_frame(json.loads(left_lines[left_index[time]]), sequence=position) for position, time in window],
-        right=[render_frame_service.build_render_frame(json.loads(right_lines[right_index[time]]), sequence=position) for position, time in window],
+        times=window_times,
+        left=render_window(left_path, left_offsets),
+        right=render_window(right_path, right_offsets),
         duration=shared_times[-1],
     )
 
@@ -1870,6 +1884,46 @@ def get_compare_pair_frames(
 ) -> ComparePairFramesResponse:
     require_permission(user, "compare", "view")
     return compare_pair_frames_response(left_run_id, right_run_id, start, end)
+
+
+def compare_signal_evidence(left_run_id: int, right_run_id: int) -> dict:
+    from services.compare_signals import recorded_signals
+    left, right, _ = validated_compare_pair(left_run_id, right_run_id)
+    indexed = [compare_timeline_index(option.run.timeline_path) for option in (left, right)]
+    shared = shared_compare_times(indexed[0][1], indexed[1][1])
+    start, end = shared[0], shared[-1]
+    result = {"start": start, "end": end}
+    for side, option, (path, _) in zip(("left", "right"), (left, right), indexed):
+        experiment = compare_manifest(option.run.timeline_path).get("experiment") or {}
+        settings = experiment.get("config") or {}
+        step = option.timeline.step_length_seconds
+        if step <= 0:
+            raise HTTPException(status_code=409, detail="Recording sample interval is missing; signal durations cannot be verified.")
+        result[side] = {**recorded_signals(path, step=step, start=start, end=end,
+                                         junction_id=settings.get("controlled_junction")),
+                        "control": experiment.get("control") or {}}
+    return result
+
+
+@app.get("/api/compare/pair/signals")
+def get_compare_signals(left_run_id: int, right_run_id: int,
+                        user: dict = Depends(require_current_user)) -> dict:
+    require_permission(user, "compare", "view")
+    return compare_signal_evidence(left_run_id, right_run_id)
+
+
+@app.get("/api/compare/pair/report")
+def download_compare_report(left_run_id: int, right_run_id: int, response: Response,
+                            user: dict = Depends(require_current_user)) -> Response:
+    require_permission(user, "compare", "view")
+    from services.compare_report import build_comparison_pdf
+    pair = compare_pair_response(left_run_id, right_run_id)
+    signals = compare_signal_evidence(left_run_id, right_run_id)
+    content = build_comparison_pdf(pair.model_dump(), signals)
+    return Response(content, media_type="application/pdf", headers={
+        **dict(response.headers), "Cache-Control": "no-store",
+        "Content-Disposition": f'attachment; filename="smartflow-comparison-{left_run_id}-{right_run_id}.pdf"',
+    })
 
 
 @app.post("/api/simulation/timelines", response_model=TimelineGenerateResponse)

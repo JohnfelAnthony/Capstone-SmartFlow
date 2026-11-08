@@ -43,7 +43,7 @@ def test_a_closed_entry_road_offers_waiting_and_sharing_only_where_the_road_can_
 def test_site_b_offers_avoiding_jams_only_where_the_street_grid_gives_a_detour():
     network = load_registered_network(B)
     offers = lambda lane: SIDE_STREET_ADAPTIVE in available_responses(network, {lane}, lane)["available"]
-    assert offers("road1f") and offers("road0f")  # Sobrecarey and Dao have detours round the painted grid (D45)
+    assert offers("road1f") and offers("road0f")  # Sobrecarey and Dao have detours round the painted grid (D46)
     assert not offers("road22f") and not offers("road14f")  # the Sobrecarey end and a highway entry have none
 
 

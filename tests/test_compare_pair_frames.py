@@ -1,4 +1,5 @@
 """Pair validation and render-frame windows for the two-map Compare Runs view."""
+import gzip
 import json
 import os
 import tempfile
@@ -17,6 +18,7 @@ import config
 import database
 from backend import main as backend_main
 from backend.main import app
+from simulation.road_network import RoadNetwork
 from simulation.traffic_engine import TrafficEngine
 
 
@@ -70,6 +72,37 @@ class ComparePairFramesTests(unittest.TestCase):
     def get_frames(self, left: int, right: int, start: float, end: float):
         return self.client.get("/api/compare/pair/frames", params={"left_run_id": left, "right_run_id": right, "start": start, "end": end})
 
+    def test_active_session_renews_cookie_and_expired_session_is_not_revived(self):
+        from datetime import timedelta
+        from backend import security
+        now = security._utc_now()
+        with patch.object(security, "_utc_now", return_value=now + timedelta(seconds=100)):
+            response = self.client.get("/api/auth/me")
+        self.assertEqual(response.status_code, 200)
+        cookie = response.headers.get("set-cookie", "")
+        self.assertIn(f"Max-Age={config.SESSION_TIMEOUT}", cookie)
+        self.assertIn("HttpOnly", cookie)
+        with patch.object(security, "_utc_now", return_value=now + timedelta(seconds=config.SESSION_TIMEOUT + 101)):
+            response = self.client.get("/api/auth/me")
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn("set-cookie", response.headers)
+
+    def test_pdf_download_and_signal_evidence_share_pair_validation_and_auth(self):
+        left, right = self.record_pair()
+        params = {"left_run_id": left, "right_run_id": right}
+        signals = self.client.get("/api/compare/pair/signals", params=params)
+        self.assertEqual(signals.status_code, 200, signals.text)
+        self.assertEqual(signals.json()["start"], 0)
+        report = self.client.get("/api/compare/pair/report", params=params)
+        self.assertEqual(report.status_code, 200, report.text[:100] if report.status_code != 200 else "")
+        self.assertTrue(report.content.startswith(b"%PDF-"))
+        self.assertEqual(report.headers["content-type"], "application/pdf")
+        self.assertIn(f"{left}-{right}.pdf", report.headers["content-disposition"])
+        for endpoint in ("report", "signals"):
+            self.assertEqual(self.client.get(f"/api/compare/pair/{endpoint}", params={"left_run_id":left,"right_run_id":left}).status_code, 422)
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get("/api/compare/pair/report", params=params).status_code, 401)
+
     def test_the_pair_refuses_the_same_run_and_an_incompatible_run(self):
         first, second = self.record_pair()
         with self.assertRaises(HTTPException) as same:
@@ -102,6 +135,52 @@ class ComparePairFramesTests(unittest.TestCase):
         self.assertEqual(later["times"], [time for time in self.shared_times if 0.5 <= time <= 1])
         self.assertLess(len(later["times"]), len(data["times"]))
         self.assertEqual(later["duration"], data["duration"])
+
+    def test_pair_uses_the_embedded_revision_and_refuses_unverified_geometry(self):
+        first, second = self.record_pair()
+        payload = dict(TrafficEngine().base_network.payload, name="Recorded layout")
+        fingerprint = RoadNetwork(payload).fingerprint
+        for label in ("left", "right"):
+            path = self.root / f"{label}.manifest.json"
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            manifest["experiment"]["network_sha256"] = fingerprint
+            manifest["network"] = payload
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        params = {"left_run_id": first, "right_run_id": second}
+        with patch("services.visual_network_service.load_registered_network_revision", side_effect=AssertionError):
+            response = self.client.get("/api/compare/pair", params=params)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIsNotNone(response.json()["geometry"])
+        self.assertEqual(response.json()["playback_times"], self.shared_times)
+
+        manifest["experiment"]["network_sha256"] = "0" * 64
+        for label in ("left", "right"):
+            (self.root / f"{label}.manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        response = self.client.get("/api/compare/pair", params=params)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIsNone(response.json()["geometry"])
+        self.assertTrue(any("could not be verified" in warning for warning in response.json()["warnings"]))
+
+    def test_gzip_index_reads_shared_frames_after_a_gap(self):
+        first, second = self.record_pair()
+        for run_id, label in ((first, "left"), (second, "right")):
+            raw = self.root / f"{label}.jsonl"
+            compressed = raw.with_suffix(".jsonl.gz")
+            lines = raw.read_bytes()
+            last = json.loads(lines.splitlines()[-1])
+            later = json.dumps({**last, "time": 30.1}, ensure_ascii=False).encode("utf-8")
+            with gzip.open(compressed, "wb") as stream:
+                stream.write(lines + b"\n" + later + b"\n")
+            database.update_run(run_id, timeline_path=str(compressed))
+
+        empty = self.get_frames(first, second, 10, 20).json()
+        self.assertEqual(empty["times"], [])
+        self.assertEqual(empty["duration"], 30.1)
+        late = self.get_frames(first, second, 30, 40).json()
+        self.assertEqual(late["times"], [30.1])
+        self.assertEqual(late["left"][0]["time"], 30.1)
+        self.assertEqual(late["right"][0]["sequence"], len(self.shared_times))
 
     def test_frames_refuse_a_window_longer_than_the_limit(self):
         first, second = self.record_pair()

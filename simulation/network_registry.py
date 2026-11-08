@@ -47,6 +47,30 @@ def load_registered_network(network_id: str | None = None, *, registry_path: Pat
     return network
 
 
+def load_registered_network_revision(
+    network_id: str | None, fingerprint: str, *, registry_path: Path = REGISTRY_PATH,
+) -> RoadNetwork:
+    registry_path = registry_path.resolve()
+    current = load_registered_network(network_id, registry_path=registry_path)
+    if current.fingerprint == fingerprint:
+        return current
+
+    entry = next((item for item in _entries(registry_path) if item["id"] == network_id), {})
+    for revision in entry.get("revision_history", []):
+        if revision.get("sha256") != fingerprint:
+            continue
+        file = revision.get("file")
+        if not isinstance(file, str) or Path(file).name != file:
+            continue
+        for path in (registry_path.parent / file, registry_path.parent / "history" / file):
+            if path.is_file():
+                stat = path.stat()
+                network = _load_file(path, stat.st_mtime_ns, stat.st_size)
+                if network.id == network_id and network.fingerprint == fingerprint:
+                    return network
+    raise ValueError("The recorded network revision is unavailable")
+
+
 def registered_networks(registry_path: Path = REGISTRY_PATH) -> list[dict]:
     default = load_network()
     result = [{"id": default.id, "name": default.payload.get("name", default.id), "file": str(NETWORK_PATH),

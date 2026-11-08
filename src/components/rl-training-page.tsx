@@ -763,7 +763,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
               <DatabaseIcon />
               Trained Models
             </CardTitle>
-            <CardDescription>Pick a model to resume or evaluate. Lower wait is better; it is not an overall recommendation.</CardDescription>
+            <CardDescription>Pick a model to resume or evaluate. Historical scores may lack evidence about which vehicles were counted. Compare wait only across runs with matching inputs.</CardDescription>
             <CardAction>
               <Badge variant="secondary">{shownModels.length} models</Badge>
             </CardAction>

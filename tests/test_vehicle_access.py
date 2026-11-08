@@ -10,7 +10,7 @@ from simulation.scenario_config import DEFAULTS, validate_config
 from simulation.traffic_engine import TrafficEngine
 
 
-SOBRECAREY_LANES = {f"{road}{direction}" for road in ("road1", "road17", "road22") for direction in "fr"}  # Sobrecarey Street runs on through the painted grid (D45)
+SOBRECAREY_LANES = {f"{road}{direction}" for road in ("road1", "road17", "road22") for direction in "fr"}  # Sobrecarey Street runs on through the painted grid (D46)
 
 
 def restricted_network():

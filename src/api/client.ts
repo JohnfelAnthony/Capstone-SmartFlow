@@ -21,7 +21,21 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export const SESSION_EXPIRED_EVENT = "smartflow:session-expired"
+export const SESSION_RESTORED_EVENT = "smartflow:session-restored"
+let sessionExpired = false
+let sessionGeneration = 0
+
+export function sessionRestored() {
+  sessionExpired = false
+  sessionGeneration += 1
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_RESTORED_EVENT))
+}
+
+async function apiResponse(path: string, options: RequestOptions = {}): Promise<Response> {
+  const authRequest = path.startsWith("/api/auth/")
+  if (sessionExpired && !authRequest) throw new ApiError(401, "Please sign in again to continue.")
+  const generation = sessionGeneration
   const headers = new Headers(options.headers)
   if (options.body !== undefined) {
     headers.set("Content-Type", "application/json")
@@ -35,6 +49,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   })
 
   if (!response.ok) {
+    if (response.status === 401 && !authRequest && generation === sessionGeneration && !sessionExpired) {
+      sessionExpired = true
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    }
     let message = `Request failed with status ${response.status}.`
     try {
       const payload = await response.json()
@@ -46,6 +64,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
     throw new ApiError(response.status, message)
   }
+
+  return response
+}
+
+export async function apiDownload(path: string): Promise<Blob> {
+  return (await apiResponse(path)).blob()
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const response = await apiResponse(path, options)
 
   if (response.status === 204) {
     return undefined as T

@@ -1,4 +1,4 @@
-"""Every road of a study site is connected (owner's hard requirement, D45): no loose ends, no near-misses, one piece.
+"""Every road of a study site is connected (owner's hard requirement, D46): no loose ends, no near-misses, one piece.
 
 Walks the graph of each registered study site. A road may end only at a true network boundary; every other node is a real shared
 junction of at least two roads, every road meets its nodes exactly, no road crosses another except at a shared node, and

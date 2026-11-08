@@ -1,4 +1,4 @@
-"""Site B with the side streets the owner painted and approved (D45): OpenStreetMap streets attached to the measured core.
+"""Site B with the side streets the owner painted and approved (D46): OpenStreetMap streets attached to the measured core.
 
 The core (`tools/site_b_measured_layout.py`, D32) keeps its carriageways, islands, sheds, site features, the Bonifacio kerb and the
 Sobrecarey bus/truck ban. Each new street meets the network at a real shared junction node, and a street ends only at a true network
@@ -244,7 +244,7 @@ def extend_northeast(payload: dict, axis: Axis, a_junction: float, end_along: fl
 
 def grid_assumptions(points: dict) -> list[str]:
     return [
-        "Side streets (D45) are provisional geometry from OpenStreetMap, painted and approved by the owner, not field-checked: Sobrecarey, Bonifacio and Osmeña Streets north to Magsaysay Street, "
+        "Side streets (D46) are provisional geometry from OpenStreetMap, painted and approved by the owner, not field-checked: Sobrecarey, Bonifacio and Osmeña Streets north to Magsaysay Street, "
         "Magsaysay Street, the west loop (Doctor Juan Gonzales Avenue and two unnamed streets), Dao Street on to Ebony Street, the loop back to the highway through the median opening, and the inner link to Acacia Street",
         f"Map bends under {LEG_SIMPLIFY_TOLERANCE_M:g} m are drawn straight, the first {JUNCTION_MOUTH_STRAIGHT_M:g} m at each end of a new street is drawn straight, and bends are circular arcs of {LOOP_BEND_RADIUS_M:g} m radius",
         "New streets are unnamed and one lane each way; they join the highway on its median centre line, where the carriageways bend to the junction inside its stop lines",

@@ -11,6 +11,7 @@ import {
   registerAccount,
 } from "@/api/auth"
 import { AppSidebar } from "@/components/app-sidebar"
+import { SessionSignIn } from "@/components/session-sign-in"
 const AuditLogsPage = React.lazy(() => import("@/components/audit-logs-page").then(module => ({ default: module.AuditLogsPage })))
 import { LoginPage, RegisterPage } from "@/components/auth-pages"
 const BackupRestorePage = React.lazy(() => import("@/components/backup-restore-page").then(module => ({ default: module.BackupRestorePage })))
@@ -126,6 +127,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
+      {currentUser ? <SessionSignIn user={currentUser} onSignedIn={setCurrentUser} onLogout={handleLogout} /> : null}
       <SidebarProvider
         style={
           {

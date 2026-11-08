@@ -1,6 +1,7 @@
 import * as React from "react"
 import { SimulationCanvas2D } from "@/components/simulation-canvas-2d"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { compareCanvasFrame } from "@/lib/compare-view"
 import { EMPTY_VALUE } from "@/lib/display-format"
 import { createPresentationState } from "@/simulation/presentation-state"
 import type { SceneGeometry } from "@/simulation/scene-geometry"
@@ -18,21 +19,25 @@ function phaseText(frame: RenderFrame, junctionId: string | null) {
 }
 
 /** One recorded run drawn on the existing 2D map. Each map keeps its own camera; pan and zoom are not linked. */
-export function CompareMap({ geometry, frame, title, runKey, junctionId = null, queue = null }: {
+export function CompareMap({ geometry, frame, title, runKey, junctionId = null, queue = null, playing, speed, seekRevision }: {
   geometry: SceneGeometry
   frame: RenderFrame | null
   title: string
   runKey: string
+  playing: boolean
+  speed: number
+  seekRevision: number
   junctionId?: string | null
   /** Sum of the four approach queues at the study junction for this time, from the condensed frames. */
   queue?: number | null
 }) {
   const presentation = React.useMemo(() => createPresentationState(geometry, junctionId), [geometry, junctionId])
+  const canvasFrame = React.useMemo(() => frame ? compareCanvasFrame(frame, playing, speed, seekRevision) : null, [frame, playing, speed, seekRevision])
   return <Card className="compare-map-card">
     <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
     <CardContent className="compare-map-content">
       <div className="compare-map-viewport">
-        <SimulationCanvas2D frame={frame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={ignoreSelection} />
+        <SimulationCanvas2D frame={canvasFrame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={ignoreSelection} />
         <dl className="compare-map-overlay" aria-label={`${title} at this time`}>
           {frame ? <>
             <div><dt>Phase</dt><dd>{phaseText(frame, junctionId)}</dd></div>

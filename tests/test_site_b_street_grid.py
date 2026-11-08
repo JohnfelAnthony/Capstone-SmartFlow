@@ -1,4 +1,4 @@
-"""Site B with the owner's painted side streets (D45): the core is kept, every street joins at a junction, and side streets stay empty unless a detour needs them."""
+"""Site B with the owner's painted side streets (D46): the core is kept, every street joins at a junction, and side streets stay empty unless a detour needs them."""
 import json
 import math
 from pathlib import Path

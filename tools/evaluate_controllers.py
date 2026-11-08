@@ -194,7 +194,7 @@ def _build_manifest(
     return {
         "manifest_version": 2,
         "experiment": engine.experiment_metadata(),
-        "network": engine.network.payload,
+        "network": engine.base_network.payload,
         "generated_at": _utc_now_iso(),
         "app": {
             "name": config.APP_NAME,
