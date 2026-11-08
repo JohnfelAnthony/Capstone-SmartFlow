@@ -37,8 +37,8 @@ def test_the_previous_revision_is_listed_and_loads():
 def test_the_measured_core_is_kept():
     """Same study and neighbouring junctions, ten original road ids, islands, sheds and site features; only what a new junction crosses is cut."""
     nodes, core_nodes = {node["id"]: node for node in INSTALLED["nodes"]}, {node["id"]: node for node in MEASURED["nodes"]}
-    for node_id in (STUDY, "1115349256"):
-        assert nodes[node_id] == core_nodes[node_id]
+    assert nodes[STUDY] == core_nodes[STUDY]
+    assert nodes["1115349256"] == {**core_nodes["1115349256"], "generated_demand": False}  # owner: no generated pedestrians there
     assert INSTALLED["nodes"][0]["id"] == STUDY and NETWORK.intersections[0] == STUDY
     assert [road["id"] for road in INSTALLED["roads"][:10]] == [road["id"] for road in MEASURED["roads"]]
     assert {road["id"]: road["name"] for road in INSTALLED["roads"][:10]} == {road["id"]: road["name"] for road in MEASURED["roads"]}
@@ -64,7 +64,7 @@ def test_study_junction_stays_first_and_the_only_signal_and_new_junctions_are_fi
     assert set(modes.values()) == {"first_come"} and len(modes) == 9
     new_junctions = [node for node in INSTALLED["nodes"] if node["id"].startswith("tagum_site_b_j") and node["id"] != STUDY]
     assert len(new_junctions) == 8 and all(node["generated_demand"] is False and node["default_control_mode"] == "first_come" for node in new_junctions)
-    assert NETWORK.pedestrian_junctions == [STUDY, "1115349256"]  # as before; the new junctions draw no crosswalks
+    assert NETWORK.pedestrian_junctions == [STUDY]  # owner's decision: pedestrians cross only at the study junction, the only one with crosswalks
 
 
 def test_only_the_highway_sobrecarey_and_dao_ends_remain_and_each_takes_generated_traffic():

@@ -116,6 +116,7 @@ def build_site_b_street_grid(points: dict | None = None, ways: dict | None = Non
     nodes = {node["id"]: node for node in payload["nodes"]}
     roads = {road["id"]: road for road in payload["roads"]}
     study, neighbor = nodes["tagum_site_b_j"], nodes["1115349256"]
+    neighbor["generated_demand"] = False  # owner's decision (Nov 9): generated pedestrians cross only at the study junction
     here = lambda node: [node["x"], node["y"]]
     lat0, lon0 = ORIGIN
     new_nodes: dict[str, dict] = {}
