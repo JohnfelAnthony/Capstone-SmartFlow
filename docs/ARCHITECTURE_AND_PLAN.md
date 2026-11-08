@@ -298,6 +298,10 @@ The following table preserves the original plan. For that schedule only, day 1 i
 
 Decision gates: **day 2** academic scope; **day 7** native model validity; **day 14** data/controller viability; **day 22** evaluation freeze; **day 30** release-candidate freeze. A failed gate triggers an explicit project-lead/adviser decision. It does not authorize silently shrinking the research objective. Do not schedule the first complete workflow in the final five days.
 
+**D45 — Comparison report and session recovery, November 8:** Compare Runs presents six key metrics, expandable measurement details and one disclosure for routine interpretation notes; recorded safety failures remain prominent. Authenticated `GET /api/compare/pair/signals` and `/api/compare/pair/report` reuse the existing pair validation and `compare:view` permission. The PDF uses saved metrics, verified recorded geometry and streamed junction-control records, never a new simulation or current map substitution. Green-duration means/ranges include only complete services with both transitions recorded; partial boundary greens and gaps are excluded. Missing intervals stay unavailable. The report distinguishes nominal settings from achieved RL durations and makes no fixed optimized-cycle claim. ReportLab is a runtime dependency. PDFs are generated in memory; no research record is rewritten.
+
+The API's existing sliding database-session timeout is matched by renewing its HttpOnly browser cookie on successful authenticated JSON responses. Truly expired/revoked sessions still return 401. The shared API client stops protected requests after a 401 and opens sign-in for the same account; comparison selection/time are retained and playback pauses. Frame failures require an explicit retry, so neither authentication nor permanent missing-file errors generate a retry storm. The signals cache retains compact phase evidence for four recordings, keyed by file modification time and size.
+
 ## 5. Risk register with mitigations and owners
 
 Likelihood is qualitative, not measured. Release blockers apply to the stated capstone/hosted scope.

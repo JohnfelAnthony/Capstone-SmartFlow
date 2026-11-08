@@ -1,5 +1,7 @@
 # SmartFlow
 
+**November 8 — comparison PDF:** In **Compare Runs**, select two compatible recorded runs, then use **Download PDF report**. The report includes metric comparisons, the saved junction layout and actual signal-phase timelines/green-duration ranges. Trained models must first be used to record matched runs. The PDF describes simulation evidence; RL timings are observed decisions, not a recommended field timing plan. Update Python dependencies with `npm run venv:install` when pulling this feature, then restart the API.
+
 **November 1 — 2D-only scope:** the owner removed 3D rendering, models, camera/quality controls and Three.js dependencies. The interactive Canvas map is the only simulation view. Earlier dated 3D descriptions are historical. The pre-removal source is saved in branch and tag `before-removing-3d`.
 
 Documentation reviewed: **2026-10-24** (Asia/Singapore). Scope: **this `SmartFlow` folder**, containing the React application and Python backend. Application checks retain their individual dates and scopes in progress.

@@ -1,3 +1,5 @@
+import type { RenderFrame } from "@/simulation/frame-types"
+
 export type KpiTone = "better" | "worse" | "neutral"
 
 const NEUTRAL_TOLERANCE = 1e-4
@@ -27,6 +29,23 @@ export function frameAtTime(times: number[], time: number): number {
   return found
 }
 
+/** Select the window containing the displayed frame, including across recording gaps. */
+export function compareFrameWindow(times: number[] | undefined, time: number, windowSeconds: number): number {
+  const index = Math.max(0, frameAtTime(times ?? [], time))
+  return frameWindow(times?.[index] ?? 0, windowSeconds).start
+}
+
+/** Compare owns the playback state. The recording supplies the scene, not the player's clock settings. */
+export function compareCanvasFrame(frame: RenderFrame, playing: boolean, speed: number, seekRevision: number): RenderFrame {
+  return {
+    ...frame,
+    status: playing ? "running" : "paused",
+    speed_multiplier: speed,
+    render_mode: "playback",
+    playback: { ...frame.playback, active: true, seek_revision: seekRevision },
+  }
+}
+
 export function advancePlayback(time: number, elapsedMs: number, speed: 1 | 2 | 4, duration: number): { time: number; finished: boolean } {
   const next = time + (elapsedMs / 1000) * speed
   return next >= duration ? { time: duration, finished: true } : { time: next, finished: false }
@@ -49,6 +68,9 @@ export function windowsToRequest(wanted: number[], loaded: Record<number, unknow
   return wanted.filter((start) => !(start in loaded) && !inFlight.has(start))
 }
 
-export function windowsNear<T>(windows: Record<number, T>, start: number, reach: number): Record<number, T> {
-  return Object.fromEntries(Object.entries(windows).filter(([key]) => Math.abs(Number(key) - start) <= reach))
+export function windowsNear<T>(windows: Record<number, T>, start: number, reach: number, prefetchStart?: number): Record<number, T> {
+  return Object.fromEntries(Object.entries(windows).filter(([key]) => {
+    const windowStart = Number(key)
+    return windowStart === prefetchStart || Math.abs(windowStart - start) <= reach
+  }))
 }
