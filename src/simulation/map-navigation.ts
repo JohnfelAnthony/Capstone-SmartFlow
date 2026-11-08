@@ -57,11 +57,18 @@ function posesChanged(previous: EntityPose[], next: EntityPose[]) {
 export function createMapInterpolator() {
   let frames: RenderFrame[] = [], previousRun = "", clock = 0, lastNow = 0
   let motionUntil = 0
+  // (wall ms, simulation s) of recent new frames: when the engine cannot keep up with the chosen speed (a busy
+  // network at 4x), play at the speed it achieves instead of outrunning the buffer and freezing.
+  let arrivals: Array<[number, number]> = []
+  const achievedRate = () => {
+    const first = arrivals[0], last = arrivals[arrivals.length - 1]
+    return first && last[0] - first[0] >= 1000 ? (last[1] - first[1]) / ((last[0] - first[0]) / 1000) : Infinity
+  }
   const newest = () => frames.length ? frames[frames.length - 1] : null
   const advance = (now: number) => {
     const latest = newest()
     if (!latest) return
-    const rate = latest.speed_multiplier ?? 1
+    const rate = Math.min(latest.speed_multiplier ?? 1, achievedRate())
     // Mirror ticks_per_frame: at slow speeds the server still sends at least one tick.
     const step = Math.max(1, Math.round(rate)) * latest.step_length
     const elapsed = Math.max(0, Math.min(1, (now - lastNow) / 1000)), behind = latest.time - 2 * step - clock
@@ -92,6 +99,7 @@ export function createMapInterpolator() {
       if (next === latest && run === previousRun) return
       if (!next || !latest || isPresentationJump(latest, next, previousRun, run)) {
         frames = next ? [next] : []
+        arrivals = next ? [[now, next.time]] : []
         clock = next?.time ?? 0
         motionUntil = clock
         lastNow = now
@@ -104,6 +112,8 @@ export function createMapInterpolator() {
           motionUntil = next.time
         }
         frames.push(next)
+        arrivals.push([now, next.time])
+        while (arrivals.length > 2 && now - arrivals[1][0] >= 2000) arrivals.shift()
       } else frames[frames.length - 1] = next // same simulation time: newer metadata only
       previousRun = run
     },

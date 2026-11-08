@@ -1407,14 +1407,16 @@ class TrafficEngine:
             self._sweep_block_cache[id(samples)] = entry
         return entry[1]
 
-    @staticmethod
-    def _hits_sweep(body, sweeps) -> bool:
+    def _hits_sweep(self, body, sweeps) -> bool:
         """sweeps: (samples, progress, bounds); only samples at or beyond progress count."""
         xs, ys = [corner[0] for corner in body], [corner[1] for corner in body]
         low_x, low_y, high_x, high_y = min(xs), min(ys), max(xs), max(ys)
+        # A run's box holds each of its samples' boxes, so skipping runs whose box misses the body changes no answer.
         return any(bounds[0] < high_x and low_x < bounds[2] and bounds[1] < high_y and low_y < bounds[3]
-                   and any(point >= progress and box[0] < high_x and low_x < box[2] and box[1] < high_y and low_y < box[3]
-                           and rectangles_overlap(body, corners) for point, corners, box in samples)
+                   and any(run_box[0] < high_x and low_x < run_box[2] and run_box[1] < high_y and low_y < run_box[3]
+                           and any(point >= progress and box[0] < high_x and low_x < box[2] and box[1] < high_y and low_y < box[3]
+                                   and rectangles_overlap(body, corners) for point, corners, box in run)
+                           for run_box, run in self._sweep_blocks(samples))
                    for samples, progress, bounds in sweeps)
 
     def _near_line(self, vehicle: Vehicle, lane, position: float) -> bool:
@@ -1456,10 +1458,22 @@ class TrafficEngine:
         """True when this vehicle's path through the junction would hit a vehicle standing near a stop line, including
         one beside it on its own approach (where a committed vehicle ahead in this vehicle's own sideways band is about to drive off, so it
         does not count; one in another band may be held by sweeps ahead of it, however it was moving when this vehicle committed, and does)."""
-        return any(other is not vehicle and other.route[0] == lane_id and self._stands_in_path(other, vehicle)
-                   and not (lane_id == vehicle.route[0] and other.reserved_junction == node
-                            and bands_overlap(vehicle.lateral, vehicle.width, other.lateral, other.width))
-                   for lane_id in self.network.incoming[node] for other in self._candidates(("on_lane", lane_id)))
+        # The same test as `_stands_in_path` for each stander, with the mover's path looked up once and the cheap exclusions first.
+        sweeps = None
+        for lane_id in self.network.incoming[node]:
+            lane = self.network.lanes[lane_id]
+            for other in self._candidates(("on_lane", lane_id)):
+                if (other is vehicle or other.route[0] != lane_id or other.connector is not None
+                        or not self._near_line(other, lane, other.position)
+                        or (lane_id == vehicle.route[0] and other.reserved_junction == node
+                            and bands_overlap(vehicle.lateral, vehicle.width, other.lateral, other.width))):
+                    continue
+                if sweeps is None:
+                    sweep = self._sweep_for(vehicle, vehicle.lateral, self._exit_lateral(vehicle))
+                    sweeps = [(sweep, -math.inf, self._sweep_bounds(sweep))]
+                if self._hits_sweep(self._lane_body(other, lane, other.position, other.lateral, other.yaw), sweeps):
+                    return True
+        return False
 
     def _meets_own_approach_path(self, vehicle: Vehicle) -> bool:
         """True when this vehicle's path through the junction meets the rest of the recorded path of a committed vehicle
@@ -1502,13 +1516,15 @@ class TrafficEngine:
         entry = self._conflict_point_cache.get(key)
         if entry is None or entry[0] is not own or entry[1] is not other:
             own_bounds, own_blocks = self._sweep_bounds(own), self._sweep_blocks(own)
-            # Samples are in path order, so the first touched one from the far end is the furthest.
+            # Samples are in path order, so the first touched one from the far end is the furthest. Only own runs whose box
+            # meets this run's box can meet any of its samples (each sample's box lies inside its run's box).
             last_conflict = next((point for other_box, run in reversed(self._sweep_blocks(other)) if _boxes_overlap(other_box, own_bounds)
+                                  for near in [[(block_box, block) for block_box, block in own_blocks if _boxes_overlap(other_box, block_box)]] if near
                                   for point, corners, box in reversed(run)
                                   if _boxes_overlap(box, own_bounds)
                                   and any(_boxes_overlap(box, block_box) and any(_boxes_overlap(box, own_box) and rectangles_overlap(own_corners, corners)
                                                                                  for _, own_corners, own_box in block)
-                                          for block_box, block in own_blocks)), None)
+                                          for block_box, block in near)), None)
             entry = (own, other, last_conflict)
             self._conflict_point_cache[key] = entry
         return entry[2]
@@ -1535,12 +1551,15 @@ class TrafficEngine:
             lane = self.network.lanes[other.route[0]]
             if lane.target != node or lane.approach == self.network.lanes[vehicle.route[0]].approach or other.approach_arrival is None:
                 continue
-            if (other.approach_arrival, other.id) >= order or not self._sweeps_intersect(vehicle, other):
+            if (other.approach_arrival, other.id) >= order:
                 continue
             # Behind an uncommitted vehicle it cannot go first. Yielding to it could close a cycle (it waits for its leader,
             # which waits for a vehicle waiting on this one) that freezes the whole junction with nobody inside it.
+            # Checked before the sweeps: same answer, and it skips the costly path test for everyone queued behind a head.
             leader = self._lane_obstacle(other, lane)[0]
             if leader is not None and leader.reserved_junction != node:
+                continue
+            if not self._sweeps_intersect(vehicle, other):
                 continue
             # Skip only an earlier vehicle that cannot go for a lasting reason. Traffic already inside the junction
             # clears, so yielding past an earlier vehicle held by it would starve a side road under steady flow.

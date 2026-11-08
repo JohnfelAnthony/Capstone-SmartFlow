@@ -78,6 +78,22 @@ describe("2D displayed-frame playback", () => {
     }
   })
 
+  it("moves steadily at the speed the engine achieves when it cannot keep up with the chosen speed", () => {
+    // 4x chosen, but a busy network (Site B) only delivers about 3x: 4 ticks (0.4 s) every 133 ms. One car at 10 m/s.
+    const stream = createMapInterpolator(), speeds: number[] = []
+    let delivered = 0, previous: number | null = null
+    for (let now = 0; now < 20000; now += 1000 / 60) {
+      while ((delivered + 1) * 133 <= now) { delivered++; stream.set(at(delivered * .4, delivered * 4, { speed_multiplier: 4, render_ts: delivered * .133 }), "busy", delivered * 133) }
+      const x = stream.sample(now)?.vehicles[0].x ?? 0
+      if (previous !== null && now > 4000) speeds.push((x - previous) * 60)
+      previous = x
+    }
+    const sorted = [...speeds].sort((a, b) => a - b), median = sorted[Math.floor(sorted.length / 2)]
+    expect(median).toBeGreaterThan(25); expect(median).toBeLessThan(35) // about 30 m/s on screen: the achieved 3x
+    expect(sorted[Math.floor(sorted.length * .05)]).toBeGreaterThan(median * .8) // no freezes
+    expect(sorted[Math.floor(sorted.length * .95)]).toBeLessThan(median * 1.2) // no jumps
+  })
+
   it("snaps pause, run reset and backward seek and discards departed entities", () => {
     const stream = createMapInterpolator(); stream.set(at(0, 0), "run", 0); stream.set(at(.1, 1), "run", 100)
     stream.set(at(.1, 1, { status: "paused" }), "run", 125)
