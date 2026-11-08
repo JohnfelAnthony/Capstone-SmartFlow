@@ -1046,6 +1046,28 @@ class TrafficEngine:
         return (a.connector is not None and b.connector is not None and a.route[:2] == b.route[:2]
                 and (a.connector_position, a.id) < (b.connector_position, b.id))
 
+    def _crossing_gap(self, vehicle: Vehicle, other: Vehicle) -> float | None:
+        """Gap to `other` judged in this vehicle's own frame (ahead along its heading and within its sideways band), or None when it is not ahead."""
+        x, y, heading = self._pose(vehicle)
+        other_x, other_y, other_heading = self._pose(other)
+        # An oncoming vehicle is never a leader to follow; entry checks keep crossing paths apart and the
+        # footprint check stops any real contact, so treating it as one only parks both face to face.
+        if math.cos(other_heading-heading) < -0.5:
+            return None
+        dx, dy = other_x-x, other_y-y
+        along, across = dx*math.cos(heading)+dy*math.sin(heading), dx*math.sin(heading)-dy*math.cos(heading)
+        other_length, other_width = self._box(other)
+        if along <= 0 or abs(across) >= (vehicle.width+other_width)/2+SIDE_CLEARANCE_M:
+            return None
+        return along-(vehicle.length+other_length)/2
+
+    def _goes_first(self, vehicle: Vehicle, other: Vehicle, connector_length: float) -> bool:
+        """Of two vehicles in a mutual wait inside one junction, the one with less of its connector left (ties: the lower id) goes first."""
+        if other.connector is None:
+            return False
+        left = (connector_length-vehicle.connector_position, vehicle.id)
+        return left < (length(other.connector)-other.connector_position, other.id)
+
     def _junction_gap(self, vehicle: Vehicle, connector_length: float) -> tuple[float, float]:
         """Gap to the nearest vehicle ahead in the junction or at the start of the exit lane, and its speed."""
         gap, leader_speed = math.inf, vehicle.speed
@@ -1060,19 +1082,13 @@ class TrafficEngine:
                     continue
                 candidate = other.connector_position-(other.length+vehicle.length)/2-vehicle.connector_position
             else:
-                # Judged in this vehicle's own frame: ahead along its heading and within its sideways band.
-                other_x, other_y, other_heading = self._pose(other)
-                # An oncoming vehicle is never a leader to follow; entry checks keep crossing paths apart and the
-                # footprint check stops any real contact, so treating it as one only parks both face to face.
-                is_oncoming = math.cos(other_heading-heading) < -0.5
-                if is_oncoming:
+                candidate = self._crossing_gap(vehicle, other)
+                if candidate is None:
                     continue
-                dx, dy = other_x-x, other_y-y
-                along, across = dx*math.cos(heading)+dy*math.sin(heading), dx*math.sin(heading)-dy*math.cos(heading)
-                other_length, other_width = self._box(other)
-                if along <= 0 or abs(across) >= (vehicle.width+other_width)/2+SIDE_CLEARANCE_M:
+                # Two vehicles from different approaches level at the mouth of one exit can each see the other ahead (negative gap both
+                # ways, no body touching) and wait for each other for good; the one with less path left goes first, the other then follows it.
+                if candidate < 0 and (self._crossing_gap(other, vehicle) or 0) < 0 and self._goes_first(vehicle, other, connector_length):
                     continue
-                candidate = along-(vehicle.length+other_length)/2
             if candidate < gap:
                 gap, leader_speed = candidate, other.speed
         return gap, leader_speed
