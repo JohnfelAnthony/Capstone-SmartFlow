@@ -5,6 +5,11 @@ from simulation.footprints import overlapping_pairs
 from tools.mixed_traffic_report import build_engine, case_options
 
 
+def to_boundary(network, route):
+    """The route continued by the cheapest way on to a boundary, for tests that place a vehicle on a turn at a junction that no longer ends at one."""
+    return route + network.route(network.lanes[route[-1]].target, set(network.boundaries), previous=route[-1])
+
+
 # The measured layout separates the carriageways and sets stop lines back, which removes these overlaps at medium traffic.
 @pytest.mark.parametrize("seed,duration", [(101, 60), (102, 60), (101, 120), (102, 120)])
 def test_site_b_no_signal_has_no_overlapping_vehicles(seed, duration):
@@ -89,8 +94,8 @@ def test_a_motorcycle_does_not_drift_into_the_path_of_a_truck_already_committed_
     engine.enable_no_signal_control()
     engine.driver_variation_scale = 0
     engine.start(120)
-    motorcycle = engine.add_vehicle(["road2f", "road1f"], vehicle_type="motorcycle", speed=0.27)
-    truck = engine.add_vehicle(["road2f", "road0f"], vehicle_type="truck", speed=1.9)
+    motorcycle = engine.add_vehicle(to_boundary(engine.network, ["road2f", "road1f"]), vehicle_type="motorcycle", speed=0.27)
+    truck = engine.add_vehicle(to_boundary(engine.network, ["road2f", "road0f"]), vehicle_type="truck", speed=1.9)
     truck.position, truck.lateral, truck.lateral_target = 115.3, -3.25, -3.25
     motorcycle.position, motorcycle.lateral, motorcycle.lateral_target, motorcycle.yaw = 119.93, -1.02, -1.85, -0.175
     lane = engine.network.lanes["road2f"]

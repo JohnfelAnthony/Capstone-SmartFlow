@@ -10,10 +10,11 @@ from simulation.scenario_config import DEFAULTS, validate_config
 from simulation.traffic_engine import TrafficEngine
 
 
+SOBRECAREY_LANES = {f"{road}{direction}" for road in ("road1", "road17", "road22") for direction in "fr"}  # Sobrecarey Street runs on through the painted grid (D45)
+
+
 def restricted_network():
-    payload = copy.deepcopy(load_registered_network("tagum_site_b").payload)
-    payload["lane_vehicle_restrictions"] = {lane: ["bus", "truck"] for lane in ("road1f", "road1r")}
-    return RoadNetwork(payload)
+    return RoadNetwork(copy.deepcopy(load_registered_network("tagum_site_b").payload))
 
 
 @pytest.mark.parametrize("kind", ["bus", "truck"])
@@ -23,7 +24,7 @@ def test_sobrecarey_is_unreachable_in_both_directions_for_heavy_vehicles(kind):
         assert network.route(source, target)
         assert not network.route(source, target, vehicle_type=kind)
     assert network.route("boundary_9", "boundary_4", vehicle_type=kind)
-    assert network.route("boundary_9", "boundary_7", vehicle_type=kind)  # Bonifacio is unchanged
+    assert network.lane_allows("road7f", kind) and network.lane_allows("road7r", kind)  # Bonifacio is unchanged
 
 
 def test_main_road_preference_and_detour_both_respect_vehicle_access():
@@ -75,7 +76,7 @@ def test_diversion_never_uses_a_restricted_exit():
     network = restricted_network()
     engine = TrafficEngine(network=network)
     engine.closed_lanes = {lane.id for lane in network.lanes.values()
-                           if lane.target in network.boundaries and lane.id != "road1f"}
+                           if lane.target in network.boundaries and lane.id != "road22f"}
     assert not engine._best_open_exit("tagum_site_b_j", "road2f", None, vehicle_type="truck")
     assert engine._best_open_exit("tagum_site_b_j", "road2f", None, vehicle_type="car")
     assert "boundary_9" in engine._closure_blocked_sources("truck")
@@ -92,7 +93,7 @@ def test_invalid_access_metadata_is_rejected(rules):
 
 def test_registered_site_and_builder_record_only_sobrecarey_access():
     network = load_registered_network("tagum_site_b")
-    assert network.lane_vehicle_restrictions == {lane: frozenset({"bus", "truck"}) for lane in ("road1f", "road1r")}
+    assert network.lane_vehicle_restrictions == {lane: frozenset({"bus", "truck"}) for lane in SOBRECAREY_LANES}
     assert not load_registered_network("tagum_site_a").lane_vehicle_restrictions
 
 
@@ -104,7 +105,7 @@ def test_closure_rerouting_and_live_spawning_keep_heavy_vehicles_off_sobrecarey(
     engine.start(120)
     while engine.status == "running":
         engine.step()
-        assert all(not {"road1f", "road1r"}.intersection(vehicle.route) for vehicle in engine.vehicles.values())
+        assert all(not SOBRECAREY_LANES.intersection(vehicle.route) for vehicle in engine.vehicles.values())
         assert engine._last_metrics["vehicle_conservation_error"] == 0
     assert engine.vehicle_serial > 0
 

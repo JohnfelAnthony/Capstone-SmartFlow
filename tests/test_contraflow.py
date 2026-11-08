@@ -10,7 +10,7 @@ A, B = "tagum_site_a", "tagum_site_b"
 
 def test_only_wide_two_way_roads_that_are_long_enough_are_eligible():
     assert eligible_roads(load_registered_network(A)) == {"road0", "road1", "road2", "road3", "road4", "road8", "road10", "road12", "road24"}  # the main roads; not the 47 m north piece (road5) or any one-lane side street
-    assert eligible_roads(load_registered_network(B)) == {"road1"}  # Sobrecarey; Dao, Acacia and Bonifacio are narrow and the highway is one-way carriageways
+    assert eligible_roads(load_registered_network(B)) == {"road1", "road17", "road22"}  # Sobrecarey's three pieces; Dao, Acacia, Bonifacio and the new side streets are narrow and the highway is one-way carriageways
 
 
 def test_the_kept_lane_is_the_opposite_one():

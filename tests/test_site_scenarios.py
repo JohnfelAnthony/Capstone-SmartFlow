@@ -9,7 +9,7 @@ from simulation.network_registry import engine_for_scenario, load_registered_net
 def test_configuration_options_follow_selected_network():
     options = configuration_options("tagum_site_b")
     assert options["network_id"] == "tagum_site_b"
-    assert len(options["junctions"]) == 2
+    assert len(options["junctions"]) == 10  # the study junction, the neighbouring one and the eight painted-grid junctions (D45)
     assert options["junctions"][1]["default_plan"]["mode"] == "first_come"
 
 

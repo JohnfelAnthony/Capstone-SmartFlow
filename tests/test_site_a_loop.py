@@ -156,9 +156,11 @@ def test_only_a_bent_lane_gives_up_sideways_room():
     import math
     arc = [(25*math.sin(angle/200*1.5), 25-25*math.cos(angle/200*1.5)) for angle in range(201)]
     assert body_swing(arc, 10.0) == pytest.approx(10.0**2/(8*25), rel=0.1)
-    for site in ("tagum_site_b", "tagum_network"):
-        engine = TrafficEngine(network=load_registered_network(site))
-        assert all(engine._room_width[lane_id] == lane.width for lane_id, lane in engine.network.lanes.items())
+    engine = TrafficEngine(network=load_registered_network("tagum_network"))
+    assert all(engine._room_width[lane_id] == lane.width for lane_id, lane in engine.network.lanes.items())
+    engine = TrafficEngine(network=load_registered_network("tagum_site_b"))  # Site B's measured core is straight; the painted side streets (D45) have 25 m arcs
+    assert all(engine._room_width[lane_id] == lane.width for lane_id, lane in engine.network.lanes.items() if lane_id[:-1] in {f"road{number}" for number in (0, 1, 2, 3, 4, 5, 7, 8, 9)})
+    assert engine._room_width["road16f"] < engine.network.lanes["road16f"].width
     engine = TrafficEngine(network=loop_network())
     assert engine._room_width["road6f"] < engine.network.lanes["road6f"].width and engine._room_width["road2r"] == engine.network.lanes["road2r"].width
 

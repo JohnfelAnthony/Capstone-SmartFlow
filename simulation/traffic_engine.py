@@ -583,7 +583,7 @@ class TrafficEngine:
     def _demand_pair(self):
         sources = [node for node in self.network.demand_boundaries if self.network.outgoing[node]]
         destinations = [node for node in self.network.demand_boundaries if self.network.incoming[node]]
-        pairs = [(source, target) for source in sources for target in destinations if source != target]
+        pairs = [(source, target) for source in sources for target in destinations if source != target and (source, target) not in self.network.side_street_only_pairs]
         self.random.shuffle(pairs)
         candidates = []
         for source, target in pairs:

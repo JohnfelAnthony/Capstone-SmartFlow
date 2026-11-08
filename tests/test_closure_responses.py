@@ -40,16 +40,17 @@ def test_a_closed_entry_road_offers_waiting_and_sharing_only_where_the_road_can_
     assert offered(A, ["road24r"], "road24r") == [SHARE, WAIT]  # the east entry road
 
 
-def test_site_b_has_no_detour_so_it_never_offers_avoiding_jams():
+def test_site_b_offers_avoiding_jams_only_where_the_street_grid_gives_a_detour():
     network = load_registered_network(B)
-    for lane in network.lanes:
-        assert SIDE_STREET_ADAPTIVE not in available_responses(network, {lane}, lane)["available"]
+    offers = lambda lane: SIDE_STREET_ADAPTIVE in available_responses(network, {lane}, lane)["available"]
+    assert offers("road1f") and offers("road0f")  # Sobrecarey and Dao have detours round the painted grid (D45)
+    assert not offers("road22f") and not offers("road14f")  # the Sobrecarey end and a highway entry have none
 
 
 def test_at_site_b_only_sobrecarey_can_share():
     network = load_registered_network(B)
     sharing = {lane for lane in network.lanes if SHARE in available_responses(network, {lane}, lane)["available"]}
-    assert sharing == {"road1f", "road1r"}
+    assert sharing == {f"{road}{direction}" for road in ("road1", "road17", "road22") for direction in "fr"}
 
 
 def test_sharing_is_refused_in_plain_words_where_it_does_not_work_and_a_shared_direction_is_not_counted_as_closed():

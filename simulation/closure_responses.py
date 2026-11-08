@@ -21,7 +21,7 @@ def usual_trips(network) -> dict:
     """Entry-to-exit trips and the lanes each normally uses, with nothing closed."""
     entries = [node for node in network.demand_boundaries if network.outgoing[node]]
     exits = [node for node in network.demand_boundaries if network.incoming[node]]
-    trips = {(source, target): network.route(source, target) for source in entries for target in exits if source != target}
+    trips = {(source, target): network.route(source, target) for source in entries for target in exits if source != target and (source, target) not in network.side_street_only_pairs}
     return {pair: route for pair, route in trips.items() if route}
 
 

@@ -8,7 +8,7 @@ import json
 import math
 import os
 from dataclasses import dataclass, replace
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from itertools import combinations
 from pathlib import Path
 
@@ -341,10 +341,10 @@ class RoadNetwork:
         self.entry_kerb_vehicle_types = {}
         for lane_id, kinds in kerb_classes.items():
             lane = self.lanes.get(lane_id)
-            if lane is None or lane.source not in self.boundaries or self.incoming[lane.source] or not isinstance(kinds, list) or any(
+            if lane is None or not isinstance(kinds, list) or any(
                 not isinstance(kind, str) or kind not in VEHICLE_TYPES for kind in kinds
             ):
-                raise ValueError("Entry kerb vehicle types need a source-only boundary lane and known vehicle classes")
+                raise ValueError("Entry kerb vehicle types need known lanes and vehicle classes")
             self.entry_kerb_vehicle_types[lane_id] = frozenset(kinds)
         for turn in payload.get("prohibited_turns", []):
             if len(turn) != 2 or any(lane not in self.lanes for lane in turn) or self.lanes[turn[0]].target != self.lanes[turn[1]].source:
@@ -375,6 +375,15 @@ class RoadNetwork:
         c = (a[0] + math.cos(ah) * control_distance, a[1] + math.sin(ah) * control_distance)
         d = (b[0] - math.cos(bh) * control_distance, b[1] - math.sin(bh) * control_distance)
         return [tuple((1-t)**3*a[k] + 3*(1-t)**2*t*c[k] + 3*(1-t)*t*t*d[k] + t**3*b[k] for k in (0, 1)) for t in (i / 20 for i in range(21))]
+
+    @cached_property
+    def side_street_only_pairs(self) -> frozenset:
+        """Boundary pairs that nothing closed reaches except through a side street, such as the two ends of one highway (a U-turn apart).
+        Generated demand skips them, so a side street carries traffic only when a closure sends it there; explicit trips and `od` streams are never filtered."""
+        if not self.minor_lanes:
+            return frozenset()
+        return frozenset((a, b) for a in self.demand_boundaries for b in self.demand_boundaries
+                         if a != b and self.minor_lanes.intersection(self.route(a, b)))
 
     def route(self, source: str, destination: str | set[str], *, closed: set[str] | None = None, costs: dict[str, float] | None = None, previous: str | None = None, vehicle_type: str | None = None) -> list[str]:
         """Route to a destination, or find the cheapest reachable exit from a set."""

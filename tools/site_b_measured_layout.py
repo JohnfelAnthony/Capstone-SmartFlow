@@ -46,7 +46,9 @@ ASSUMPTIONS = [
 ]
 
 
-def build_measured_site_b(corridor: dict, *, island_builder=None) -> dict:
+def build_measured_site_b(corridor: dict, *, island_builder=None, gaps: tuple = ()) -> dict:
+    """`gaps` are (from, to, groups) stretches, in metres along the highway from the study junction, left clear of the named groups of islands
+    ("median", "nw", "se") and of street lights ("light"), for junctions added later."""
     payload = copy.deepcopy(corridor)
     nodes = {node["id"]: node for node in payload["nodes"]}
     study, neighbor = nodes[STUDY], nodes[NEIGHBOR]
@@ -111,14 +113,24 @@ def build_measured_site_b(corridor: dict, *, island_builder=None) -> dict:
     payload["prohibited_turns"] = [["road5f", "road4f"], ["road9f", "road8f"]]
     payload["lane_vehicle_restrictions"] = {lane: ["bus", "truck"] for lane in ("road1f", "road1r")}
     payload["entry_kerb_vehicle_types"] = {"road9f": ["bus", "truck"]}
-    payload["islands"] = (island_builder or _islands)(span, rounded)
-    payload["site_features"] = _site_features(span, at, box)
+    payload["islands"] = island_builder(span, rounded) if island_builder else _islands(span, rounded, gaps)
+    payload["site_features"] = _site_features(span, at, box, gaps)
     payload["source"]["assumptions"] = ASSUMPTIONS
     RoadNetwork(payload)
     return payload
 
 
-def _islands(span: float, rounded) -> list[dict]:
+def _outside(start: float, end: float, gaps: tuple, group: str) -> list[tuple[float, float]]:
+    """The parts of [start, end] that no gap of this group covers (pieces under 2 m are dropped); the whole stretch when there are none."""
+    pieces = [(start, end)]
+    for low, high, groups in gaps:
+        if group not in groups:
+            continue
+        pieces = [(a, b) for lo, hi in pieces for a, b in ((lo, min(hi, low)), (max(lo, high), hi)) if b-a >= 2.0 or (lo, hi) == (a, b)]
+    return pieces
+
+
+def _islands(span: float, rounded, gaps: tuple = ()) -> list[dict]:
     half = MEDIAN_WIDTH_M/2-MEDIAN_KERB_GAP_M
     medians = {"sw_far": (-SOUTHWEST_END_M, -87), "gap_tip": (-76, -73.4), "sw_near": (-68.6, -23.2), "study_sw_tip": (-19.8, -17.2),
                "study_ne_tip": (14.3, 16.9), "between": (20.6, span-27.4), "neighbor_sw_tip": (span-23.4, span-21.2),
@@ -127,13 +139,15 @@ def _islands(span: float, rounded) -> list[dict]:
                      "nw_beyond_1": (NW_ISLAND, span+46, span+92), "nw_beyond_2": (NW_ISLAND, span+102, span+167.5),
                      "se_far": (SE_ISLAND, -SOUTHWEST_END_M, -93), "se_near": (SE_ISLAND, -57, -15), "se_after_dao": (SE_ISLAND, 14, 32),
                      "se_before_acacia": (SE_ISLAND, span-49, span-20), "se_beyond_1": (SE_ISLAND, span+22, span+116), "se_beyond_2": (SE_ISLAND, span+134, span+176)}
-    islands = [{"id": f"median_{name}", "shape": rounded(a0, a1, -half, half), "planted": True} for name, (a0, a1) in medians.items()]
-    islands += [{"id": f"side_{name}", "shape": rounded(a0, a1, *band), "planted": True} for name, (band, a0, a1) in planted_sides.items()]
+    islands = [{"id": f"median_{name}" + (f"_{n}" if n else ""), "shape": rounded(p0, p1, -half, half), "planted": True}
+               for name, (a0, a1) in medians.items() for n, (p0, p1) in enumerate(_outside(a0, a1, gaps, "median"))]
+    islands += [{"id": f"side_{name}" + (f"_{n}" if n else ""), "shape": rounded(p0, p1, *band), "planted": True}
+                for name, (band, a0, a1) in planted_sides.items() for n, (p0, p1) in enumerate(_outside(a0, a1, gaps, name[:2]))]
     islands.append({"id": "side_nw_paved_nose", "shape": rounded(32, 43, *NW_ISLAND), "planted": False})
     return islands
 
 
-def _site_features(span: float, at, box) -> list[dict]:
+def _site_features(span: float, at, box, gaps: tuple = ()) -> list[dict]:
     edge = CARRIAGEWAY_EDGE_M
     west, east = -SOUTHWEST_END_M, span+NORTHEAST_END_M
     features = [
@@ -168,14 +182,15 @@ def _site_features(span: float, at, box) -> list[dict]:
         features.append({"id": f"stop_{name}_se", "kind": "marking", "shape": box(stop_se-.2, stop_se+.2, -edge, -half)})
     lit = ((-SOUTHWEST_END_M, -87), (-68.6, -23.2), (20.6, span-27.4), (span+27, span+163.7))
     positions = [start+10+index*STREET_LIGHT_SPACING_M for start, end in lit for index in range(int((end-start-20)//STREET_LIGHT_SPACING_M)+1)]
-    features += [{"id": f"light_{index}", "kind": "street_light", "shape": [at(a, -STREET_LIGHT_ARM_M), at(a, 0), at(a, STREET_LIGHT_ARM_M)]} for index, a in enumerate(positions, 1)]
+    features += [{"id": f"light_{index}", "kind": "street_light", "shape": [at(a, -STREET_LIGHT_ARM_M), at(a, 0), at(a, STREET_LIGHT_ARM_M)]}
+                 for index, a in enumerate(positions, 1) if not any(low <= a <= high and "light" in groups for low, high, groups in gaps)]
     return features
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path("data/networks/history/tagum_site_b_osm_corridor.json"))
-    parser.add_argument("--output", type=Path, default=Path("data/networks/tagum_site_b.json"))
+    parser.add_argument("--output", type=Path, default=Path("data/networks/tagum_site_b_pre_street_grid.json"))  # the measured core alone; the installed Site B adds the street grid (tools/site_b_street_grid.py)
     args = parser.parse_args()
     built = build_measured_site_b(json.loads(args.source.read_text(encoding="utf-8")))
     args.output.write_text(json.dumps(built, indent=2, ensure_ascii=False)+"\n", encoding="utf-8")

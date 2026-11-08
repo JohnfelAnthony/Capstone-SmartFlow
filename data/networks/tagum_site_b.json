@@ -34,8 +34,21 @@
       "Dao and Acacia continue straight past the imagery, leaving out their OSM far bends, so their far alignment and end points are approximate",
       "Only CitiHardware is a candidate signal/RL junction",
       "Neighboring junction uses first-come no-signal control",
-      "Synthetic demand; no traffic effectiveness claimed"
-    ]
+      "Synthetic demand; no traffic effectiveness claimed",
+      "Side streets (D45) are provisional geometry from OpenStreetMap, painted and approved by the owner, not field-checked: Sobrecarey, Bonifacio and Osmeña Streets north to Magsaysay Street, Magsaysay Street, the west loop (Doctor Juan Gonzales Avenue and two unnamed streets), Dao Street on to Ebony Street, the loop back to the highway through the median opening, and the inner link to Acacia Street",
+      "Map bends under 5 m are drawn straight, the first 30 m at each end of a new street is drawn straight, and bends are circular arcs of 25 m radius",
+      "New streets are unnamed and one lane each way; they join the highway on its median centre line, where the carriageways bend to the junction inside its stop lines",
+      "Every new junction uses first-come right-of-way, and Site B stays the only signal and RL candidate",
+      "Pedestrians cross only at the study junction and the neighbouring junction, as before; people crossing the new streets are not modelled",
+      "Generated traffic starts and ends only at the boundaries of the highway, Sobrecarey Street and Dao Street; side streets carry traffic only when route choice detours it (they cost three times their driving time)",
+      "Sobrecarey and Dao Streets run 60 m past the grid to boundaries, so the counted traffic still enters them; the streets the owner did not paint beyond the grid are not modelled",
+      "Acacia Street ends at the inner link, so the Acacia and Bonifacio boundaries of the earlier layout are gone; the earlier layout is kept as a listed revision",
+      "The highway runs 80 m past the Osmeña junction; its pavement strips and median there are drawn only"
+    ],
+    "supplement": {
+      "file": "osm_site_b_north.json",
+      "reason": "Magsaysay Street and the north ends of Sobrecarey, Bonifacio and Osmeña Streets lie beyond the first extract"
+    }
   },
   "nodes": [
     {
@@ -83,15 +96,98 @@
       ]
     },
     {
+      "id": "tagum_site_b_j2",
+      "x": -46.439,
+      "y": -59.508,
+      "lat": 7.437729932985986,
+      "lon": 125.80213679299294,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false,
+      "junction_clearance_m": 16.0
+    },
+    {
+      "id": "tagum_site_b_j3",
+      "x": 74.025,
+      "y": -49.169,
+      "lat": 7.437822811082954,
+      "lon": 125.80322812174145,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_b_j4",
+      "x": -115.639,
+      "y": -147.676,
+      "lat": 7.43693790998922,
+      "lon": 125.80150988619285,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false,
+      "junction_clearance_m": 16.0
+    },
+    {
+      "id": "tagum_site_b_j5",
+      "x": -4.184,
+      "y": 231.612,
+      "lat": 7.4403451,
+      "lon": 125.8025196,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_b_j6",
+      "x": 247.358,
+      "y": -134.308,
+      "lat": 7.437058,
+      "lon": 125.8047984,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_b_j7",
+      "x": 229.321,
+      "y": 291.837,
+      "lat": 7.440886104383758,
+      "lon": 125.80463499847258,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false,
+      "junction_clearance_m": 28.0
+    },
+    {
+      "id": "tagum_site_b_j8",
+      "x": -5.078,
+      "y": 627.633,
+      "lat": 7.4439026,
+      "lon": 125.8025115,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
+      "id": "tagum_site_b_j9",
+      "x": 111.686,
+      "y": 624.171,
+      "lat": 7.4438715,
+      "lon": 125.8035693,
+      "boundary": false,
+      "default_control_mode": "first_come",
+      "generated_demand": false
+    },
+    {
       "id": "boundary_0",
-      "x": 198.704,
-      "y": -146.258,
+      "x": 307.179,
+      "y": -129.672,
       "boundary": true
     },
     {
       "id": "boundary_1",
-      "x": -4.139381894360198,
-      "y": 221.6124894292844,
+      "x": -4.915,
+      "y": 687.633,
       "boundary": true
     },
     {
@@ -107,27 +203,15 @@
       "boundary": true
     },
     {
-      "id": "boundary_6",
-      "x": 299.476,
-      "y": -15.598,
-      "boundary": true
-    },
-    {
-      "id": "boundary_7",
-      "x": 111.71173304304864,
-      "y": 389.2530421733454,
-      "boundary": true
-    },
-    {
       "id": "boundary_8",
-      "x": 231.284,
-      "y": 285.349,
+      "x": 283.08,
+      "y": 351.342,
       "boundary": true
     },
     {
       "id": "boundary_9",
-      "x": 222.553,
-      "y": 292.202,
+      "x": 274.348,
+      "y": 358.195,
       "boundary": true
     }
   ],
@@ -135,7 +219,7 @@
     {
       "id": "road0",
       "source": "tagum_site_b_j",
-      "target": "boundary_0",
+      "target": "tagum_site_b_j3",
       "shape": [
         [
           4.382,
@@ -146,8 +230,8 @@
           -8.071
         ],
         [
-          198.704,
-          -146.258
+          74.025,
+          -49.169
         ]
       ],
       "oneway": false,
@@ -187,7 +271,7 @@
     {
       "id": "road1",
       "source": "tagum_site_b_j",
-      "target": "boundary_1",
+      "target": "tagum_site_b_j5",
       "shape": [
         [
           4.382,
@@ -198,8 +282,8 @@
           11.737
         ],
         [
-          -4.139,
-          221.612
+          -4.184,
+          231.612
         ]
       ],
       "oneway": false,
@@ -336,19 +420,23 @@
     {
       "id": "road4",
       "source": "tagum_site_b_j",
-      "target": "boundary_4",
+      "target": "tagum_site_b_j2",
       "shape": [
         [
           4.382,
           5.243
         ],
         [
-          -8.628,
+          -8.627,
           -2.343
         ],
         [
-          -154.337,
-          -187.991
+          -42.161,
+          -45.068
+        ],
+        [
+          -46.439,
+          -59.508
         ]
       ],
       "oneway": true,
@@ -392,16 +480,20 @@
     },
     {
       "id": "road5",
-      "source": "boundary_5",
+      "source": "tagum_site_b_j2",
       "target": "tagum_site_b_j",
       "shape": [
         [
-          -145.605,
-          -194.844
+          -46.439,
+          -59.508
+        ],
+        [
+          -33.429,
+          -51.921
         ],
         [
           0.104,
-          -9.197
+          -9.196
         ],
         [
           4.382,
@@ -450,19 +542,123 @@
     {
       "id": "road6",
       "source": "1115349256",
-      "target": "boundary_6",
+      "target": "tagum_site_b_j3",
       "shape": [
         [
           109.611,
           139.314
         ],
         [
-          118.0,
-          121.695
+          115.375,
+          127.208
         ],
         [
-          299.476,
-          -15.598
+          116.304,
+          125.442
+        ],
+        [
+          117.371,
+          123.755
+        ],
+        [
+          118.57,
+          122.159
+        ],
+        [
+          119.891,
+          120.664
+        ],
+        [
+          121.328,
+          119.279
+        ],
+        [
+          122.871,
+          118.013
+        ],
+        [
+          153.294,
+          95.012
+        ],
+        [
+          154.899,
+          93.691
+        ],
+        [
+          156.388,
+          92.241
+        ],
+        [
+          157.752,
+          90.672
+        ],
+        [
+          158.98,
+          88.995
+        ],
+        [
+          160.065,
+          87.222
+        ],
+        [
+          160.999,
+          85.366
+        ],
+        [
+          161.776,
+          83.438
+        ],
+        [
+          162.389,
+          81.452
+        ],
+        [
+          162.836,
+          79.422
+        ],
+        [
+          163.112,
+          77.362
+        ],
+        [
+          163.217,
+          75.286
+        ],
+        [
+          163.148,
+          73.209
+        ],
+        [
+          162.908,
+          71.144
+        ],
+        [
+          162.496,
+          69.107
+        ],
+        [
+          161.917,
+          67.111
+        ],
+        [
+          161.174,
+          65.17
+        ],
+        [
+          160.272,
+          63.297
+        ],
+        [
+          159.218,
+          61.506
+        ],
+        [
+          158.019,
+          59.808
+        ],
+        [
+          74.025,
+          -49.169
         ]
       ],
       "oneway": false,
@@ -486,12 +682,13 @@
         "surface": "asphalt"
       },
       "speed_mps": 8.33,
-      "width_per_direction_m": 4.65
+      "width_per_direction_m": 4.65,
+      "minor": true
     },
     {
       "id": "road7",
       "source": "1115349256",
-      "target": "boundary_7",
+      "target": "tagum_site_b_j9",
       "shape": [
         [
           109.611,
@@ -502,8 +699,8 @@
           158.074
         ],
         [
-          111.712,
-          389.253
+          111.686,
+          624.171
         ]
       ],
       "oneway": false,
@@ -543,12 +740,13 @@
         "surface": "asphalt"
       },
       "speed_mps": 8.33,
-      "width_per_direction_m": 5.0
+      "width_per_direction_m": 5.0,
+      "minor": true
     },
     {
       "id": "road8",
       "source": "1115349256",
-      "target": "boundary_8",
+      "target": "tagum_site_b_j7",
       "shape": [
         [
           109.611,
@@ -556,11 +754,15 @@
         ],
         [
           122.62,
-          146.9
+          146.901
         ],
         [
-          231.284,
-          285.349
+          225.043,
+          277.397
+        ],
+        [
+          229.321,
+          291.837
         ]
       ],
       "oneway": true,
@@ -599,12 +801,16 @@
     },
     {
       "id": "road9",
-      "source": "boundary_9",
+      "source": "tagum_site_b_j7",
       "target": "1115349256",
       "shape": [
         [
-          222.553,
-          292.202
+          229.321,
+          291.837
+        ],
+        [
+          216.311,
+          284.251
         ],
         [
           113.888,
@@ -648,6 +854,1056 @@
       },
       "speed_mps": 8.33,
       "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road10",
+      "source": "tagum_site_b_j2",
+      "target": "tagum_site_b_j4",
+      "shape": [
+        [
+          -46.439,
+          -59.508
+        ],
+        [
+          -59.448,
+          -67.094
+        ],
+        [
+          -111.361,
+          -133.236
+        ],
+        [
+          -115.639,
+          -147.676
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "speed_mps": 8.33,
+      "osm_way_id": 288252870,
+      "osm_node_ids": [
+        376307655,
+        13188247941,
+        13370446087,
+        8107640302,
+        2918139394,
+        13370446088,
+        7041424675,
+        9153862744,
+        2918139393,
+        13370437021,
+        1298045148
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road11",
+      "source": "tagum_site_b_j4",
+      "target": "tagum_site_b_j2",
+      "shape": [
+        [
+          -115.639,
+          -147.676
+        ],
+        [
+          -102.63,
+          -140.089
+        ],
+        [
+          -50.717,
+          -73.947
+        ],
+        [
+          -46.439,
+          -59.508
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "speed_mps": 8.33,
+      "osm_way_id": 678794201,
+      "osm_node_ids": [
+        1298045148,
+        13370437020,
+        1402935125,
+        349713207,
+        13370446089,
+        1400710201,
+        1402935115,
+        1400710226,
+        13370446086,
+        13188247942,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road12",
+      "source": "tagum_site_b_j6",
+      "target": "tagum_site_b_j2",
+      "shape": [
+        [
+          247.358,
+          -134.308
+        ],
+        [
+          257.14,
+          -177.857
+        ],
+        [
+          257.515,
+          -179.928
+        ],
+        [
+          257.714,
+          -182.023
+        ],
+        [
+          257.736,
+          -184.128
+        ],
+        [
+          257.581,
+          -186.227
+        ],
+        [
+          257.249,
+          -188.306
+        ],
+        [
+          256.744,
+          -190.349
+        ],
+        [
+          256.069,
+          -192.343
+        ],
+        [
+          255.229,
+          -194.273
+        ],
+        [
+          254.229,
+          -196.125
+        ],
+        [
+          253.077,
+          -197.887
+        ],
+        [
+          251.781,
+          -199.545
+        ],
+        [
+          250.35,
+          -201.089
+        ],
+        [
+          248.795,
+          -202.507
+        ],
+        [
+          247.125,
+          -203.789
+        ],
+        [
+          245.354,
+          -204.925
+        ],
+        [
+          243.493,
+          -205.909
+        ],
+        [
+          241.556,
+          -206.733
+        ],
+        [
+          239.557,
+          -207.391
+        ],
+        [
+          237.509,
+          -207.879
+        ],
+        [
+          235.428,
+          -208.192
+        ],
+        [
+          233.327,
+          -208.329
+        ],
+        [
+          163.368,
+          -209.95
+        ],
+        [
+          161.288,
+          -209.911
+        ],
+        [
+          159.218,
+          -209.7
+        ],
+        [
+          157.173,
+          -209.317
+        ],
+        [
+          155.167,
+          -208.766
+        ],
+        [
+          153.214,
+          -208.05
+        ],
+        [
+          151.327,
+          -207.174
+        ],
+        [
+          149.519,
+          -206.144
+        ],
+        [
+          147.804,
+          -204.967
+        ],
+        [
+          -46.439,
+          -59.508
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "speed_mps": 8.33,
+      "osm_way_id": 1457627774,
+      "osm_node_ids": [
+        1400710199,
+        1400710245,
+        1400710206,
+        1400710222,
+        1400710237,
+        1400710202,
+        8114131932,
+        1400710229,
+        7983603756,
+        1400710226,
+        8107640302
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "name": "Ebony Street",
+        "surface": "asphalt",
+        "note": "OSM ways 1457627774, 126330385, 126330391"
+      },
+      "minor": true
+    },
+    {
+      "id": "road13",
+      "source": "tagum_site_b_j3",
+      "target": "tagum_site_b_j6",
+      "shape": [
+        [
+          74.025,
+          -49.169
+        ],
+        [
+          165.563,
+          -112.677
+        ],
+        [
+          167.111,
+          -113.669
+        ],
+        [
+          168.728,
+          -114.544
+        ],
+        [
+          170.404,
+          -115.298
+        ],
+        [
+          172.132,
+          -115.927
+        ],
+        [
+          173.901,
+          -116.427
+        ],
+        [
+          247.358,
+          -134.308
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "speed_mps": 8.33,
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        1217597311,
+        1217597450,
+        10672313060,
+        13368346131,
+        1217597337,
+        1217597234,
+        10672313061,
+        13368346133,
+        1217597399,
+        1400710199
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "width_per_direction_m": 3.45
+    },
+    {
+      "id": "road14",
+      "source": "boundary_5",
+      "target": "tagum_site_b_j4",
+      "shape": [
+        [
+          -145.605,
+          -194.844
+        ],
+        [
+          -119.917,
+          -162.115
+        ],
+        [
+          -115.639,
+          -147.676
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "speed_mps": 8.33,
+      "osm_way_id": 678794201,
+      "osm_node_ids": [
+        1298045148,
+        13370437020,
+        1402935125,
+        349713207,
+        13370446089,
+        1400710201,
+        1402935115,
+        1400710226,
+        13370446086,
+        13188247942,
+        376307655
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road15",
+      "source": "tagum_site_b_j4",
+      "target": "boundary_4",
+      "shape": [
+        [
+          -115.639,
+          -147.676
+        ],
+        [
+          -128.649,
+          -155.262
+        ],
+        [
+          -154.337,
+          -187.991
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "speed_mps": 8.33,
+      "osm_way_id": 288252870,
+      "osm_node_ids": [
+        376307655,
+        13188247941,
+        13370446087,
+        8107640302,
+        2918139394,
+        13370446088,
+        7041424675,
+        9153862744,
+        2918139393,
+        13370437021,
+        1298045148
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "yes",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road16",
+      "source": "tagum_site_b_j5",
+      "target": "tagum_site_b_j4",
+      "shape": [
+        [
+          -4.184,
+          231.612
+        ],
+        [
+          -268.17,
+          237.271
+        ],
+        [
+          -270.277,
+          237.227
+        ],
+        [
+          -272.374,
+          237.006
+        ],
+        [
+          -274.444,
+          236.609
+        ],
+        [
+          -276.474,
+          236.039
+        ],
+        [
+          -278.449,
+          235.3
+        ],
+        [
+          -280.354,
+          234.397
+        ],
+        [
+          -282.176,
+          233.337
+        ],
+        [
+          -283.902,
+          232.128
+        ],
+        [
+          -285.521,
+          230.777
+        ],
+        [
+          -287.02,
+          229.294
+        ],
+        [
+          -288.388,
+          227.69
+        ],
+        [
+          -289.617,
+          225.977
+        ],
+        [
+          -290.697,
+          224.167
+        ],
+        [
+          -291.621,
+          222.272
+        ],
+        [
+          -292.381,
+          220.305
+        ],
+        [
+          -292.973,
+          218.282
+        ],
+        [
+          -293.393,
+          216.216
+        ],
+        [
+          -293.637,
+          214.122
+        ],
+        [
+          -317.287,
+          -105.435
+        ],
+        [
+          -317.353,
+          -107.604
+        ],
+        [
+          -317.231,
+          -109.771
+        ],
+        [
+          -316.921,
+          -111.918
+        ],
+        [
+          -316.426,
+          -114.031
+        ],
+        [
+          -315.75,
+          -116.093
+        ],
+        [
+          -314.898,
+          -118.089
+        ],
+        [
+          -313.876,
+          -120.003
+        ],
+        [
+          -312.691,
+          -121.821
+        ],
+        [
+          -311.354,
+          -123.53
+        ],
+        [
+          -309.873,
+          -125.116
+        ],
+        [
+          -308.261,
+          -126.568
+        ],
+        [
+          -306.528,
+          -127.875
+        ],
+        [
+          -304.689,
+          -129.026
+        ],
+        [
+          -302.757,
+          -130.014
+        ],
+        [
+          -300.747,
+          -130.83
+        ],
+        [
+          -298.673,
+          -131.469
+        ],
+        [
+          -296.552,
+          -131.926
+        ],
+        [
+          -294.399,
+          -132.197
+        ],
+        [
+          -292.23,
+          -132.28
+        ],
+        [
+          -149.84,
+          -131.57
+        ],
+        [
+          -147.917,
+          -131.635
+        ],
+        [
+          -146.004,
+          -131.847
+        ],
+        [
+          -144.114,
+          -132.206
+        ],
+        [
+          -142.256,
+          -132.709
+        ],
+        [
+          -140.443,
+          -133.353
+        ],
+        [
+          -138.684,
+          -134.135
+        ],
+        [
+          -136.991,
+          -135.05
+        ],
+        [
+          -115.639,
+          -147.676
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "speed_mps": 8.33,
+      "osm_way_id": 126581640,
+      "osm_node_ids": [
+        1402917759,
+        1402917741,
+        7053438646,
+        1527897579,
+        1527929301,
+        1402935123,
+        6771411642,
+        1402935111,
+        11368776668,
+        1402935116,
+        9057072013,
+        1402935128,
+        7983603752,
+        2918139394
+      ],
+      "osm_tags": {
+        "highway": "residential",
+        "name": "Doctor Juan Gonzales Avenue",
+        "surface": "asphalt",
+        "note": "OSM ways 126581640, 126582225, 126582224"
+      },
+      "minor": true
+    },
+    {
+      "id": "road17",
+      "source": "tagum_site_b_j5",
+      "target": "tagum_site_b_j8",
+      "shape": [
+        [
+          -4.184,
+          231.612
+        ],
+        [
+          -5.078,
+          627.633
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "speed_mps": 8.33,
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        1402917759,
+        13368406191,
+        13368406186,
+        1402917762,
+        13368406185,
+        13368406183,
+        1402917769,
+        13368440607,
+        1304820545,
+        1217544585
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "width_per_direction_m": 6.85
+    },
+    {
+      "id": "road18",
+      "source": "tagum_site_b_j6",
+      "target": "boundary_0",
+      "shape": [
+        [
+          247.358,
+          -134.308
+        ],
+        [
+          307.179,
+          -129.672
+        ]
+      ],
+      "oneway": false,
+      "name": "Dao Street",
+      "speed_mps": 8.33,
+      "osm_way_id": 732013634,
+      "osm_node_ids": [
+        1400710199,
+        13926712036,
+        10672313059,
+        1217597348,
+        13926712035,
+        1217597251
+      ],
+      "osm_tags": {
+        "highway": "tertiary",
+        "lane_markings": "no",
+        "lanes": "2",
+        "maxspeed": "40",
+        "name": "Dao Street",
+        "name:etymology": "Dao tree",
+        "name:etymology:wikidata": "Q5304664",
+        "smoothness": "good",
+        "source:maxspeed": "PH:urban",
+        "surface": "asphalt"
+      },
+      "width_per_direction_m": 3.45
+    },
+    {
+      "id": "road19",
+      "source": "boundary_9",
+      "target": "tagum_site_b_j7",
+      "shape": [
+        [
+          274.348,
+          358.195
+        ],
+        [
+          233.599,
+          306.277
+        ],
+        [
+          229.321,
+          291.837
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "speed_mps": 8.33,
+      "osm_way_id": 1144654452,
+      "osm_node_ids": [
+        10654283977,
+        13370446082,
+        8107640297,
+        13370446085,
+        1115349256
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road20",
+      "source": "tagum_site_b_j7",
+      "target": "boundary_8",
+      "shape": [
+        [
+          229.321,
+          291.837
+        ],
+        [
+          242.331,
+          299.423
+        ],
+        [
+          283.08,
+          351.342
+        ]
+      ],
+      "oneway": true,
+      "name": "Davao-Agusan National Highway",
+      "speed_mps": 8.33,
+      "osm_way_id": 1144654495,
+      "osm_node_ids": [
+        1115349256,
+        13370446084,
+        8107640295,
+        13370446081,
+        10654283977
+      ],
+      "osm_tags": {
+        "alt_name": "Maharlika Highway",
+        "bicycle": "yes",
+        "designation": "national_primary_road",
+        "dual_carriageway": "yes",
+        "foot": "no",
+        "highway": "trunk",
+        "int_name": "Pan-Philippine Highway",
+        "int_ref": "AH26",
+        "lane_markings": "yes",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "30",
+        "name": "Davao-Agusan National Highway",
+        "nat_name": "Daang Maharlika",
+        "oneway": "yes",
+        "ref": "1",
+        "short_name": "National Highway",
+        "surface": "asphalt",
+        "width": "9"
+      },
+      "width_per_direction_m": 9.2
+    },
+    {
+      "id": "road21",
+      "source": "tagum_site_b_j9",
+      "target": "tagum_site_b_j7",
+      "shape": [
+        [
+          111.686,
+          624.171
+        ],
+        [
+          202.506,
+          622.521
+        ],
+        [
+          204.648,
+          622.39
+        ],
+        [
+          206.77,
+          622.076
+        ],
+        [
+          208.858,
+          621.581
+        ],
+        [
+          210.895,
+          620.909
+        ],
+        [
+          212.868,
+          620.065
+        ],
+        [
+          214.76,
+          619.054
+        ],
+        [
+          216.559,
+          617.886
+        ],
+        [
+          218.252,
+          616.567
+        ],
+        [
+          219.825,
+          615.108
+        ],
+        [
+          221.267,
+          613.519
+        ],
+        [
+          222.567,
+          611.813
+        ],
+        [
+          223.717,
+          610.001
+        ],
+        [
+          224.707,
+          608.098
+        ],
+        [
+          225.53,
+          606.116
+        ],
+        [
+          226.18,
+          604.072
+        ],
+        [
+          226.652,
+          601.979
+        ],
+        [
+          226.944,
+          599.853
+        ],
+        [
+          227.051,
+          597.711
+        ],
+        [
+          229.321,
+          291.837
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "speed_mps": 8.33,
+      "osm_way_id": 105732734,
+      "osm_node_ids": [
+        1255345377,
+        1217544533,
+        9560219162,
+        10654283969,
+        1527881959,
+        10654283979
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "lanes": "2",
+        "name": "Magsaysay Street",
+        "surface": "concrete",
+        "note": "OSM ways 105732734, 31614940"
+      },
+      "minor": true
+    },
+    {
+      "id": "road22",
+      "source": "tagum_site_b_j8",
+      "target": "boundary_1",
+      "shape": [
+        [
+          -5.078,
+          627.633
+        ],
+        [
+          -4.915,
+          687.633
+        ]
+      ],
+      "oneway": false,
+      "name": "Sobrecarey Street",
+      "speed_mps": 8.33,
+      "osm_way_id": 1435836406,
+      "osm_node_ids": [
+        1217544585,
+        1304820512
+      ],
+      "osm_tags": {
+        "highway": "secondary",
+        "lanes": "4",
+        "name": "Sobrecarey Street",
+        "surface": "asphalt"
+      },
+      "width_per_direction_m": 6.85
+    },
+    {
+      "id": "road23",
+      "source": "tagum_site_b_j8",
+      "target": "tagum_site_b_j9",
+      "shape": [
+        [
+          -5.078,
+          627.633
+        ],
+        [
+          111.686,
+          624.171
+        ]
+      ],
+      "oneway": false,
+      "name": "Unnamed road",
+      "speed_mps": 8.33,
+      "osm_way_id": 105732734,
+      "osm_node_ids": [
+        1217544585,
+        1255345377
+      ],
+      "osm_tags": {
+        "highway": "unclassified",
+        "lanes": "2",
+        "name": "Magsaysay Street",
+        "surface": "concrete"
+      },
+      "minor": true
     }
   ],
   "prohibited_turns": [
@@ -658,6 +1914,14 @@
     [
       "road9f",
       "road8f"
+    ],
+    [
+      "road14f",
+      "road15f"
+    ],
+    [
+      "road19f",
+      "road20f"
     ]
   ],
   "lane_vehicle_restrictions": {
@@ -668,9 +1932,29 @@
     "road1r": [
       "bus",
       "truck"
+    ],
+    "road17f": [
+      "bus",
+      "truck"
+    ],
+    "road17r": [
+      "bus",
+      "truck"
+    ],
+    "road22f": [
+      "bus",
+      "truck"
+    ],
+    "road22r": [
+      "bus",
+      "truck"
     ]
   },
   "entry_kerb_vehicle_types": {
+    "road19f": [
+      "bus",
+      "truck"
+    ],
     "road9f": [
       "bus",
       "truck"
@@ -681,40 +1965,40 @@
       "id": "median_sw_far",
       "shape": [
         [
-          -49.189,
-          -64.388
+          -125.374,
+          -161.456
         ],
         [
-          -49.039,
-          -64.092
+          -125.224,
+          -161.16
         ],
         [
-          -49.014,
-          -63.762
+          -125.199,
+          -160.829
         ],
         [
-          -49.117,
-          -63.446
+          -125.302,
+          -160.514
         ],
         [
-          -49.333,
-          -63.195
+          -125.518,
+          -160.262
         ],
         [
-          -49.629,
-          -63.045
+          -125.814,
+          -160.112
         ],
         [
-          -49.959,
-          -63.02
+          -126.145,
+          -160.087
         ],
         [
-          -50.274,
-          -63.123
+          -126.46,
+          -160.19
         ],
         [
-          -50.526,
-          -63.339
+          -126.711,
+          -160.406
         ],
         [
           -150.115,
@@ -756,79 +2040,79 @@
       "planted": true
     },
     {
-      "id": "median_gap_tip",
+      "id": "median_sw_far_1",
       "shape": [
         [
-          -40.792,
-          -53.69
+          -56.174,
+          -73.287
         ],
         [
-          -40.642,
-          -53.394
+          -56.024,
+          -72.992
         ],
         [
-          -40.617,
-          -53.063
+          -55.998,
+          -72.661
         ],
         [
-          -40.72,
-          -52.748
+          -56.102,
+          -72.346
         ],
         [
-          -40.936,
-          -52.496
+          -56.318,
+          -72.094
         ],
         [
-          -41.232,
-          -52.347
+          -56.613,
+          -71.944
         ],
         [
-          -41.562,
-          -52.321
+          -56.944,
+          -71.919
         ],
         [
-          -41.878,
-          -52.424
+          -57.259,
+          -72.022
         ],
         [
-          -42.129,
-          -52.64
+          -57.511,
+          -72.238
         ],
         [
-          -42.685,
-          -53.348
+          -105.905,
+          -133.896
         ],
         [
-          -42.835,
-          -53.644
+          -106.055,
+          -134.192
         ],
         [
-          -42.86,
-          -53.975
+          -106.08,
+          -134.523
         ],
         [
-          -42.757,
-          -54.29
+          -105.977,
+          -134.838
         ],
         [
-          -42.541,
-          -54.542
+          -105.761,
+          -135.09
         ],
         [
-          -42.245,
-          -54.692
+          -105.465,
+          -135.24
         ],
         [
-          -41.915,
-          -54.717
+          -105.134,
+          -135.265
         ],
         [
-          -41.6,
-          -54.614
+          -104.819,
+          -135.162
         ],
         [
-          -41.348,
-          -54.398
+          -104.567,
+          -134.946
         ]
       ],
       "planted": true
@@ -873,40 +2157,40 @@
           -13.151
         ],
         [
-          -38.116,
-          -47.527
+          -36.704,
+          -45.728
         ],
         [
-          -38.266,
-          -47.823
+          -36.854,
+          -46.024
         ],
         [
-          -38.291,
-          -48.154
+          -36.879,
+          -46.355
         ],
         [
-          -38.188,
-          -48.469
+          -36.776,
+          -46.67
         ],
         [
-          -37.972,
-          -48.721
+          -36.56,
+          -46.922
         ],
         [
-          -37.677,
-          -48.87
+          -36.265,
+          -47.071
         ],
         [
-          -37.346,
-          -48.896
+          -35.934,
+          -47.097
         ],
         [
-          -37.031,
-          -48.793
+          -35.619,
+          -46.994
         ],
         [
-          -36.779,
-          -48.577
+          -35.367,
+          -46.778
         ]
       ],
       "planted": true
@@ -1383,40 +2667,40 @@
       "id": "side_nw_far",
       "shape": [
         [
-          -74.434,
-          -78.007
+          -135.184,
+          -155.409
         ],
         [
-          -74.055,
-          -77.259
+          -134.805,
+          -154.661
         ],
         [
-          -73.991,
-          -76.423
+          -134.741,
+          -153.824
         ],
         [
-          -74.252,
-          -75.626
+          -135.002,
+          -153.027
         ],
         [
-          -74.798,
-          -74.989
+          -135.548,
+          -152.39
         ],
         [
-          -75.546,
-          -74.61
+          -136.296,
+          -152.011
         ],
         [
-          -76.382,
-          -74.546
+          -137.132,
+          -151.947
         ],
         [
-          -77.18,
-          -74.806
+          -137.93,
+          -152.208
         ],
         [
-          -77.816,
-          -75.353
+          -138.566,
+          -152.754
         ],
         [
           -160.364,
@@ -1453,6 +2737,84 @@
         [
           -156.982,
           -183.181
+        ]
+      ],
+      "planted": true
+    },
+    {
+      "id": "side_nw_far_1",
+      "shape": [
+        [
+          -74.434,
+          -78.007
+        ],
+        [
+          -74.055,
+          -77.259
+        ],
+        [
+          -73.991,
+          -76.423
+        ],
+        [
+          -74.252,
+          -75.626
+        ],
+        [
+          -74.798,
+          -74.989
+        ],
+        [
+          -75.546,
+          -74.61
+        ],
+        [
+          -76.382,
+          -74.546
+        ],
+        [
+          -77.18,
+          -74.806
+        ],
+        [
+          -77.816,
+          -75.353
+        ],
+        [
+          -116.154,
+          -124.199
+        ],
+        [
+          -116.534,
+          -124.947
+        ],
+        [
+          -116.598,
+          -125.784
+        ],
+        [
+          -116.337,
+          -126.581
+        ],
+        [
+          -115.791,
+          -127.218
+        ],
+        [
+          -115.042,
+          -127.597
+        ],
+        [
+          -114.206,
+          -127.661
+        ],
+        [
+          -113.409,
+          -127.4
+        ],
+        [
+          -112.772,
+          -126.854
         ]
       ],
       "planted": true
@@ -1695,40 +3057,40 @@
       "id": "side_nw_beyond_2",
       "shape": [
         [
-          203.361,
-          275.93
+          202.368,
+          274.664
         ],
         [
-          203.74,
-          276.678
+          202.747,
+          275.412
         ],
         [
-          203.804,
-          277.514
+          202.811,
+          276.249
         ],
         [
-          203.543,
-          278.312
+          202.55,
+          277.046
         ],
         [
-          202.997,
-          278.948
+          202.004,
+          277.683
         ],
         [
-          202.249,
-          279.328
+          201.255,
+          278.062
         ],
         [
-          201.412,
-          279.392
+          200.419,
+          278.126
         ],
         [
-          200.615,
-          279.131
+          199.622,
+          277.865
         ],
         [
-          199.978,
-          278.585
+          198.985,
+          277.319
         ],
         [
           162.193,
@@ -1773,40 +3135,40 @@
       "id": "side_se_far",
       "shape": [
         [
-          -42.978,
-          -78.098
+          -46.259,
+          -82.277
         ],
         [
-          -42.661,
-          -77.471
+          -45.941,
+          -81.651
         ],
         [
-          -42.607,
-          -76.771
+          -45.887,
+          -80.95
         ],
         [
-          -42.826,
-          -76.104
+          -46.106,
+          -80.283
         ],
         [
-          -43.283,
-          -75.57
+          -46.563,
+          -79.75
         ],
         [
-          -43.909,
-          -75.253
+          -47.19,
+          -79.432
         ],
         [
-          -44.61,
-          -75.199
+          -47.89,
+          -79.379
         ],
         [
-          -45.277,
-          -75.418
+          -48.557,
+          -79.597
         ],
         [
-          -45.81,
-          -75.875
+          -49.09,
+          -80.055
         ],
         [
           -140.521,
@@ -2314,6 +3676,28 @@
         ]
       ],
       "planted": false
+    },
+    {
+      "id": "median_northeast_end",
+      "shape": [
+        [
+          247.277,
+          313.338
+        ],
+        [
+          279.383,
+          354.243
+        ],
+        [
+          278.045,
+          355.293
+        ],
+        [
+          245.94,
+          314.388
+        ]
+      ],
+      "planted": true
     }
   ],
   "site_features": [
@@ -3846,24 +5230,6 @@
       ]
     },
     {
-      "id": "light_2",
-      "kind": "street_light",
-      "shape": [
-        [
-          -116.74,
-          -153.937
-        ],
-        [
-          -119.1,
-          -152.085
-        ],
-        [
-          -121.46,
-          -150.233
-        ]
-      ]
-    },
-    {
       "id": "light_3",
       "kind": "street_light",
       "shape": [
@@ -4022,6 +5388,94 @@
         [
           179.487,
           233.203
+        ]
+      ]
+    },
+    {
+      "id": "strip_nw_northeast",
+      "kind": "concrete",
+      "shape": [
+        [
+          218.934,
+          295.043
+        ],
+        [
+          270.73,
+          361.035
+        ],
+        [
+          263.925,
+          366.376
+        ],
+        [
+          212.13,
+          300.383
+        ]
+      ]
+    },
+    {
+      "id": "strip_se_northeast",
+      "kind": "concrete",
+      "shape": [
+        [
+          241.471,
+          277.354
+        ],
+        [
+          293.267,
+          343.346
+        ],
+        [
+          286.698,
+          348.501
+        ],
+        [
+          234.903,
+          282.509
+        ]
+      ]
+    },
+    {
+      "id": "service_lane_nw_northeast",
+      "kind": "service_lane",
+      "shape": [
+        [
+          212.13,
+          300.383
+        ],
+        [
+          263.925,
+          366.376
+        ],
+        [
+          261.487,
+          368.29
+        ],
+        [
+          209.691,
+          302.297
+        ]
+      ]
+    },
+    {
+      "id": "service_lane_se_northeast",
+      "kind": "service_lane",
+      "shape": [
+        [
+          243.438,
+          275.81
+        ],
+        [
+          295.233,
+          341.803
+        ],
+        [
+          293.267,
+          343.346
+        ],
+        [
+          241.471,
+          277.354
         ]
       ]
     }
