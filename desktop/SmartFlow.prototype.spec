@@ -18,6 +18,8 @@ files += [(str(root / "data" / "networks" / name), "data/networks") for name in
           network_resource_names(root / "data" / "networks")]
 # The shared scenario code uses these templates to recognize the two study sites.
 files += [(str(root / "data" / "sites" / name), "data/sites") for name in STUDY_MAPPING_NAMES]
+if os.environ.get("SMARTFLOW_DESKTOP_STARTER"):
+    files.append((os.environ["SMARTFLOW_DESKTOP_STARTER"], "desktop-starter-content"))
 
 a = Analysis([str(root / "desktop" / "frozen_shell.py"), str(root / "desktop" / "worker_entry.py")],
              pathex=[str(root)], binaries=[], datas=files,

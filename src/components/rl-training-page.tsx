@@ -42,6 +42,7 @@ import {
 } from "@/api/rl"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DesktopModelImport } from "@/components/desktop-model-import"
 import {
   Card,
   CardAction,
@@ -527,6 +528,10 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
           </Button>
         </div>
       </section>
+
+      {import.meta.env.VITE_SMARTFLOW_DESKTOP === "1" && isAdmin && (
+        <DesktopModelImport onImported={() => void refreshStatus(viewedJobId)} />
+      )}
 
       <section className="audit-metric-strip" aria-label="RL training metrics">
         {metrics.map((metric) => {

@@ -14,6 +14,22 @@ Windows 11 x64, about 2 GB free disk, and the Microsoft WebView2 runtime (includ
 2. When asked, set the administrator password (twice). Weak passwords are refused; correct and retry.
 3. Sign in. A second SmartFlow on the same Windows user is refused or focuses the first.
 
+## Import trained models
+
+In **RL Training → Import model**, choose a QL `.json` or select the DQL/PPO `.zip` and matching `.metadata.json` together. Confirm that you trust the files, then choose **Import model**. SmartFlow identifies the algorithm, checks the network and phase order, and registers compatible files under the active data folder. An administrator must perform this action. Use only neural archives you trust, because loading a DQL or PPO archive can execute code.
+
+## Site A starter comparison
+
+The next desktop build is configured to add the 455-episode QL model, the 325-episode DQL model, and their comparison library once per database on first startup. Open **Runs & Reports** or **Compare Runs** and look for **Site A starter comparison**. The 300-second replays use seed 101 and a 120-second warm-up. Fixed-time and DQL are the original web recordings #230 and #231. QL was recorded separately against the same inputs. These are synthetic simulations.
+
+For the next build, keep the prepared `tmp/desktop-starter-content` directory available in this worktree. It contains only the selected models, recordings and their catalog, and is kept outside Git. To regenerate it from the original web data and the isolated QL recording, use a new empty output location:
+
+```powershell
+& .\.venv-desktop\Scripts\python.exe -m desktop.prepare_starter_content --web-root "C:\path\to\SmartFlow" --ql-database "tmp\starter-ql-recording\smartflow.db" --output "tmp\desktop-starter-content-new"
+```
+
+Pass the resulting directory as `-StarterContent` when building the installer. A full installer build requires the catalog. An existing desktop database receives the starter records additively. A custom Site A geometry with a different fingerprint keeps its own library and skips this starter content.
+
 ## Where things are
 Data: `%LOCALAPPDATA%\SmartFlow` (database, models, recordings, evidence, logs, pre-start snapshots in `data\pre-start-snapshots`). Program: `%LOCALAPPDATA%\Programs\SmartFlow`. Logs for startup problems are in the data folder's `logs`.
 

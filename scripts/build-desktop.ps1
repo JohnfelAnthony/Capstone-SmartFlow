@@ -4,18 +4,25 @@ Build the SmartFlow desktop development package and installer. Exits nonzero on 
 Needs: .venv-desktop (see desktop/requirements-desktop-lock.txt), node_modules, and Inno Setup 6 (ISCC.exe) for the installer.
 Output: tmp\desktop-shell-experiment-*\dist\SmartFlowPrototype and tmp\installer\SmartFlow-Setup-<Version>.exe (unsigned).
 #>
-param([string]$Version = "0.0.0-dev", [string]$WebView2Installer = "", [switch]$SkipInstaller)
+param([string]$Version = "0.0.0-dev", [string]$WebView2Installer = "", [switch]$SkipInstaller,
+      [string]$StarterContent = "tmp\desktop-starter-content")
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 $py = Join-Path $root ".venv-desktop\Scripts\python.exe"
 if (-not (Test-Path $py)) { throw "Create .venv-desktop first." }
+$starterArgs = @()
+if (Test-Path -LiteralPath (Join-Path $StarterContent "catalog.json") -PathType Leaf) {
+  $starterArgs = @("--starter-content", (Resolve-Path -LiteralPath $StarterContent).Path)
+} elseif (-not $SkipInstaller) {
+  throw "Prepare the desktop starter content first. See docs/DESKTOP_INSTALLATION.md."
+}
 $frontend = Join-Path $root ("tmp\fe-desktop-" + [guid]::NewGuid().ToString("N").Substring(0, 12))
 $env:VITE_SMARTFLOW_DESKTOP = "1"
 npx.cmd vite build --outDir $frontend
 if ($LASTEXITCODE) { throw "Frontend build failed" }
 Remove-Item Env:VITE_SMARTFLOW_DESKTOP
-& $py -m desktop.build_shell_prototype --with-ml --frontend $frontend
+& $py -m desktop.build_shell_prototype --with-ml --frontend $frontend @starterArgs
 if ($LASTEXITCODE) { throw "Package build failed" }
 if ($SkipInstaller) { return }
 $package = Get-ChildItem (Join-Path $root "tmp") -Directory -Filter "desktop-shell-experiment-*" |

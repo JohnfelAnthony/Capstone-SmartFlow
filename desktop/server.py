@@ -83,6 +83,36 @@ def desktop_app(app: FastAPI, frontend: Path, origin: str, preferences_path: Pat
         from fastapi import Depends, HTTPException
         from backend.security import require_current_user
         from backend.main import require_admin
+
+        @app.post("/api/desktop/rl/models/import", include_in_schema=False)
+        async def import_rl_model(request: Request, user: dict = Depends(require_current_user)):
+            require_admin(user)
+            import asyncio
+            import base64
+            from desktop.model_import import MAX_REQUEST_BYTES, import_model, json_object
+
+            body = bytearray()
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > MAX_REQUEST_BYTES:
+                    raise HTTPException(status_code=413, detail="The model upload exceeds the size limit.")
+                body.extend(chunk)
+            try:
+                payload = json_object(body)
+                name = payload["filename"]
+                if (not isinstance(name, str) or not 1 <= len(name) <= 200
+                        or any(not char.isprintable() or char in "/\\:" for char in name)):
+                    raise ValueError("Invalid model filename.")
+                if payload.get("trusted") is not True:
+                    raise ValueError("Confirm that the model comes from a source you trust.")
+                metadata = payload.get("metadata")
+                if metadata is not None and payload.get("metadata_filename") != Path(name).with_suffix(".metadata.json").name:
+                    raise ValueError("The metadata filename must match the ZIP filename.")
+                content = base64.b64decode(payload["content"], validate=True)
+                sidecar = base64.b64decode(metadata, validate=True) if metadata is not None else None
+                return await asyncio.to_thread(import_model, name, content, sidecar)
+            except (KeyError, TypeError, ValueError, OSError) as exc:
+                raise HTTPException(status_code=422, detail=str(exc) or "Invalid SmartFlow model.") from exc
+
         @app.post("/api/desktop/backups/{backup_id}/activate", include_in_schema=False)
         def activate_backup(backup_id: int, user: dict = Depends(require_current_user)):
             require_admin(user)

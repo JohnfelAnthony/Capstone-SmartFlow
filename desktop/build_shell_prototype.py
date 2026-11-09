@@ -12,6 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Build a disposable desktop experiment")
     parser.add_argument("--with-ml", action="store_true", help="Include the checked CPU-only ML stack")
     parser.add_argument("--frontend", type=Path, help="Built desktop frontend directory (defaults to dist)")
+    parser.add_argument("--starter-content", type=Path, help="Prepared Site A starter catalog and artifacts")
     args = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("Build this Windows prototype on Windows")
@@ -33,6 +34,12 @@ def main():
     env["SMARTFLOW_PROTOTYPE_MANIFEST"] = str(manifest)
     env["SMARTFLOW_PROTOTYPE_FRONTEND"] = str(frontend)
     env["SMARTFLOW_PROTOTYPE_FULL_ML"] = "1" if args.with_ml else "0"
+    env.pop("SMARTFLOW_DESKTOP_STARTER", None)
+    if args.starter_content is not None:
+        from desktop.starter_content import verify_content
+        starter = args.starter_content.resolve()
+        verify_content(starter)
+        env["SMARTFLOW_DESKTOP_STARTER"] = str(starter)
     print(f"Building disposable shell experiment in {output}", flush=True)
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--distpath", str(output / "dist"),
                     "--workpath", str(output / "work"), str(root / "desktop" / "SmartFlow.prototype.spec")],

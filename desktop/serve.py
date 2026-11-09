@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import socket
 import sqlite3
@@ -69,6 +70,15 @@ async def _serve_locked(request: dict, paths: DesktopPaths) -> None:
         import uvicorn
         from backend.main import app
         from desktop.server import desktop_app
+        from desktop.starter_content import install_starter_content
+
+        def seed_desktop_library():
+            try:
+                install_starter_content(paths.resources / "desktop-starter-content")
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                logging.getLogger(__name__).warning("Could not install desktop starter content: %s", exc)
+
+        app.add_event_handler("startup", seed_desktop_library)
 
         from desktop.restore_requests import RestoreRequests
         restores = RestoreRequests(paths, control_root, frontend)
