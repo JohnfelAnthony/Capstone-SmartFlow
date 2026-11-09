@@ -30,10 +30,13 @@ export function CompareSignalsCard({ left, right }: { left: number; right: numbe
     return () => window.removeEventListener(SESSION_RESTORED_EVENT, retry)
   }, [])
   React.useEffect(() => {
-    let active = true
-    getCompareSignals(left,right).then(data => { if (active) setResult({ids,data}) })
-      .catch(error => { if (active) setResult({ids,error: error instanceof Error ? error.message : "Unable to load signal evidence."}) })
-    return () => { active = false }
+    const request = new AbortController()
+    getCompareSignals(left, right, request.signal)
+      .then(data => { if (!request.signal.aborted) setResult({ ids, data }) })
+      .catch(error => {
+        if (!request.signal.aborted) setResult({ ids, error: error instanceof Error ? error.message : "Unable to load signal evidence." })
+      })
+    return () => request.abort()
   }, [left,right,ids,revision])
   const data = result?.ids === ids ? result.data : undefined
   const error = result?.ids === ids ? result.error : undefined

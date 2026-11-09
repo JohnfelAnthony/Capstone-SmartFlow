@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { crossNetwork } from "./geometry-fixture"
-import { cityScenery, pedestrianWalkways, sceneryClearance, STREET_EDGE, vergeLines } from "@/simulation/city-scenery"
-import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
+import { cityScenery, pedestrianWalkways, sceneryClearance, STREET_EDGE, vergeLines, WALKWAY_HALF_WIDTH } from "@/simulation/city-scenery"
+import { distanceToPolyline, normalizeSceneGeometry, pointInPolygon } from "@/simulation/scene-geometry"
 
 describe("illustrative city scenery", () => {
   const geometry = normalizeSceneGeometry(crossNetwork(90))
@@ -20,6 +20,22 @@ describe("illustrative city scenery", () => {
   })
   it("never plants a tree on the pavement or the sidewalk", () => {
     for (const item of items) if (item.kind === "tree") expect(clearance(item.center)).toBeGreaterThanOrEqual(STREET_EDGE.sidewalk)
+  })
+  it("matches the full distance search for both exact and capped clearance", () => {
+    const rings = geometry.junctions.map(({ kerb }) => [...kerb, kerb[0]])
+    const cap = STREET_EDGE.sidewalk + STREET_EDGE.verge + 1.5
+    for (let x = -95; x <= 95; x += 5) {
+      for (let y = -95; y <= 95; y += 5) {
+        const point = { x, y }
+        const roadDistances = geometry.lanes.filter(lane => lane.kind === "road")
+          .map(lane => distanceToPolyline(point, lane.centerline) - lane.width / 2)
+        const ringDistances = rings.map(ring => distanceToPolyline(point, ring))
+        const walkwayDistances = walkways.map(path => distanceToPolyline(point, path) - WALKWAY_HALF_WIDTH + STREET_EDGE.sidewalk + STREET_EDGE.verge)
+        const reference = rings.some(ring => pointInPolygon(point, ring)) ? -1 : Math.min(...roadDistances, ...ringDistances, ...walkwayDistances)
+        expect(clearance(point)).toBe(reference)
+        expect(clearance(point, cap)).toBe(Math.min(reference, cap))
+      }
+    }
   })
   it("is stable for the same network", () => expect(cityScenery(geometry, walkways)).toEqual(items))
   it("runs one verge strip behind each kerb, none along the centre line", () => {

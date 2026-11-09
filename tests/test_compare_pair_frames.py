@@ -117,6 +117,31 @@ class ComparePairFramesTests(unittest.TestCase):
             backend_main.validated_compare_pair(first, second)
         self.assertEqual(different.exception.status_code, 422)
 
+    def test_interactive_pair_opens_maps_without_decoding_chart_history(self):
+        left, right = self.record_pair(extra_left_frames=5)
+        params = {"left_run_id": left, "right_run_id": right}
+        with patch.object(backend_main, "condense_compare_frame", side_effect=AssertionError("chart decoding on the opening path")):
+            response = self.client.get("/api/compare/pair", params={**params, "interactive": True})
+        self.assertEqual(response.status_code, 200, response.text[:500])
+        pair = response.json()
+        self.assertEqual(pair["playback_times"], self.shared_times)
+        self.assertEqual(pair["left"]["frames"], [])
+        self.assertEqual(pair["right"]["frames"], [])
+        opening = pair["opening_frames"]
+        self.assertEqual(opening["times"], self.shared_times[:1])
+        window = self.get_frames(left, right, 0, 1).json()
+        for side in ("left", "right"):
+            for key in ("time", "vehicles", "queues", "junction_controls"):
+                self.assertEqual(opening[side][0][key], window[side][0][key])
+
+        # Chart sampling keeps both sides aligned, including the first and last shared frame.
+        with patch.object(backend_main, "COMPARE_CHART_FRAME_LIMIT", 3):
+            history = self.client.get("/api/compare/pair/history", params=params)
+        self.assertEqual(history.status_code, 200, history.text[:500])
+        for side in ("left", "right"):
+            self.assertEqual([frame["time"] for frame in history.json()[side]],
+                             [self.shared_times[0], self.shared_times[5], self.shared_times[-1]])
+
     def test_frames_cover_only_shared_times_in_the_window(self):
         first, second = self.record_pair(extra_left_frames=5)
         response = self.get_frames(first, second, 0, 1)

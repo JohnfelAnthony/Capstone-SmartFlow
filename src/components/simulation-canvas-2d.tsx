@@ -163,6 +163,24 @@ function drawWalkSignal(ctx: CanvasRenderingContext2D, point: VisualPoint, state
   }
   ctx.restore()
 }
+type MapScenery = { walkways: VisualPoint[][]; scenery: SceneryItem[] }
+const mapSceneryCache = new WeakMap<SceneGeometry, Map<string, MapScenery>>()
+
+function mapScenery(geometry: SceneGeometry, key: string, paths: RenderFrame["visual"]["pedestrian_paths"]): MapScenery {
+  let variants = mapSceneryCache.get(geometry)
+  if (!variants) {
+    variants = new Map()
+    mapSceneryCache.set(geometry, variants)
+  }
+  const cached = variants.get(key)
+  if (cached) return cached
+  const walkways = pedestrianWalkways(paths ?? [])
+  const result = { walkways, scenery: cityScenery(geometry, walkways) }
+  if (variants.size >= 4) variants.clear()
+  variants.set(key, result)
+  return result
+}
+
 const sceneryPaths = new WeakMap<SceneryItem[], Map<string, Path2D>>()
 /** One Path2D per scenery colour role, in native metres, so a camera move redraws scenery in a few fills. */
 function sceneryLayers(items: SceneryItem[]) {
@@ -391,8 +409,8 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     let width = 1, height = 1, dpr = 1, transform = fit(geometry.bounds, width, height), previousFocus = "", cacheKey = ""
     let animationId = 0, displayedFrame: RenderFrame | null = null, pointerPosition: VisualPoint | null = null, hover: Selection | null = null, followSuspended = false
     let lastDrawAt = 0, sampleStarted = performance.now(), drawnFrames = 0, totalPaints = 0, frameIntervals: number[] = []
-    let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "", previousScaleLabel = ""
-    let walkways: VisualPoint[][] = [], scenery = cityScenery(geometry, walkways), sceneryPathsKey = "[]"
+    let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "[]", previousScaleLabel = ""
+    let decoration: MapScenery | undefined, sceneryPathsKey = ""
     const currentTheme = (): Theme => document.documentElement.classList.contains("dark") ? "dark" : "light"
     let theme = currentTheme()
     // The app theme is a class on <html>; follow it without re-rendering React.
@@ -441,7 +459,11 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         if (vehicle) { transform.ox = width / 2 - vehicle.x * transform.scale; transform.oy = height / 2 + vehicle.y * transform.scale }
       }
       if (current.frame?.visual.pedestrian_paths !== previousPathSource) { previousPathSource = current.frame?.visual.pedestrian_paths; pathsKey = JSON.stringify(previousPathSource ?? []) }
-      if (pathsKey !== sceneryPathsKey) { walkways = pedestrianWalkways(previousPathSource ?? []); scenery = cityScenery(geometry, walkways); sceneryPathsKey = pathsKey }
+      if (!decoration || pathsKey !== sceneryPathsKey) {
+        decoration = mapScenery(geometry, pathsKey, previousPathSource)
+        sceneryPathsKey = pathsKey
+      }
+      const { scenery, walkways } = decoration
       const colors = CITY[theme], key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${pathsKey}:${theme}`
       if (cached && cacheKey !== key) {
         cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform, colors, scenery, walkways); cacheKey = key

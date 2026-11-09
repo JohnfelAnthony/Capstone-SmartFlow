@@ -59,6 +59,7 @@ export type ComparePairResponse = {
   frame_count: number
   playback_times: number[]
   geometry: VisualNetwork | null
+  opening_frames?: ComparePairFramesResponse | null
   comparison_type: "signal" | "routing" | "repeat"
   warnings: string[]
 }
@@ -71,22 +72,32 @@ export function listCompatibleCompareRuns(leftRunId: number) {
   return apiRequest<CompareRunListResponse>(`/api/compare/compatible-runs?left_run_id=${leftRunId}`)
 }
 
-export function getComparePair(leftRunId: number, rightRunId: number) {
+export function getComparePair(leftRunId: number, rightRunId: number, signal?: AbortSignal) {
   return apiRequest<ComparePairResponse>(
-    `/api/compare/pair?left_run_id=${leftRunId}&right_run_id=${rightRunId}`,
+    `/api/compare/pair?left_run_id=${leftRunId}&right_run_id=${rightRunId}&interactive=true`, { signal },
   )
 }
 
+export type CompareRenderFrame = RenderFrame & { queues?: Record<string, number> }
+
 export type ComparePairFramesResponse = {
   times: number[]
-  left: RenderFrame[]
-  right: RenderFrame[]
+  left: CompareRenderFrame[]
+  right: CompareRenderFrame[]
   duration: number
 }
 
-export function getComparePairFrames(leftRunId: number, rightRunId: number, start: number, end: number) {
+export function getComparePairFrames(leftRunId: number, rightRunId: number, start: number, end: number, signal?: AbortSignal) {
   return apiRequest<ComparePairFramesResponse>(
-    `/api/compare/pair/frames?left_run_id=${leftRunId}&right_run_id=${rightRunId}&start=${start}&end=${end}`,
+    `/api/compare/pair/frames?left_run_id=${leftRunId}&right_run_id=${rightRunId}&start=${start}&end=${end}`, { signal },
+  )
+}
+
+export type ComparePairHistory = { left: CompareTimelineFrame[]; right: CompareTimelineFrame[] }
+
+export function getCompareHistory(leftRunId: number, rightRunId: number, signal?: AbortSignal) {
+  return apiRequest<ComparePairHistory>(
+    `/api/compare/pair/history?left_run_id=${leftRunId}&right_run_id=${rightRunId}`, { signal },
   )
 }
 
@@ -99,8 +110,8 @@ export type SignalEvidence = {
 }
 export type CompareSignals = { start: number; end: number; left: SignalEvidence; right: SignalEvidence }
 
-export function getCompareSignals(left: number, right: number) {
-  return apiRequest<CompareSignals>(`/api/compare/pair/signals?left_run_id=${left}&right_run_id=${right}`)
+export function getCompareSignals(left: number, right: number, signal?: AbortSignal) {
+  return apiRequest<CompareSignals>(`/api/compare/pair/signals?left_run_id=${left}&right_run_id=${right}`, { signal })
 }
 
 export function getCompareReport(left: number, right: number) {

@@ -446,6 +446,13 @@ class CompareRunBundle(BaseModel):
     metrics: dict[str, Any] = Field(default_factory=dict)
 
 
+class ComparePairFramesResponse(BaseModel):
+    times: list[float]
+    left: list[dict[str, Any]]
+    right: list[dict[str, Any]]
+    duration: float
+
+
 class ComparePairResponse(BaseModel):
     left: CompareRunBundle
     right: CompareRunBundle
@@ -453,14 +460,13 @@ class ComparePairResponse(BaseModel):
     comparison_type: str
     playback_times: list[float]
     geometry: dict[str, Any] | None = None
+    opening_frames: ComparePairFramesResponse | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
-class ComparePairFramesResponse(BaseModel):
-    times: list[float]
-    left: list[dict[str, Any]]
-    right: list[dict[str, Any]]
-    duration: float
+class ComparePairHistoryResponse(BaseModel):
+    left: list[CompareTimelineFrame]
+    right: list[CompareTimelineFrame]
 
 
 class RunTimelineResponse(BaseModel):

@@ -41,6 +41,7 @@ from backend.schemas import (
     BackupRecord,
     ChangePasswordRequest,
     ComparePairFramesResponse,
+    ComparePairHistoryResponse,
     ComparePairResponse,
     CompareRunBundle,
     CompareRunListResponse,
@@ -1164,6 +1165,7 @@ def completed_run_record(run_id: int) -> SimulationRunRecord:
 
 
 COMPARE_FRAME_LIMIT = 5000
+COMPARE_CHART_FRAME_LIMIT = 400
 COMPARE_APPROACHES = ("north", "east", "south", "west")
 
 
@@ -1401,16 +1403,28 @@ def validated_compare_pair(left_run_id: int, right_run_id: int) -> tuple[Compare
     return left_option, right_option, comparison_type
 
 
-def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairResponse:
-    left_option, right_option, comparison_type = validated_compare_pair(left_run_id, right_run_id)
-    left_path, left_offsets = compare_timeline_index(left_option.run.timeline_path)
-    right_path, right_offsets = compare_timeline_index(right_option.run.timeline_path)
-    shared_times = shared_compare_times(left_offsets, right_offsets)
-    sampled = sample_frame_indices(len(shared_times))
+TimelineIndex = tuple[Path, dict[float, int]]
 
-    def condensed(path: Path, offsets: dict[float, int]) -> list[CompareTimelineFrame]:
-        frames = read_indexed_frames(path, (offsets[shared_times[index]] for index in sampled))
-        return [condense_compare_frame(index, frame) for index, frame in zip(sampled, frames)]
+
+def read_compare_history(left: TimelineIndex, right: TimelineIndex, times: list[float], limit: int) -> ComparePairHistoryResponse:
+    indices = sample_frame_indices(len(times), limit)
+
+    def condensed(timeline: TimelineIndex) -> list[CompareTimelineFrame]:
+        path, offsets = timeline
+        frames = read_indexed_frames(path, (offsets[times[index]] for index in indices))
+        return [condense_compare_frame(index, frame) for index, frame in zip(indices, frames)]
+
+    return ComparePairHistoryResponse(left=condensed(left), right=condensed(right))
+
+
+def compare_pair_response(
+    left_run_id: int, right_run_id: int, *, include_history: bool = True, include_opening: bool = False
+) -> ComparePairResponse:
+    left_option, right_option, comparison_type = validated_compare_pair(left_run_id, right_run_id)
+    left_index = compare_timeline_index(left_option.run.timeline_path)
+    right_index = compare_timeline_index(right_option.run.timeline_path)
+    left_offsets, right_offsets = left_index[1], right_index[1]
+    shared_times = shared_compare_times(left_offsets, right_offsets)
 
     warnings = ["This pair shows per-metric tradeoffs, not an overall performance winner. Average waits exclude pending arrivals; review completed, unfinished and dropped demand and pedestrians. Missing or empty-population averages are unavailable, not zero."]
     if len(shared_times) < max(len(left_offsets), len(right_offsets)):
@@ -1441,12 +1455,17 @@ def compare_pair_response(left_run_id: int, right_run_id: int) -> ComparePairRes
             warnings.append(f"{label} run has {unfinished} unfinished vehicles at the horizon.")
     if left_option.provenance.get("demand_source") != "observed" or right_option.provenance.get("demand_source") != "observed":
         warnings.append("At least one run's demand is synthetic or from field counts, not an observed dataset; scenario-based, not calibrated or validated. Do not interpret this pair as observed field performance.")
+    history = read_compare_history(left_index, right_index, shared_times, COMPARE_FRAME_LIMIT) if include_history else None
+    opening = None
+    if include_opening and geometry is not None:
+        opening = render_compare_frames(left_index, right_index, shared_times[:1], 0, shared_times[-1])
     return ComparePairResponse(
-        left=CompareRunBundle(option=left_option, frames=condensed(left_path, left_offsets), metrics=left_metrics),
-        right=CompareRunBundle(option=right_option, frames=condensed(right_path, right_offsets), metrics=right_metrics),
-        frame_count=len(sampled),
+        left=CompareRunBundle(option=left_option, frames=history.left if history else [], metrics=left_metrics),
+        right=CompareRunBundle(option=right_option, frames=history.right if history else [], metrics=right_metrics),
+        frame_count=len(history.left) if history else len(shared_times),
         playback_times=shared_times,
         geometry=geometry,
+        opening_frames=opening,
         comparison_type=comparison_type,
         warnings=warnings,
     )
@@ -1515,23 +1534,29 @@ def compare_pair_frames_response(left_run_id: int, right_run_id: int, start: flo
             detail=f"Ask for a window of at most {COMPARE_RENDER_WINDOW_SECONDS:g} seconds, with the end at or after the start.",
         )
     left_option, right_option, _ = validated_compare_pair(left_run_id, right_run_id)
-    left_path, left_offsets = compare_timeline_index(left_option.run.timeline_path)
-    right_path, right_offsets = compare_timeline_index(right_option.run.timeline_path)
-    shared_times = shared_compare_times(left_offsets, right_offsets)
+    left_index = compare_timeline_index(left_option.run.timeline_path)
+    right_index = compare_timeline_index(right_option.run.timeline_path)
+    shared_times = shared_compare_times(left_index[1], right_index[1])
     first = bisect_left(shared_times, start)
     window_times = shared_times[first:bisect_right(shared_times, end)]
+    return render_compare_frames(left_index, right_index, window_times, first, shared_times[-1])
 
-    def render_window(path: Path, offsets: dict[float, int]) -> list[dict]:
-        frames = read_indexed_frames(path, (offsets[time] for time in window_times))
-        return [render_frame_service.build_render_frame(frame, sequence=position)
-                for position, frame in enumerate(frames, first)]
 
-    return ComparePairFramesResponse(
-        times=window_times,
-        left=render_window(left_path, left_offsets),
-        right=render_window(right_path, right_offsets),
-        duration=shared_times[-1],
-    )
+def render_compare_frames(
+    left: TimelineIndex, right: TimelineIndex, times: list[float], first: int, duration: float
+) -> ComparePairFramesResponse:
+    def render_window(timeline: TimelineIndex) -> list[dict]:
+        path, offsets = timeline
+        result = []
+        for position, frame in enumerate(read_indexed_frames(path, (offsets[time] for time in times)), first):
+            rendered = render_frame_service.build_render_frame(frame, sequence=position)
+            queues = frame.get("queues")
+            if isinstance(queues, dict) and queues:
+                rendered["queues"] = {key: compare_float(queues.get(key)) for key in COMPARE_APPROACHES}
+            result.append(rendered)
+        return result
+
+    return ComparePairFramesResponse(times=times, left=render_window(left), right=render_window(right), duration=duration)
 
 
 @app.post("/api/scenarios", response_model=Scenario)
@@ -1868,10 +1893,25 @@ def list_compatible_compare_runs(
 def get_compare_pair(
     left_run_id: int = Query(ge=1),
     right_run_id: int = Query(ge=1),
+    interactive: bool = False,
     user: dict = Depends(require_current_user),
 ) -> ComparePairResponse:
     require_permission(user, "compare", "view")
-    return compare_pair_response(left_run_id, right_run_id)
+    return compare_pair_response(left_run_id, right_run_id, include_history=not interactive, include_opening=interactive)
+
+
+@app.get("/api/compare/pair/history", response_model=ComparePairHistoryResponse)
+def get_compare_pair_history(
+    left_run_id: int = Query(ge=1),
+    right_run_id: int = Query(ge=1),
+    user: dict = Depends(require_current_user),
+) -> ComparePairHistoryResponse:
+    require_permission(user, "compare", "view")
+    left, right, _ = validated_compare_pair(left_run_id, right_run_id)
+    left_index = compare_timeline_index(left.run.timeline_path)
+    right_index = compare_timeline_index(right.run.timeline_path)
+    times = shared_compare_times(left_index[1], right_index[1])
+    return read_compare_history(left_index, right_index, times, COMPARE_CHART_FRAME_LIMIT)
 
 
 @app.get("/api/compare/pair/frames", response_model=ComparePairFramesResponse)
@@ -1917,7 +1957,7 @@ def download_compare_report(left_run_id: int, right_run_id: int, response: Respo
                             user: dict = Depends(require_current_user)) -> Response:
     require_permission(user, "compare", "view")
     from services.compare_report import build_comparison_pdf
-    pair = compare_pair_response(left_run_id, right_run_id)
+    pair = compare_pair_response(left_run_id, right_run_id, include_history=False)
     signals = compare_signal_evidence(left_run_id, right_run_id)
     content = build_comparison_pdf(pair.model_dump(), signals)
     return Response(content, media_type="application/pdf", headers={
