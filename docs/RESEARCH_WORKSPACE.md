@@ -1,12 +1,12 @@
 # Settings, search and counts import
 
-Implemented October 4, 2026. The sidebar clock and its decorative traffic-light indicator have been removed.
+This guide describes Settings, Search and the current Field Observer import on the web branch.
 
-**October 24 scope:** current metric and calibration choices cover the ordinary five-class simulation and pedestrians. Retired vehicle-category outcomes are absent from current definitions and exports. Historical raw records retain their original provenance and frozen definitions; dormant database defaults are not measured outcomes. Current engine `native-4` uses revised RL observation/reward contracts; old models require retraining and incompatible recordings require regeneration. See the [scope decision](ARCHITECTURE_AND_PLAN.md#october-24-scope-decision-ordinary-traffic-only).
+The metric catalog covers five simulated vehicle classes and pedestrians. Model compatibility follows the current engine, network fingerprint and phase plan. [Metric catalog](../simulation/metric_definitions.json) · [Current contracts](../AGENTS.md)
 
 ## Settings
 
-Settings shows the signed-in account, role and status, and opens the existing change-password workflow. Account identity remains administrator-managed. Theme and default 2D/3D visualization can be saved; the default view is restored on session restoration or sign-in. Theme is browser-wide, while the default view is keyed by user ID on that browser. Saving the standard theme clears a randomized palette. These preferences do not change simulation inputs.
+Settings shows the signed-in account, role and status and opens the change-password workflow. Account identity is administrator-managed. The browser saves its theme preference. The simulation uses the Canvas 2D map.
 
 ## Search
 

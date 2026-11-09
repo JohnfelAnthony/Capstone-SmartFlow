@@ -2,7 +2,7 @@
 
 Version **0.3.0**, October 3, 2026. A separate local tool for **one stationary phone recording per take**. It registers a video, indexes decoded presentation timestamps, provides a local graphical workspace with video upload, counting lines, live detection previews, annotated playback, event review and provisional exports. It does not import SmartFlow's API, database, traffic engine or training runtime.
 
-**Current scope:** detector-assisted preparation with full manual review. The detector suggests people, bicycles, cars, motorcycles, buses and trucks; **it has no dedicated Tagum tricycle or jeepney class**. Correct those labels and add missed vehicles while watching the entire video. The GUI supports annotated playback and vehicle/pedestrian event corrections. Automatic signal recognition, Gate A/B audit evaluation and SmartFlow conversion remain future work. Exports remain provisional; `sample_audited_auto` is rejected. No actual field recording has been used to establish accuracy.
+**Current scope.** Manually review every proposed observation. The detector suggests six traffic and person categories. Reviewers identify local tricycles and jeepneys and add missed vehicles. GUI review includes vehicle exits, counting lines and queue samples. Exports remain provisional, and automatic acceptance is unavailable. For vehicle demand, import the reviewed bundle through Scenarios in SmartFlow. [Counts workflow](../../docs/RESEARCH_WORKSPACE.md#counts-from-field-observer)
 
 Use the [recording protocol](../../docs/FIELD_RECORDING_PROTOCOL.md), [complete tool plan](../../docs/VIDEO_OBSERVATION_TOOL_PLAN.md) and [integration plan](../../docs/FIELD_DATA_SMARTFLOW_INTEGRATION.md) for the research procedure and remaining work. A five-minute recording can be manually reviewed; it does not satisfy the proposed three disjoint two-minute automatic-audit windows.
 
@@ -138,7 +138,7 @@ Each successful export creates a new directory such as `revisions/r000001/`, con
 
 Count bins use only accepted/corrected events. They preserve class/subtype and keep event types separate. `count` is blank for incomplete coverage or unresolved events; `observed_count` retains the number of accepted events seen within that interval. A complete manually reviewed interval with no events may have zero. A 10-minute clip remains a 10-minute observation even when the requested bin size is 15 minutes; its final bin ends at the decoded recording end and is never scaled to an observed hour.
 
-All output is marked **provisional**. Independent Gate B field recount evidence is not captured yet, and Gate A automatic acceptance cannot be claimed. The package is also not a SmartFlow trip CSV: actual network mapping and demand-versus-discharge decisions are required before conversion. Raw recordings must be backed up separately; SmartFlow's existing backup does not automatically include them.
+Exports are **provisional**. Gate A automatic acceptance and Gate B independent field recount remain outside the current workflow. Use the reviewed bundle for vehicle counts and turns through Scenarios, and back up the original recordings separately. [Counts workflow](../../docs/RESEARCH_WORKSPACE.md#counts-from-field-observer)
 
 ## Detector-assisted workflow
 
@@ -174,5 +174,5 @@ Never edit the raw analysis artifacts to match corrections. Keep them beside the
 
 1. Test the first real roadside pilot; measure tricycle/pedestrian misses, occlusion and correction effort.
 2. Add independent audit records and Gate A/B enforcement before sampled automatic acceptance.
-3. Add the smallest site-appropriate SmartFlow conversion and necessary signal/capacity changes after the site/model decision.
-4. Extend the GUI for signal/queue editing or additional review aids if pilot use justifies them.
+3. For the study's two midday takes, prepare reviewed exports with mapped arrivals and exits and follow the current counts workflow. [Counts workflow](../../docs/RESEARCH_WORKSPACE.md#counts-from-field-observer)
+4. Use the saved queue samples as observation records. Automatic recognition of signal phases is outside the counts import.

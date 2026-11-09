@@ -1,5 +1,7 @@
 # 2. Phone-video observation tool: implementation plan
 
+> **Historical tool plan.** See the [Field Observer guide](../tools/field_observer/README.md) for the current tool and the [counts import guide](RESEARCH_WORKSPACE.md#counts-from-field-observer) for scenario demand.
+
 Prepared **2026-10-02, Asia/Singapore**. This is the agreed direction for the complete future observation workflow; no field dataset or accuracy result is established by this plan.
 
 Updated **2026-10-03**: a local GUI for the first delivery, a manually reconciled pilot, and separate automatic-acceptance versus corrected-data checks.

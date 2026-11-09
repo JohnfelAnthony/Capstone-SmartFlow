@@ -1,5 +1,7 @@
 # RL Training Clean-up and Compare Runs Two Maps Implementation Plan
 
+> **Original implementation plan.** The live feature includes later changes to PDF reporting and playback startup. Use [progress](../../PROGRESS_AND_HANDOFF.md) for the implementation and verification record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the RL Training page consistent, then rebuild Compare Runs around two recorded simulations playing side by side with one shared player.

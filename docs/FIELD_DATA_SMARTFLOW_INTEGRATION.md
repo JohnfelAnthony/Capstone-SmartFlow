@@ -1,5 +1,7 @@
 # 3. Field observations and SmartFlow integration plan
 
+> **Historical integration plan.** D38 replaced the calibration and validation workflow with reviewed vehicle counts and turns as scenario demand. Use the [current research method](RESEARCH_METHOD.md) and [counts import guide](RESEARCH_WORKSPACE.md#counts-from-field-observer).
+
 Prepared **2026-10-02, Asia/Singapore**. This document describes the agreed direction and a future implementation sequence; the proposed software changes below have **not** been implemented by preparing this document.
 
 Updated **2026-10-03**: site/model decisions precede integration development, supported CSV conversion is the initial path, and reviewed-input acceptance follows separate measurement-quality checks.

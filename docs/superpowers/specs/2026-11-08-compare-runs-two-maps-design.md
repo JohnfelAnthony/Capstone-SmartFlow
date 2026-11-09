@@ -1,5 +1,7 @@
 # Compare Runs: two maps side by side (and RL Training clean-up)
 
+> **Original design.** The live feature includes later changes to PDF reporting and playback startup. See [progress](../../PROGRESS_AND_HANDOFF.md).
+
 Date: 2026-11-08. Status: design for owner approval. Part 1 is a project; Part 2 is a small, separate clean-up.
 
 ## Part 1: Compare Runs

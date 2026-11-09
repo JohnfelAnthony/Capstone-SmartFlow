@@ -1,5 +1,7 @@
 # Manuscript revision guide: the two-site study (October 31, 2026)
 
+> **Historical study design.** D38 removed calibration, validation and the study gate. Use the [current research method](../RESEARCH_METHOD.md) for manuscript wording.
+
 Scope: Chapters 1–2 of the capstone manuscript. This guide lists what the software and study design now say, so the text can be revised to match. It describes software capability and study design only. **No field result, calibration or validation exists yet**, and nothing below may be written as a finding.
 
 ## 1. What changed in the study

@@ -1,6 +1,6 @@
 # Mixed traffic: side-by-side vehicles and motorcycle filtering — design
 
-> **Current status, November 1:** This is the historical design. The core mixed-traffic implementation was released as `native-6` and carried forward into `native-7`. The current application uses 2D only, and the scenario editor no longer provides the mix selector. Site B has a known overlap failure and the provisional geometry and traffic parameters still require field review. See [progress](../../PROGRESS_AND_HANDOFF.md).
+> **Historical mixed-traffic design.** This work first shipped in native-6. The original checklists, Site B findings and benchmark results describe that checkpoint. See [current contracts](../../../AGENTS.md) and [dated progress](../../PROGRESS_AND_HANDOFF.md).
 
 Date: **2026-10-26** (Asia/Singapore). Status at the time: **approved by the owner on 2026-10-26**, revised during planning (2026-10-26) and after an external review (2026-10-27).
 
