@@ -9,6 +9,8 @@ import uuid
 import argparse
 from pathlib import Path
 
+from desktop.paths import STUDY_MAPPING_NAMES, network_resource_names
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a disposable worker experiment")
@@ -34,13 +36,15 @@ def main() -> None:
         command.extend(["--collect-data", "stable_baselines3"])
     for module in ("tools.train_ql", "tools.train_dql", "tools.train_ppo", "tools.evaluate_controllers", "desktop.serve", "desktop.bootstrap"):
         command.extend(["--hidden-import", module])
-    # The gate hashes source inputs; shipping an empty source directory would silently change identity.
+    # The frozen worker verifies the engine inventory before starting.
     for source in sorted((root / "simulation").glob("*.py")):
         command.extend(["--add-data", f"{source};simulation"])
     command.extend(["--add-data", f"{root / 'simulation' / 'metric_definitions.json'};simulation"])
     command.extend(["--add-data", f"{manifest};."])
-    for name in ("registry.json", "tagum_network.json", "tagum_site_a.json", "tagum_site_b.json"):
+    for name in network_resource_names(root / "data" / "networks"):
         command.extend(["--add-data", f"{root / 'data' / 'networks' / name};data/networks"])
+    for name in STUDY_MAPPING_NAMES:
+        command.extend(["--add-data", f"{root / 'data' / 'sites' / name};data/sites"])
     command.append(str(root / "desktop" / "worker_entry.py"))
     print(f"Building disposable worker experiment in {output}", flush=True)
     environment = os.environ.copy()

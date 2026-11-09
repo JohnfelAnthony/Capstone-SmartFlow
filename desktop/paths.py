@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+STUDY_MAPPING_NAMES = ("tagum_site_a_mapping.json", "tagum_site_b_mapping.json")
+
+
 def network_resource_names(source: Path) -> tuple[str, ...]:
     entries = json.loads((source / "registry.json").read_text(encoding="utf-8"))["networks"]
     names = ["tagum_network.json"]

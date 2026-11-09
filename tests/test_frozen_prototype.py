@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -87,8 +88,11 @@ def test_frozen_bootstrap_and_backend_lifecycle(tmp_path):
                                         data=json.dumps({"network_id": "tagum_site_a", "engine_config": {},
                                                          "files": export([vehicle("a", 5, "south", "north")])}).encode(),
                                         headers={"Content-Type": "application/json", "Origin": ready["origin"], "Cookie": cookie})
-        with urllib.request.urlopen(counts, timeout=20) as response:
-            assert json.load(response)["engine_config"]["demand_windows"]
+        try:
+            with urllib.request.urlopen(counts, timeout=20) as response:
+                assert json.load(response)["engine_config"]["demand_windows"]
+        except urllib.error.HTTPError as exc:
+            pytest.fail(f"Count import returned {exc.code}: {exc.read().decode()}")
         process.stdin.write('{"command":"shutdown_if_idle"}\n')
         process.stdin.flush()
         assert json.loads(process.stdout.readline())["accepted"] is True
