@@ -9,7 +9,10 @@ import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
-type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number }) => void }
+import { drawPlannerOverlay, pickPlannerLane, plannerFitBounds, type PlannerFitRequest, type PlannerOverlay } from "@/simulation/route-planner-overlay"
+
+type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number }) => void
+  staticMode?: boolean; plannerOverlay?: PlannerOverlay; onRoadDirectionSelect?: (laneId: string) => void; fitRequest?: PlannerFitRequest }
 type Theme = "light" | "dark"
 /** Flat city-illustration palettes. Scenery stays muted so traffic and signals carry the contrast. */
 const CITY = {
@@ -393,13 +396,17 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
   return report
 }
 
-export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, runKey = "", onPerformanceSample }: Props) {
+export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, runKey = "", onPerformanceSample,
+  staticMode = false, plannerOverlay, onRoadDirectionSelect, fitRequest }: Props) {
   const navigationHintId = React.useId()
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null), drawRef = React.useRef<() => void>(() => undefined)
   const controlsRef = React.useRef<(action: "in" | "out" | "reset") => void>(() => undefined)
   const tooltipRef = React.useRef<HTMLDivElement | null>(null), scaleRef = React.useRef<HTMLDivElement | null>(null), hintRef = React.useRef<HTMLSpanElement | null>(null)
-  const latestRef = React.useRef({ frame, presentation, onSelect, runKey, onPerformanceSample })
-  React.useEffect(() => { latestRef.current = { frame, presentation, onSelect, runKey, onPerformanceSample }; drawRef.current() }, [frame, presentation, onSelect, runKey, onPerformanceSample])
+  const latestRef = React.useRef({ frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, fitRequest })
+  React.useEffect(() => {
+    latestRef.current = { frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, fitRequest }
+    drawRef.current()
+  }, [frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, fitRequest])
   React.useEffect(() => {
     const canvas = canvasRef.current, parent = canvas?.parentElement, context = canvas?.getContext("2d", { alpha: false })
     if (!canvas || !parent || !context) return
@@ -407,6 +414,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     const cache = document.createElement("canvas"), cached = cache.getContext("2d", { alpha: false })
     const stream = createMapInterpolator()
     let width = 1, height = 1, dpr = 1, transform = fit(geometry.bounds, width, height), previousFocus = "", cacheKey = ""
+    let lastFitRevision: number | undefined
     let animationId = 0, displayedFrame: RenderFrame | null = null, pointerPosition: VisualPoint | null = null, hover: Selection | null = null, followSuspended = false
     let lastDrawAt = 0, sampleStarted = performance.now(), drawnFrames = 0, totalPaints = 0, frameIntervals: number[] = []
     let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "[]", previousScaleLabel = ""
@@ -422,6 +430,11 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     const updateHint = () => { if (hintRef.current) hintRef.current.textContent = followSuspended && latestRef.current.presentation.focus === "follow" ? "Follow paused · Reset to resume" : "Drag to explore · Scroll to zoom" }
     const manualNavigation = () => { followSuspended = true; hover = null; pointerPosition = null; updateHint() }
     const pick = (point: VisualPoint): Selection | null => {
+      const current = latestRef.current
+      if (current.staticMode) {
+        const lane = pickPlannerLane(geometry.lanes, point, transform, current.plannerOverlay?.sharedRoads)
+        return lane ? { kind: "lane", id: lane } : null
+      }
       const tag = junctionTags.get(ctx)?.find(({ rect }) => point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height)
       return tag ? { kind: "junction", id: tag.id } : pickSceneEntity(geometry, displayedFrame, screenToMap(point, transform), 4 / transform.scale)
     }
@@ -433,7 +446,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       if (hover.kind === "junction") text = geometry.junctionById.get(hover.id)?.label ?? "Junction"
       else if (hover.kind === "lane") {
         const metrics = displayedFrame?.lane_metrics?.[hover.id]
-        text = metrics ? `Lane · ${metrics.vehicles} vehicles · Queue ${metrics.queue}` : "Lane · Click to inspect"
+        text = metrics ? `Lane · ${metrics.vehicles} vehicles · Queue ${metrics.queue}` : latestRef.current.staticMode ? "Road direction · Click to select" : "Lane · Click to inspect"
       } else if (hover.kind === "vehicle") {
         const vehicle = displayedFrame?.vehicles.find((candidate) => candidate.id === hover?.id)
         if (vehicle) { const name = normalizeVehicleClass(vehicle.visual_type); text = `${name === "tricycle" ? "Tagum tricycle" : name[0].toUpperCase() + name.slice(1)} · ${vehicle.stopped ? "Stopped" : `${(vehicle.speed * 3.6).toFixed(0)} km/h`}` }
@@ -448,11 +461,18 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       animationId = 0
       const paintStarted = performance.now()
       const current = latestRef.current, focus = `${current.presentation.focus}:${current.presentation.junctionId}:${current.presentation.revision}`
-      stream.set(current.frame, `${current.runKey}:${current.presentation.revision}`, now)
-      displayedFrame = stream.sample(now)
+      stream.set(current.staticMode ? null : current.frame, `${current.runKey}:${current.presentation.revision}`, now)
+      displayedFrame = current.staticMode ? null : stream.sample(now)
       if (focus !== previousFocus) {
         transform = fit(current.presentation.focus === "network" ? geometry.bounds : boundsForJunction(geometry, current.presentation.junctionId), width, height)
         previousFocus = focus; followSuspended = false; updateHint()
+      }
+      if (current.staticMode && current.fitRequest && current.fitRequest.revision !== lastFitRevision) {
+        lastFitRevision = current.fitRequest.revision
+        const target = current.fitRequest.target === "routes" && current.plannerOverlay
+          ? plannerFitBounds(geometry.bounds, current.plannerOverlay) : geometry.bounds
+        transform = fit(target, width, height)
+        followSuspended = current.fitRequest.target === "routes"
       }
       if (current.presentation.focus === "follow" && !followSuspended && current.presentation.selection?.kind === "vehicle") {
         const vehicle = displayedFrame?.vehicles.find((entity) => entity.id === current.presentation.selection?.id)
@@ -473,7 +493,13 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(ctx, geometry, transform, colors, scenery, walkways) }
       if (pointerPosition && !pointers.size) hover = pick(pointerPosition)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      const signals = dynamicMap(ctx, geometry, displayedFrame, current.presentation, transform, hover, colors)
+      if (current.staticMode && current.plannerOverlay) {
+        drawPlannerOverlay(ctx, geometry, current.plannerOverlay, transform, hover?.kind === "lane" ? hover.id : null)
+      }
+      const visiblePresentation = current.staticMode && current.presentation.overlays.signals
+        ? { ...current.presentation, overlays: { ...current.presentation.overlays, signals: false } }
+        : current.presentation
+      const signals = dynamicMap(ctx, geometry, displayedFrame, visiblePresentation, transform, hover, colors)
       // Read-only diagnostics support browser checks without a renderer control backdoor.
       canvas!.dataset.signals = JSON.stringify({ time: displayedFrame?.time ?? null, ...signals })
       canvas!.dataset.theme = theme
@@ -497,7 +523,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))] })
         sampleStarted = now; drawnFrames = 0; frameIntervals = []
       }
-      if (stream.moving()) schedule()
+      if (!current.staticMode && stream.moving()) schedule()
     }
     const resize = () => {
       const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, 1.5)
@@ -542,7 +568,12 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     const release = (event: PointerEvent, allowPick: boolean) => {
       const pointer = pointers.get(event.pointerId)
       if (!pointer) return
-      if (allowPick && !pointer.moved && pointers.size === 1) latestRef.current.onSelect(pick(position(event)))
+      if (allowPick && !pointer.moved && pointers.size === 1) {
+        const selection = pick(position(event))
+        if (latestRef.current.staticMode) {
+          if (selection?.kind === "lane") latestRef.current.onRoadDirectionSelect?.(selection.id)
+        } else latestRef.current.onSelect(selection)
+      }
       pointers.delete(event.pointerId)
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
       if (!pointers.size) { delete parent.dataset.navigating; canvas.style.cursor = "grab" }
@@ -576,7 +607,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     }
   }, [geometry])
   return <div className="sf-canvas2d-shell">
-    <canvas ref={canvasRef} className="sf-canvas2d" tabIndex={0} aria-label="Simulation map with illustrative city scenery" aria-describedby={navigationHintId} style={{ cursor: "grab", touchAction: "none" }} />
+    <canvas ref={canvasRef} className="sf-canvas2d" tabIndex={0} aria-label={staticMode ? "Route Planner map with selectable road directions" : "Simulation map with illustrative city scenery"} aria-describedby={navigationHintId} style={{ cursor: "grab", touchAction: "none" }} />
     <div className="sf-canvas2d-navigation" role="group" aria-label="Map navigation">
       <Button variant="outline" size="icon" aria-label="Zoom in map" title="Zoom in (+)" onClick={() => controlsRef.current("in")}><Plus /></Button>
       <Button variant="outline" size="icon" aria-label="Zoom out map" title="Zoom out (−)" onClick={() => controlsRef.current("out")}><Minus /></Button>
