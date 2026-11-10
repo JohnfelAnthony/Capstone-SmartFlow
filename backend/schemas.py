@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -313,6 +313,153 @@ class ObservationImportRequest(BaseModel):
 class ClosureCheckRequest(BaseModel):
     closed_lanes: list[str] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+RouteId = Annotated[str, Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9_.:-]+$")]
+RouteVehicleClass = Literal["car", "motorcycle", "tricycle", "bus", "truck"]
+RouteResponseChoice = Literal["side_street", "side_street_adaptive", "share", "nearest_exit", "wait"]
+RouteBasis = Literal["initial_arrangement_zero_queue"]
+
+
+class RoutePlannerInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class RouteScenarioSource(RoutePlannerInput):
+    kind: Literal["scenario"]
+    scenario_id: int = Field(strict=True, ge=1, le=2**63-1)
+
+
+class RouteNetworkSource(RoutePlannerInput):
+    kind: Literal["network"]
+    network_id: RouteId
+
+
+RouteSource = Annotated[RouteScenarioSource | RouteNetworkSource, Field(discriminator="kind")]
+
+
+class RouteClosureOverride(RoutePlannerInput):
+    closed_lanes: list[RouteId] = Field(max_length=1024)
+    closure_responses: dict[RouteId, RouteResponseChoice] = Field(max_length=1024)
+
+
+class RouteContextRequest(RoutePlannerInput):
+    source: RouteSource
+    vehicle_type: RouteVehicleClass
+
+
+class RoutePreviewRequest(RouteContextRequest):
+    expected_network_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    entry_id: RouteId
+    destination_id: RouteId
+    closure_override: RouteClosureOverride = Field(
+        default_factory=lambda: RouteClosureOverride(closed_lanes=[], closure_responses={}),
+    )
+
+
+class RouteNotice(BaseModel):
+    code: str
+    message: str
+
+
+class RouteBoundary(BaseModel):
+    id: str
+    label: str
+
+
+class RouteEntry(RouteBoundary):
+    lane_ids: list[str]
+
+
+class RoutePair(BaseModel):
+    entry_id: str
+    destination_id: str
+
+
+class RouteRoad(BaseModel):
+    lane_id: str
+    road_id: str
+    label: str
+    direction: str
+
+
+class RouteContextResponse(BaseModel):
+    source: RouteSource
+    source_label: str
+    network_id: str
+    network_sha256: str
+    network_binding: Literal["saved_fingerprint", "current_unpinned", "current_network"]
+    geometry: dict[str, Any]
+    entries: list[RouteEntry]
+    destinations: list[RouteBoundary]
+    eligible_pairs: list[RoutePair]
+    initial_closures: RouteClosureOverride
+    roads: list[RouteRoad]
+    basis: RouteBasis
+    has_later_closure_changes: bool
+    notices: list[RouteNotice]
+
+
+class RoutePoint(BaseModel):
+    x: float
+    y: float
+
+
+class RouteLaneSegment(BaseModel):
+    kind: Literal["lane"]
+    lane_id: str
+    points: list[RoutePoint]
+
+
+class RouteConnectorSegment(BaseModel):
+    kind: Literal["connector"]
+    from_lane_id: str
+    to_lane_id: str
+    points: list[RoutePoint]
+
+
+RouteSegment = Annotated[RouteLaneSegment | RouteConnectorSegment, Field(discriminator="kind")]
+
+
+class RoutePath(BaseModel):
+    lane_ids: list[str]
+    destination_id: str
+    destination_label: str
+    segments: list[RouteSegment]
+
+
+class RouteResponseOption(BaseModel):
+    value: RouteResponseChoice
+    enabled: bool
+    reason: str | None
+
+
+class RouteSharedRoad(BaseModel):
+    road_id: str
+    shared_lane: str
+    kept_lane: str
+    width: float
+    lanes: dict[str, list[tuple[float, float]]]
+
+
+class RoutePreviewResponse(BaseModel):
+    network_id: str
+    network_sha256: str
+    basis: RouteBasis
+    routing_mode: Literal["static", "adaptive"]
+    arrangement_valid: bool
+    effective_closures: RouteClosureOverride
+    effective_closed_lanes: list[str]
+    response_options: dict[str, list[RouteResponseOption]]
+    original: RoutePath | None
+    selected: RoutePath | None
+    outcome: Literal["unchanged", "detour", "alternative_exit", "waiting_entry", "no_route", "invalid_arrangement"]
+    reason: str
+    intended_destination_id: str
+    actual_destination_id: str | None
+    shared_roads: list[RouteSharedRoad]
+    uses_shared_pavement: bool
+    notices: list[RouteNotice]
 
 
 class MovementCountsRequest(BaseModel):

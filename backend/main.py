@@ -15,10 +15,13 @@ import threading
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 import auth
 import config
@@ -64,6 +67,10 @@ from backend.schemas import (
     RegisterRequest,
     RegisterResponse,
     ReportExportRequest,
+    RouteContextRequest,
+    RouteContextResponse,
+    RoutePreviewRequest,
+    RoutePreviewResponse,
     RLEvaluateModelRequest,
     RLJobActionResponse,
     RLLogLine,
@@ -109,7 +116,7 @@ from backend.security import (
 from backend.simulation_runtime import SimulationRuntimeError, simulation_runtime
 from backend.research_routes import router as research_router
 from services.workload_admission import WorkloadConflict, workload_admission
-from services import backup_bundle, render_frame_service, rl_training_service, timeline_generator, visual_network_service
+from services import backup_bundle, render_frame_service, rl_training_service, route_preview, timeline_generator, visual_network_service
 
 _recording_admission_lock = threading.Lock()
 
@@ -2289,6 +2296,35 @@ def closure_check(network_id: str, payload: ClosureCheckRequest, user: dict = De
         return closure_report(load_registered_network(network_id), payload.closed_lanes, payload.events)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/routes/context", response_model=RouteContextResponse)
+def get_route_context(payload: RouteContextRequest, user: Annotated[dict, Depends(require_current_user)]) -> dict:
+    require_permission(user, "scenarios", "view")
+    try:
+        return route_preview.route_context(payload.source.model_dump(), payload.vehicle_type,
+                                           load_scenario=database.get_scenario_by_id)
+    except route_preview.RoutePreviewError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@app.post("/api/routes/preview", response_model=RoutePreviewResponse)
+def get_route_preview(payload: RoutePreviewRequest, user: Annotated[dict, Depends(require_current_user)]) -> dict:
+    require_permission(user, "scenarios", "view")
+    try:
+        return route_preview.preview_route(payload.model_dump(exclude_unset=True), load_scenario=database.get_scenario_by_id)
+    except route_preview.RoutePreviewError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@app.exception_handler(RequestValidationError)
+async def route_planner_validation_error(request: Request, exc: RequestValidationError):
+    if request.scope.get("endpoint") not in (get_route_context, get_route_preview):
+        return await request_validation_exception_handler(request, exc)
+    first = exc.errors()[0]
+    field = ".".join(str(part) for part in first["loc"] if part != "body")
+    detail = f"{field}: {first['msg']}" if field else first["msg"]
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 @app.get("/api/networks")
