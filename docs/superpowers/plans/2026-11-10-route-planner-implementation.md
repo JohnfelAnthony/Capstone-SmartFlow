@@ -136,17 +136,17 @@ Errors: unauthenticated `401`; insufficient permission `403`; missing scenario/n
 
 ## 3. Build tasks
 
-All tasks are unchecked. Paths below are relative to the repository root. New file names are proposed implementation targets, not files claimed to exist today.
+Tasks 1–7 are committed. Task 8 records final acceptance and its remaining gates. Paths are relative to the repository root.
 
 ### Task 1 — Remove closure timing editors independently
 
 **Modify:** `src/components/closure-picker.tsx`. **Read:** `src/lib/closures.ts`, `src/lib/closures.test.ts`, `src/components/scenarios-page.tsx`.
 
-1. [ ] Remove the two timing inputs, `Input` import, `setTime` handler and render-only validation references made unused by their removal.
-2. [ ] Keep new closure defaults `{start: 0, end: null}` and add one short whole-run explanation. Keep response options, reopen controls and read-only saved timing descriptions.
-3. [ ] Preserve existing schedule helpers, backend validation, non-closure events and complex locked schedules. Removing the input widgets is not permission to delete historical event support.
-4. [ ] Run `npx vitest run src/lib/closures.test.ts`, `npx tsc -b` and `npx eslint src/components/closure-picker.tsx`.
-5. [ ] Browser-check New Scenario, Edit Scenario, reopen and response changes with disposable scenarios. Verify a new closure is whole-run and that editing an unrelated field in a scheduled scenario preserves event values. Reuse existing coverage; do not add a test that only searches source text for removed labels.
+1. [x] Remove the two timing inputs, `Input` import, `setTime` handler and render-only validation references made unused by their removal.
+2. [x] Keep new closure defaults `{start: 0, end: null}` and add one short whole-run explanation. Keep response options, reopen controls and read-only saved timing descriptions.
+3. [x] Preserve existing schedule helpers, backend validation, non-closure events and complex locked schedules. Removing the input widgets is not permission to delete historical event support.
+4. [x] Run `npx vitest run src/lib/closures.test.ts`, `npx tsc -b` and `npx eslint src/components/closure-picker.tsx`.
+5. [x] Browser-check New Scenario, Edit Scenario, reopen and response changes with disposable scenarios. Verify a new closure is whole-run and that editing an unrelated field in a scheduled scenario preserves event values. Reuse existing coverage; do not add a test that only searches source text for removed labels.
 
 **Checkpoint:** this small change can be delivered separately. No routing refactor is needed for it.
 
@@ -154,16 +154,16 @@ All tasks are unchecked. Paths below are relative to the repository root. New fi
 
 **Create:** `tests/test_engine_arrival_route.py`. **Modify:** `simulation/traffic_engine.py` only at the inline entry-route decision and its new method. **Read:** `simulation/road_network.py`, `simulation/closure_responses.py`.
 
-1. [ ] Record seeded synthetic results before the engine change on both sites with seeds 101 and 102. Cover no closure, detour, adaptive, nearest exit and sharing. Document the configuration and reproduction commands.
-2. [ ] Write and run the following tests. Confirm each fails because the arrival method is missing:
+1. [x] Record seeded synthetic results before the engine change on both sites with seeds 101 and 102. Cover no closure, detour, adaptive, nearest exit and sharing. Document the configuration and reproduction commands.
+2. [x] Write and run the following tests. Confirm each fails because the arrival method is missing:
    - `test_arrival_keeps_main_route_when_reachable`
    - `test_arrival_nearest_exit_overrides_available_detour`
    - `test_unreachable_destination_uses_non_generating_exit`
    - `test_vehicle_class_and_turn_rules_are_respected`
    - `test_arrival_does_not_mutate_network_or_inputs`
-3. [ ] Extract only the entry decision into `arrival_route(self, source, destination, *, vehicle_type, costs) -> tuple[list[str], bool]` and replace it with the method call. Leave `_reroute`, `_best_open_exit` and `_travel_costs` untouched.
-4. [ ] Rerun the tests and the focused engine regression command in section 4. Repeat the seeded runs and compare routes, destinations, diversion and reroute counts, conservation and state digests.
-5. [ ] Any difference blocks the task. Never update expected digests to make tests pass. Stop and report if parity cannot be established.
+3. [x] Extract only the entry decision into `arrival_route(self, source, destination, *, vehicle_type, costs) -> tuple[list[str], bool]` and replace it with the method call. Leave `_reroute`, `_best_open_exit` and `_travel_costs` untouched.
+4. [x] Rerun the tests and the focused engine regression command in section 4. Repeat the seeded runs and compare routes, destinations, diversion and reroute counts, conservation and state digests.
+5. [x] Any difference blocks the task. Never update expected digests to make tests pass. Stop and report if parity cannot be established.
 
 **Checkpoint:** arrival behaviour is unchanged. Keep the engine version and model contract.
 
@@ -171,10 +171,10 @@ All tasks are unchecked. Paths below are relative to the repository root. New fi
 
 **Create:** `services/route_preview.py`, `tests/test_route_preview.py`, `tests/test_route_preview_parity.py`. **Modify if needed for pure reuse:** `simulation/network_registry.py`. **Read:** `simulation/scenario_config.py`, `services/native_scenario_service.py`, `services/visual_network_service.py`, `simulation/contraflow.py`.
 
-1. [ ] Implement `route_context(source, vehicle_type)` and `preview_route(request)` using the section 2 contract. Keep endpoint/auth concerns outside the preview service.
-2. [ ] Resolve initial source state without the live runtime, validate source fingerprints, and create class-aware demand-entry/destination choices. Obtain readable labels from existing helpers.
-3. [ ] Implement complete closure override semantics, response explanations, derived shared geometry and two-route outcome classification.
-4. [ ] Add these service cases in `tests/test_route_preview.py`:
+1. [x] Implement `route_context(source, vehicle_type)` and `preview_route(request)` using the section 2 contract. Keep endpoint/auth concerns outside the preview service.
+2. [x] Resolve initial source state without the live runtime, validate source fingerprints, and create class-aware demand-entry/destination choices. Obtain readable labels from existing helpers.
+3. [x] Implement complete closure override semantics, response explanations, derived shared geometry and two-route outcome classification.
+4. [x] Add these service cases in `tests/test_route_preview.py`:
    - `test_entries_use_demand_boundaries_and_class_access`
    - `test_closed_entry_remains_selectable_and_reports_waiting`
    - `test_non_generating_boundary_can_be_returned_as_diversion_exit`
@@ -184,8 +184,8 @@ All tasks are unchecked. Paths below are relative to the repository root. New fi
    - `test_shared_paths_match_derived_network_and_keep_base_fingerprint`
    - `test_no_route_and_invalid_arrangement_are_distinct`
    - `test_stale_saved_fingerprint_is_refused`
-5. [ ] In `tests/test_route_preview_parity.py`, add `test_preview_matches_disposable_engine_vehicle_arrival` for static, adaptive zero-queue, forced exit, no-route and sharing cases, including allowed/restricted classes. Compare lane sequence, destination and diversion status against an actual disposable engine arrival path; do not compare two calls to the new helper alone.
-6. [ ] Assert that the preview service itself never steps/configures a live runtime and does not modify input scenario dictionaries or base-network payloads.
+5. [x] In `tests/test_route_preview_parity.py`, add `test_preview_matches_disposable_engine_vehicle_arrival` for static, adaptive zero-queue, forced exit, no-route and sharing cases, including allowed/restricted classes. Compare lane sequence, destination and diversion status against an actual disposable engine arrival path; do not compare two calls to the new helper alone.
+6. [x] Assert that the preview service itself never steps/configures a live runtime and does not modify input scenario dictionaries or base-network payloads.
 
 **Run:** `& "C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe" -m pytest tests/test_engine_arrival_route.py tests/test_route_preview.py tests/test_route_preview_parity.py -q`.
 
@@ -193,16 +193,16 @@ All tasks are unchecked. Paths below are relative to the repository root. New fi
 
 **Modify:** `backend/schemas.py`, `backend/main.py`. **Create:** `tests/test_route_preview_api.py`. **Read:** `tests/test_shared_session_and_import.py`, `tests/test_closure_check.py`, `auth.py`.
 
-1. [ ] Define discriminated source models, enum restrictions, complete override semantics and typed responses. Enforce identifier validity and bounded request size using existing conventions.
-2. [ ] Add the two POST endpoints and `scenarios:view` checks. Use disposable database fixtures for scenario loading tests; restore dependency overrides after every case.
-3. [ ] Add these cases:
+1. [x] Define discriminated source models, enum restrictions, complete override semantics and typed responses. Enforce identifier validity and bounded request size using existing conventions.
+2. [x] Add the two POST endpoints and `scenarios:view` checks. Use disposable database fixtures for scenario loading tests; restore dependency overrides after every case.
+3. [x] Add these cases:
    - `test_view_only_user_can_preview_without_edit_or_run_permission`
    - `test_preview_requires_authentication_and_scenarios_view`
    - `test_context_and_preview_use_same_network_fingerprint`
    - `test_network_change_between_context_and_preview_returns_409`
    - `test_missing_source_and_invalid_trip_return_expected_errors`
    - `test_preview_with_disposable_arrival_engines_preserves_saved_data_and_live_runtime`
-4. [ ] Snapshot relevant database rows and runtime state before/after preview requests, including when a disposable live run is already active. No new permission/role rows or research artifacts may appear.
+4. [x] Snapshot relevant database rows and runtime state before/after preview requests, including when a disposable live run is already active. No new permission/role rows or research artifacts may appear.
 
 **Run:** `& "C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe" -m pytest tests/test_route_preview_api.py tests/test_network_registry.py -q`.
 
@@ -210,12 +210,12 @@ All tasks are unchecked. Paths below are relative to the repository root. New fi
 
 **Create:** `src/api/routes.ts`, `src/lib/route-planner.ts`, `src/lib/route-planner.test.ts`, `src/api/routes.test.ts`. **Read:** `src/api/client.ts`, `src/api/scenarios.ts`, `src/api/visual-network.ts`, `src/lib/closures.ts`.
 
-1. [ ] Implement typed `getRouteContext` and `previewRoute` wrappers. Use the existing `apiRequest` and its `AbortSignal` support; do not implement a second auth/session layer.
-2. [ ] Define a small reducer/state model for source/class selection, current closures, response choice, trip selection, reset and request generation. Temporary state never calls scenario create/update APIs.
-3. [ ] After a class change, reload eligible choices and clear an invalid trip. Do not issue a preview until the source fingerprint and trip are valid.
-4. [ ] Debounce closure edits; abort or ignore stale responses by source/class/config generation. Retain the map during a lightweight update and show a nearby loading state.
-5. [ ] Test reset-to-saved versus explicit-empty overrides, invalid trip clearing, unchanged source configuration, stale responses, `401` retry suppression and both API payload shapes. Use existing Vitest node/pure-helper patterns.
-6. [ ] Extract or reuse response coordination rules so selecting adaptive routing remains consistent across relevant closures. Visibly explain any changed selections instead of silently coercing a source scenario.
+1. [x] Implement typed `getRouteContext` and `previewRoute` wrappers. Use the existing `apiRequest` and its `AbortSignal` support; do not implement a second auth/session layer.
+2. [x] Define a small reducer/state model for source/class selection, current closures, response choice, trip selection, reset and request generation. Temporary state never calls scenario create/update APIs.
+3. [x] After a class change, reload eligible choices and clear an invalid trip. Do not issue a preview until the source fingerprint and trip are valid.
+4. [x] Debounce closure edits; abort or ignore stale responses by source/class/config generation. Retain the map during a lightweight update and show a nearby loading state.
+5. [x] Test reset-to-saved versus explicit-empty overrides, invalid trip clearing, unchanged source configuration, stale responses, `401` retry suppression and both API payload shapes. Use existing Vitest node/pure-helper patterns.
+6. [x] Extract or reuse response coordination rules so selecting adaptive routing remains consistent across relevant closures. Visibly explain any changed selections instead of silently coercing a source scenario.
 
 **Run:** `npx vitest run src/lib/route-planner.test.ts src/api/routes.test.ts src/lib/closures.test.ts` and `npx tsc -b`.
 
@@ -240,12 +240,12 @@ type PlannerOverlay = {
 // fitRequest?: { revision: number; target: "network" | "routes" }
 ```
 
-1. [ ] Use `frame=null` with explicit static mode. Do not fabricate a live RenderFrame or show live signal/vehicle/queue state.
-2. [ ] Render grey original and green selected paths, arrows, red closure hatching and exact amber shared-road geometry in the same coordinate system/camera as the existing roads.
-3. [ ] Implement road-direction picking and fit bounds in pure helpers. Do not recompute routes in TypeScript. Keep route-segment boundaries so drawing does not accidentally join discontinuous pieces.
-4. [ ] Make the static map redraw only when its geometry, overlay, theme, viewport or camera changes. Optional props must not disable live interpolation or replay in existing callers.
-5. [ ] Add helper tests for world/screen selection, opposing directions, shared-path bounds, no-route fit fallback, and identical lane IDs with different base/shared geometry.
-6. [ ] Verify Dashboard and Compare Runs compile without new required props. Include live/replay/browser regression checks in Task 8 because unit tests cannot establish canvas appearance.
+1. [x] Use `frame=null` with explicit static mode. Do not fabricate a live RenderFrame or show live signal/vehicle/queue state.
+2. [x] Render grey original and green selected paths, arrows, red closure hatching and exact amber shared-road geometry in the same coordinate system/camera as the existing roads.
+3. [x] Implement road-direction picking and fit bounds in pure helpers. Do not recompute routes in TypeScript. Keep route-segment boundaries so drawing does not accidentally join discontinuous pieces.
+4. [x] Make the static map redraw only when its geometry, overlay, theme, viewport or camera changes. Optional props must not disable live interpolation or replay in existing callers.
+5. [x] Add helper tests for world/screen selection, opposing directions, shared-path bounds, no-route fit fallback, and identical lane IDs with different base/shared geometry.
+6. [x] Verify Dashboard and Compare Runs compile without new required props. Include live/replay/browser regression checks in Task 8 because unit tests cannot establish canvas appearance.
 
 **Run:** `npx vitest run src/simulation/__tests__/route-planner-overlay.test.ts src/simulation/__tests__/map-navigation.test.ts` and `npx tsc -b`.
 
@@ -253,13 +253,13 @@ type PlannerOverlay = {
 
 **Create:** `src/components/route-planner-page.tsx`, `src/lib/page-access.ts`, `src/lib/page-access.test.ts`. **Modify:** `src/App.tsx`, `src/components/app-sidebar.tsx`; use the existing stylesheet only if layout needs it.
 
-1. [ ] Add a lazy-loaded Route Planner page. Provide source selector, trip/class controls, static map, road selection list, response panel, reset/clear controls, legend and one short assumptions notice.
-2. [ ] Give the new navigation item its own identity, `route-planner`, but resolve its permission through a small shared helper: `permissionPageFor("route-planner") === "scenarios"`; all existing keys map to themselves. Use that helper for sidebar visibility and the application's page guard, preserving existing admin handling.
-3. [ ] Gate rendering as well as navigation with `scenarios:view`. Do not modify role definitions, landing paths or permission records. Test authorized viewer, denied viewer and admin cases.
-4. [ ] Render disabled response options with reasons, read-only legacy schedule notices, no-route/waiting/different-exit outcomes, and "Temporary changes — saved scenario unchanged".
-5. [ ] Use "Route under these conditions" and show actual versus intended destination for diversions. Do not add alternative paths, a winner, delay savings or future congestion claims.
-6. [ ] Use existing shadcn controls, keyboard labels and responsive layout. Provide selection outside the canvas for keyboard users. Include neither timing inputs nor a timeline.
-7. [ ] Check source switching, cancellation, loading, refresh after a fingerprint conflict and session expiry. No stale response may redraw an old network.
+1. [x] Add a lazy-loaded Route Planner page. Provide source selector, trip/class controls, static map, road selection list, response panel, reset/clear controls, legend and one short assumptions notice.
+2. [x] Give the new navigation item its own identity, `route-planner`, but resolve its permission through a small shared helper: `permissionPageFor("route-planner") === "scenarios"`; all existing keys map to themselves. Use that helper for sidebar visibility and the application's page guard, preserving existing admin handling.
+3. [x] Gate rendering as well as navigation with `scenarios:view`. Do not modify role definitions, landing paths or permission records. Test authorized viewer, denied viewer and admin cases.
+4. [x] Render disabled response options with reasons, read-only legacy schedule notices, no-route/waiting/different-exit outcomes, and "Temporary changes — saved scenario unchanged".
+5. [x] Use "Route under these conditions" and show actual versus intended destination for diversions. Do not add alternative paths, a winner, delay savings or future congestion claims.
+6. [x] Use existing shadcn controls, keyboard labels and responsive layout. Provide selection outside the canvas for keyboard users. Include neither timing inputs nor a timeline.
+7. [x] Check source switching, cancellation, loading, refresh after a fingerprint conflict and session expiry. No stale response may redraw an old network.
 
 **Run:** `npx vitest run src/lib/page-access.test.ts src/lib/route-planner.test.ts`, `npx tsc -b` and `npx eslint src`.
 
@@ -268,13 +268,13 @@ type PlannerOverlay = {
 **Update after verification:** `docs/PROGRESS_AND_HANDOFF.md`, `docs/ARCHITECTURE_AND_PLAN.md`, `src/components/help-about-page.tsx`, and both Route Planner documents' task status.
 
 1. [ ] Run section 4's complete checks with disposable data and record commands/results. Do not mark a task complete merely because its source file exists.
-2. [ ] Browser-test both sites: no closure; a valid detour; alternative exit; waiting entry; allowed shared pavement; prohibited sharing; class restriction; invalid arrangement; reset; saved scenario with later schedule; stale fingerprint.
-3. [ ] Verify keyboard use, multiple zoom levels, desktop/narrow layouts, readable arrows and both directions of shared pavement. Capture representative screenshots.
-4. [ ] Verify New/Edit Scenario timing fields are absent and existing schedules survive an unrelated edit. Verify Dashboard live motion, replay and Compare Runs still render and navigate correctly.
-5. [ ] Inspect network calls: no simulation start, websocket, recording, scenario write or training request originates from Route Planner. Test session expiry without a retry loop.
-6. [ ] Measure warm preview response latency and idle redraws on the target laptop for both sites. Separate cold geometry loading from subsequent route updates; record actual timing without claiming a budget was met unless measured.
-7. [ ] Confirm network artifacts/fingerprints, engine declaration, metric catalog and model contracts did not change. Preserve research data and existing expected results.
-8. [ ] Document only verified behaviour. Desktop integration and packaging are separate future work.
+2. [x] Browser-test both sites: no closure; a valid detour; alternative exit; waiting entry; allowed shared pavement; prohibited sharing; class restriction; invalid arrangement; reset; saved scenario with later schedule; stale fingerprint.
+3. [x] Verify keyboard use, multiple zoom levels, desktop/narrow layouts, readable arrows and both directions of shared pavement. Capture representative screenshots.
+4. [x] Verify New/Edit Scenario timing fields are absent and existing schedules survive an unrelated edit. Verify Dashboard live motion, replay and Compare Runs still render and navigate correctly.
+5. [x] Inspect network calls: no simulation start, websocket, recording, scenario write or training request originates from Route Planner. Test session expiry without a retry loop.
+6. [x] Measure warm preview response latency and idle redraws on the target laptop for both sites. Separate cold geometry loading from subsequent route updates; record actual timing without claiming a budget was met unless measured.
+7. [x] Confirm network artifacts/fingerprints, engine declaration, metric catalog and model contracts did not change. Preserve research data and existing expected results.
+8. [x] Document only verified behaviour. Desktop integration and packaging are separate future work.
 
 ## 4. Verification commands and evidence rules
 
@@ -304,15 +304,82 @@ Do not start long RL training or use reserved final seeds for verification. If a
 
 ## 5. Completion checklist
 
-- [ ] Original problem and all revised owner decisions are satisfied.
-- [ ] At most two route paths are shown; all supported response choices remain available where eligible.
-- [ ] Engine spawner and preview use the same arrival decision. Seeded engine results match and in-network rerouting is untouched.
-- [ ] The static zero-queue assumption and historical schedule limitation are visible.
-- [ ] Generated-demand entries and class/turn rules are enforced on the server.
-- [ ] Existing `scenarios:view` controls access; no role migration occurred.
-- [ ] Shared geometry is exact for the model; lane clearing remains a live-engine responsibility.
-- [ ] Scenario timing editors are removed without rewriting saved schedules.
-- [ ] No user scenario, research artifact, engine behaviour or RL contract changed as a side effect.
+- [x] Original problem and all revised owner decisions are satisfied.
+- [x] At most two route paths are shown; all supported response choices remain available where eligible.
+- [x] Engine spawner and preview use the same arrival decision. Seeded engine results match and in-network rerouting is untouched.
+- [x] The static zero-queue assumption and historical schedule limitation are visible.
+- [x] Generated-demand entries and class/turn rules are enforced on the server.
+- [x] Existing `scenarios:view` controls access; no role migration occurred.
+- [x] Shared geometry is exact for the model; lane clearing remains a live-engine responsibility.
+- [x] Scenario timing editors are removed without rewriting saved schedules.
+- [x] No user scenario, research artifact, engine behaviour or RL contract changed as a side effect.
 - [ ] Backend, frontend and browser evidence is recorded, including map regressions and preview performance.
 
-Until those checks are verified, these files remain a design and build plan rather than a claim that the feature is implemented.
+The feature is implemented. Open verification items remain release gates.
+
+## 6. Verification evidence
+
+### Engine parity
+
+The before/after snapshots are from `97c594d» and `f4723f1». The isolated capture runs both study sites with synthetic medium vehicle demand, low pedestrian demand, the provisional Tagum class mix, seeds 101 and 102 and a 120-second duration. Each site runs open, side-street, adaptive, nearest-exit and shared-pavement arrangements. Site A uses `road2r» and Site B uses `road1f». The 20 outputs compare lane-route and destination transitions, diversion and reroute counters, conservation each tick, and state sampled every 50 ticks and at the end. All 20 matched byte-for-byte with zero conservation errors. Both snapshots have SHA-256 `7484afbaa8a66e4065af70443053c4073787a36e41de20a99b2cace34d594bc9».
+
+The capture script and JSON files are local evidence in `tmp/route-planner-evidence/», outside Git. To reproduce, copy `arrival-parity.py» to two isolated worktrees at the before and after revisions. From each worktree, run the same script with the same hash seed and compare the resulting file hashes.
+
+```powershell
+$env:PYTHONHASHSEED='0'
+& 'C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe' arrival-parity.py "$env:TEMP/arrival-snapshot.json"
+Get-FileHash "$env:TEMP/arrival-snapshot.json" -Algorithm SHA256
+```
+
+The nearest-exit cases had forced diversions. No in-network adaptive reroute fired in this short sample. Separate tests exercise actual arrivals through the normal spawner and compare those routes with the preview under matching conditions.
+
+### Commands and results
+
+| Check | Result |
+| --- | --- |
+| `npx vitest run src/lib/closures.test.ts» | 15 passed. |
+| Focused engine command in section 4 plus `test_native_engine.py», `test_junction_deadlock.py», `test_junction_capacity.py» and `test_engine_search_index.py» | 151 passed and 1,214 subtests passed. |
+| `python -m pytest tests/test_engine_arrival_route.py tests/test_route_preview.py tests/test_route_preview_parity.py -q» | 30 passed. |
+| `python -m pytest tests/test_route_preview_api.py tests/test_network_registry.py -q» | 19 passed. |
+| `npx vitest run src/lib/route-planner.test.ts src/api/routes.test.ts src/lib/closures.test.ts» | 23 passed. |
+| `npx vitest run src/simulation/__tests__/route-planner-overlay.test.ts src/simulation/__tests__/map-navigation.test.ts» | 19 passed. |
+| `npx vitest run src/lib/page-access.test.ts src/lib/route-planner.test.ts» | 9 passed. |
+| `python -m pytest tests/test_native_integration.py -k recording_and_playback -q --basetemp "$env:TEMP/sf-rpg"» | 1 passed. Before the fix, Resume left the recording on frame zero. |
+| `npx tsc -b», `npx eslint src», `npm run test:visualization», `npm run build» | Passed with 200 frontend tests after the dropdown correction and Help entry. |
+| Planner service, matched-input engine parity, API and registry command in section 4 | 44 passed after the replay correction. |
+| `python -m pytest tests -q --basetemp "$env:TEMP/sf-rpf"» | 842 passed, 1 skipped, 3 xfailed and 1,362 subtests passed before the replay correction. Final-tree gate remains open. |
+
+The browser checks use installed headless Chromium, the built app, loopback ports and disposable SQLite/recording paths. The launcher scripts are local evidence, `check_task1.py» and `check_task8.py». Task 8 checks inspect actual preview HTTP responses and record screenshots in `tmp/route-planner-evidence/». The replay pair contains a 12-second synthetic Site A recording per controller (fixed-time and no-signal, seed 101). These are software checks, independent of field evidence.
+
+The built browser accepted both sites' open, detour, adaptive, nearest-exit, waiting, hypothetical sharing and invalid arrangements. It checked Site B heavy-vehicle restrictions, one no-route case, saved arrangements with and without closures, unchanged saved schedules after temporary edits, mouse and keyboard selection, stale fingerprints and a delayed response from a previous site. Both sites fit and zoomed at desktop and 390 px widths. The planner emitted no WebSocket or state-changing request, and a revoked session emitted one 401 before sign-in. New/Edit Scenario passed a separate browser run. Dashboard motion advanced, Resume played a freshly loaded recording, replay seeking worked and both comparison canvases played and sought.
+
+| Synthetic browser timing on this laptop | Site A | Site B |
+| --- | ---: | ---: |
+| First context HTTP request including geometry | 93.0 ms | 152.6 ms |
+| Warm preview HTTP request | 155.7 ms | 821.2 ms |
+| Browser update including debounce and UI interaction | 441.5 ms | 1080.5 ms |
+| Redraws during one idle second | 0 | 0 |
+
+These are single observations while the backend suite was running. Playwright reported target-closed messages during shutdown after the final assertions and exited successfully. The screenshots include Site A detour/sharing, Site B sharing, both narrow layouts, Dashboard, replay and Compare Runs.
+
+### Rulings
+
+- Work from a branch cut from local `main» in a separate worktree. The owner controls any integration. A different base could test against an incompatible version.
+- Align the design's backend instructions with option B. Leaving the broader entry-and-reroute extraction in the design would conflict with the owner's change.
+- Use a real scratch browser regression for the removed form fields and historical schedule preservation. The browser script lives outside Git, so later edits must repeat the workflow.
+- Use installed Playwright Chromium after system Chrome exited before the page loaded. Results cover Chromium.
+- Use the 120-second matrix for arrivals and forced diversions. Longer runs would be needed to observe congestion-triggered reroutes.
+- Expose the existing visual-network serializer on the already resolved network. Reloading geometry separately could return a different fingerprint.
+- Configure a disposable engine on the base network through the existing validation path. The engine derives the effective shared network itself. The preview shows established sharing and omits live clearance.
+- Label a changed route a detour if the engine's open-exit fallback still chooses the intended destination. Site B `road9f» exercises this case.
+- Pass only routing settings effective at time zero and no demand to the disposable engine. Later events and live congestion are outside the preview.
+- Format validation errors as strings for the two new endpoints. Keep FastAPI's normal handler for every other endpoint.
+- Use a short host temporary path for isolated SQLite tests and the host Vite cache for frontend tests. The sandbox's longer temp path and Vite SSR cache caused environment errors. The owner database and tracked dependencies are outside those checks.
+- Refuse to rebase temporary closures when a class change returns a different network fingerprint. The user reloads and reselects the closure instead.
+- Leave new closures on the engine default until the user explicitly selects a response. The UI does not invent eligibility.
+- Hatch the original closed pavement even when a shifted lane remains traversable. The amber band represents the temporary pavement allocation.
+- Start in temporary mode on the first registered study site. Saved scenarios continue to resolve their own networks.
+- Keep the keyboard picker separate from the close or reopen action. Canvas clicks still toggle the selected direction directly.
+- Stop the redundant pre-planner full run after the Task 2 focused suite and parity passed. The integrated run replaces that evidence.
+- Keep response-option identities mounted while eligibility refreshes. The browser caught the select emitting an empty response when the chosen option disappeared.
+- Start the existing playback runner when resuming a loaded recording. Acceptance exposed this pre-existing bug on the unchanged Dashboard path. The fix leaves the timeline cursor and engine version intact. The replay integration test failed before the change and passed afterward.

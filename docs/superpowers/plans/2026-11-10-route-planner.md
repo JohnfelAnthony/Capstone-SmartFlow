@@ -13,7 +13,7 @@ The agreed direction is a **separate Route Planner page**, using the same Canvas
 ## 2. Status and decisions
 
 - Date: **2026-11-10**, Asia/Singapore.
-- Status: **reviewed design only; implementation pending**. Creating or revising these documents does not implement the page or remove any form controls. The concrete tasks, contracts and test names are in the [companion build plan](2026-11-10-route-planner-implementation.md).
+- Status: **implemented on `codex/route-planner»**. See the [build plan and verification ledger](2026-11-10-route-planner-implementation.md#6-verification-evidence) for test results and open gates.
 - Source reviewed: local `main` at `725da90` in `C:/Users/jhepo/Desktop/trapik2/SmartFlow`.
 - Intended audience: LGU traffic/planning reviewers, capstone researchers and demonstration users.
 - Primary goal: answer **"If this direction is closed, where can traffic go, and does it still reach its intended destination?"**
@@ -28,7 +28,7 @@ The agreed direction is a **separate Route Planner page**, using the same Canvas
 
 | Existing source | Relevant behaviour |
 | --- | --- |
-| [Closure picker](../../../src/components/closure-picker.tsx) | Junction selection, directional closure toggles and response choices; currently contains the two timing inputs to remove. |
+| [Closure picker](../../../src/components/closure-picker.tsx) | Junction selection, directional closure toggles and response choices. Newly selected closures apply for the whole run. Historical schedules stay read-only. |
 | [Closure form helpers](../../../src/lib/closures.ts) | Reads and preserves saved closure schedules, response selections and unrelated settings. |
 | [Native scenario API](../../../src/api/native-scenario.ts) | Scenario/network options, closure checks and the frontend configuration contract. |
 | [Closure check service](../../../services/closure_check.py) | Existing response eligibility and route-availability summaries. It does not currently return full route geometry. |
@@ -178,7 +178,7 @@ Show a compact read-only notice when a scenario contains later closure changes. 
 
 ## 9. Backend preview contract
 
-Add authenticated, side-effect-free `POST /api/routes/context` and `POST /api/routes/preview` endpoints. The first supplies source-specific geometry, selection options and effective initial settings; the second returns the two-route comparison after edits. These are proposed APIs, not existing endpoints. Their schemas and error handling are specified in the [build plan](2026-11-10-route-planner-implementation.md#2-api-contract).
+Add authenticated, side-effect-free `POST /api/routes/context` and `POST /api/routes/preview` endpoints. The first supplies source-specific geometry, selection options and effective initial settings; the second returns the two-route comparison after edits. Both endpoints are implemented. Their schemas and error handling are specified in the [build plan](2026-11-10-route-planner-implementation.md#2-api-contract).
 
 Request information:
 
@@ -227,7 +227,7 @@ Implementation constraints:
 
 ## 11. Delivery order
 
-All implementation tasks are pending. Follow the [step-by-step build plan](2026-11-10-route-planner-implementation.md), which specifies files, function contracts, API shapes, named tests and verification commands.
+The implementation follows the [step-by-step build plan](2026-11-10-route-planner-implementation.md), which specifies files, function contracts, API shapes, named tests and verification commands.
 
 1. Remove the scenario timing inputs as an independent small change, preserving saved schedules.
 2. Record seeded engine behaviour, then expose only the arrival decision and verify parity.
@@ -239,33 +239,33 @@ All implementation tasks are pending. Follow the [step-by-step build plan](2026-
 
 ### Routing and API
 
-- [ ] Both sites with no closure show normal routes without claiming an improvement.
-- [ ] A closure with a valid detour reaches the same destination using permitted roads.
-- [ ] A disconnected destination, different exit and closed entry produce distinct explanations.
-- [ ] Multiple closures are evaluated together for the displayed arrangement.
-- [ ] Buses/trucks never receive a Sobrecarey route; allowed classes remain selectable.
-- [ ] Main-road preference, turn restrictions, one-way streets and excluded movements match the engine.
-- [ ] Only supported generated-demand entries are selectable; non-generating boundaries can still be returned as valid alternative exits.
-- [ ] A disposable engine's actual vehicle arrivals demonstrate preview parity under matched inputs; pre/post-refactor seeded results remain unchanged.
-- [ ] Shared pavement is derived from the backend geometry and unsupported roads explain why sharing is unavailable.
-- [ ] Adaptive previews do not invent congestion or guarantee a future route; no additional alternative paths are returned or drawn.
-- [ ] Historic scheduled closures are not combined across time, modified or mistaken for whole-run closures.
-- [ ] Stale fingerprints and unauthorized access are refused clearly.
-- [ ] A user with `scenarios:view` can preview without create/edit/run rights; role/permission tables do not change.
-- [ ] Preview requests leave the live runtime, saved configuration and artifact tables unchanged.
+- [x] Both sites with no closure show normal routes without claiming an improvement.
+- [x] A closure with a valid detour reaches the same destination using permitted roads.
+- [x] A disconnected destination, different exit and closed entry produce distinct explanations.
+- [x] Multiple closures are evaluated together for the displayed arrangement.
+- [x] Buses/trucks never receive a Sobrecarey route; allowed classes remain selectable.
+- [x] Main-road preference, turn restrictions, one-way streets and excluded movements match the engine.
+- [x] Only supported generated-demand entries are selectable; non-generating boundaries can still be returned as valid alternative exits.
+- [x] A disposable engine's actual vehicle arrivals demonstrate preview parity under matched inputs; pre/post-refactor seeded results remain unchanged.
+- [x] Shared pavement is derived from the backend geometry and unsupported roads explain why sharing is unavailable.
+- [x] Adaptive previews do not invent congestion or guarantee a future route; no additional alternative paths are returned or drawn.
+- [x] Historic scheduled closures are not combined across time, modified or mistaken for whole-run closures.
+- [x] Stale fingerprints and unauthorized access are refused clearly.
+- [x] A user with `scenarios:view` can preview without create/edit/run rights; role/permission tables do not change.
+- [x] Preview requests leave the live runtime, saved configuration and artifact tables unchanged.
 
 ### UI and browser
 
-- [ ] Open a saved scenario with closures and one without closures.
-- [ ] Try temporary closures without creating a scenario.
-- [ ] Select/reset roads and responses by mouse and keyboard.
-- [ ] Switch sites/scenarios during a pending request; stale results never replace the current selection.
-- [ ] Inspect both sites at multiple zoom levels and at desktop/narrow widths.
-- [ ] Confirm the map draws no generated vehicles or active signal indications.
-- [ ] Verify New/Edit Scenario have no timing inputs and a new closure applies to the whole run.
-- [ ] Edit an unrelated setting in an older scheduled scenario and verify its stored schedule remains intact.
-- [ ] Check Dashboard, replay and Compare Runs still render normally after any shared-renderer change.
-- [ ] Measure preview response time and idle redraw behaviour on the target laptop; report measured values rather than promising instantaneous routing.
+- [x] Open a saved scenario with closures and one without closures.
+- [x] Try temporary closures without creating a scenario.
+- [x] Select/reset roads and responses by mouse and keyboard.
+- [x] Switch sites/scenarios during a pending request; stale results never replace the current selection.
+- [x] Inspect both sites at multiple zoom levels and at desktop/narrow widths.
+- [x] Confirm the map draws no generated vehicles or active signal indications.
+- [x] Verify New/Edit Scenario have no timing inputs and a new closure applies to the whole run.
+- [x] Edit an unrelated setting in an older scheduled scenario and verify its stored schedule remains intact.
+- [x] Check Dashboard, replay and Compare Runs still render normally after any shared-renderer change.
+- [x] Measure preview response time and idle redraw behaviour on the target laptop; report measured values rather than promising instantaneous routing.
 
 ### Verification commands
 

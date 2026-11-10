@@ -157,10 +157,16 @@ export function RoutePlannerPage() {
             </Button> : null}
             {selectedClosed && selectedRoad ? <>
               <NativeSelect label="Traffic response" value={response ?? ""} disabled={!ready || !responseOptions}
-                options={[{ value: "", label: "Engine default", disabled: true }, ...(responseOptions?.map(option => ({
-                  value: option.value, label: RESPONSE_LABELS[option.value], disabled: !option.enabled,
-                })) ?? [])]}
-                onChange={choice => dispatch({ type: "response", laneId: selectedRoad.lane_id, response: choice as ClosureResponse })} />
+                options={[
+                  { value: "", label: "Engine default", disabled: true },
+                  ...(Object.keys(plannerHints) as ClosureResponse[]).map(value => ({
+                    value, label: RESPONSE_LABELS[value], disabled: !responseOptions?.some(option => option.value === value && option.enabled),
+                  })),
+                ]}
+                onChange={choice => {
+                  const option = responseOptions?.find(option => option.value === choice && option.enabled)
+                  if (option) dispatch({ type: "response", laneId: selectedRoad.lane_id, response: option.value })
+                }} />
               {response ? <p className="text-sm text-muted-foreground">{plannerHints[response]}</p> : null}
               {state.coordinationNotice ? <p role="status" className="text-sm">{state.coordinationNotice}</p> : null}
               {responseOptions?.some(option => !option.enabled) ? <details className="text-sm text-muted-foreground">

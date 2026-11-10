@@ -96,6 +96,13 @@ class NativeIntegrationTests(unittest.TestCase):
         response = self.client.post("/api/simulation/playback/load", json={"run_id": run_id})
         self.assertEqual(response.status_code, 200, response.text)
         loaded_revision = response.json()["simulation"]["render_frame"]["playback"]["seek_revision"]
+        _, loaded_tick = simulation_runtime.stream_snapshot()
+        resumed = self.client.post("/api/simulation/resume")
+        self.assertEqual(resumed.json()["simulation"]["status"], "running")
+        simulation_runtime.wait_for_ticks(loaded_tick, 1, timeout=2)
+        playback, _ = simulation_runtime.stream_snapshot()
+        self.assertGreater(playback.state["playback"]["frame_index"], 0, "Resuming a freshly loaded recording must advance it")
+        self.assertEqual(self.client.post("/api/simulation/pause").status_code, 200)
         response = self.client.post("/api/simulation/playback/seek", json={"frame_index": 50})
         seeked = response.json()["simulation"]
         state = seeked["state"]

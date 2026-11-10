@@ -46,6 +46,10 @@ const metricLabels = new Map(metricDefinitions.map((metric) => [metric.key, `${m
 
 const faqs = [
   {
+    question: "How can I preview a road closure without running a simulation?",
+    answer: "Open Route Planner from Operate. Choose a saved scenario or a temporary arrangement, then pick the vehicle class, entry and intended destination. Click a road direction to close or reopen it. The map compares the original route with one route at the start of the run, with no simulated queues. Changes stay temporary and shared pavement is hypothetical.",
+  },
+  {
     question: "Can several simulations run at once?",
     answer: "No. One live run, recording or training job runs at a time. Others can watch it, and saved runs can be reviewed any time.",
   },

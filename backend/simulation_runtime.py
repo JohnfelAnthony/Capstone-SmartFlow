@@ -243,7 +243,10 @@ class SimulationRuntime:
     def resume(self, *, user_id: int | None = None) -> SimulationStateResponse:
         with self._lock:
             self._assert_owner(user_id)
-            self._get_engine().resume()
+            engine = self._get_engine()
+            engine.resume()
+            if self._run_mode == "playback" and engine.status == "running":
+                self._start_background_runner_locked()
             if self._active_run_id is not None:
                 database.update_run(self._active_run_id, status="running")
             return self._response()
