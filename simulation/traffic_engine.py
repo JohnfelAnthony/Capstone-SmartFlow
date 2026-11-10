@@ -700,6 +700,19 @@ class TrafficEngine:
         finally:
             self._spawn_occupancy = None
 
+    def arrival_route(self, source: str, destination: str, *, vehicle_type: str, costs: dict | None) -> tuple[list[str], bool]:
+        """Choose an entry route and report whether the arrival is diverting."""
+        costs = costs if self.config["routing_mode"] == "adaptive" else None
+        cut = self._cut_nearest_exit_lanes()
+        if cut and cut & set(self.network.route(source, destination, vehicle_type=vehicle_type)):
+            route = []
+        else:
+            route = self.network.route(source, destination, closed=self.closed_lanes, costs=costs, vehicle_type=vehicle_type)
+        diverting = not route and bool(self.closed_lanes)
+        if diverting:
+            route = self._best_open_exit(source, None, costs, vehicle_type=vehicle_type)
+        return route, diverting
+
     def _spawn_vehicles_and_pedestrians(self):
         single_demo = self.traffic_density == "single" and not self.config["trips"] and not self.config["demand_windows"]
         if single_demo and not self.vehicles and self.simulation_time < self.duration_limit:
@@ -726,12 +739,9 @@ class TrafficEngine:
                 continue
             if costs is None and self.config["routing_mode"] == "adaptive":
                 costs = self._travel_costs()
-            cut = self._cut_nearest_exit_lanes()
-            route = [] if cut and cut & set(self.network.route(arrival.source, arrival.destination, vehicle_type=arrival.vehicle_type)) else self.network.route(
-                arrival.source, arrival.destination, closed=self.closed_lanes, costs=costs if self.config["routing_mode"] == "adaptive" else None, vehicle_type=arrival.vehicle_type)
-            diverting = not route and bool(self.closed_lanes)
-            if diverting:
-                route = self._best_open_exit(arrival.source, None, costs if self.config["routing_mode"] == "adaptive" else None, vehicle_type=arrival.vehicle_type)
+            route, diverting = self.arrival_route(
+                arrival.source, arrival.destination, vehicle_type=arrival.vehicle_type, costs=costs,
+            )
             vehicle = self.add_vehicle(route, vehicle_type=arrival.vehicle_type, requested_at=arrival.time) if route else None
             if vehicle:
                 self.pending_demand.remove(arrival)
