@@ -5,6 +5,7 @@ import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { canViewPage } from "@/lib/page-access"
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +24,7 @@ import {
   GraduationCapIcon,
   MapPinnedIcon,
   NetworkIcon,
+  RouteIcon,
   Settings2Icon,
   ShieldIcon,
   UsersIcon,
@@ -41,6 +43,12 @@ const data = {
       url: "#",
       icon: <MapPinnedIcon />,
       page: "scenarios",
+    },
+    {
+      title: "Route Planner",
+      url: "#",
+      icon: <RouteIcon />,
+      page: "route-planner",
     },
     {
       title: "Runs & Reports",
@@ -103,13 +111,6 @@ const data = {
       page: "admin-backups",
     },
   ],
-}
-
-function canViewPage(currentUser: CurrentUser | null, page: string) {
-  if (!currentUser) return false
-  if (currentUser.role.toLowerCase() === "admin") return true
-  if (page.startsWith("admin-")) return false
-  return currentUser.permissions.some((permission) => permission.page === page && permission.action === "view")
 }
 
 export function AppSidebar({
