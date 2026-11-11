@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { activeClosures, useRoutePlanner } from "@/lib/route-planner"
-import { buildRouteEnds, describeRoad, describeRoute, endAction, endRoles, formatDistance, routeLengthMeters, routeStatus, type EndStep } from "@/lib/route-ends"
+import { buildRouteEnds, describeRoad, describeRoute, endAction, endRoles, formatDistance, routeEndsComplete, routeLengthMeters, routeStatus, type EndStep } from "@/lib/route-ends"
 import type { PlannerFitRequest, PlannerOverlay } from "@/simulation/route-planner-overlay"
 import "@/styles/admin-user-management.css"
 import "@/styles/route-planner.css"
@@ -142,7 +142,9 @@ export function RoutePlannerPage() {
       <AlertDescription>{error.message}</AlertDescription>
       {error.status === 409 ? <Button variant="outline" className="mt-2 w-fit" onClick={reloadContext}>Reload the map</Button> : null}
     </Alert> : null}
-    {context ? <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,1fr)]">
+    {context && !routeEndsComplete(context, ends)
+      ? <Alert variant="destructive"><AlertDescription>The server is out of date, so the road ends cannot be placed on the map. Restart the API, then refresh this page.</AlertDescription></Alert> : null}
+    {context && routeEndsComplete(context, ends) ? <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,1fr)]">
       <div className="flex min-w-0 flex-col gap-3">
         <RoutePlannerMap network={context.geometry} overlay={overlay} fitRequest={fitRequest}
           onRoadEndSelect={chooseEnd} onRoadDirectionSelect={setSelectedLaneId} />
