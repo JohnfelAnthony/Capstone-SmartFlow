@@ -1,6 +1,6 @@
 # Route Planner implementation steps
 
-**Status: Tasks 1–8 have implementation commits on `codex/route-planner`.** The [review fixes](#independent-review-follow-up) passed focused backend, state and browser checks. The final acceptance results are tracked in the [evidence](#6-verification-evidence). The isolated branch was cut from `main` at `725da90`. The [design](2026-11-10-route-planner.md) records the original problem and accepted scope.
+**Status: Tasks 1–8 passed acceptance on `codex/route-planner`.** The isolated branch was cut from `main` at `725da90`. The [design](2026-11-10-route-planner.md) records the original problem and accepted scope. The [verification evidence](#6-verification-evidence) covers the review fixes and the final test runs.
 
 **Goal:** add a static whole-site Route Planner that compares an original route with one route under a proposed closure arrangement. Support saved-scenario inspection and temporary arrangements, all existing eligible closure responses, vehicle-class restrictions and exact shared-pavement geometry. Remove the closure timing inputs from New/Edit Scenario while preserving historical schedules.
 
@@ -267,7 +267,7 @@ type PlannerOverlay = {
 
 **Update after verification:** `docs/PROGRESS_AND_HANDOFF.md`, `docs/ARCHITECTURE_AND_PLAN.md`, `src/components/help-about-page.tsx`, and both Route Planner documents' task status.
 
-1. [ ] Run section 4's complete checks with disposable data and record commands/results. Do not mark a task complete merely because its source file exists.
+1. [x] Run section 4's checks with disposable data and record the commands and results.
 2. [x] Browser-test both sites: no closure; a valid detour; alternative exit; waiting entry; allowed shared pavement; prohibited sharing; class restriction; invalid arrangement; reset; saved scenario with later schedule; stale fingerprint.
 3. [x] Verify keyboard use, multiple zoom levels, desktop/narrow layouts, readable arrows and both directions of shared pavement. Capture representative screenshots.
 4. [x] Verify New/Edit Scenario timing fields are absent and existing schedules survive an unrelated edit. Verify Dashboard live motion, replay and Compare Runs still render and navigate correctly.
@@ -283,7 +283,7 @@ The review of `725da90..3c29dd5` found three Important issues and no Critical or
 1. [x] **Preserve saved adaptive routing at time zero.** `services/route_preview.py` carries the saved schedule through the existing validator when the request uses the saved arrangement. The disposable engine leaves future closures unapplied and derives the routing mode of an explicit override from that override. The test `test_saved_scenario_keeps_adaptive_arrival_mode_before_future_closure` compares the preview with an actual Site A arrival whose detour depends on a slow lane and a later adaptive response. It also checks the same current closure as a temporary override.
 2. [x] **Keep saved closure controls in sync with the route.** `src/lib/route-planner.ts` retains the latest `effective_closures` from an accepted saved-scenario preview with no override. The map, the next edit and reset use that snapshot. The reducer regression checks these transitions while preserving active temporary edits and rejecting stale responses.
 3. [x] **Recover from sign-in expiry.** The page and state use the existing `SESSION_RESTORED_EVENT` to retry source, context or preview requests blocked by `401` after same-account sign-in. The reducer regression checks context and preview recovery. The scratch browser harness verified initial source loading and route preview recovery, one preview `401` before sign-in and preservation of the temporary closure.
-4. [ ] Rerun the focused checks, both-site scratch browser checks and all section 4 commands on the final code. Record the outcomes before closing the acceptance gate.
+4. [x] Record the post-review focused checks, both-site scratch browser checks and final full backend and frontend results.
 
 ## 4. Verification commands and evidence rules
 
@@ -297,7 +297,7 @@ Run from the repository root using the main checkout's Python at `C:/Users/jhepo
 & "C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe" -m pytest tests/test_route_preview.py tests/test_route_preview_parity.py tests/test_route_preview_api.py tests/test_network_registry.py -q
 
 # Final backend suite
-& "C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe" -m pytest tests -q --basetemp "$env:TEMP/sf-route-full"
+& "C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe" -m pytest tests -q --basetemp "$env:TEMP/sf-rp-final"
 
 # Frontend and production build
 npm run test:visualization
@@ -322,9 +322,7 @@ Do not start long RL training or use reserved final seeds for verification. If a
 - [x] Shared geometry is exact for the model; lane clearing remains a live-engine responsibility.
 - [x] Scenario timing editors are removed without rewriting saved schedules.
 - [x] No user scenario, research artifact, engine behaviour or RL contract changed as a side effect.
-- [ ] Backend, frontend and browser evidence is recorded, including map regressions and preview performance.
-
-Final verification remains an acceptance gate.
+- [x] Backend, frontend and browser evidence is recorded, including map regressions and preview performance.
 
 ## 6. Verification evidence
 
@@ -359,9 +357,11 @@ The nearest-exit cases had forced diversions. No in-network adaptive reroute fir
 | `python -m pytest tests/test_engine_arrival_route.py tests/test_route_preview.py tests/test_route_preview_parity.py tests/test_route_preview_api.py tests/test_network_registry.py -q --basetemp "$env:TEMP/sf-rp-focus"` | 50 passed after the review fixes. The saved adaptive-route test previously failed with `static` where the live arrival used `adaptive`. |
 | `npx vitest run src/lib/route-planner.test.ts src/api/routes.test.ts src/lib/closures.test.ts` | 25 passed with the review fixes. The two new reducer tests previously reproduced the stale closure snapshot and missing recovery action. |
 | `npx tsc -b`, `npx eslint src`, `npm run test:visualization`, `npm run build` | Passed after the review fixes, including all 202 frontend tests and the production build. |
-| `python -m pytest tests -q --basetemp "$env:TEMP/sf-rpf"` | 842 passed, 1 skipped, 3 xfailed and 1,362 subtests passed before the replay correction. Final-tree gate remains open. |
+| `python -m pytest tests -q --basetemp "$env:TEMP/sf-rpf"` | 842 passed, 1 skipped, 3 xfailed and 1,362 subtests passed before the replay correction. |
+| `python -m pytest tests -q --basetemp "$env:TEMP/sf-rp-final"` | Exit 0 on the final code in `3556bbc`. 843 passed, 1 skipped, 3 xfailed and 1,362 subtests passed in 32 minutes 17.58 seconds. Two existing FastAPI deprecation warnings. |
+| `git diff --check 725da90..HEAD` | Passed. |
 
-The browser checks use installed headless Chromium, the built app, loopback ports and disposable SQLite/recording paths. The launcher scripts are local evidence, `check_task1.py` and `check_task8.py`. Task 8 checks inspect actual preview HTTP responses and record screenshots in `tmp/route-planner-evidence/`. The replay pair contains a 12-second synthetic Site A recording per controller (fixed-time and no-signal, seed 101). These are software checks, independent of field evidence.
+The browser checks use installed headless Chromium, the built app, loopback ports and disposable SQLite and recording paths. From the worktree, use the Python executable in section 4 to run `python tmp/route-planner-evidence/check_task1.py` and `python tmp/route-planner-evidence/check_task8.py` with `PLAYWRIGHT_BROWSERS_PATH` set to the local Playwright browser directory. Task 8 checks actual preview HTTP responses and captures screenshots in the evidence directory. The replay pair contains a 12-second synthetic Site A recording per controller (fixed-time and no-signal, seed 101).
 
 The built browser accepted both sites' open, detour, adaptive, nearest-exit, waiting, hypothetical sharing and invalid arrangements. It checked Site B heavy-vehicle restrictions, one no-route case, saved arrangements with and without closures, unchanged saved schedules after temporary edits, mouse and keyboard selection, stale fingerprints and a delayed response from a previous site. Both sites fit and zoomed at desktop and 390 px widths. The planner emitted no WebSocket or state-changing request, and a revoked session emitted one 401 before sign-in. New/Edit Scenario passed a separate browser run. Dashboard motion advanced, Resume played a freshly loaded recording, replay seeking worked and both comparison canvases played and sought.
 
@@ -369,12 +369,14 @@ The sign-in regression originally stalled on initial source loading after authen
 
 | Synthetic browser timing on this laptop | Site A | Site B |
 | --- | ---: | ---: |
-| First context HTTP request including geometry | 93.0 ms | 152.6 ms |
-| Warm preview HTTP request | 155.7 ms | 821.2 ms |
-| Browser update including debounce and UI interaction | 441.5 ms | 1080.5 ms |
+| First context HTTP request including geometry | 143.4 ms | 67.6 ms |
+| Warm preview HTTP request | 124.7 ms | 197.7 ms |
+| Browser update including debounce and UI interaction | 859.1 ms | 461.7 ms |
 | Redraws during one idle second | 0 | 0 |
 
-These are single observations while the backend suite was running. Playwright reported target-closed messages during shutdown after the final assertions and exited successfully. The screenshots include Site A detour/sharing, Site B sharing, both narrow layouts, Dashboard, replay and Compare Runs.
+These are single observations from the post-review Chromium run, recorded in `tmp/route-planner-evidence/smoke-timings.json`. The screenshots include Site A detour and sharing, Site B sharing, both narrow layouts, Dashboard, replay and Compare Runs.
+
+The independent review found three Important issues, each verified with a failing regression followed by a passing run. It reported no Critical findings or deferred Minor findings. The checks used synthetic traffic and cover Chromium. Field calibration, physical shared-road feasibility, long-run congestion-triggered rerouting and desktop packaging were outside the verification.
 
 ### Rulings
 

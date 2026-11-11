@@ -13,7 +13,7 @@ The agreed direction is a **separate Route Planner page**, using the same Canvas
 ## 2. Status and decisions
 
 - Date: **2026-11-10**, Asia/Singapore.
-- Status: **implemented on `codex/route-planner`**. The [review follow-ups](2026-11-10-route-planner-implementation.md#independent-review-follow-up) passed focused checks. See the [verification evidence](2026-11-10-route-planner-implementation.md#6-verification-evidence) for the final acceptance status.
+- Status: **accepted on `codex/route-planner`**. The [verification evidence](2026-11-10-route-planner-implementation.md#6-verification-evidence) records the final backend, frontend, browser and independent review results.
 - Source reviewed: local `main` at `725da90` in `C:/Users/jhepo/Desktop/trapik2/SmartFlow`.
 - Intended audience: LGU traffic/planning reviewers, capstone researchers and demonstration users.
 - Primary goal: answer **"If this direction is closed, where can traffic go, and does it still reach its intended destination?"**
@@ -238,7 +238,7 @@ The implementation follows the [step-by-step build plan](2026-11-10-route-planne
 
 ## 12. Acceptance checks
 
-The checked items describe the initial verification. The [review follow-ups](2026-11-10-route-planner-implementation.md#independent-review-follow-up) add regressions for saved routing mode, updated closure snapshots and sign-in recovery.
+The [review follow-ups](2026-11-10-route-planner-implementation.md#independent-review-follow-up) cover saved routing mode, updated closure snapshots and sign-in recovery.
 
 ### Routing and API
 
