@@ -400,7 +400,7 @@ class ObserverGUI:
                 elif action == "watched":
                     manual_count.add_watched(directory, approach, duration, data.get("start"), data.get("end"))
                 elif action == "complete":
-                    manual_count.set_complete(directory, approach, duration, data.get("complete") is True, data.get("reviewer", ""))
+                    manual_count.set_complete(directory, approach, duration, data.get("complete") is True)
                 else:
                     raise ValueError("Unknown action.")
         return self.manual_state()
@@ -541,7 +541,11 @@ def make_server(root: Path, port=0):
                     metadata = {key: values[0] for key, values in parse_qs(route.query).items()}
                     suffix = Path(metadata.get("name", "")).suffix.lower()
                     require(suffix in (".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".mts"), "Unsupported video filename extension.")
+                    if metadata.get("site"):   # the manual-count page sends only the file name and the site
+                        metadata.update(manual_count.upload_metadata(metadata["name"], metadata["site"]))
                     project = service.new_project(metadata)
+                    if metadata.get("site"):
+                        manual_count.set_site(project / "manual_count", metadata["site"])
                     source = project / ("source" + suffix)
                     try:
                         with source.open("xb") as stream:

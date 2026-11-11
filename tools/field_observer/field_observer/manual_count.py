@@ -1,13 +1,14 @@
 """Manual lane-by-lane counting: one pass per approach over the raw video, merged into one reviewed revision.
 
 Every click records a vehicle class and the exit it took, stamped with VIDEO time. Passes are autosaved JSON files. A pass is
-complete only when the reviewer attests it and the playback intervals actually watched span the whole video; gaps are never
+complete only when the counter attests it and the playback intervals actually watched span the whole video; gaps are never
 filled and incomplete passes are reported, not guessed. The export writes ordinary draft tables and reuses `export_revision`,
 so it is the same revision format the detector workflow produces (and SmartFlow's "Import counts from Field Observer" reads).
 """
 
 import bisect
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,15 @@ SITES = {
 VEHICLE_CLASSES = ("car", "motorcycle", "tricycle", "bus", "truck")  # exactly the simulation's five classes
 GAP_S = 1.0           # watched intervals closer than this are one interval (playback ticks are ~0.25 s apart)
 DEFAULT_BIN_S = 900.0
+REVIEWER = "manual count"  # the page asks for no name; this honest label fills the reviewer fields the revision format requires
+DEFAULT_NOTE = "Manual lane-by-lane count: vehicle type and exit clicked per vehicle over four complete passes, one per approach."
+
+
+def upload_metadata(file_name: str, site_id: str) -> dict:
+    """Identity fields for a recording chosen on the manual page: the site and the file name, actual field footage, no person's name."""
+    require(site_id in SITES, "Choose the study site first.")
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(file_name).stem).strip("_-")[:80] or "VIDEO"
+    return {"survey_id": stem, "intersection_id": site_id, "collector": REVIEWER, "source_kind": "observed"}
 
 
 def site_view(site_id: str) -> dict:
@@ -115,13 +125,12 @@ def add_watched(directory: Path, approach: str, duration: float, start, end) -> 
     save_pass(directory, current)
 
 
-def set_complete(directory: Path, approach: str, duration: float, complete: bool, reviewer: str) -> None:
+def set_complete(directory: Path, approach: str, duration: float, complete: bool) -> None:
     current = load_pass(directory, approach)
     if complete:
-        require(bool(reviewer.strip()), "Enter the name of the person who counted this approach.")
         require(spans_video(current["watched"], duration),
                 "The video has not been played through for this approach without gaps; play the whole video in this pass first.")
-    current.update(complete=complete, reviewer=reviewer.strip() if complete else current["reviewer"])
+    current.update(complete=complete, reviewer=current["reviewer"] or REVIEWER)
     save_pass(directory, current)
 
 
@@ -157,7 +166,7 @@ def _lines_config(manifest: dict, site_id: str) -> dict:
             "deadband_px": min(4, min(width, height) / 10), "max_gap_s": .5, "counting_method": "manual_click", "lines": lines}
 
 
-def export_manual(take: Path, directory: Path, reviewer: str, note: str, bin_seconds: float = DEFAULT_BIN_S) -> Path:
+def export_manual(take: Path, directory: Path, reviewer: str = "", note: str = "", bin_seconds: float = DEFAULT_BIN_S) -> Path:
     """Merge the four complete passes into draft tables, then export through the tool's ordinary revision writer."""
     site_id = load_site(directory)
     require(site_id is not None, "Choose the study site first.")
@@ -202,4 +211,4 @@ def export_manual(take: Path, directory: Path, reviewer: str, note: str, bin_sec
     write_csv(take / "draft" / "events.csv", TABLES["events.csv"], events)
     write_csv(take / "draft" / "coverage.csv", TABLES["coverage.csv"], coverage)
     marker.write_text("manual_count owns draft/events.csv and draft/coverage.csv\n", encoding="utf-8")
-    return export_revision(take, reviewer, note, bin_seconds, lines=_lines_config(manifest, site_id))
+    return export_revision(take, reviewer.strip() or REVIEWER, note.strip() or DEFAULT_NOTE, bin_seconds, lines=_lines_config(manifest, site_id))

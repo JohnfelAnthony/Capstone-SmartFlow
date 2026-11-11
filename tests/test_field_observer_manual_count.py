@@ -47,8 +47,8 @@ def manual_export(tmp_path: Path, site: str, plan: dict) -> dict:
         for moment, exit_, vehicle in plan.get(approach, []):
             manual_count.add_click(directory, site, DURATION, {"approach": approach, "exit": exit_, "class": vehicle, "time_s": moment})
         manual_count.add_watched(directory, approach, DURATION, 0, DURATION)
-        manual_count.set_complete(directory, approach, DURATION, True, "Counter")
-    revision = manual_count.export_manual(take, directory, "Reviewer", "Synthetic hand count", bin_seconds=30)
+        manual_count.set_complete(directory, approach, DURATION, True)
+    revision = manual_count.export_manual(take, directory, bin_seconds=30)
     names = ("manifest.json", "events.csv", "coverage.csv", "reviewed_bins.csv", "lines.json")
     return {name: (revision / name).read_bytes().decode("utf-8") for name in names}
 
@@ -80,3 +80,4 @@ def test_an_exported_manual_count_has_manual_review_throughout(tmp_path):
     files = manual_export(tmp_path, "tagum_site_a", PLAN)
     rows = list(csv.DictReader(io.StringIO(files["events.csv"], newline="")))
     assert rows and {row["review_method"] for row in rows} == {"manual_count"}
+    assert {row["reviewer"] for row in rows} == {"manual count"}

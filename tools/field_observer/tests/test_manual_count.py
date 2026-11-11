@@ -8,6 +8,7 @@ import threading
 import unittest
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from field_observer import manual_count
@@ -53,7 +54,7 @@ def count_four_passes(directory: Path, duration: float = DURATION):
         for moment, exit_, vehicle in clicks:
             manual_count.add_click(directory, SITE, duration, {"approach": approach, "exit": exit_, "class": vehicle, "time_s": moment})
         watch_all(directory, approach, duration)
-        manual_count.set_complete(directory, approach, duration, True, "Counter " + approach)
+        manual_count.set_complete(directory, approach, duration, True)
 
 
 class ManualCountTests(unittest.TestCase):
@@ -68,7 +69,7 @@ class ManualCountTests(unittest.TestCase):
 
     def test_four_complete_passes_export_a_revision_the_tool_validates(self):
         count_four_passes(self.directory)
-        revision = manual_count.export_manual(self.take, self.directory, "Reviewer", "Hand count, synthetic test", bin_seconds=30)
+        revision = manual_count.export_manual(self.take, self.directory, bin_seconds=30)   # no reviewer, no note: the fixed label and default note
         manifest = read_json(revision / "manifest.json")
         for name in ("events.csv", "coverage.csv", "reviewed_bins.csv", "lines.json"):
             self.assertEqual(sha256(revision / name), manifest["artifact_sha256"][name])
@@ -79,6 +80,8 @@ class ManualCountTests(unittest.TestCase):
         exits = [row for row in events if row["event_type"] == "vehicle_discharge"]
         self.assertEqual((len(arrivals), len(exits)), (6, 6))
         self.assertTrue(all(row["review_status"] == "accepted" and row["review_method"] == "manual_count" for row in events))
+        self.assertEqual({row["reviewer"] for row in events}, {manual_count.REVIEWER})   # no name is asked for
+        self.assertEqual(read_json(revision / "review_record.json")["reviewer"], manual_count.REVIEWER)
         # Each arrival has a matching exit sharing its episode, and the exit is on the street the counter chose.
         by_episode = {row["episode_id"]: row for row in exits}
         first = next(row for row in arrivals if row["approach_id"] == "south" and float(row["time_s"]) == 3.0)  # 3.04 snaps to the frame at 3.0
@@ -97,7 +100,7 @@ class ManualCountTests(unittest.TestCase):
         manual_count.set_site(self.directory, SITE)
         for approach in ("south", "west", "north"):
             watch_all(self.directory, approach)
-            manual_count.set_complete(self.directory, approach, DURATION, True, "T")
+            manual_count.set_complete(self.directory, approach, DURATION, True)
         with self.assertRaisesRegex(ValueError, "Not complete: east"):
             manual_count.export_manual(self.take, self.directory, "R", "n")
         self.assertEqual(list((self.take / "revisions").iterdir()), [])   # nothing exported, nothing guessed
@@ -107,9 +110,9 @@ class ManualCountTests(unittest.TestCase):
         manual_count.add_watched(self.directory, "south", DURATION, 0, 25)
         manual_count.add_watched(self.directory, "south", DURATION, 35, DURATION)   # 10 s never played
         with self.assertRaisesRegex(ValueError, "played through"):
-            manual_count.set_complete(self.directory, "south", DURATION, True, "T")
+            manual_count.set_complete(self.directory, "south", DURATION, True)
         manual_count.add_watched(self.directory, "south", DURATION, 25, 35)
-        manual_count.set_complete(self.directory, "south", DURATION, True, "T")
+        manual_count.set_complete(self.directory, "south", DURATION, True)
 
     def test_clicks_are_validated_undone_and_survive_a_restart(self):
         manual_count.set_site(self.directory, SITE)
@@ -135,6 +138,13 @@ class ManualCountTests(unittest.TestCase):
         write_csv(self.take / "draft" / "events.csv", TABLES["events.csv"], [{**row, **{key: "x" for key in COMMON}, "event_id": "D1"}])
         with self.assertRaisesRegex(ValueError, "detector review draft"):
             manual_count.export_manual(self.take, self.directory, "R", "n")
+
+    def test_identity_comes_from_the_site_and_the_file_name(self):
+        meta = manual_count.upload_metadata("Capitol 10-Sept (final).MP4", SITE)
+        self.assertEqual(meta, {"survey_id": "Capitol_10-Sept_final", "intersection_id": SITE, "collector": "manual count", "source_kind": "observed"})
+        self.assertEqual(manual_count.upload_metadata("....mp4", SITE)["survey_id"], "VIDEO")
+        with self.assertRaises(ValueError):
+            manual_count.upload_metadata("a.mp4", "nowhere")
 
     def test_the_site_cannot_change_under_existing_clicks(self):
         manual_count.set_site(self.directory, SITE)
@@ -177,6 +187,22 @@ class ManualCountPageTests(unittest.TestCase):
         self.assertFalse(self.service.thread.is_alive())
         self.assertEqual(self.service.status, expected, self.service.message)
 
+    def test_a_raw_video_uploaded_with_only_a_file_name_and_site_is_ready_to_count(self):
+        from field_observer.demo import create_demo
+        clip = Path(self.temporary.name) / "clip.mp4"
+        create_demo(clip)
+        request = Request(self.url + "/api/upload?" + urlencode({"name": "Junction clip 1.mp4", "site": "tagum_site_b"}), clip.read_bytes(),
+                          {"Content-Type": "application/octet-stream", "X-Observer-Token": self.token})
+        urlopen(request, timeout=30).read()
+        self.wait_job("ready")
+        manifest = self.service.manifest
+        self.assertEqual((manifest["survey_id"], manifest["intersection_id"], manifest["source_kind"], manifest["collector"]),
+                         ("Junction_clip_1", "tagum_site_b", "observed", "manual count"))
+        state = json.load(urlopen(self.url + "/api/manual"))
+        self.assertEqual((state["recording"], state["site_id"]), (True, "tagum_site_b"))
+        self.post("/api/open", {"id": self.service.project.name})   # reopening a saved recording keeps its site and passes
+        self.assertEqual(json.load(urlopen(self.url + "/api/manual"))["site_id"], "tagum_site_b")
+
     def test_four_passes_over_http_export_a_downloadable_revision(self):
         self.post("/api/demo", {})
         self.wait_job("ready")
@@ -188,7 +214,7 @@ class ManualCountPageTests(unittest.TestCase):
             state = self.post("/api/manual/click", {"approach": approach, "exit": exits[approach], "class": "car", "time_s": moments[approach]})["manual"]
             self.assertFalse(state["can_export"])
             self.post("/api/manual/watched", {"approach": approach, "start": 0, "end": duration})
-            state = self.post("/api/manual/complete", {"approach": approach, "complete": True, "reviewer": "Demo reviewer"})["manual"]
+            state = self.post("/api/manual/complete", {"approach": approach, "complete": True})["manual"]
         self.assertTrue(state["can_export"])
         self.post("/api/manual/export", {"reviewer": "Demo reviewer", "note": "Synthetic demo, 4 s"})
         self.wait_job("ready")
