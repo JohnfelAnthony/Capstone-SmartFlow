@@ -11,7 +11,7 @@ const context: RouteContext = {
   network_binding: "saved_fingerprint",
   geometry: {} as VisualNetwork,
   entries: [{ id: "west", label: "West", lane_ids: ["entry"] }],
-  destinations: [{ id: "north", label: "North" }],
+  destinations: [{ id: "north", label: "North", lane_ids: ["exit"] }],
   eligible_pairs: [{ entry_id: "west", destination_id: "north" }],
   initial_closures: { closed_lanes: ["a", "b"], closure_responses: { a: "side_street", b: "side_street" } },
   roads: ["a", "b", "entry"].map(lane_id => ({ lane_id, road_id: lane_id, label: lane_id, direction: "Eastbound" })),

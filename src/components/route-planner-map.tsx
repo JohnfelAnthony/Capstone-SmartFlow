@@ -7,10 +7,11 @@ import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
 
 const ignoreSelection = () => undefined
 
-export function RoutePlannerMap({ network, overlay, onRoadDirectionSelect, fitRequest }: {
+export function RoutePlannerMap({ network, overlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }: {
   network: VisualNetwork
   overlay: PlannerOverlay
   onRoadDirectionSelect: (laneId: string) => void
+  onRoadEndSelect: (endKey: string) => void
   fitRequest?: PlannerFitRequest
 }) {
   const geometry = useMemo(() => normalizeSceneGeometry(network), [network])
@@ -18,8 +19,8 @@ export function RoutePlannerMap({ network, overlay, onRoadDirectionSelect, fitRe
     const base = createPresentationState(geometry)
     return { ...base, focus: "network", junctionId: null, overlays: { ...base.overlays, signals: false } }
   }, [geometry])
-  return <div className="relative h-[clamp(22rem,60vh,40rem)] overflow-hidden rounded-xl border">
+  return <div className="relative h-[clamp(18rem,45vh,40rem)] sm:h-[clamp(22rem,60vh,40rem)] overflow-hidden rounded-xl border">
     <SimulationCanvas2D frame={null} geometry={geometry} presentation={presentation} onSelect={ignoreSelection}
-      staticMode plannerOverlay={overlay} onRoadDirectionSelect={onRoadDirectionSelect} fitRequest={fitRequest} />
+      staticMode plannerOverlay={overlay} onRoadDirectionSelect={onRoadDirectionSelect} onRoadEndSelect={onRoadEndSelect} fitRequest={fitRequest} />
   </div>
 }

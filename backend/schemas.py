@@ -391,7 +391,7 @@ class RouteContextResponse(BaseModel):
     network_binding: Literal["saved_fingerprint", "current_unpinned", "current_network"]
     geometry: dict[str, Any]
     entries: list[RouteEntry]
-    destinations: list[RouteBoundary]
+    destinations: list[RouteEntry]
     eligible_pairs: list[RoutePair]
     initial_closures: RouteClosureOverride
     roads: list[RouteRoad]
