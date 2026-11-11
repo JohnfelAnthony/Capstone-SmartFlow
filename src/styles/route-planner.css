@@ -1,0 +1,56 @@
+/* Route Planner reuses the Audit Logs hero and boxless metric strip; this only fits three short metrics. */
+.route-planner-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.route-planner-page .audit-hero h1 {
+  font-size: 32px;
+}
+
+.route-planner-page .audit-metric-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px 0 10px;
+}
+
+.route-planner-page .audit-strip-metric strong {
+  font-size: 28px;
+}
+
+.route-planner-page .audit-strip-metric span {
+  font-size: 16px;
+}
+
+@media (max-width: 900px) {
+  .route-planner-page {
+    padding: 14px;
+  }
+
+  .route-planner-page .audit-metric-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .route-planner-page .audit-strip-metric {
+    align-items: flex-start;
+  }
+
+  .route-planner-page .audit-strip-metric > svg {
+    display: none;
+  }
+
+  .route-planner-page .audit-strip-metric strong {
+    font-size: 20px;
+  }
+
+  .route-planner-page .audit-strip-metric div div {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .route-planner-page .audit-strip-metric small {
+    font-size: 12px;
+  }
+}

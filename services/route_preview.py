@@ -153,7 +153,8 @@ def route_context(source: dict, vehicle_type: str, *, load_scenario: ScenarioLoa
         "network_id": network.id, "network_sha256": network.fingerprint, "network_binding": resolved.binding,
         "geometry": visual_payload(network),
         "entries": [{"id": entry, "label": boundaries[entry], "lane_ids": lanes} for entry, lanes in entries.items()],
-        "destinations": [{"id": item, "label": boundaries[item]} for item in network.demand_boundaries if item in destination_ids],
+        "destinations": [{"id": item, "label": boundaries[item], "lane_ids": network.incoming[item]}
+                         for item in network.demand_boundaries if item in destination_ids],
         "eligible_pairs": [{"entry_id": entry, "destination_id": target} for entry, target in pairs],
         "initial_closures": resolved.initial_closures,
         "roads": [{"lane_id": lane_id, "road_id": lane_id[:-1],

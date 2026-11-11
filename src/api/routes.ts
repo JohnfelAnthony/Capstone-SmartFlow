@@ -33,7 +33,7 @@ export type RouteContext = {
   network_binding: "saved_fingerprint" | "current_unpinned" | "current_network"
   geometry: VisualNetwork
   entries: Array<RouteBoundary & { lane_ids: string[] }>
-  destinations: RouteBoundary[]
+  destinations: Array<RouteBoundary & { lane_ids: string[] }>
   eligible_pairs: Array<{ entry_id: string; destination_id: string }>
   initial_closures: ClosureOverride
   roads: Array<{ lane_id: string; road_id: string; label: string; direction: string }>

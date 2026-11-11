@@ -1,8 +1,11 @@
 import type { RoutePath } from "@/api/routes"
 import type { VisualPoint } from "@/api/visual-network"
 import type { SharedRoad } from "@/simulation/frame-types"
+import type { EndRole } from "@/lib/route-ends"
 import { mapToScreen, screenToMap, type MapCamera } from "@/simulation/map-navigation"
 import { boundsOfPoints, distanceToPolyline, lanePolygon, pointInPolygon, type SceneBounds, type SceneGeometry, type SceneLane } from "@/simulation/scene-geometry"
+
+export type PlannerEnd = { key: string; label: string; x: number; y: number; role: EndRole }
 
 export type PlannerOverlay = {
   original: RoutePath | null
@@ -10,11 +13,14 @@ export type PlannerOverlay = {
   closedLaneIds: readonly string[]
   sharedRoads: readonly SharedRoad[]
   selectedLaneId: string | null
+  ends: readonly PlannerEnd[]
 }
 
 export type PlannerFitRequest = { revision: number; target: "network" | "routes" }
 
 const sharedLine = (points: Array<[number, number]>) => points.map(([x, y]) => ({ x, y }))
+const END_RADIUS = 12
+const END_REACH = 18
 const palette = { original: "#d1d5db", selected: "#4ade80", amber: "#f9b545", outline: "#7dd3fc" }
 
 export function plannerPathLines(path: RoutePath | null) {
@@ -49,6 +55,18 @@ export function pickPlannerLane(lanes: readonly SceneLane[], point: VisualPoint,
       closest = distance
       best = lane.id
     }
+  }
+  return best
+}
+
+/** The road end under a click or tap, if any. Ends win over the road beneath them. */
+export function pickPlannerEnd(ends: readonly PlannerEnd[], point: VisualPoint, camera: MapCamera) {
+  let best: PlannerEnd | null = null
+  let closest = END_REACH
+  for (const end of ends) {
+    const screen = mapToScreen(end, camera)
+    const distance = Math.hypot(screen.x - point.x, screen.y - point.y)
+    if (distance <= closest) { closest = distance; best = end }
   }
   return best
 }
@@ -118,6 +136,47 @@ function hatchClosedLane(ctx: CanvasRenderingContext2D, polygon: VisualPoint[], 
   ctx.restore()
 }
 
+const endColors = { start: "#1D9E75", destination: "#378ADD" } as const
+
+function drawEnd(ctx: CanvasRenderingContext2D, end: PlannerEnd, camera: MapCamera) {
+  const { x, y } = mapToScreen(end, camera)
+  const chosen = end.role === "start" || end.role === "destination"
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, END_RADIUS, 0, Math.PI * 2)
+  if (chosen) {
+    ctx.fillStyle = endColors[end.role as "start" | "destination"]
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = "#ffffff"
+    ctx.stroke()
+    ctx.fillStyle = "#ffffff"
+    ctx.font = "600 12px system-ui, sans-serif"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.fillText(end.role === "start" ? "A" : "B", x, y + 0.5)
+    ctx.font = "500 12px system-ui, sans-serif"
+    ctx.textAlign = "left"
+    // Put the name beside the marker on the side with room, and never past the canvas edge.
+    const width = ctx.measureText(end.label).width
+    const fitsRight = x + END_RADIUS + 6 + width <= camera.width - 4
+    const labelX = Math.max(4, Math.min(camera.width - width - 4, fitsRight ? x + END_RADIUS + 6 : x - END_RADIUS - 6 - width))
+    ctx.lineWidth = 3
+    ctx.strokeStyle = "rgba(15,23,42,.85)"
+    ctx.strokeText(end.label, labelX, y)
+    ctx.fillStyle = "#f8fafc"
+    ctx.fillText(end.label, labelX, y)
+  } else {
+    ctx.fillStyle = "rgba(15,23,42,.55)"
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 3])
+    ctx.strokeStyle = end.role === "available" ? "#7dd3fc" : "rgba(148,163,184,.55)"
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 export function drawPlannerOverlay(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, overlay: PlannerOverlay, camera: MapCamera, hoverId: string | null) {
   ctx.save()
   for (const id of overlay.closedLaneIds) {
@@ -148,5 +207,6 @@ export function drawPlannerOverlay(ctx: CanvasRenderingContext2D, geometry: Scen
     const outline = highlight.polygon.map(point => mapToScreen(point, camera))
     if (outline.length) strokeLine(ctx, [...outline, outline[0]], palette.outline, 1.6)
   }
+  for (const end of overlay.ends) drawEnd(ctx, end, camera)
   ctx.restore()
 }

@@ -57,6 +57,14 @@ def test_entries_use_demand_boundaries_and_class_access():
     assert car["network_binding"] == "current_network"
 
 
+def test_destinations_name_the_lanes_that_reach_them():
+    network = load_registered_network(SITE_B)
+    context = route_context(network_source(SITE_B), "car")
+    for destination in context["destinations"]:
+        assert destination["lane_ids"] == network.incoming[destination["id"]]
+        assert all(network.lanes[lane].target == destination["id"] for lane in destination["lane_ids"])
+
+
 def test_closed_entry_remains_selectable_and_reports_waiting():
     source, loader = scenario(arrangement("road4r", road4r="wait"))
     context = route_context(source, "car", load_scenario=loader)

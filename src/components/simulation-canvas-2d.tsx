@@ -9,10 +9,10 @@ import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
-import { drawPlannerOverlay, pickPlannerLane, plannerFitBounds, type PlannerFitRequest, type PlannerOverlay } from "@/simulation/route-planner-overlay"
+import { drawPlannerOverlay, pickPlannerEnd, pickPlannerLane, plannerFitBounds, type PlannerFitRequest, type PlannerOverlay } from "@/simulation/route-planner-overlay"
 
 type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number }) => void
-  staticMode?: boolean; plannerOverlay?: PlannerOverlay; onRoadDirectionSelect?: (laneId: string) => void; fitRequest?: PlannerFitRequest }
+  staticMode?: boolean; plannerOverlay?: PlannerOverlay; onRoadDirectionSelect?: (laneId: string) => void; onRoadEndSelect?: (endKey: string) => void; fitRequest?: PlannerFitRequest }
 type Theme = "light" | "dark"
 /** Flat city-illustration palettes. Scenery stays muted so traffic and signals carry the contrast. */
 const CITY = {
@@ -397,16 +397,16 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
 }
 
 export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, runKey = "", onPerformanceSample,
-  staticMode = false, plannerOverlay, onRoadDirectionSelect, fitRequest }: Props) {
+  staticMode = false, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }: Props) {
   const navigationHintId = React.useId()
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null), drawRef = React.useRef<() => void>(() => undefined)
   const controlsRef = React.useRef<(action: "in" | "out" | "reset") => void>(() => undefined)
   const tooltipRef = React.useRef<HTMLDivElement | null>(null), scaleRef = React.useRef<HTMLDivElement | null>(null), hintRef = React.useRef<HTMLSpanElement | null>(null)
-  const latestRef = React.useRef({ frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, fitRequest })
+  const latestRef = React.useRef({ frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest })
   React.useEffect(() => {
-    latestRef.current = { frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, fitRequest }
+    latestRef.current = { frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }
     drawRef.current()
-  }, [frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, fitRequest])
+  }, [frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest])
   React.useEffect(() => {
     const canvas = canvasRef.current, parent = canvas?.parentElement, context = canvas?.getContext("2d", { alpha: false })
     if (!canvas || !parent || !context) return
@@ -569,10 +569,13 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       const pointer = pointers.get(event.pointerId)
       if (!pointer) return
       if (allowPick && !pointer.moved && pointers.size === 1) {
-        const selection = pick(position(event))
-        if (latestRef.current.staticMode) {
-          if (selection?.kind === "lane") latestRef.current.onRoadDirectionSelect?.(selection.id)
-        } else latestRef.current.onSelect(selection)
+        const current = latestRef.current, clicked = position(event)
+        if (current.staticMode) {
+          const end = pickPlannerEnd(current.plannerOverlay?.ends ?? [], clicked, transform)
+          const selection = end ? null : pick(clicked)
+          if (end) current.onRoadEndSelect?.(end.key)
+          else if (selection?.kind === "lane") current.onRoadDirectionSelect?.(selection.id)
+        } else current.onSelect(pick(clicked))
       }
       pointers.delete(event.pointerId)
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
