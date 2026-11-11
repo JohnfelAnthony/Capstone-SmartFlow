@@ -2,7 +2,7 @@
 
 Version **0.3.0**, October 3, 2026. A separate local tool for **one stationary phone recording per take**. It registers a video, indexes decoded presentation timestamps, provides a local graphical workspace with video upload, counting lines, live detection previews, annotated playback, event review and provisional exports. It does not import SmartFlow's API, database, traffic engine or training runtime.
 
-**Current scope:** detector-assisted preparation with full manual review. The detector suggests people, bicycles, cars, motorcycles, buses and trucks; **it has no dedicated Tagum tricycle or jeepney class**. Correct those labels and add missed vehicles while watching the entire video. The GUI supports annotated playback and vehicle/pedestrian event corrections. Automatic signal recognition, Gate A/B audit evaluation and SmartFlow conversion remain future work. Exports remain provisional; `sample_audited_auto` is rejected. No actual field recording has been used to establish accuracy.
+**Current scope.** Manually review every proposed observation. The detector suggests six traffic and person categories. Reviewers identify local tricycles and jeepneys and add missed vehicles. GUI review includes vehicle exits, counting lines and queue samples. Exports remain provisional, and automatic acceptance is unavailable. For vehicle demand, import the reviewed bundle through Scenarios in SmartFlow. [Counts workflow](../../docs/RESEARCH_WORKSPACE.md#counts-from-field-observer)
 
 Use the [recording protocol](../../docs/FIELD_RECORDING_PROTOCOL.md), [complete tool plan](../../docs/VIDEO_OBSERVATION_TOOL_PLAN.md) and [integration plan](../../docs/FIELD_DATA_SMARTFLOW_INTEGRATION.md) for the research procedure and remaining work. A five-minute recording can be manually reviewed; it does not satisfy the proposed three disjoint two-minute automatic-audit windows.
 
@@ -29,6 +29,21 @@ The GUI stores source copies, per-take evidence, annotated derivatives and revis
 GUI counts are automatic **proposals**, grouped by line, event type and detected class. Arrival, discharge, crossing-start and crossing-completion counters represent different events and must not be summed into unique road users. Corrections and manually entered queue samples are retained separately and enter the provisional reviewed export. Signal changes still use the separate draft table described below. To include checked counting lines in a CLI export, provide `--analysis` with the completed analysis folder; older manual exports without it have no `lines.json`. There is no automatic tricycle model or completed independent accuracy audit.
 
 A developer can start the same interface with `.venv/Scripts/python.exe -m field_observer gui`. `--no-browser`, `--port` and `--data-dir` support isolated verification. The server binds to loopback only, runs one job at a time and uses a per-launch token for changes. No extra web-framework dependency or cloud account is required.
+
+## Manual lane-by-lane count (one approach per pass)
+
+For hand counting without the detector, open the **Manual count** tab (top of the GUI). The page has no sidebar: a slim bar on top loads the recording, the **raw** video (no boxes) plays on the left, and the site map, vehicle buttons, tallies and passes are on the right. It writes the same reviewed-revision format as the detector workflow, so SmartFlow's **Import counts from Field Observer** accepts the export unchanged.
+
+0. In the bar, choose the **study site** and the **raw video** file, then click **Load video** (or reopen a saved recording from the same bar). No name, recording type, survey/intersection ID or clock is asked for: the recording is registered as actual field footage, the survey ID comes from the file name (letters, digits, `_`, `-`), the intersection ID is the site (`tagum_site_a` / `tagum_site_b`), and the collection clock stays unknown (relative video time only).
+1. The study site (A or B) is the one chosen in the bar. Its approach names (`north`, `south`, `west`, `east`, the engine's own words) and street names are copied into `field_observer/manual_count.py`; the tool never imports SmartFlow. The map is a schematic four-leg junction, not the surveyed geometry. The site cannot change once a click exists.
+2. Click an approach on the **mini intersection** (or press `1`–`4`). One pass counts only vehicles coming **in** on that approach.
+3. Play the video (0.25×–2×) and click one button per vehicle. The grid is **5 vehicle types (Car, Motorcycle, Tricycle, Bus, Truck) × the three other legs**, so every click records both the type and the street the vehicle leaves by. A vehicle cannot leave by the leg it entered on, so U-turns have no button and are not recorded; jeepneys and pedicabs have none either (the team must decide how to count them: SmartFlow's importer maps jeepney to bus and pedicab to tricycle, pending that decision).
+4. Keyboard: the grid keys follow the button layout (`Q W E R T` / `A S D F G` / `Z X C V B` for the first, second and third exit row), `Space` play/pause, `Backspace` or `Ctrl+Z` undo the last click of the pass, `←`/`→` seek 2 s.
+5. Each click is stamped with **video time** (so pause, seeking and slow playback are fine) and saved at once to `manual_count/pass_<approach>.json` inside the recording's folder. Reload the page or restart the tool and the passes are exactly as left.
+6. A pass is **complete** only when the playback you actually watched covers the whole video (intervals are recorded while the video plays; a gap over 1 s breaks it) and you press **Mark complete**, confirming you counted every vehicle on that approach. No name is asked for: the revision format requires a reviewer, so every reviewer field in a manual-count export (events, coverage, `review_record.json`) reads the fixed label **manual count**; the export note is optional and defaults to a one-line description of the method. Incomplete passes are listed by approach and block the export; nothing is filled with zero.
+7. When all four passes are complete, **Export merged revision** writes the usual revision folder (`manifest.json` with `artifact_sha256`, `events.csv`, `coverage.csv`, `reviewed_bins.csv`, `lines.json`, quality and review records) under `revisions/` through `export_revision`, plus a ZIP. Each click becomes an accepted `vehicle_arrival` at `<approach>_arrival` and a matching `vehicle_discharge` at `<exit>_exit` sharing an `episode_id`; all rows have `review_method=manual_count`. The exit time equals the click time (the counter did not observe a crossing time), and `lines.json` marks its line geometry `nominal_not_drawn` with `counting_method: manual_click`. Bins use the tool's default 900 s grid, identical for every line.
+
+A recording that already has a detector review draft cannot take manual counts (and vice versa for new detector analysis), so the two workflows never double count one take. Tests: `tests/test_manual_count.py` here, and `tests/test_field_observer_manual_count.py` in SmartFlow, which builds a four-pass export with this tool's code and imports it for both study sites.
 
 ## Setup on another computer
 
@@ -138,7 +153,7 @@ Each successful export creates a new directory such as `revisions/r000001/`, con
 
 Count bins use only accepted/corrected events. They preserve class/subtype and keep event types separate. `count` is blank for incomplete coverage or unresolved events; `observed_count` retains the number of accepted events seen within that interval. A complete manually reviewed interval with no events may have zero. A 10-minute clip remains a 10-minute observation even when the requested bin size is 15 minutes; its final bin ends at the decoded recording end and is never scaled to an observed hour.
 
-All output is marked **provisional**. Independent Gate B field recount evidence is not captured yet, and Gate A automatic acceptance cannot be claimed. The package is also not a SmartFlow trip CSV: actual network mapping and demand-versus-discharge decisions are required before conversion. Raw recordings must be backed up separately; SmartFlow's existing backup does not automatically include them.
+Exports are **provisional**. Gate A automatic acceptance and Gate B independent field recount remain outside the current workflow. Use the reviewed bundle for vehicle counts and turns through Scenarios, and back up the original recordings separately. [Counts workflow](../../docs/RESEARCH_WORKSPACE.md#counts-from-field-observer)
 
 ## Detector-assisted workflow
 
@@ -174,5 +189,5 @@ Never edit the raw analysis artifacts to match corrections. Keep them beside the
 
 1. Test the first real roadside pilot; measure tricycle/pedestrian misses, occlusion and correction effort.
 2. Add independent audit records and Gate A/B enforcement before sampled automatic acceptance.
-3. Add the smallest site-appropriate SmartFlow conversion and necessary signal/capacity changes after the site/model decision.
-4. Extend the GUI for signal/queue editing or additional review aids if pilot use justifies them.
+3. For the study's two midday takes, prepare reviewed exports with mapped arrivals and exits and follow the current counts workflow. [Counts workflow](../../docs/RESEARCH_WORKSPACE.md#counts-from-field-observer)
+4. Use the saved queue samples as observation records. Automatic recognition of signal phases is outside the counts import.

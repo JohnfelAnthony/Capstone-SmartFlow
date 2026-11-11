@@ -3,7 +3,7 @@
 > **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
 
 
-Reviewed: **2026-10-23** (Asia/Singapore). Applies to the React/Python application inside `SmartFlow`; application verification remains dated separately in progress.
+Reviewed **2026-11-10** (Asia/Singapore). Applies to the React and Python application inside SmartFlow.
 
 Navigation: [Start here](../README.md) · [Architecture and plan](ARCHITECTURE_AND_PLAN.md) · [Progress and handoff](PROGRESS_AND_HANDOFF.md)
 
@@ -11,9 +11,9 @@ For current status and dated evidence, see [Progress and handoff](PROGRESS_AND_H
 
 **Planning context:** the owner reported approximately 35 days remaining in the September 22 discussion, giving a provisional deadline around October 27, 2026. This is the original planning anchor, not a new countdown or a confirmed submission date. The exact date and whether RL must control one junction, every junction independently, or coordinate the network remain unconfirmed in the repository. The current single-junction environment is an implementation fact, not proof of academic acceptance. The [technical-lead review](ARCHITECTURE_AND_PLAN.md) retains the original schedule and decision gates as history.
 
-**Current software and research distinction:** scenario editing, live runs, RL jobs, replay/reporting, research comparisons and interactive 2D views are implemented with dated synthetic verification. The offline [Field Observer](../tools/field_observer/README.md) provides provisional proposals and reviewed exports; [Calibration & Validation](RESEARCH_WORKSPACE.md) stores baseline-fit and independent-validation records. Neither tool establishes audited field accuracy or a validated baseline. Final site mapping, field audit/conversion, model fidelity and final comparative results remain research work.
+**Current scope.** SmartFlow supports scenario editing, live runs, selected-junction RL, replay, reports and comparisons using Canvas 2D. The two provisional Tagum study networks are Site A and Site B. Reviewed Field Observer exports supply vehicle counts and turns for scenario demand. The study uses one 16-minute midday recording per site and follows D38's scenario-based scope without calibration or independent validation. [Research method](RESEARCH_METHOD.md) · [Counts import](RESEARCH_WORKSPACE.md#counts-from-field-observer)
 
-**November 1 scope decision:** the delivered application uses Canvas 2D only. Historical 3D descriptions below record earlier milestones. Removing a presentation mode does not change simulation, calibration or validation requirements.
+**November 1 scope decision.** The delivered interface uses Canvas 2D. Earlier 3D milestones are documented in the progress log.
 
 ## Purpose
 
@@ -21,7 +21,7 @@ SmartFlow is a capstone project for studying traffic signal optimization and ada
 
 The revised Chapters 1 and 2 reviewed earlier use the title **“SMARTFLOW: A Simulation-Based Approach to Traffic Signal Optimization and Adaptive Routing Using Reinforcement Learning.”** The project owner has since directed the implementation away from SUMO. The owner also permits routing to use a separate algorithm rather than requiring reinforcement learning to choose every route.
 
-The intended contribution is a reproducible traffic experimentation and decision-support system with an understandable visual display. A moving 3D scene alone does not establish valid traffic behavior or an effective controller. The engine, input data, comparison method and documented assumptions are central to the capstone.
+The intended contribution is a reproducible way to compare traffic scenarios. The engine, demand inputs, comparison method and stated assumptions determine how to interpret the results.
 
 ## Research basis and dates
 
@@ -72,12 +72,12 @@ The native engine supports five vehicle categories: car, motorcycle, tricycle, b
 | Decision | Consequence |
 | --- | --- |
 | Replace SUMO with a custom Python traffic engine. | Live simulation, recordings and training should use the same native engine; do not reintroduce TraCI into the active path. |
-| Use the React web application as the primary interface. | Keep the browser responsible for interaction and rendering; run traffic logic on Python. A separate desktop application is not the current implementation direction. |
+| Use one React interface for browser and desktop operation. | React handles interaction and Canvas 2D rendering. FastAPI and Python own simulation. A Windows development installer is maintained on the desktop branch. |
 | Obtain road geometry from available map data, initially OpenStreetMap. | Automate import and retain bends/connectivity/source metadata; avoid manually drawing the whole study network. |
-| Begin with roughly four to six connected junctions. | The current supplied study network has five junctions. Larger coverage follows demonstrated correctness and measured performance. |
-| Begin with a minimal 3D scene, then add faithful presentation. | The October 10–12 implementation supplies shared native 2D/3D geometry, five vehicle appearances, inspection, follow and analytical overlays. Illustrative context supplies no field evidence; traffic remains authoritative in Python. |
+| Use two separate study networks. | Site A has 13 modeled junctions and Site B has 10. Each has one study junction where proposed signal controllers can be tested. |
+| Use Canvas 2D for the simulation. | The map displays authoritative engine frames for live runs and replay. Buildings and other scene decorations provide visual context. |
 | Separate adaptive routing from RL signal control. | A travel-time graph algorithm handles routes; RL chooses safe signal service requests. |
-| Prioritize traffic correctness and reproducible experiments. | Keep presentation separate from traffic behavior; subsequent visual work does not settle baseline fidelity, calibration or research conclusions. |
+| Prioritize traffic correctness and reproducible experiments. | Freeze experiment inputs and preserve the evidence for each comparison. |
 | Consolidate documentation, then resume the Python engine at the owner's request. | The September 23 `native-3` checkpoint passed 40 Python tests; research and application release gates remain. |
 | Preserve both codebases' history and both manuscripts before relocating SmartFlow. | Keep the self-contained chapter/history archive and source PDFs inside SmartFlow; preserve uncommitted work and ignored research artifacts separately. |
 
@@ -90,11 +90,11 @@ The current map pipeline derives a bounded cached network. A browser feature tha
 ## Current research boundaries
 
 - The initial study is a small connected network, not a complete Tagum city model.
-- The present lane model uses one modeled lane per permitted direction. Mixed vehicle lengths/speeds do not imply lane changing, overtaking or motorcycle filtering.
-- Junction occupancy is approach-scoped (since October 25, 2026): only vehicles from the approach with green share a junction, and turns are slower than through movements. Synthetic discharge is about 1,480 veh/h/lane straight through; field calibration of discharge headways is still required and must be stated in comparisons.
+- The mixed-traffic engine models side-by-side movement and motorcycle filtering within the road geometry. Vehicle mix and behavior parameters are provisional.
+- Junction behavior depends on the configured control mode and movement conflicts. The fixed-time and RL plans are proposed controls for the comparison.
 - Simulated pedestrians and ordinary vehicles follow traffic logic; the primary RL agent is the signal controller.
-- The current RL environment controls one selected junction. It does not establish coordinated multi-agent optimization across all five junctions.
-- Signal placement and timing in the supplied network are experimental assumptions. All-way-stop comparison is one modeled alternative, not a comprehensive model of local unsignalized driving behavior. Since the two-site study (October 31, 2026) the engine also models an unsignalized junction where vehicles enter by arrival order (`first_come`, run control `no-signal`). That is a hypothesis about the two study sites; since November 6, 2026 (D38) the study has no validation gate and does not calibrate or validate it, so it is not an established description of local driving.
+- QL, DQL and PPO control one selected junction per run. Other junctions follow their configured rules.
+- Model the unsignalized condition with first-come rules, then compare it with proposed fixed-time and RL control. First-come behavior and signal timing are scenario assumptions.
 - There is no current requirement for live CCTV/GPS/IoT ingestion or physical traffic-signal actuation.
 - A hosting direction has been chosen, but no provider, budget, public release or concurrent-user deployment has been verified.
 
@@ -102,10 +102,10 @@ The current map pipeline derives a bounded cached network. A browser feature tha
 
 Software completion requires consistent scenario configuration, safe and repeatable engine behavior, real policy inference when a run is labeled RL, persistent experiment provenance, trustworthy metrics, usable visualization and verified save/replay/compare/report workflows.
 
-Capstone validation additionally requires field data, calibrated assumptions, fair baseline comparisons, held-out evaluation, documented limitations and manuscript alignment. These are separate from passing software tests. The project must not claim a real-world traffic improvement percentage or optimal signal arrangement until experiments actually support it.
+Capstone evidence requires traceable demand inputs, matched comparisons, held-out evaluation, documented limitations and manuscript alignment. Report outcomes for the simulated conditions. The study does not establish field performance or an optimal real-world signal arrangement.
 
 ## Inputs still needed from the research team
 
-Record the final study boundary and junction selection; dated road/signal observations; vehicle and pedestrian counts by time and direction; turning proportions or OD estimates; and observed queue/travel-time samples. Record the source, collection method, units and any missing values.
+Confirm the modeled boundaries and legal movements. Preserve each recording, its collection period, coverage, reviewed counts and turns, and any gaps in the source evidence.
 
 The team also needs to settle the final evaluation protocol with its adviser/panel: baseline plans, training versus held-out periods/seeds, scenario durations, warmup, number of repetitions and report format. These research inputs are not blockers to documenting or validating basic engine behavior, but they are prerequisites for credible final conclusions.

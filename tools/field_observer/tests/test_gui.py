@@ -227,6 +227,15 @@ class GUITests(unittest.TestCase):
         self.assertIsNone(self.service.manifest)
         self.assertFalse(self.service.state()["counts"])
 
+    def test_refused_large_upload_returns_its_reason_instead_of_a_reset_connection(self):
+        # The browser said only "Failed to fetch" when the server refused a video before reading it.
+        request = Request(self.url + "/api/upload?" + urlencode(dict(name="clip.txt", site="tagum_site_a")), b"\0" * (32 * 1024 * 1024),
+                          {"X-Observer-Token": self.token, "Content-Type": "application/octet-stream"})
+        with self.assertRaises(HTTPError) as refused:
+            urlopen(request, timeout=60)
+        self.assertEqual(refused.exception.code, 400)
+        self.assertIn("Unsupported video filename extension", json.load(refused.exception)["error"])
+
     def test_cancel_preserves_interrupted_run_and_blocks_other_work(self):
         self.demo()
         self.post("/api/analyze", {"config": self.service.config, "confidence": .35})

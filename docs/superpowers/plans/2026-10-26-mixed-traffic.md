@@ -1,6 +1,6 @@
 # Mixed Traffic Engine Implementation Plan
 
-> **Current status, November 1:** The engine features below were implemented and released as `native-6`; the current engine is `native-7`. The original checkboxes are historical and are not a current completion tracker. The owner subsequently removed 3D and simplified the scenario editor, including its mix selector; backend mix presets and saved settings remain. The original synthetic acceptance is not acceptance of the two study sites: Site B still fails zero-overlap checks. See [current progress](../../PROGRESS_AND_HANDOFF.md). Field calibration was outside this implementation plan and remains outstanding.
+> **Historical mixed-traffic design.** This work first shipped in native-6. The original checklists, Site B findings and benchmark results describe that checkpoint. See [current contracts](../../../AGENTS.md) and [dated progress](../../PROGRESS_AND_HANDOFF.md).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

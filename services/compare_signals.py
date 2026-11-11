@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import re
 from functools import lru_cache
 from statistics import mean
 from pathlib import Path
@@ -72,12 +73,27 @@ def summarize_signals(frames, *, step: float, start: float, end: float, junction
             "unavailable_seconds": round(sum(s["end"] - s["start"] for s in segments if s["stage"] == "unknown"), 3)}
 
 
+_TOP_LEVEL_TIME = re.compile(r'^\{[^{\[]*?"time":\s*(-?[0-9][0-9.eE+-]*)\s*[,}]')
+_CONTROLS_KEY = re.compile(r'"junction_controls":\s*')
+_DECODER = json.JSONDecoder()
+
+
+def _signal_fields(line: str) -> dict:
+    """Parse only a frame's time and junction_controls; parsing every vehicle is most of the cost."""
+    time_match = _TOP_LEVEL_TIME.match(line)
+    controls_matches = list(_CONTROLS_KEY.finditer(line))
+    if time_match is None or len(controls_matches) != 1:
+        return json.loads(line)  # anything unusual: the full parse decides
+    controls, _ = _DECODER.raw_decode(line, controls_matches[0].end())
+    return {"time": float(time_match.group(1)), "junction_controls": controls}
+
+
 @lru_cache(maxsize=4)
 def _read_signals(path: str, mtime_ns: int, size: int, step: float, start: float, end: float, junction_id: str | None) -> dict:
     # Cache only small phase segments/statistics; vehicle frames are streamed then discarded.
     opener = gzip.open if path.endswith(".gz") else open
     with opener(path, "rt", encoding="utf-8") as stream:
-        return summarize_signals((json.loads(line) for line in stream if line.strip()),
+        return summarize_signals((_signal_fields(line) for line in stream if line.strip()),
                                  step=step, start=start, end=end, junction_id=junction_id)
 
 

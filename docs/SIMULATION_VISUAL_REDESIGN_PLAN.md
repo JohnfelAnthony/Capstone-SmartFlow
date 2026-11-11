@@ -1,5 +1,7 @@
 # SmartFlow: a clearer, more compelling simulation
 
+> **Historical visualization plan.** D31 removed the 3D view. The current application uses Canvas 2D. See [current scope](../README.md#current-scope).
+
 Date: 2026-10-10  
 Status: Implemented through slices A–F; verified evidence and remaining acceptance limits are in the [October 10 result](reviews/SIMULATION_VISUAL_REDESIGN_RESULT_2026-10-10.md).  
 Intended implementer: GPT-6.1 working in the independent SmartFlow repository.

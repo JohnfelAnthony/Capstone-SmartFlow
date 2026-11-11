@@ -19,7 +19,7 @@ Jump to the full manuscripts: [original chapters](#appendix-a-original-chapters-
 | --- | --- | --- |
 | Original Chapters 1–2 | Agent-based traffic simulation emphasizing autonomous vehicle/pedestrian behavior and RL signal optimization, using SUMO/TraCI. | Original proposal and historical requirements. |
 | Revised Chapters 1–2 | Data-based simulation, signal optimization/planning, adaptive routing, closures and event scenarios; the signal controller is the RL learning agent. Still specifies SUMO/TraCI and local use. | Current supplied manuscript, incorporating the owner's reported defense revisions. |
-| Later project decisions and current code | React/Three.js website with FastAPI and a custom Python engine; bounded connected OSM-derived road network; routing separate from RL signals; offline training. | Current implementation direction, which still needs to be reflected in the manuscript. |
+| Later project decisions and current code | React and Canvas 2D with FastAPI and a custom Python engine. Two bounded Tagum study networks. Routing is separate from selected-junction RL. | See the current [project overview](docs/PROJECT_OVERVIEW.md). |
 
 The revised manuscript did **not** remove SUMO. That was a subsequent owner decision. Likewise, a connected five-junction simulation does **not** mean RL currently coordinates all five junctions.
 

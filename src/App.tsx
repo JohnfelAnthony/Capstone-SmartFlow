@@ -20,6 +20,7 @@ const DashboardPage = React.lazy(() => import("@/components/dashboard-page").the
 const HelpAboutPage = React.lazy(() => import("@/components/help-about-page").then(module => ({ default: module.HelpAboutPage })))
 const RoleAccessControlPage = React.lazy(() => import("@/components/role-access-control-page").then(module => ({ default: module.RoleAccessControlPage })))
 const RLTrainingPage = React.lazy(() => import("@/components/rl-training-page").then(module => ({ default: module.RLTrainingPage })))
+const RoutePlannerPage = React.lazy(() => import("@/components/route-planner-page").then(module => ({ default: module.RoutePlannerPage })))
 const RunsReportsPage = React.lazy(() => import("@/components/runs-reports-page").then(module => ({ default: module.RunsReportsPage })))
 const ScenariosPage = React.lazy(() => import("@/components/scenarios-page").then(module => ({ default: module.ScenariosPage })))
 const SettingsPage = React.lazy(() => import("@/components/settings-page").then(module => ({ default: module.SettingsPage })))
@@ -27,9 +28,13 @@ import { SiteHeader, type DashboardView } from "@/components/site-header"
 const UserManagementPage = React.lazy(() => import("@/components/user-management-page").then(module => ({ default: module.UserManagementPage })))
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { canViewPage } from "@/lib/page-access"
+import type { RouteScenarioDraft } from "@/lib/route-scenario"
 
 export default function App() {
   const [activePage, setActivePage] = React.useState("Login")
+  // Closed roads handed from Route Planner to the New Scenario form; cleared once the form has taken them.
+  const [routeScenarioDraft, setRouteScenarioDraft] = React.useState<RouteScenarioDraft | null>(null)
   const [dashboardView, setDashboardView] = React.useState<DashboardView>("simulation")
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null)
   const [isSessionLoading, setIsSessionLoading] = React.useState(true)
@@ -154,8 +159,13 @@ export default function App() {
             <React.Suspense fallback={<p role="status" className="p-6">Loading page…</p>}>
             {activePage === "Scenarios" ? (
               <ScenariosPage onOpenDashboard={() => navigate("Dashboard")}
+                routePrefill={routeScenarioDraft} onRoutePrefillUsed={() => setRouteScenarioDraft(null)}
                 permissions={{ create: can("scenarios", "create"), edit: can("scenarios", "edit"),
                   run: can("simulation", "run") }} />
+            ) : activePage === "Route Planner" ? (
+              canViewPage(currentUser, "route-planner")
+                ? <RoutePlannerPage canCreateScenario={can("scenarios", "create")}
+                    onSaveAsScenario={draft => { setRouteScenarioDraft(draft); navigate("Scenarios") }} /> : <p role="alert" className="p-6">You do not have permission to view Route Planner.</p>
             ) : activePage === "Settings" ? (
               <SettingsPage user={currentUser!}
                 onPasswordChanged={() => { getCurrentUser().then(setCurrentUser).catch(() => undefined) }} />

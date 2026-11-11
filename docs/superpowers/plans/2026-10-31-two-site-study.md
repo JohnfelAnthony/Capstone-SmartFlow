@@ -1,5 +1,7 @@
 # SmartFlow Two-Site Study Implementation Plan
 
+> **Historical implementation plan.** D38 superseded the calibration, validation and study-gate tasks. Use the [current research method](../../RESEARCH_METHOD.md) for study scope and [progress](../../PROGRESS_AND_HANDOFF.md) for implementation evidence.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** SmartFlow can simulate the two confirmed Tagum intersections, which have no traffic light, as separate sites. On the same demand and seeds, it compares three conditions: today's informal "first come, first served" operation, a proposed traditional fixed-time signal, and a proposed RL signal.

@@ -7,9 +7,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import {
-  chooseResponse, describeRule, readClosures, recordedResponse, RESPONSE_HINTS, RESPONSE_LABELS, ruleProblem, settleResponses, sharedLaneIds, writeClosures,
+  chooseResponse, describeRule, readClosures, recordedResponse, RESPONSE_HINTS, RESPONSE_LABELS, settleResponses, sharedLaneIds, writeClosures,
   type ClosureRule, type LaneOption,
 } from "@/lib/closures"
 import { JunctionMiniMap } from "@/simulation/junction-details"
@@ -33,7 +32,7 @@ function DetourBadge({ report, laneId }: { report: ClosureReport | null; laneId:
     : <Badge variant="destructive" title={`${piece.trips_without_route} of ${piece.trips_using} trips that normally use this piece would have no route.`}>no detour</Badge>
 }
 
-/** Choose closed roads by clicking them on the real junction: a direction closes with one click and reopens with another. Each closed direction is described in words with its detour status, its times and how traffic should respond. */
+/** Choose closed roads by clicking them on the real junction: a direction closes with one click and reopens with another. Each closed direction is described in words with its detour status, any saved timing and how traffic should respond. */
 export function ClosurePicker({ options, config, onChange, onProblem, disabled = false }: {
   options: NativeScenarioOptions; config: NativeScenarioConfig; onChange: (config: NativeScenarioConfig) => void
   onProblem: (message: string | null) => void; disabled?: boolean
@@ -96,10 +95,6 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
     const withResponse = response ? { ...config, closure_responses: { ...(config.closure_responses ?? {}), [laneId]: response } } : config
     update({ ...rules, [laneId]: { start: 0, end: null } }, withResponse)
   }
-  const setTime = (laneId: string, key: keyof ClosureRule, text: string) => {
-    const value = text.trim() === "" ? (key === "end" ? null : 0) : Number(text)
-    update({ ...rules, [laneId]: { ...rules[laneId], [key]: value } as ClosureRule })
-  }
   const respond = (laneId: string, response: string) => onChange(chooseResponse(config, laneId, response))
 
   const junctions = geometry?.junctions ?? []
@@ -110,7 +105,7 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
 
   return <Field>
     <FieldLabel>Closed roads</FieldLabel>
-    <FieldDescription>Click a road on the junction to close it, and click it again to reopen it. Each direction is separate: click both to close the road both ways. Use the buttons to reach every junction.</FieldDescription>
+    <FieldDescription>Click a road on the junction to close it, and click it again to reopen it. Each direction is separate: click both to close the road both ways. Use the buttons to reach every junction. New closures apply for the whole run.</FieldDescription>
     {checkError && <Alert variant="destructive"><AlertDescription>{checkError}</AlertDescription></Alert>}
     {report && !report.valid && report.message && <Alert variant="destructive" role="alert"><AlertDescription>{report.message}</AlertDescription></Alert>}
     {drawingError && <Alert variant="destructive"><AlertDescription>The junction drawing could not be loaded: {drawingError}</AlertDescription></Alert>}
@@ -134,7 +129,6 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
         const rule = rules[laneId]
         const isLocked = locked.includes(laneId)
         const piece = report?.pieces[laneId]
-        const problem = rule ? ruleProblem(rule) : null
         const offered = piece?.responses ?? []
         const chosen = recordedResponse(config, laneId) ?? piece?.default_response ?? ""
         return <div key={laneId} className="rounded-lg border p-2.5 flex flex-col gap-2" data-testid={`closure-${laneId}`}>
@@ -150,19 +144,6 @@ export function ClosurePicker({ options, config, onChange, onProblem, disabled =
             : piece && !piece.has_detour && lane?.kind !== "entry"
             ? "No new vehicle enters it; those already on it finish. Drivers whose route used it have no other way, so they are sent to the nearest open exit."
             : MEANING[lane?.kind ?? "link"]}</p>
-          {rule ? <div className="grid max-w-sm grid-cols-2 gap-2">
-            <Field data-invalid={Boolean(problem)}>
-              <FieldLabel htmlFor={`start-${laneId}`}>Closes at (s)</FieldLabel>
-              <Input id={`start-${laneId}`} type="number" min={0} step={1} value={rule.start} disabled={disabled} aria-invalid={Boolean(problem)}
-                onChange={event => setTime(laneId, "start", event.target.value)} />
-            </Field>
-            <Field data-invalid={Boolean(problem)}>
-              <FieldLabel htmlFor={`end-${laneId}`}>Reopens at (s)</FieldLabel>
-              <Input id={`end-${laneId}`} type="number" min={0} step={1} value={rule.end ?? ""} placeholder="end of run" disabled={disabled} aria-invalid={Boolean(problem)}
-                onChange={event => setTime(laneId, "end", event.target.value)} />
-            </Field>
-            {problem ? <FieldDescription className="col-span-2 text-destructive">{problem}</FieldDescription> : null}
-          </div> : null}
           {offered.length ? <div className="flex flex-col gap-1">
             <NativeSelect label="How should traffic respond?" value={chosen} disabled={disabled}
               options={offered.map(value => ({ value, label: RESPONSE_LABELS[value] ?? value }))} onChange={value => respond(laneId, value)} />

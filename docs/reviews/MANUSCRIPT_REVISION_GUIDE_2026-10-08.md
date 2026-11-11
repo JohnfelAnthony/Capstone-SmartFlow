@@ -1,5 +1,7 @@
 # SmartFlow manuscript revision guide
 
+> **Historical manuscript review.** Use the [current research method](../RESEARCH_METHOD.md) for the current architecture and study wording.
+
 > **Scope update — October 24, 2026:** Emergency vehicles, emergency priority, emergency metrics and emergency RL features are excluded from SmartFlow by the owner’s decision. Any earlier descriptions below are historical and do not define current functionality. Current simulation classes are car, motorcycle, tricycle, bus and truck. Original manuscripts and research artifacts are preserved. See the October 24 scope decision in the architecture document.
 
 

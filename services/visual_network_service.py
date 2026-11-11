@@ -5,7 +5,7 @@ from services.native_scenario_service import network_display_labels
 
 
 def load_client_visual_network(network_id: str | None = None) -> dict:
-    return _visual_payload(load_registered_network(network_id))
+    return visual_payload(load_registered_network(network_id))
 
 
 def load_recorded_visual_network(network_id: str | None, fingerprint: str | None, embedded: dict | None) -> dict:
@@ -17,10 +17,10 @@ def load_recorded_visual_network(network_id: str | None, fingerprint: str | None
             raise ValueError("Embedded network does not match the recording fingerprint")
     else:
         network = load_registered_network_revision(network_id, fingerprint)
-    return _visual_payload(network)
+    return visual_payload(network)
 
 
-def _visual_payload(network: RoadNetwork) -> dict:
+def visual_payload(network: RoadNetwork) -> dict:
     visual = network.visual()
     _, node_labels = network_display_labels(network)
     visual["junctions"] = [{**junction, "label": node_labels[junction["id"]]}

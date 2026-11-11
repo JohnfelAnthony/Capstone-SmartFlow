@@ -248,7 +248,10 @@ class SimulationRuntime:
                     workload_admission.check_replay_allowed()
                 except WorkloadConflict as exc:
                     raise SimulationRuntimeError(str(exc)) from exc
-            self._get_engine().resume()
+            engine = self._get_engine()
+            engine.resume()
+            if self._run_mode == "playback" and engine.status == "running":
+                self._start_background_runner_locked()
             if self._active_run_id is not None:
                 database.update_run(self._active_run_id, status="running")
             return self._response()

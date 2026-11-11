@@ -20,7 +20,7 @@ In **RL Training → Import model**, choose a QL `.json` or select the DQL/PPO `
 
 ## Site A starter comparison
 
-The next desktop build is configured to add the 455-episode QL model, the 325-episode DQL model, and their comparison library once per database on first startup. Open **Runs & Reports** or **Compare Runs** and look for **Site A starter comparison**. The 300-second replays use seed 101 and a 120-second warm-up. Fixed-time and DQL are the original web recordings #230 and #231. QL was recorded separately against the same inputs. These are synthetic simulations.
+The desktop installer includes the 455-episode QL model, the 325-episode DQL model, and their comparison library. SmartFlow adds them once per database on startup. Open **Runs & Reports** or **Compare Runs** and look for **Site A starter comparison**. The 300-second replays use seed 101 and a 120-second warm-up. Fixed-time and DQL are the original web recordings #230 and #231. QL was recorded separately against the same inputs. These are synthetic simulations.
 
 For the next build, keep the prepared `tmp/desktop-starter-content` directory available in this worktree. It contains only the selected models, recordings and their catalog, and is kept outside Git. To regenerate it from the original web data and the isolated QL recording, use a new empty output location:
 

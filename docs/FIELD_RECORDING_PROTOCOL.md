@@ -1,5 +1,7 @@
 # 1. Field recording and observation protocol
 
+> **Historical survey design.** The current study uses one 16-minute midday take per site for vehicle counts and turns. Use the collection and coverage guidance where relevant and follow the [current research method](RESEARCH_METHOD.md) for study scope.
+
 Prepared: **2026-10-02**. Status: **agreed project direction and proposed survey procedure; no field observations or accuracy results have been produced**.
 
 Updated: **2026-10-03** following the capstone review: manual pilot first, per-measurement coverage decisions and separate automatic-acceptance versus corrected-data checks.
