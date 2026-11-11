@@ -20,10 +20,17 @@ from .core import (CLASSES, COMMON, PRIORITY_PAIR_COLUMNS, TABLES, TRICYCLE_SUBT
 from .demo import DemoDetector, create_demo
 from .detector import TrafficDetector
 from .lines import validate_config
+from . import manual_count
 from .media import display_frames
 from .preview import PreviewWriter, annotate, jpeg_bytes
 
 BUSY = {"uploading", "indexing", "loading", "analyzing", "stopping", "exporting"}
+
+
+def zip_revision(revision: Path) -> None:
+    with zipfile.ZipFile(revision.parent / (revision.name + ".zip"), "w", zipfile.ZIP_DEFLATED) as archive:
+        for item in revision.iterdir():
+            archive.write(item, item.name)
 
 
 class ObserverGUI:
@@ -362,6 +369,57 @@ class ObserverGUI:
             write_csv(path, PRIORITY_PAIR_COLUMNS, [*existing, row])
             self.update(message="Priority pair saved as a manual observation.")
 
+    def manual_state(self):
+        with self.lock:
+            sites = [{"id": key, "label": value["label"]} for key, value in manual_count.SITES.items()]
+            if self.manifest is None:
+                return {"sites": sites, "site_id": None, "recording": False}
+            directory, site = self.project / "manual_count", manual_count.load_site(self.project / "manual_count")
+            result = {"sites": sites, "site_id": site, "recording": True}
+            if site:
+                result.update(manual_count.summary(directory, site, self.manifest["media"]["decoded_duration_s"]))
+            return result
+
+    def manual(self, action, data):
+        """One autosaved change to the manual-count passes; the reply is the new state."""
+        with self.lock:
+            self.idle()
+            require(self.manifest is not None, "Choose a recording first.")
+            directory, duration = self.project / "manual_count", self.manifest["media"]["decoded_duration_s"]
+            if action == "site":
+                manual_count.set_site(directory, data.get("site"))
+            else:
+                site = manual_count.load_site(directory)
+                require(site is not None, "Choose the study site first.")
+                approach = data.get("approach")
+                require(approach in manual_count.SITES[site]["approaches"], "Choose the approach being counted.")
+                if action == "click":
+                    manual_count.add_click(directory, site, duration, data)
+                elif action == "undo":
+                    manual_count.undo_click(directory, approach)
+                elif action == "watched":
+                    manual_count.add_watched(directory, approach, duration, data.get("start"), data.get("end"))
+                elif action == "complete":
+                    manual_count.set_complete(directory, approach, duration, data.get("complete") is True, data.get("reviewer", ""))
+                else:
+                    raise ValueError("Unknown action.")
+        return self.manual_state()
+
+    def manual_export(self, data):
+        with self.lock:
+            self.idle()
+            require(self.manifest is not None, "Choose a recording first.")
+            previous = self.status
+            self.update(status="exporting", message="Checking the four passes and saving a provisional revision...")
+        def job():
+            try:
+                revision = manual_count.export_manual(self.take, self.project / "manual_count", data.get("reviewer", ""), data.get("note", ""))
+                zip_revision(revision)
+                self.update(revision=revision, status=previous, message="Manual-count revision saved. Download the ZIP below.")
+            except (ValueError, OSError) as exc:
+                self.update(status=previous, message=f"Export needs attention: {exc}")
+        self.background(job)
+
 
 class GUIHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
@@ -440,6 +498,8 @@ def make_server(root: Path, port=0):
                     self.json_response(service.saved())
                 elif route == "/api/events":
                     self.json_response(service.events())
+                elif route == "/api/manual":
+                    self.json_response(service.manual_state())
                 elif route == "/api/image":
                     with service.lock:
                         data = service.image
@@ -468,6 +528,7 @@ def make_server(root: Path, port=0):
                 self.json_response({"error": str(exc)}, 400)
 
         def do_POST(self):
+            reply = None
             try:
                 self.local_request()
                 require(secrets.compare_digest(self.headers.get("X-Observer-Token", ""), token), "Refresh the app before making changes.")
@@ -529,6 +590,10 @@ def make_server(root: Path, port=0):
                         service.queue_sample(data)
                     elif route.path == "/api/priority_pair":
                         service.priority_pair(data)
+                    elif route.path == "/api/manual/export":
+                        service.manual_export(data)
+                    elif route.path.startswith("/api/manual/"):
+                        reply = service.manual(route.path.rsplit("/", 1)[1], data)
                     elif route.path == "/api/export":
                         with service.lock:
                             service.idle()
@@ -542,16 +607,14 @@ def make_server(root: Path, port=0):
                                         "The analysis counting lines have changed; preserve the original evidence.")
                                 revision = export_revision(service.take, data.get("reviewer", ""), data.get("note", ""),
                                                            lines=read_json(lines_path))
-                                with zipfile.ZipFile(revision.parent / (revision.name + ".zip"), "w", zipfile.ZIP_DEFLATED) as archive:
-                                    for item in revision.iterdir():
-                                        archive.write(item, item.name)
+                                zip_revision(revision)
                                 service.update(revision=revision, status="complete", message="Provisional revision saved. Download the ZIP below.")
                             except (ValueError, OSError) as exc:
                                 service.update(status="complete", message=f"Export needs attention: {exc}")
                         service.background(export_job)
                     else:
                         raise ValueError("Unknown action.")
-                self.json_response({"ok": True})
+                self.json_response({"ok": True, "manual": reply})
             except ConnectionError:
                 pass
             except (ValueError, OSError, KeyError, TypeError) as exc:
