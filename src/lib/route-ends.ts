@@ -31,8 +31,10 @@ export function buildRouteEnds(context: Pick<RouteContext, "entries" | "destinat
   const shapes = new Map(context.geometry.roads.flatMap(road => road.lanes.map(lane => [lane.id, lane.shape] as const)))
   const roadLabels = new Map(context.roads.map(road => [road.lane_id, road.label]))
   const ends: Array<Omit<RouteEnd, "key"> & { count: number }> = []
-  const add = (kind: "entry" | "destination", boundary: { id: string; label: string; lane_ids: string[] }) => {
-    const shape = shapes.get(boundary.lane_ids[0])
+  // lane_ids is optional here: an API process started before destinations named their lanes omits it.
+  const add = (kind: "entry" | "destination", boundary: { id: string; label: string; lane_ids?: string[] }) => {
+    const laneId = boundary.lane_ids?.[0]
+    const shape = laneId === undefined ? undefined : shapes.get(laneId)
     const point = kind === "entry" ? shape?.[0] : shape?.at(-1)
     if (!point) return
     const idKey = kind === "entry" ? "entryId" : "destinationId"
@@ -44,12 +46,18 @@ export function buildRouteEnds(context: Pick<RouteContext, "entries" | "destinat
       end.count += 1
       return
     }
-    ends.push({ label: endName(roadLabels.get(boundary.lane_ids[0]), boundary.label), x: point.x, y: point.y, count: 1,
+    ends.push({ label: endName(roadLabels.get(laneId!), boundary.label), x: point.x, y: point.y, count: 1,
       entryId: kind === "entry" ? boundary.id : null, destinationId: kind === "destination" ? boundary.id : null })
   }
   context.entries.forEach(entry => add("entry", entry))
   context.destinations.forEach(destination => add("destination", destination))
   return ends.map(({ label, x, y, entryId, destinationId }) => ({ key: `${entryId ?? ""}|${destinationId ?? ""}`, label, x, y, entryId, destinationId }))
+}
+
+/** False when some entry or destination could not be placed, which means the server's data is out of date. */
+export function routeEndsComplete(context: Pick<RouteContext, "entries" | "destinations">, ends: readonly RouteEnd[]) {
+  return context.entries.every(entry => ends.some(end => end.entryId === entry.id))
+    && context.destinations.every(destination => ends.some(end => end.destinationId === destination.id))
 }
 
 export function routeLengthMeters(path: RoutePath | null) {

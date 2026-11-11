@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { RouteContext, RoutePath, RoutePreview } from "@/api/routes"
 import type { VisualNetwork } from "@/api/visual-network"
-import { buildRouteEnds, describeRoad, describeRoute, endAction, endRoles, formatDistance, passesStudyJunction, routeLengthMeters, routeStatus } from "./route-ends"
+import { buildRouteEnds, describeRoad, routeEndsComplete, describeRoute, endAction, endRoles, formatDistance, passesStudyJunction, routeLengthMeters, routeStatus } from "./route-ends"
 
 const lane = (id: string, shape: Array<[number, number]>) => ({ id, shape: shape.map(([x, y]) => ({ x, y })) })
 const geometry = {
@@ -63,6 +63,28 @@ describe("road ends", () => {
   it("falls back to the boundary label when a road label has no place", () => {
     const plain = { ...context, roads: [] } as unknown as RouteContext
     expect(buildRouteEnds(plain).find(end => end.entryId === "b_w")!.label).toBe("Dao Street (Boundary 1)")
+  })
+})
+
+describe("a server that is out of date", () => {
+  // Before the "destinations name their lanes" change, the API sent destinations with no lane_ids.
+  const stale = {
+    ...context,
+    destinations: context.destinations.map(({ id, label }) => ({ id, label })),
+  } as unknown as RouteContext
+
+  it("does not throw and skips the ends it cannot place", () => {
+    const ends = buildRouteEnds(stale)
+    expect(ends.map(end => end.entryId)).toEqual(["b_w", "b_hn_in"])
+    expect(ends.every(end => end.destinationId === null)).toBe(true)
+  })
+
+  it("reports that the ends are incomplete so the page can ask for a restart", () => {
+    expect(routeEndsComplete(stale, buildRouteEnds(stale))).toBe(false)
+    expect(routeEndsComplete(context, buildRouteEnds(context))).toBe(true)
+    const noPlacedEnds = routeEndsComplete(stale, [])
+    expect(noPlacedEnds).toBe(false)
+    expect(routeEndsComplete({ entries: [], destinations: [] }, [])).toBe(true)
   })
 })
 
