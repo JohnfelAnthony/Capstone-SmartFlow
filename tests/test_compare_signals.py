@@ -28,3 +28,21 @@ def test_unsignalized_junction_never_claims_green_duration():
     result = summarize_signals([frame(0, "NORTH_GREEN", mode="first_come"), frame(1, "NORTH_GREEN", mode="first_come")], step=1, start=0, end=1)
     assert result["phases"] == []
     assert result["segments"][0]["stage"] == "unsignalized"
+
+
+def test_reading_only_time_and_signal_state_gives_the_full_frame_answer():
+    import json
+    from services.compare_signals import _signal_fields
+
+    frames = [
+        {"engine_version": "native-14", "time": 0.1, "visible_time": 0.0, "vehicles": [{"id": "car-1", "time": 99, "junction_controls": "no"}],
+         "junction_controls": {"j": {"mode": "signalized", "phase": "N", "stage": "green", "nested": {"a": [1, {"b": 2}]}}}},
+        {"time": 1e-05, "junction_controls": None},
+        {"time": 2.5, "vehicles": []},
+        {"note": "{braces before time}", "time": 3.0, "junction_controls": {}},
+    ]
+    for frame in frames:
+        line = json.dumps(frame)
+        fields = _signal_fields(line)
+        assert fields.get("time") == frame.get("time")
+        assert fields.get("junction_controls") == frame.get("junction_controls")
