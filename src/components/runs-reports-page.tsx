@@ -481,20 +481,22 @@ export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
             <CardDescription>{actionTarget}</CardDescription>
           </CardHeader>
           <CardContent className="runs-action-stack">
-            <div className="grid grid-cols-2 gap-2">
-              <Button disabled={!selectedIds.length} onClick={() => void exportSelected("csv")}>
+            <div className="runs-export-options">
+              <Button variant="outline" className="runs-export-option" disabled={!selectedIds.length} onClick={() => void exportSelected("csv")}>
                 <FileSpreadsheetIcon data-icon="inline-start" />
-                CSV
+                <span>CSV <small>Spreadsheet</small></span>
               </Button>
-              <Button variant="outline" disabled={!selectedIds.length} onClick={() => void exportSelected("json")}>
+              <Button variant="outline" className="runs-export-option" disabled={!selectedIds.length} onClick={() => void exportSelected("json")}>
                 <FileJsonIcon data-icon="inline-start" />
-                JSON
+                <span>JSON <small>Structured data</small></span>
               </Button>
             </div>
-            <Button variant="destructive" disabled={!selectedIds.length} onClick={() => setPendingDelete([...selectedIds])}>
-              <Trash2Icon data-icon="inline-start" />
-              Delete {selectedIds.length === 1 ? `run #${selectedIds[0]}` : `${selectedIds.length} runs`}
-            </Button>
+            <div className="runs-delete-action">
+              <Button className="w-full" size="lg" variant="destructive" disabled={!selectedIds.length} onClick={() => setPendingDelete([...selectedIds])}>
+                <Trash2Icon data-icon="inline-start" />
+                Delete {selectedIds.length === 1 ? `run #${selectedIds[0]}` : `${selectedIds.length} runs`}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

@@ -7,6 +7,7 @@ import {
   ListOrderedIcon,
   RotateCcwIcon,
   SearchIcon,
+  ServerIcon,
   SlidersHorizontalIcon,
   TriangleAlertIcon,
   UserRoundIcon,
@@ -318,23 +319,28 @@ export function AuditLogsPage() {
               <Badge variant="outline">Read Only</Badge>
             </CardAction>
           </CardHeader>
-          <CardContent>
+          <CardContent className="audit-inspector-content">
             {selectedLog ? (
               <div className="audit-inspector">
-                <Badge variant={actionTone(selectedLog.action) === "danger" ? "destructive" : "secondary"} className={cn("audit-action-badge", actionTone(selectedLog.action))}>
-                  {selectedLog.action}
-                </Badge>
+                <div className="audit-inspector-event">
+                  <Badge variant={actionTone(selectedLog.action) === "danger" ? "destructive" : "secondary"} className={cn("audit-action-badge", actionTone(selectedLog.action))}>
+                    {selectedLog.action}
+                  </Badge>
+                  <span>Event #{selectedLog.id}</span>
+                </div>
                 <strong>{selectedLog.target}</strong>
                 <span>{formatTimestamp(selectedLog.timestamp)}</span>
-                <p>{selectedLog.details}</p>
-                <div>
-                  <small>User</small>
-                  <span>{selectedLog.username ?? "System"}</span>
-                </div>
-                <div>
-                  <small>Source</small>
-                  <span>{selectedLog.ipAddress}</span>
-                </div>
+                {selectedLog.details && <p>{selectedLog.details}</p>}
+                <dl className="audit-inspector-meta">
+                  <div>
+                    <dt><UserRoundIcon aria-hidden="true" /> User</dt>
+                    <dd>{selectedLog.username ?? "System"}</dd>
+                  </div>
+                  <div>
+                    <dt><ServerIcon aria-hidden="true" /> Source</dt>
+                    <dd>{selectedLog.ipAddress}</dd>
+                  </div>
+                </dl>
               </div>
             ) : (
               <div className="audit-empty-mini">No event selected.</div>

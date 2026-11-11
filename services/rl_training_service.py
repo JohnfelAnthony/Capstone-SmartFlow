@@ -330,6 +330,22 @@ def training_status(job_id: int | None = None) -> dict:
             "active_job_id": _active_job_id}
 
 
+def evaluation_report_path(job_id: int) -> Path | None:
+    job = database.get_rl_training_job(job_id)
+    if not job or job["status"] != "completed" or not job.get("log_path"):
+        return None
+    job_dir = Path(job["log_path"]).resolve().parent
+    if job_dir.parent != _job_root().resolve():
+        return None
+    report = job_dir / "evaluation.json"
+    if report.is_symlink() or not report.is_file():
+        return None
+    items = database.get_rl_training_job_items(job_id)
+    if not any(item.get("evaluation_path") and Path(item["evaluation_path"]).resolve() == report for item in items):
+        return None
+    return report
+
+
 def read_log_tail(log_path: str | None, *, limit: int = 160) -> list[dict]:
     if not log_path or not Path(log_path).is_file():
         return []

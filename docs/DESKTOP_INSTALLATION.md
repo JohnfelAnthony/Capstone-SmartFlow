@@ -40,7 +40,6 @@ Backup & Restore (administrator): create and download a backup ZIP regularly and
 Close SmartFlow (setup refuses to run while it is open), then run the newer setup over the old one. Data and password are kept. Before every start the app saves a database snapshot (newest 10 kept). A database from a newer SmartFlow is refused rather than opened.
 
 Version 0.2.0-dev moves unedited 0.1.x study networks to the current Site A and Site B revisions and keeps their old geometry in the network history. Custom or restored network selections are kept. Check the active network before running an older scenario or model. Compare Runs can continue to use compatible recordings tied to preserved geometry.
-
 The Windows package uses the same reviewed-count import in Scenarios as the web app. Run Field Observer separately to create its five input files.
 
 ## If startup fails after an update

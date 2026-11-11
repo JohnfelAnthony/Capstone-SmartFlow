@@ -908,6 +908,15 @@ def get_rl_training_status(
     return rl_training_status_response(rl_training_service.training_status(job_id))
 
 
+@app.get("/api/rl/jobs/{job_id}/evaluation")
+def get_rl_evaluation_report(job_id: int, user: dict = Depends(require_current_user)) -> FileResponse:
+    require_permission(user, "rl-training", "view")
+    path = rl_training_service.evaluation_report_path(job_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Evaluation results are unavailable for this job.")
+    return FileResponse(path, media_type="application/json", headers={"Cache-Control": "no-store"})
+
+
 @app.post("/api/rl/jobs", response_model=RLJobActionResponse)
 def start_rl_training_job(
     payload: RLTrainingStartRequest,

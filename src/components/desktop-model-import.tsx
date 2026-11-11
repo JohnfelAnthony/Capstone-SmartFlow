@@ -1,12 +1,13 @@
 import * as React from "react"
 import { toast } from "sonner"
+import { UploadIcon } from "lucide-react"
 
 import { apiRequest } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -22,9 +23,11 @@ export function DesktopModelImport({ onImported }: { onImported: () => void }) {
   const [trusted, setTrusted] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState("")
+  const [open, setOpen] = React.useState(false)
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
+    if (!trusted || busy) return
     setError("")
     setBusy(true)
     try {
@@ -52,6 +55,7 @@ export function DesktopModelImport({ onImported }: { onImported: () => void }) {
       toast.success(`${result.algorithm.toUpperCase()} model ${result.already_imported ? "already in your library" : "imported"}`)
       if (input.current) input.current.value = ""
       setTrusted(false)
+      setOpen(false)
       onImported()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not import the model.")
@@ -60,13 +64,23 @@ export function DesktopModelImport({ onImported }: { onImported: () => void }) {
     }
   }
 
-  return <Card>
-    <CardHeader>
-      <CardTitle>Import model</CardTitle>
-      <CardDescription>Choose a SmartFlow QL JSON, or select a DQL/PPO ZIP and its matching .metadata.json together. SmartFlow detects the algorithm.</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <form onSubmit={(event) => void submit(event)}>
+  return <Sheet open={open} onOpenChange={(next) => {
+    if (busy) return
+    setOpen(next)
+    if (!next) {
+      setTrusted(false)
+      setError("")
+    }
+  }}>
+    <SheetTrigger render={<Button variant="outline" size="sm" />}>
+      <UploadIcon data-icon="inline-start" /> Import model
+    </SheetTrigger>
+    <SheetContent className="overflow-y-auto">
+      <SheetHeader className="pr-12">
+        <SheetTitle>Import model</SheetTitle>
+        <SheetDescription>Choose a SmartFlow QL JSON, or select a DQL/PPO ZIP and its matching .metadata.json together.</SheetDescription>
+      </SheetHeader>
+      <form className="px-4 pb-4" onSubmit={(event) => void submit(event)}>
         <FieldGroup>
           <Field data-invalid={Boolean(error)}>
             <FieldLabel htmlFor="desktop-model-files">Model files</FieldLabel>
@@ -81,6 +95,6 @@ export function DesktopModelImport({ onImported }: { onImported: () => void }) {
           <Button className="self-start" type="submit" disabled={!trusted || busy}>{busy ? "Importing…" : "Import model"}</Button>
         </FieldGroup>
       </form>
-    </CardContent>
-  </Card>
+    </SheetContent>
+  </Sheet>
 }
