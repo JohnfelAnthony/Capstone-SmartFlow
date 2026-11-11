@@ -36,6 +36,7 @@ import { effectiveWarmupSeconds, getNativeScenarioOptions, importMovementCounts,
 import { ClosurePicker } from "@/components/closure-picker"
 import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { closureLines, closureProblem, readClosures } from "@/lib/closures"
+import { closuresIntoConfig, type RouteScenarioDraft } from "@/lib/route-scenario"
 import { FieldCountsImport } from "@/components/field-counts-import"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -260,8 +261,10 @@ function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
   )
 }
 
-export function ScenariosPage({ onOpenDashboard, permissions }: {
+export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = null, onRoutePrefillUsed }: {
   onOpenDashboard?: () => void; permissions: ScenarioPermissions
+  /** Closed roads from Route Planner: opens New Scenario with them already in place. */
+  routePrefill?: RouteScenarioDraft | null; onRoutePrefillUsed?: () => void
 }) {
   const [scenarios, setScenarios] = React.useState<ScenarioRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -289,6 +292,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
   const [formError, setFormError] = React.useState("")
   const [serverClosureProblem, setServerClosureProblem] = React.useState<string | null>(null)
   const [importNotice, setImportNotice] = React.useState("")
+  const [routeNotice, setRouteNotice] = React.useState("")
   const [isImporting, setIsImporting] = React.useState(false)
   const [isResolving, setIsResolving] = React.useState(false)
   const [editConfigReady, setEditConfigReady] = React.useState(true)
@@ -373,6 +377,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     setFormMode("create")
     setEditingScenarioId(null)
     setImportNotice("")
+    setRouteNotice("")
     setDraft(emptyScenarioDraft)
     if (networks[0]) void changeNetwork(networks[0].id, "")
   }
@@ -382,6 +387,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
     const request = ++editRequest.current
     setSelectedId(null)
     setFormMode("edit")
+    setRouteNotice("")
     setEditingScenarioId(scenario.id)
     setDraft(draftFromScenario(scenario))
     setFormError("")
@@ -407,6 +413,49 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
       if (request === editRequest.current) setIsResolving(false)
     }
   }
+
+  // Same form and same save path as any new scenario; only the starting values come from Route Planner.
+  async function openFromRoutePlanner(prefill: RouteScenarioDraft) {
+    const request = ++editRequest.current
+    setSelectedId(null)
+    setFormMode("create")
+    setEditingScenarioId(null)
+    setDraft(emptyScenarioDraft)
+    setFormError("")
+    setServerClosureProblem(null)
+    setImportNotice("")
+    setRouteNotice("")
+    setEditConfigReady(false)
+    setIsResolving(true)
+    try {
+      const [options, base] = await Promise.all([
+        getNativeScenarioOptions(prefill.networkId),
+        prefill.baseScenarioId === null ? Promise.resolve(null) : resolveNativeScenario(prefill.baseScenarioId),
+      ])
+      if (request !== editRequest.current) return
+      const settings = base ? base.engine_config : structuredClone(options.defaults)
+      setNativeOptions(options)
+      setDraft({
+        ...emptyScenarioDraft, intersectionId: options.network_id,
+        engineConfig: closuresIntoConfig(settings, prefill),
+        trafficDensity: base ? normalizeDensity(String(settings.traffic_density)) : "Medium",  // as in changeNetwork: the engine's own default is not offered for a new scenario
+        pedestrianDensity: String(settings.pedestrian_density),
+      })
+      setRouteNotice(`${prefill.baseScenarioName ? `Started from a copy of "${prefill.baseScenarioName}"` : "Started from the site's default settings"}, with the roads closed in Route Planner. Closures apply for the whole run${prefill.baseScenarioName ? ", and they replace any closures that scenario had, including timed ones" : ""}. Name the scenario and set the rest below.`)
+      setEditConfigReady(true)
+    } catch (error) {
+      if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load that scenario.")
+    } finally {
+      if (request === editRequest.current) setIsResolving(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (!routePrefill || !permissions.create) return
+    onRoutePrefillUsed?.()
+    queueMicrotask(() => void openFromRoutePlanner(routePrefill))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per hand-off; the opener only uses its argument and stable setters
+  }, [routePrefill])
 
   async function changeNetwork(networkId: string, currentNetworkId = draft.intersectionId) {
     if (networkId === currentNetworkId) return
@@ -767,6 +816,7 @@ export function ScenariosPage({ onOpenDashboard, permissions }: {
           <div className="scenario-sheet-scroll">
             <FieldGroup className="px-4 pb-4">
               {formError && <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert>}
+              {routeNotice && <p role="status" className="text-sm">{routeNotice}</p>}
               {!editConfigReady && !isResolving && !requiresLegacyMapping && nativeOptions && <Button variant="outline" onClick={() => {
                 setDraft((current) => ({ ...current, intersectionId: nativeOptions.network_id,
                   engineConfig: structuredClone(nativeOptions.defaults) }))
