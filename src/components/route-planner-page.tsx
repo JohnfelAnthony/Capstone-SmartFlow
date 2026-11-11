@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { activeClosures, useRoutePlanner } from "@/lib/route-planner"
+import { routeScenarioDraft, type RouteScenarioDraft } from "@/lib/route-scenario"
 import { buildRouteEnds, describeRoad, describeRoute, endAction, endRoles, formatDistance, routeEndsComplete, routeLengthMeters, routeStatus, type EndStep } from "@/lib/route-ends"
 import type { PlannerFitRequest, PlannerOverlay } from "@/simulation/route-planner-overlay"
 import "@/styles/admin-user-management.css"
@@ -22,7 +23,11 @@ const vehicles: Array<{ value: RouteVehicleClass; label: string; Icon: typeof Ca
   { value: "truck", label: "Truck", Icon: TruckIcon },
 ]
 
-export function RoutePlannerPage() {
+export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }: {
+  /** Needs the same permission as the New Scenario form. */
+  canCreateScenario?: boolean
+  onSaveAsScenario?: (draft: RouteScenarioDraft) => void
+}) {
   const { state, dispatch } = useRoutePlanner()
   const [sources, setSources] = useState<{ networks: NetworkSummary[]; scenarios: ApiScenario[] } | null>(null)
   const [sourceError, setSourceError] = useState("")
@@ -107,6 +112,8 @@ export function RoutePlannerPage() {
   const siteId = source?.kind === "network" ? source.network_id : sources?.scenarios.find(scenario => scenario.id === source?.scenario_id)?.network_id
   const [, siteDetail] = (sources?.networks.find(network => network.id === siteId)?.name ?? "").split(" — ")
   const noHeavyOnSobrecarey = context?.network_id === "tagum_site_b" && (state.vehicleType === "bus" || state.vehicleType === "truck")
+  const scenarioName = source?.kind === "scenario" ? sources?.scenarios.find(scenario => scenario.id === source.scenario_id)?.name : undefined
+  const scenarioDraft = context ? routeScenarioDraft({ source, context, closures, scenarioName }) : null
   const sentence = preview && context
     ? describeRoute({ vehicle: state.vehicleType, preview, context, ends, entryId, destinationId, closedCount }) : ""
   const metrics = [
@@ -119,7 +126,6 @@ export function RoutePlannerPage() {
     <section className="audit-hero">
       <div>
         <h1>Route Planner</h1>
-        <p>See the road a vehicle would take through the junction. Click the map to choose where it starts and where it goes.</p>
       </div>
       {sources ? <div className="flex flex-col gap-1 sm:items-end">
         <ToggleGroup variant="outline" aria-label="Study site" value={siteId ? [siteId] : []}
@@ -135,6 +141,8 @@ export function RoutePlannerPage() {
         <div><div><strong>{value}</strong><span>{label}</span></div><small>{hint}</small></div>
       </div>)}
     </section>
+    {source?.kind === "scenario" && scenarioName
+      ? <p role="status" className="text-sm text-muted-foreground">Showing the saved scenario "{scenarioName}" and its closed roads. Changes here are temporary and do not alter the scenario.</p> : null}
     {sourceError ? <Alert variant="destructive"><AlertDescription>{sourceError}</AlertDescription></Alert> : null}
     {!sources && !sourceError ? <p role="status" className="text-sm">Loading sites and scenarios…</p> : null}
     {state.contextStatus === "loading" ? <p role="status" className="text-sm">Loading the map…</p> : null}
@@ -151,7 +159,11 @@ export function RoutePlannerPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => fit("network")}>Show whole map</Button>
           <Button size="sm" variant="outline" disabled={!preview?.original && !preview?.selected} onClick={() => fit("routes")}>Zoom to route</Button>
+          {scenarioDraft && canCreateScenario && onSaveAsScenario
+            ? <Button size="sm" onClick={() => onSaveAsScenario(scenarioDraft)}>Save as new scenario</Button> : null}
         </div>
+        {scenarioDraft && canCreateScenario && onSaveAsScenario
+          ? <p className="text-sm text-muted-foreground">Opens the New Scenario form with the closed roads. Nothing is saved until you press Save Scenario there.</p> : null}
         <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground" aria-label="Map legend">
           <li><span aria-hidden="true" className="text-green-700 dark:text-green-400">➝ </span>Route under these conditions</li>
           <li><span aria-hidden="true">⇢ </span>Route without closures</li>

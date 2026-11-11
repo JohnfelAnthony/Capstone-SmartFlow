@@ -6,10 +6,6 @@
   padding: 20px;
 }
 
-.route-planner-page .audit-hero h1 {
-  font-size: 32px;
-}
-
 .route-planner-page .audit-metric-strip {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 6px 0 10px;
