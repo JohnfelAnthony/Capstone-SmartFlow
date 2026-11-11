@@ -529,6 +529,7 @@ def make_server(root: Path, port=0):
 
         def do_POST(self):
             reply = None
+            unread = 0
             try:
                 self.local_request()
                 require(secrets.compare_digest(self.headers.get("X-Observer-Token", ""), token), "Refresh the app before making changes.")
@@ -536,6 +537,7 @@ def make_server(root: Path, port=0):
                 require(self.headers.get("Origin", expected_origin) == expected_origin, "Cross-site requests are not accepted.")
                 route = urlparse(self.path)
                 length = int(self.headers.get("Content-Length", "0"))
+                unread = length
                 if route.path == "/api/upload":
                     require(0 < length <= 8 * 1024 ** 3, "Choose a video smaller than 8 GB.")
                     metadata = {key: values[0] for key, values in parse_qs(route.query).items()}
@@ -549,12 +551,11 @@ def make_server(root: Path, port=0):
                     source = project / ("source" + suffix)
                     try:
                         with source.open("xb") as stream:
-                            remaining = length
-                            while remaining:
-                                block = self.rfile.read(min(1024 * 1024, remaining))
+                            while unread:
+                                block = self.rfile.read(min(1024 * 1024, unread))
                                 require(bool(block), "Upload ended early; choose the recording again.")
                                 stream.write(block)
-                                remaining -= len(block)
+                                unread -= len(block)
                         service.background(lambda: service.register(source, metadata))
                     except Exception as exc:
                         service.update(status="error", message=str(exc))
@@ -562,6 +563,7 @@ def make_server(root: Path, port=0):
                 else:
                     require(0 < length <= 2 * 1024 * 1024, "Request is too large or empty.")
                     data = json.loads(self.rfile.read(length))
+                    unread = 0
                     require(isinstance(data, dict), "Expected an object.")
                     if route.path == "/api/demo":
                         metadata = dict(name="Scripted visual demo", survey_id="SYNTHETIC", intersection_id="DEMO", collector="Demo",
@@ -622,6 +624,16 @@ def make_server(root: Path, port=0):
             except ConnectionError:
                 pass
             except (ValueError, OSError, KeyError, TypeError) as exc:
+                # A refused upload still has the video in flight; the browser only sees the reply once the body is read,
+                # otherwise Windows resets the connection and the page shows "Failed to fetch" instead of the reason.
+                try:
+                    while 0 < unread <= 8 * 1024 ** 3:
+                        block = self.rfile.read(min(1024 * 1024, unread))
+                        if not block:
+                            break
+                        unread -= len(block)
+                except OSError:
+                    return
                 self.json_response({"error": str(exc)}, 400)
 
     server = GUIHTTPServer(("127.0.0.1", port), Handler)
