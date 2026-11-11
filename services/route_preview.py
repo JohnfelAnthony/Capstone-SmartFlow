@@ -35,7 +35,8 @@ class PreviewSource:
     initial_closures: dict
     slow_lanes: dict
     routing_mode: str
-    later_closure_changes: bool
+    later_closure_events: list[dict]
+    later_closure_responses: dict
     notices: list[dict]
 
 
@@ -94,7 +95,8 @@ def _resolve_source(source: dict, load_scenario: ScenarioLoader | None) -> Previ
     except (TypeError, AttributeError, ValueError) as exc:
         raise RoutePreviewError(422, f"Cannot read the scenario's initial road settings: {exc}") from exc
 
-    closed_at_start = closure_states(initial_lanes, events)[0.0]
+    states = closure_states(initial_lanes, events)
+    closed_at_start = states[0.0]
     for event in events:
         if event["time"] != 0:
             break
@@ -106,11 +108,14 @@ def _resolve_source(source: dict, load_scenario: ScenarioLoader | None) -> Previ
         "closed_lanes": sorted(closed_at_start),
         "closure_responses": {lane: choice for lane, choice in responses.items() if lane in closed_at_start},
     })
-    later = any(event["time"] > 0 and "closed" in event for event in events)
-    if later:
+    later_events = [event for event in events if event["time"] > 0 and "closed" in event]
+    later_closed = set().union(*states.values()) - closed_at_start
+    later_responses = {lane: choice for lane, choice in responses.items() if lane in later_closed}
+    if later_events:
         notices.append({"code": "later_closure_changes", "message": "This preview uses engine time zero. Later scheduled closures and reopenings are not shown."})
     label = str(scenario["name"]) if scenario is not None else network.payload.get("name", network.id)
-    return PreviewSource(network, label, binding, initial, slow_lanes, settings.get("routing_mode", DEFAULTS["routing_mode"]), later, notices)
+    return PreviewSource(network, label, binding, initial, slow_lanes,
+                         settings.get("routing_mode", DEFAULTS["routing_mode"]), later_events, later_responses, notices)
 
 
 def _choices(network: RoadNetwork, vehicle_type: str) -> tuple[dict[str, list[str]], list[tuple[str, str]]]:
@@ -155,15 +160,21 @@ def route_context(source: dict, vehicle_type: str, *, load_scenario: ScenarioLoa
                    "label": f"{road_names[lane_id[:-1]]} · {road_whereabouts(network, roads[lane_id[:-1]])}",
                    "direction": lane_direction(lane)}
                   for lane_id, lane in network.lanes.items()],
-        "basis": BASIS, "has_later_closure_changes": resolved.later_closure_changes, "notices": resolved.notices,
+        "basis": BASIS, "has_later_closure_changes": bool(resolved.later_closure_events), "notices": resolved.notices,
     }
 
 
-def _preview_engine(resolved: PreviewSource, arrangement: dict) -> TrafficEngine:
+def _preview_engine(resolved: PreviewSource, arrangement: dict, *, use_saved_schedule: bool = False) -> TrafficEngine:
     engine = TrafficEngine(network=resolved.network)
     # Normal configuration validates responses against the base network, then
     # derives the established shared network and opens the shared directions.
-    engine.configure(**arrangement, slow_lanes=resolved.slow_lanes, routing_mode=resolved.routing_mode,
+    # The saved schedule can select adaptive mode, but this engine never applies future events.
+    responses = arrangement["closure_responses"]
+    if use_saved_schedule:
+        responses = {**responses, **resolved.later_closure_responses}
+    engine.configure(closed_lanes=arrangement["closed_lanes"], closure_responses=responses,
+                     events=resolved.later_closure_events if use_saved_schedule else [],
+                     slow_lanes=resolved.slow_lanes, routing_mode=resolved.routing_mode,
                      traffic_density="none", pedestrian_density="none")
     return engine
 
@@ -228,8 +239,8 @@ def preview_route(request: dict, *, load_scenario: ScenarioLoader | None = None)
     entries, pairs = _choices(network, vehicle_type)
     if (entry, destination) not in pairs:
         raise RoutePreviewError(422, "This entry and destination are not a permitted generated trip for the selected vehicle class.")
-    arrangement = (_arrangement(network, request["closure_override"]) if "closure_override" in request
-                   else resolved.initial_closures)
+    use_saved_arrangement = "closure_override" not in request
+    arrangement = resolved.initial_closures if use_saved_arrangement else _arrangement(network, request["closure_override"])
     closed = set(arrangement["closed_lanes"])
     road_names, labels = network_display_labels(network)
     boundaries = _boundary_labels(network, road_names, labels)
@@ -246,7 +257,7 @@ def preview_route(request: dict, *, load_scenario: ScenarioLoader | None = None)
         "shared_roads": [], "uses_shared_pavement": False, "notices": resolved.notices,
     }
     try:
-        engine = _preview_engine(resolved, arrangement)
+        engine = _preview_engine(resolved, arrangement, use_saved_schedule=use_saved_arrangement)
     except ValueError as exc:
         valid_shared = {lane for lane, response in arrangement["closure_responses"].items()
                         if response == SHARE and lane[:-1] in eligible_roads(network) and kept_lane(lane) not in closed}

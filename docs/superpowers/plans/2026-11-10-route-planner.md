@@ -13,14 +13,14 @@ The agreed direction is a **separate Route Planner page**, using the same Canvas
 ## 2. Status and decisions
 
 - Date: **2026-11-10**, Asia/Singapore.
-- Status: **implemented on `codex/route-planner»**. See the [build plan and verification ledger](2026-11-10-route-planner-implementation.md#6-verification-evidence) for test results and open gates.
+- Status: **implemented on `codex/route-planner`**. The [review follow-ups](2026-11-10-route-planner-implementation.md#independent-review-follow-up) passed focused checks. See the [verification evidence](2026-11-10-route-planner-implementation.md#6-verification-evidence) for the final acceptance status.
 - Source reviewed: local `main` at `725da90` in `C:/Users/jhepo/Desktop/trapik2/SmartFlow`.
 - Intended audience: LGU traffic/planning reviewers, capstone researchers and demonstration users.
 - Primary goal: answer **"If this direction is closed, where can traffic go, and does it still reach its intended destination?"**
 - No simulation start, recording, model training or traffic generation is part of this page.
 - No time slider, closure schedule editor, "Closes at" input or "Reopens at" input is part of this page.
 - Route previews use the existing backend routing and shared-road rules. This work must not alter traffic behaviour, RL observations, rewards or model compatibility.
-- Review accepted: extract shared route-decision policy for vehicle entry and rerouting; show only the original route and one selected route; restrict entries to generated-demand boundaries; reuse `scenarios:view` without a permission migration.
+- Owner decision (option B) extracts only `TrafficEngine.arrival_route`. In-network rerouting is unchanged. The planner shows the original route and one selected route, restricts entries to generated-demand boundaries and reuses `scenarios:view`.
 - A static preview says **"Route under these conditions"**, not "the route every vehicle will take". Engine parity means identical decisions for identical inputs, not a prediction of future congestion.
 - Desktop integration remains on the desktop branch in a later delivery step. This plan does not authorize a desktop build or merging desktop-specific code into `main`.
 
@@ -174,7 +174,7 @@ This section supersedes the earlier suggestion to add a time selector.
 
 There is no unique time-independent arrangement for a schedule. For the initial Route Planner implementation, preview **the saved start-of-run arrangement at engine time zero**, including events effective at zero, and clearly state that later scheduled changes are not represented. This is not the post-warm-up visible starting frame.
 
-Show a compact read-only notice when a scenario contains later closure changes. Never combine every closure from different times into one supposedly simultaneous arrangement. Preview edits remain temporary and cannot overwrite the stored schedule. A later schedule-exploration feature would require a separate scope decision.
+Show a compact read-only notice when a scenario contains later closure changes. Preserve the saved scenario-wide routing mode, even if a later closure is what enables adaptive routing. Future lane closures still take no effect on the time-zero map. A temporary override has its own whole-run routing policy and cannot overwrite the stored schedule.
 
 ## 9. Backend preview contract
 
@@ -222,7 +222,8 @@ Implementation constraints:
 - Debounce changes and cancel or ignore stale preview responses. A slow answer for Site A must not replace a newer Site B preview.
 - Request lightweight route results after edits; do not reload the entire network each time.
 - Draw on changes to camera, geometry or selection. An idle static map should not run an unnecessary continuous animation loop.
-- Handle authentication expiry through the existing client flow; stop automatic retries for authorization failures.
+- Stop requests on session expiry. After same-account sign-in, retry the request that received a `401` and keep the selected trip and temporary closures.
+- In saved-scenario mode, use the latest accepted server closure snapshot for the map, closure controls and reset. Keep temporary overrides until the user resets them or switches source.
 - Keep the original Scenarios workflow, with only the timing-control removal described above.
 
 ## 11. Delivery order
@@ -236,6 +237,8 @@ The implementation follows the [step-by-step build plan](2026-11-10-route-planne
 5. Complete backend, frontend, browser, engine-parity and idle-rendering checks, then update user documentation and evidence.
 
 ## 12. Acceptance checks
+
+The checked items describe the initial verification. The [review follow-ups](2026-11-10-route-planner-implementation.md#independent-review-follow-up) add regressions for saved routing mode, updated closure snapshots and sign-in recovery.
 
 ### Routing and API
 

@@ -54,3 +54,45 @@ def test_preview_matches_disposable_engine_vehicle_arrival(site, source, destina
         assert preview["actual_destination_id"] == vehicle.destination
         assert vehicle.diverted == ("nearest_exit" in responses.values())
         assert preview["uses_shared_pavement"] == any(lane[:-1] in engine.shared_roads for lane in vehicle.route)
+
+
+def test_saved_scenario_keeps_adaptive_arrival_mode_before_future_closure():
+    network = load_registered_network("tagum_site_a")
+    source, destination = "boundary_0", "boundary_1"
+    settings = {
+        "traffic_density": "none",
+        "pedestrian_density": "none",
+        "closed_lanes": ["road1f"],
+        "events": [{"time": 60, "lane_id": "road2r", "closed": True}],
+        "closure_responses": {"road2r": "side_street_adaptive"},
+        "slow_lanes": {"road0r": 0.05},
+        "trips": [{"time": 0, "source": source, "destination": destination, "vehicle_type": "car"}],
+    }
+    engine = TrafficEngine(seed=101, network=network)
+    engine.configure(**settings)
+    engine.start(1)
+    vehicle, = engine.vehicles.values()
+    assert engine.config["routing_mode"] == "adaptive"
+    assert engine.closed_lanes == {"road1f"}
+    assert "road0r" not in vehicle.route
+
+    payload = {
+        "source": {"kind": "scenario", "scenario_id": 1},
+        "expected_network_sha256": network.fingerprint,
+        "vehicle_type": "car", "entry_id": source, "destination_id": destination,
+    }
+
+    def load_scenario(_):
+        return {"name": "Scheduled adaptive test", "network_id": network.id,
+                "network_sha256": network.fingerprint, "engine_config": settings}
+
+    saved = preview_route(payload, load_scenario=load_scenario)
+    assert saved["routing_mode"] == "adaptive"
+    assert saved["effective_closed_lanes"] == ["road1f"]
+    assert saved["selected"]["lane_ids"] == vehicle.route
+    assert saved["actual_destination_id"] == vehicle.destination
+
+    override = {"closed_lanes": ["road1f"], "closure_responses": {}}
+    temporary = preview_route({**payload, "closure_override": override}, load_scenario=load_scenario)
+    assert temporary["routing_mode"] == "static"
+    assert "road0r" in temporary["selected"]["lane_ids"]

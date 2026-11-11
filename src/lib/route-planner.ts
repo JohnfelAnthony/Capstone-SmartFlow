@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef } from "react"
-import { ApiError } from "@/api/client"
+import { ApiError, SESSION_RESTORED_EVENT } from "@/api/client"
 import { getRouteContext, previewRoute, type ClosureOverride, type ClosureResponse, type RouteContext, type RoutePreview, type RoutePreviewRequest, type RouteSource, type RouteVehicleClass } from "@/api/routes"
 import type { VisualNetwork } from "@/api/visual-network"
 import { chooseResponse } from "@/lib/closures"
@@ -16,6 +16,7 @@ export type RoutePlannerState = {
   contextError: PlannerError | null
   entryId: string
   destinationId: string
+  savedClosures: ClosureOverride | undefined
   override: ClosureOverride | undefined
   coordinationNotice: string
   preview: RoutePreview | null
@@ -28,6 +29,7 @@ type Action =
   | { type: "source"; source: RouteSource | null }
   | { type: "class"; vehicleType: RouteVehicleClass }
   | { type: "reload" }
+  | { type: "session-restored" }
   | { type: "context-ready"; generation: number; context: RouteContext }
   | { type: "context-error"; generation: number; error: PlannerError }
   | { type: "entry"; entryId: string }
@@ -40,12 +42,12 @@ type Action =
 
 export const initialRoutePlannerState: RoutePlannerState = {
   source: null, vehicleType: "car", context: null, contextGeneration: 0, contextStatus: "idle",
-  contextError: null, entryId: "", destinationId: "", override: undefined, coordinationNotice: "",
+  contextError: null, entryId: "", destinationId: "", savedClosures: undefined, override: undefined, coordinationNotice: "",
   preview: null, previewGeneration: 0, previewPending: false, previewError: null,
 }
 
-export function activeClosures({ context, override }: Pick<RoutePlannerState, "context" | "override">) {
-  return override ?? context?.initial_closures
+export function activeClosures({ context, savedClosures, override }: Pick<RoutePlannerState, "context" | "savedClosures" | "override">) {
+  return override ?? savedClosures ?? context?.initial_closures
 }
 
 type PreviewInput = Pick<RoutePlannerState, "source" | "vehicleType" | "context" | "contextStatus" | "entryId" | "destinationId" | "override">
@@ -70,7 +72,7 @@ function changeContext(state: RoutePlannerState, source: RouteSource | null, veh
   return changePreview(state, {
     source, vehicleType, contextGeneration: state.contextGeneration + 1, contextStatus: source ? "loading" : "idle",
     contextError: null,
-    ...(preserveTrip ? {} : { context: null, entryId: "", destinationId: "", override: undefined, coordinationNotice: "" }),
+    ...(preserveTrip ? {} : { context: null, entryId: "", destinationId: "", savedClosures: undefined, override: undefined, coordinationNotice: "" }),
   })
 }
 
@@ -82,6 +84,10 @@ export function routePlannerReducer(state: RoutePlannerState, action: Action): R
       return state.vehicleType === action.vehicleType ? state : changeContext(state, state.source, action.vehicleType, true)
     case "reload":
       return changeContext(state, state.source, state.vehicleType, false)
+    case "session-restored":
+      if (state.contextError?.status === 401) return changeContext(state, state.source, state.vehicleType, true)
+      if (state.previewError?.status === 401) return changePreview(state, {})
+      return state
     case "context-ready": {
       if (action.generation !== state.contextGeneration) return state
       const { context } = action
@@ -94,7 +100,7 @@ export function routePlannerReducer(state: RoutePlannerState, action: Action): R
         : first?.entry_id ?? ""
       const candidate = state.context ? state.destinationId : first?.destination_id
       const destinationId = context.eligible_pairs.some(pair => pair.entry_id === entryId && pair.destination_id === candidate) ? candidate ?? "" : ""
-      return changePreview(state, { context, contextStatus: "ready", entryId, destinationId })
+      return changePreview(state, { context, contextStatus: "ready", entryId, destinationId, savedClosures: undefined })
     }
     case "context-error":
       return action.generation === state.contextGeneration ? { ...state, contextStatus: "error", contextError: action.error } : state
@@ -137,7 +143,9 @@ export function routePlannerReducer(state: RoutePlannerState, action: Action): R
         return { ...state, preview: null, previewPending: false,
           previewError: NETWORK_CHANGED }
       }
-      return { ...state, preview: action.preview, previewPending: false, previewError: null }
+      return { ...state, preview: action.preview, previewPending: false, previewError: null,
+        savedClosures: state.source?.kind === "scenario" && state.override === undefined
+          ? action.preview.effective_closures : state.savedClosures }
     case "preview-error":
       return action.generation === state.previewGeneration ? { ...state, previewPending: false, previewError: action.error } : state
   }
@@ -152,6 +160,12 @@ export function useRoutePlanner() {
   const [state, dispatch] = useReducer(routePlannerReducer, initialRoutePlannerState)
   const geometryByFingerprint = useRef(new Map<string, VisualNetwork>())
   const { source, vehicleType, contextGeneration, context, contextStatus, entryId, destinationId, override, previewGeneration } = state
+
+  useEffect(() => {
+    const restore = () => dispatch({ type: "session-restored" })
+    window.addEventListener(SESSION_RESTORED_EVENT, restore)
+    return () => window.removeEventListener(SESSION_RESTORED_EVENT, restore)
+  }, [])
 
   useEffect(() => {
     if (!source) return

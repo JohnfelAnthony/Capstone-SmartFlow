@@ -1,6 +1,6 @@
 # Route Planner implementation steps
 
-**Status: pending implementation.** Revised 2026-11-10, Asia/Singapore, against local `main` at `725da90`. This document and its [design](2026-11-10-route-planner.md) are documentation only. The design starts with the owner's original problem and records the accepted scope.
+**Status: Tasks 1–8 have implementation commits on `codex/route-planner`.** The [review fixes](#independent-review-follow-up) passed focused backend, state and browser checks. The final acceptance results are tracked in the [evidence](#6-verification-evidence). The isolated branch was cut from `main` at `725da90`. The [design](2026-11-10-route-planner.md) records the original problem and accepted scope.
 
 **Goal:** add a static whole-site Route Planner that compares an original route with one route under a proposed closure arrangement. Support saved-scenario inspection and temporary arrangements, all existing eligible closure responses, vehicle-class restrictions and exact shared-pavement geometry. Remove the closure timing inputs from New/Edit Scenario while preserving historical schedules.
 
@@ -123,8 +123,8 @@ There is no `alternatives` field. Identical lane IDs on shifted shared geometry 
 ### Resolution and decision rules
 
 1. Resolve the network/config/fingerprint with existing validation conventions. Inspect `simulation/network_registry.py::engine_for_scenario`; extract its pure network/config resolution if needed rather than involving the live runtime. Do not update a missing fingerprint in the database. Label a legacy unpinned scenario `current_unpinned` and bind this preview to the returned current fingerprint.
-2. Preserve the complete source configuration. Create an isolated initial snapshot by applying normalized zero-time closure and speed events in the same order as the engine. Report later closure events as not represented. Do not union future closures or apply hidden warm-up.
-3. Apply any complete closure override to that snapshot, then validate responses using existing rules. Do not silently settle incompatible choices in a saved scenario. Return reasons and let the user explicitly select a valid arrangement.
+2. Preserve the complete source configuration. Create an isolated initial snapshot by applying normalized zero-time closure and speed events in the same order as the engine. When no override is supplied, preserve the scenario-wide routing mode through the existing validator, including adaptive responses tied to later scheduled closures. The disposable engine never advances, so the map and route still reflect only time-zero road availability. Report later geometry changes as outside the preview and skip hidden warm-up.
+3. Treat any complete closure override as a new whole-run arrangement. Validate its routing mode and responses independently of the saved closure schedule. Return reasons for incompatible choices and let the user explicitly select a valid arrangement.
 4. Obtain the effective network for the assumed established sharing arrangement from `contraflow.shared_network`. Remove established shared directions from the set closed to traversal. Keep the base network immutable and keep its fingerprint in the API.
 5. Calculate `original` on the base network with closures/sharing removed, retaining the applicable initial speed settings. Calculate `selected` by calling `arrival_route` on a disposable engine built on the effective network. Static arrivals use the existing default route costs; adaptive arrivals receive that engine's queue-free `_travel_costs()`. Do not inject fictional queues.
 6. For a closed entry, use the engine's entry-availability semantics to return `waiting_entry`. Congestion/vehicle-footprint admission is not predicted. If useful, extract the existing topology/class entry predicate for reuse rather than broadening it.
@@ -136,7 +136,7 @@ Errors: unauthenticated `401`; insufficient permission `403`; missing scenario/n
 
 ## 3. Build tasks
 
-Tasks 1–7 are committed. Task 8 records final acceptance and its remaining gates. Paths are relative to the repository root.
+Tasks 1–8 have implementation commits. Task 8 records the acceptance checks and outstanding review follow-up. Paths are relative to the repository root.
 
 ### Task 1 — Remove closure timing editors independently
 
@@ -276,6 +276,15 @@ type PlannerOverlay = {
 7. [x] Confirm network artifacts/fingerprints, engine declaration, metric catalog and model contracts did not change. Preserve research data and existing expected results.
 8. [x] Document only verified behaviour. Desktop integration and packaging are separate future work.
 
+### Independent review follow-up
+
+The review of `725da90..3c29dd5` found three Important issues and no Critical or Minor issues. Reproduce each issue with the listed regression, confirm it fails before the fix, then rerun it after the fix.
+
+1. [x] **Preserve saved adaptive routing at time zero.** `services/route_preview.py` carries the saved schedule through the existing validator when the request uses the saved arrangement. The disposable engine leaves future closures unapplied and derives the routing mode of an explicit override from that override. The test `test_saved_scenario_keeps_adaptive_arrival_mode_before_future_closure` compares the preview with an actual Site A arrival whose detour depends on a slow lane and a later adaptive response. It also checks the same current closure as a temporary override.
+2. [x] **Keep saved closure controls in sync with the route.** `src/lib/route-planner.ts` retains the latest `effective_closures` from an accepted saved-scenario preview with no override. The map, the next edit and reset use that snapshot. The reducer regression checks these transitions while preserving active temporary edits and rejecting stale responses.
+3. [x] **Recover from sign-in expiry.** The page and state use the existing `SESSION_RESTORED_EVENT` to retry source, context or preview requests blocked by `401` after same-account sign-in. The reducer regression checks context and preview recovery. The scratch browser harness verified initial source loading and route preview recovery, one preview `401` before sign-in and preservation of the temporary closure.
+4. [ ] Rerun the focused checks, both-site scratch browser checks and all section 4 commands on the final code. Record the outcomes before closing the acceptance gate.
+
 ## 4. Verification commands and evidence rules
 
 Run from the repository root using the main checkout's Python at `C:/Users/jhepo/Desktop/trapik2/SmartFlow/.venv/Scripts/python.exe`. Use existing pytest fixtures or an isolated test database; never point write-capable tests at the owner's working database. The new test files below exist only after their tasks are implemented.
@@ -304,7 +313,7 @@ Do not start long RL training or use reserved final seeds for verification. If a
 
 ## 5. Completion checklist
 
-- [x] Original problem and all revised owner decisions are satisfied.
+- [x] Original problem and revised owner decisions are covered by the implementation and review regressions.
 - [x] At most two route paths are shown; all supported response choices remain available where eligible.
 - [x] Engine spawner and preview use the same arrival decision. Seeded engine results match and in-network rerouting is untouched.
 - [x] The static zero-queue assumption and historical schedule limitation are visible.
@@ -315,15 +324,15 @@ Do not start long RL training or use reserved final seeds for verification. If a
 - [x] No user scenario, research artifact, engine behaviour or RL contract changed as a side effect.
 - [ ] Backend, frontend and browser evidence is recorded, including map regressions and preview performance.
 
-The feature is implemented. Open verification items remain release gates.
+Final verification remains an acceptance gate.
 
 ## 6. Verification evidence
 
 ### Engine parity
 
-The before/after snapshots are from `97c594d» and `f4723f1». The isolated capture runs both study sites with synthetic medium vehicle demand, low pedestrian demand, the provisional Tagum class mix, seeds 101 and 102 and a 120-second duration. Each site runs open, side-street, adaptive, nearest-exit and shared-pavement arrangements. Site A uses `road2r» and Site B uses `road1f». The 20 outputs compare lane-route and destination transitions, diversion and reroute counters, conservation each tick, and state sampled every 50 ticks and at the end. All 20 matched byte-for-byte with zero conservation errors. Both snapshots have SHA-256 `7484afbaa8a66e4065af70443053c4073787a36e41de20a99b2cace34d594bc9».
+The before/after snapshots are from `97c594d` and `f4723f1`. The isolated capture runs both study sites with synthetic medium vehicle demand, low pedestrian demand, the provisional Tagum class mix, seeds 101 and 102 and a 120-second duration. Each site runs open, side-street, adaptive, nearest-exit and shared-pavement arrangements. Site A uses `road2r` and Site B uses `road1f`. The 20 outputs compare lane-route and destination transitions, diversion and reroute counters, conservation each tick, and state sampled every 50 ticks and at the end. All 20 matched byte-for-byte with zero conservation errors. Both snapshots have SHA-256 `7484afbaa8a66e4065af70443053c4073787a36e41de20a99b2cace34d594bc9`.
 
-The capture script and JSON files are local evidence in `tmp/route-planner-evidence/», outside Git. To reproduce, copy `arrival-parity.py» to two isolated worktrees at the before and after revisions. From each worktree, run the same script with the same hash seed and compare the resulting file hashes.
+The capture script and JSON files are local evidence in `tmp/route-planner-evidence/`, outside Git. To reproduce, copy `arrival-parity.py` to two isolated worktrees at the before and after revisions. From each worktree, run the same script with the same hash seed and compare the resulting file hashes.
 
 ```powershell
 $env:PYTHONHASHSEED='0'
@@ -337,21 +346,26 @@ The nearest-exit cases had forced diversions. No in-network adaptive reroute fir
 
 | Check | Result |
 | --- | --- |
-| `npx vitest run src/lib/closures.test.ts» | 15 passed. |
-| Focused engine command in section 4 plus `test_native_engine.py», `test_junction_deadlock.py», `test_junction_capacity.py» and `test_engine_search_index.py» | 151 passed and 1,214 subtests passed. |
-| `python -m pytest tests/test_engine_arrival_route.py tests/test_route_preview.py tests/test_route_preview_parity.py -q» | 30 passed. |
-| `python -m pytest tests/test_route_preview_api.py tests/test_network_registry.py -q» | 19 passed. |
-| `npx vitest run src/lib/route-planner.test.ts src/api/routes.test.ts src/lib/closures.test.ts» | 23 passed. |
-| `npx vitest run src/simulation/__tests__/route-planner-overlay.test.ts src/simulation/__tests__/map-navigation.test.ts» | 19 passed. |
-| `npx vitest run src/lib/page-access.test.ts src/lib/route-planner.test.ts» | 9 passed. |
-| `python -m pytest tests/test_native_integration.py -k recording_and_playback -q --basetemp "$env:TEMP/sf-rpg"» | 1 passed. Before the fix, Resume left the recording on frame zero. |
-| `npx tsc -b», `npx eslint src», `npm run test:visualization», `npm run build» | Passed with 200 frontend tests after the dropdown correction and Help entry. |
+| `npx vitest run src/lib/closures.test.ts` | 15 passed. |
+| Focused engine command in section 4 plus `test_native_engine.py`, `test_junction_deadlock.py`, `test_junction_capacity.py` and `test_engine_search_index.py` | 151 passed and 1,214 subtests passed. |
+| `python -m pytest tests/test_engine_arrival_route.py tests/test_route_preview.py tests/test_route_preview_parity.py -q` | 30 passed. |
+| `python -m pytest tests/test_route_preview_api.py tests/test_network_registry.py -q` | 19 passed. |
+| `npx vitest run src/lib/route-planner.test.ts src/api/routes.test.ts src/lib/closures.test.ts` | 23 passed. |
+| `npx vitest run src/simulation/__tests__/route-planner-overlay.test.ts src/simulation/__tests__/map-navigation.test.ts` | 19 passed. |
+| `npx vitest run src/lib/page-access.test.ts src/lib/route-planner.test.ts` | 9 passed. |
+| `python -m pytest tests/test_native_integration.py -k recording_and_playback -q --basetemp "$env:TEMP/sf-rpg"` | 1 passed. Before the fix, Resume left the recording on frame zero. |
+| `npx tsc -b`, `npx eslint src`, `npm run test:visualization`, `npm run build` | Passed with 200 frontend tests after the dropdown correction and Help entry. |
 | Planner service, matched-input engine parity, API and registry command in section 4 | 44 passed after the replay correction. |
-| `python -m pytest tests -q --basetemp "$env:TEMP/sf-rpf"» | 842 passed, 1 skipped, 3 xfailed and 1,362 subtests passed before the replay correction. Final-tree gate remains open. |
+| `python -m pytest tests/test_engine_arrival_route.py tests/test_route_preview.py tests/test_route_preview_parity.py tests/test_route_preview_api.py tests/test_network_registry.py -q --basetemp "$env:TEMP/sf-rp-focus"` | 50 passed after the review fixes. The saved adaptive-route test previously failed with `static` where the live arrival used `adaptive`. |
+| `npx vitest run src/lib/route-planner.test.ts src/api/routes.test.ts src/lib/closures.test.ts` | 25 passed with the review fixes. The two new reducer tests previously reproduced the stale closure snapshot and missing recovery action. |
+| `npx tsc -b`, `npx eslint src`, `npm run test:visualization`, `npm run build` | Passed after the review fixes, including all 202 frontend tests and the production build. |
+| `python -m pytest tests -q --basetemp "$env:TEMP/sf-rpf"` | 842 passed, 1 skipped, 3 xfailed and 1,362 subtests passed before the replay correction. Final-tree gate remains open. |
 
-The browser checks use installed headless Chromium, the built app, loopback ports and disposable SQLite/recording paths. The launcher scripts are local evidence, `check_task1.py» and `check_task8.py». Task 8 checks inspect actual preview HTTP responses and record screenshots in `tmp/route-planner-evidence/». The replay pair contains a 12-second synthetic Site A recording per controller (fixed-time and no-signal, seed 101). These are software checks, independent of field evidence.
+The browser checks use installed headless Chromium, the built app, loopback ports and disposable SQLite/recording paths. The launcher scripts are local evidence, `check_task1.py` and `check_task8.py`. Task 8 checks inspect actual preview HTTP responses and record screenshots in `tmp/route-planner-evidence/`. The replay pair contains a 12-second synthetic Site A recording per controller (fixed-time and no-signal, seed 101). These are software checks, independent of field evidence.
 
 The built browser accepted both sites' open, detour, adaptive, nearest-exit, waiting, hypothetical sharing and invalid arrangements. It checked Site B heavy-vehicle restrictions, one no-route case, saved arrangements with and without closures, unchanged saved schedules after temporary edits, mouse and keyboard selection, stale fingerprints and a delayed response from a previous site. Both sites fit and zoomed at desktop and 390 px widths. The planner emitted no WebSocket or state-changing request, and a revoked session emitted one 401 before sign-in. New/Edit Scenario passed a separate browser run. Dashboard motion advanced, Resume played a freshly loaded recording, replay seeking worked and both comparison canvases played and sought.
+
+The sign-in regression originally stalled on initial source loading after authentication succeeded. After the fixes, the full two-site harness verified recovery of initial source loading and an interrupted preview in Chromium. The screenshot `planner-after-session-restore.png` shows the retained closure and resumed detour. Playwright printed target-closed messages while shutting down its response listeners, then reached the success marker.
 
 | Synthetic browser timing on this laptop | Site A | Site B |
 | --- | ---: | ---: |
@@ -364,15 +378,17 @@ These are single observations while the backend suite was running. Playwright re
 
 ### Rulings
 
-- Work from a branch cut from local `main» in a separate worktree. The owner controls any integration. A different base could test against an incompatible version.
+- Work from a branch cut from local `main` in a separate worktree. The owner controls any integration. A different base could test against an incompatible version.
 - Align the design's backend instructions with option B. Leaving the broader entry-and-reroute extraction in the design would conflict with the owner's change.
 - Use a real scratch browser regression for the removed form fields and historical schedule preservation. The browser script lives outside Git, so later edits must repeat the workflow.
 - Use installed Playwright Chromium after system Chrome exited before the page loaded. Results cover Chromium.
 - Use the 120-second matrix for arrivals and forced diversions. Longer runs would be needed to observe congestion-triggered reroutes.
 - Expose the existing visual-network serializer on the already resolved network. Reloading geometry separately could return a different fingerprint.
 - Configure a disposable engine on the base network through the existing validation path. The engine derives the effective shared network itself. The preview shows established sharing and omits live clearance.
-- Label a changed route a detour if the engine's open-exit fallback still chooses the intended destination. Site B `road9f» exercises this case.
-- Pass only routing settings effective at time zero and no demand to the disposable engine. Later events and live congestion are outside the preview.
+- Label a changed route a detour if the engine's open-exit fallback still chooses the intended destination. Site B `road9f` exercises this case.
+- Keep the map and path calculation at engine time zero with no demand or live congestion. Preserve the scenario-wide routing mode for a saved preview even when a later closure selects that mode. Omitting the schedule from validation can make the planner show a different path from a real arrival.
+- Keep the latest saved closures in their own state. The server response controls the map and the next edit without changing the context dependency, which would trigger a second preview. Temporary arrangements retain priority until reset.
+- Retry only requests blocked by authentication when the existing session-restored event arrives. This preserves temporary arrangements and avoids replaying failed requests for unrelated errors.
 - Format validation errors as strings for the two new endpoints. Keep FastAPI's normal handler for every other endpoint.
 - Use a short host temporary path for isolated SQLite tests and the host Vite cache for frontend tests. The sandbox's longer temp path and Vite SSR cache caused environment errors. The owner database and tracked dependencies are outside those checks.
 - Refuse to rebase temporary closures when a class change returns a different network fingerprint. The user reloads and reselects the closure instead.

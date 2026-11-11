@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { ApiError, SESSION_RESTORED_EVENT } from "@/api/client"
 import { listNetworks, type NetworkSummary } from "@/api/native-scenario"
 import { listScenarios, type ApiScenario } from "@/api/scenarios"
 import type { ClosureResponse, RouteSource, RouteVehicleClass } from "@/api/routes"
@@ -38,15 +39,31 @@ export function RoutePlannerPage() {
 
   useEffect(() => {
     let current = true
-    void Promise.all([listNetworks(), listScenarios()]).then(([networks, result]) => {
-      if (!current) return
-      const sites = networks.filter(network => network.id === "tagum_site_a" || network.id === "tagum_site_b")
-      setSources({ networks: sites, scenarios: result.scenarios.filter(scenario => scenario.network_id) })
-      if (sites.length) dispatch({ type: "source", source: { kind: "network", network_id: sites[0].id } })
-    }).catch(error => {
-      if (current) setSourceError(error instanceof Error ? error.message : "Could not load route sources.")
-    })
-    return () => { current = false }
+    let awaitingAuthentication = false
+    function loadSources() {
+      void Promise.all([listNetworks(), listScenarios()]).then(([networks, result]) => {
+        if (!current) return
+        const sites = networks.filter(network => network.id === "tagum_site_a" || network.id === "tagum_site_b")
+        setSources({ networks: sites, scenarios: result.scenarios.filter(scenario => scenario.network_id) })
+        if (sites.length) dispatch({ type: "source", source: { kind: "network", network_id: sites[0].id } })
+      }).catch(error => {
+        if (!current) return
+        awaitingAuthentication = error instanceof ApiError && error.status === 401
+        setSourceError(error instanceof Error ? error.message : "Could not load route sources.")
+      })
+    }
+    function restore() {
+      if (!awaitingAuthentication) return
+      awaitingAuthentication = false
+      setSourceError("")
+      loadSources()
+    }
+    window.addEventListener(SESSION_RESTORED_EVENT, restore)
+    loadSources()
+    return () => {
+      current = false
+      window.removeEventListener(SESSION_RESTORED_EVENT, restore)
+    }
   }, [dispatch])
 
   function chooseSource(next: RouteSource) {
