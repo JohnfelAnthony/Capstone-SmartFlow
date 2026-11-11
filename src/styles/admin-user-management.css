@@ -111,13 +111,10 @@
 .user-workspace {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  align-items: start;
   gap: 16px;
 }
 
 .user-filter-rail {
-  position: sticky;
-  top: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -192,6 +189,7 @@
 .user-directory-card,
 .inactive-accounts-card {
   min-width: 0;
+  flex-grow: 1;
 }
 
 .user-table-shell {
@@ -469,7 +467,6 @@
   }
 
   .user-filter-rail {
-    position: static;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1095,10 +1092,10 @@
 .audit-console-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-rows: auto 1fr;
   grid-template-areas:
     "ledger filters"
     "ledger inspector";
-  align-items: start;
   gap: 16px;
 }
 
@@ -1204,10 +1201,25 @@
   white-space: normal;
 }
 
+.audit-inspector-content,
 .audit-inspector {
   display: flex;
+  flex: 1;
   flex-direction: column;
+}
+
+.audit-inspector {
   gap: 10px;
+  overflow-wrap: anywhere;
+}
+
+.audit-inspector-event {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
 }
 
 .audit-inspector > strong {
@@ -1216,8 +1228,7 @@
 }
 
 .audit-inspector > span,
-.audit-inspector p,
-.audit-inspector small {
+.audit-inspector p {
   color: var(--muted-foreground);
 }
 
@@ -1226,19 +1237,41 @@
   line-height: 1.5;
 }
 
-.audit-inspector div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.audit-inspector-meta {
+  display: grid;
+  flex: 1;
+  grid-auto-rows: 1fr;
   gap: 10px;
-  padding: 9px;
+  padding-top: 8px;
+}
+
+.audit-inspector-meta > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: color-mix(in oklch, var(--card), var(--muted) 14%);
 }
 
-.audit-inspector div span {
+.audit-inspector-meta dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+}
+
+.audit-inspector-meta dt svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.audit-inspector-meta dd {
+  margin-top: 4px;
   color: var(--foreground);
+  font-size: 17px;
   font-weight: 700;
 }
 
@@ -1264,7 +1297,7 @@
   color: var(--foreground);
 }
 
-.random-theme .audit-inspector div {
+.random-theme .audit-inspector-meta > div {
   border-color: var(--border);
   background: var(--random-dashboard-card);
   color: var(--random-dashboard-primary);
@@ -1278,6 +1311,7 @@
   }
 
   .audit-console-grid {
+    grid-template-rows: auto;
     grid-template-areas:
       "filters"
       "ledger"

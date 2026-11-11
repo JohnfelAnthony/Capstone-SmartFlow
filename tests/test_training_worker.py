@@ -85,6 +85,7 @@ class TrainingWorkerTests(unittest.TestCase):
         self.assertEqual(first_item["status"], "completed")
         self.assertTrue(Path(first_item["artifact_path"]).is_file())
         self.assertTrue(Path(first_item["evaluation_path"]).is_file())
+        self.assertEqual(worker.evaluation_report_path(first_id), Path(first_item["evaluation_path"]).resolve())
         first_settings = json.loads(database.get_rl_training_job(first_id)["settings_json"])
         self.assertEqual(first_settings["scenario_snapshot"]["id"], self.scenario_id)
         self.assertEqual(first_settings["evaluation_scenario_snapshot"]["id"], self.evaluation_scenario_id)

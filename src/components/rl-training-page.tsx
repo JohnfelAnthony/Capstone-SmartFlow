@@ -1,9 +1,10 @@
 import { toast } from "sonner"
 import * as React from "react"
 import {
-  BrainIcon,
   ChartLineIcon,
+  ChevronDownIcon,
   DatabaseIcon,
+  DownloadIcon,
   GaugeIcon,
   ListChecksIcon,
   PlayIcon,
@@ -28,11 +29,13 @@ import { resolveNativeScenario, type NativeScenarioConfig } from "@/api/native-s
 import { listScenarios, type ApiScenario } from "@/api/scenarios"
 import {
   evaluateRLModel,
+  getRLEvaluationReport,
   getRLTrainingStatus,
   listRLTrainingJobs,
   startRLTrainingJob,
   stopRLTrainingJob,
   type RLAdvancedSettings,
+  type RLEvaluationReport,
   type RLLogLine,
   type RLModelRecord,
   type RLTrainingJob,
@@ -51,8 +54,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
@@ -71,14 +77,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { EMPTY_VALUE, formatServerDate } from "@/lib/display-format"
+import { EMPTY_VALUE, formatServerDate, parseServerTimestamp } from "@/lib/display-format"
 import { resumeTargetCompatible } from "@/lib/rl-resume"
 import { rewardSeries } from "@/lib/reward-series"
 import { cn } from "@/lib/utils"
-import "@/styles/admin-user-management.css"
 import "@/styles/rl-training.css"
 
 type AlgorithmId = "ql" | "dql" | "ppo"
+type TrainingTab = "models" | "train" | "jobs"
+type ModelAction = "evaluate" | "resume"
 
 type RewardPoint = {
   index: number
@@ -172,17 +179,19 @@ function compactNumber(value: number | null | undefined, digits = 1) {
 }
 
 function ScenarioSelect({
+  id,
   scenarios,
   selectedScenarioId,
   onChange,
 }: {
+  id: string
   scenarios: ApiScenario[]
   selectedScenarioId: string
   onChange: (value: string) => void
 }) {
   return (
     <Select value={selectedScenarioId} onValueChange={(value) => value !== null && onChange(value)}>
-      <SelectTrigger className="w-full">
+      <SelectTrigger id={id} className="w-full">
         <SelectValue>{(value: string | null) => scenarios.find((scenario) => String(scenario.id) === value)?.name ?? "Select a scenario"}</SelectValue>
       </SelectTrigger>
       <SelectContent>
@@ -245,10 +254,79 @@ function StatusBadge({ status }: { status: string }) {
 
 function ProgressBar({ value }: { value: number }) {
   const boundedValue = Math.max(0, Math.min(100, value || 0))
+  return <Progress value={boundedValue} aria-label="Job progress" />
+}
+
+function JobConsole({ job, lines }: { job: RLTrainingJob | null; lines: RLLogLine[] }) {
   return (
-    <div className="rl-progress" aria-label={`Progress ${boundedValue.toFixed(1)} percent`}>
-      <span style={{ width: `${boundedValue}%` }} />
-    </div>
+    <Card className="rl-console-card">
+      <CardHeader>
+        <CardTitle className="rl-card-title"><TerminalIcon /> Live Console</CardTitle>
+        {job && <CardDescription>Job #{job.id} · {lines.length} recent log lines</CardDescription>}
+      </CardHeader>
+      <CardContent className="rl-console-body">
+        <div className="rl-console-frame">
+          {lines.length
+            ? <pre className="rl-console" tabIndex={0} aria-label="Worker output">{lines.slice(-140).map((line) => line.text).join("\n")}</pre>
+            : <p className="rl-idle-console">{job ? "Waiting for worker output." : "Worker output appears here when a job starts."}</p>}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function elapsedTime(job: RLTrainingJob) {
+  const start = parseServerTimestamp(job.started_at)?.getTime()
+  const end = parseServerTimestamp(job.ended_at)?.getTime() ?? Date.now()
+  if (start === undefined) return EMPTY_VALUE
+  const seconds = Math.max(0, Math.floor((end - start) / 1000))
+  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map((value) => String(value).padStart(2, "0")).join(":")
+}
+
+function EvaluationResults({ jobId, report }: { jobId: number; report: RLEvaluationReport }) {
+  function exportResults() {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `smartflow-job-${jobId}-evaluation.json`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const excludedSeeds = Object.keys(report.excluded_matched_seeds ?? {})
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Held-out evaluation</CardTitle>
+        <CardDescription>Mean metrics across matched runs. Seeds {report.seeds.join(", ")}.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {excludedSeeds.length > 0 && <p className="text-sm text-muted-foreground">Excluded seeds with safety or integrity issues: {excludedSeeds.join(", ")}.</p>}
+        {Object.keys(report.summary).length ? (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Controller</TableHead><TableHead>Stopped wait (s)</TableHead>
+              <TableHead>Completed trips</TableHead><TableHead>Unfinished vehicles</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {report.controllers.filter((name) => report.summary[name]).map((name) => {
+                const metrics = report.summary[name]
+                return <TableRow key={name}>
+                  <TableCell>{name === "fixed-time" ? "Fixed-time" : name === "no-signal" ? "No signal" : name.toUpperCase()}</TableCell>
+                  <TableCell>{compactNumber(metrics.avg_wait?.mean)}</TableCell>
+                  <TableCell>{compactNumber(metrics.throughput?.mean)}</TableCell>
+                  <TableCell>{compactNumber(metrics.unfinished_vehicles?.mean)}</TableCell>
+                </TableRow>
+              })}
+            </TableBody>
+          </Table>
+        ) : <p>No matched runs passed the checks for this summary.</p>}
+        <Button className="self-start" variant="outline" onClick={exportResults}>
+          <DownloadIcon data-icon="inline-start" /> Export results (JSON)
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -270,7 +348,10 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   const [jobs, setJobs] = React.useState<RLTrainingJob[]>([])
   const [selectedModelId, setSelectedModelId] = React.useState<number | null>(null)
   const [selectedCheckpointId, setSelectedCheckpointId] = React.useState<number | null>(null)
-  const [alert, setAlert] = React.useState("RL training console loaded.")
+  const [alert, setAlert] = React.useState("")
+  const [tab, setTab] = React.useState<TrainingTab | null>(null)
+  const [modelAction, setModelAction] = React.useState<ModelAction | null>(null)
+  const [evaluation, setEvaluation] = React.useState<{ jobId: number; report?: RLEvaluationReport; error?: string } | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
   const [pendingAction, setPendingAction] = React.useState(false)
   const requestId = React.useRef(0)
@@ -284,16 +365,24 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   const hiddenModelCount = status.models.length - shownModels.length
   const selectedModel = status.models.find((model) => model.id === selectedModelId) ?? null
   const selectedModelMatchesScenario = Boolean(selectedModel && scenarioConfig && selectedModel.controlled_junction === scenarioConfig.controlled_junction)
-  const viewedJob = status.job
+  const viewedJob = status.job?.id === viewedJobId ? status.job : null
   const serverActiveJobId = status.active_job_id
+  const viewedJobPending = viewedJob?.status === "queued" || viewedJob?.status === "running"
   const activeJob = jobs.find((job) => job.id === serverActiveJobId)
   const canStopActiveJob = Boolean(canRunTraining && serverActiveJobId && (isAdmin || activeJob?.user_id === currentUserId))
   const selectedScenario = scenarios.find((item) => String(item.id) === selectedScenarioId) ?? null
+  const evaluationScenarios = scenarios.filter((item) => item.id !== settings.scenario_id
+    && (!scenarioConfig?.controlled_junction || !item.engine_config?.controlled_junction
+      || item.engine_config.controlled_junction === scenarioConfig.controlled_junction))
+  const evaluationScenario = evaluationScenarios.find((item) => item.id === settings.evaluation_scenario_id)
+  const selectedTab = tab ?? "models"
+  const evaluatingModel = modelAction === "evaluate"
+  const resumingModel = modelAction === "resume"
+  const canSubmit = canRunTraining && !serverActiveJobId && !pendingAction && !scenarioLoading
+  const reportJobId = selectedTab === "jobs" && viewedJob?.status === "completed"
+    && status.items.some((item) => item.evaluation_path) ? viewedJob.id : null
   const activeItem = status.items.find((item) => item.id === viewedJob?.current_item_id) ?? status.items[0] ?? null
   const rewardChart = React.useMemo(() => rewardSeries(parseRewardPoints(status.log_lines)), [status.log_lines])
-  const consoleText = status.log_lines.length
-    ? status.log_lines.slice(-140).map((line) => line.text).join("\n")
-    : "No training output yet."
 
   const refreshStatus = React.useCallback(async (jobId: number | null = viewedJobRef.current) => {
     if (inFlightRefreshes.current.has(jobId)) return
@@ -321,6 +410,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     if (jobId !== viewedJobRef.current) requestId.current += 1
     viewedJobRef.current = jobId
     setViewedJobId(jobId)
+    setTab("jobs")
     void refreshStatus(jobId)
   }
 
@@ -343,6 +433,9 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
         }))
         setStatus(statusResponse)
         setJobs(jobsResponse.jobs)
+        setTab((current) => current ?? (statusResponse.active_job_id ? "jobs"
+          : statusResponse.models.some((model) => model.compatible || model.checkpoints.some((checkpoint) => checkpoint.compatible))
+            || !canRunTraining ? "models" : "train"))
         const initialJobId = statusResponse.job?.id ?? null
         viewedJobRef.current = initialJobId
         setViewedJobId(initialJobId)
@@ -357,7 +450,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [canRunTraining])
 
   React.useEffect(() => {
     const scenarioId = Number(selectedScenarioId)
@@ -375,12 +468,23 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   }, [selectedScenarioId])
 
   React.useEffect(() => {
-    if (!serverActiveJobId) return
+    if (!serverActiveJobId && !viewedJobPending) return
     const intervalId = window.setInterval(() => {
       void refreshStatus(viewedJobRef.current)
     }, 1500)
     return () => window.clearInterval(intervalId)
-  }, [serverActiveJobId, viewedJobId, refreshStatus])
+  }, [serverActiveJobId, viewedJobPending, viewedJobId, refreshStatus])
+
+  React.useEffect(() => {
+    if (!reportJobId) return
+    const controller = new AbortController()
+    void getRLEvaluationReport(reportJobId, controller.signal).then((report) => {
+      if (!controller.signal.aborted) setEvaluation({ jobId: reportJobId, report })
+    }).catch((error) => {
+      if (!controller.signal.aborted) setEvaluation({ jobId: reportJobId, error: rlErrorMessage(error, "Unable to load evaluation results.") })
+    })
+    return () => controller.abort()
+  }, [reportJobId])
 
   function toggleAlgorithm(algorithm: AlgorithmId, checked: boolean) {
     setAlgorithms((current) => {
@@ -391,10 +495,10 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     })
   }
 
-  function validateSettings(values: RLTrainingSettings = settings) {
+  function validateSettings(values: RLTrainingSettings, queue: AlgorithmId[] = algorithms) {
     if (!values.scenario_id || !scenarioConfig || scenarioLoading) return "Select a saved scenario and wait for its settings to load."
     if (!values.evaluation_scenario_id || values.evaluation_scenario_id === values.scenario_id) return "Choose a different saved scenario for held-out evaluation."
-    if (!algorithms.length) return "Select at least one algorithm."
+    if (!evaluatingModel && !queue.length) return "Select at least one algorithm."
     const ranges: Array<[string, number, number, number, boolean]> = [
       ["Episodes", values.episodes, 1, 100000, true],
       ["Warmup seconds", values.warmup_seconds, 0, 86400, false],
@@ -416,23 +520,23 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     const evaluationSeeds = values.evaluation_seeds.split(",").map((value) => value.trim())
     if (evaluationSeeds.length > 100 || evaluationSeeds.some((value) => !/^\d+$/.test(value) || Number(value) > 4294967295)) return "Enter 1–100 held-out evaluation seeds."
     if (evaluationSeeds.some((value) => seeds.includes(value))) return "Training and held-out evaluation seeds must not overlap."
-    if (values.resume_model_id && algorithms.length !== 1) return "Resume one matching algorithm at a time."
+    if (values.resume_model_id && queue.length !== 1) return "Resume one matching algorithm at a time."
     return null
   }
 
-  async function startTraining() {
+  async function startTraining(values: RLTrainingSettings = settings, queue: AlgorithmId[] = algorithms) {
     if (!canRunTraining || pendingAction || serverActiveJobId) return
-    const validationError = validateSettings()
+    const validationError = validateSettings(values, queue)
     if (validationError) { setAlert(validationError); return }
     setPendingAction(true)
     try {
       const response = await startRLTrainingJob({
-        algorithms,
-        settings,
+        algorithms: queue,
+        settings: values,
         advanced,
       })
       viewJob(response.job_id)
-      setAlert(response.message)
+      setAlert("")
       toast.success(response.message)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to start RL training."))
@@ -446,7 +550,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     setPendingAction(true)
     try {
       const response = await stopRLTrainingJob(serverActiveJobId)
-      setAlert(response.message)
+      setAlert("")
       toast.success(response.message)
       viewJob(serverActiveJobId)
     } catch (error) {
@@ -454,6 +558,29 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     } finally {
       setPendingAction(false)
     }
+  }
+
+  function chooseScenario(id: string) {
+    const scenarioId = Number(id) || null
+    const junction = scenarios.find((item) => item.id === scenarioId)?.engine_config?.controlled_junction
+    const compatibleHoldout = (item: ApiScenario) => item.id !== scenarioId
+      && (!junction || !item.engine_config?.controlled_junction || item.engine_config.controlled_junction === junction)
+    setSelectedScenarioId(id)
+    setSettings((current) => ({ ...current, scenario_id: scenarioId,
+      evaluation_scenario_id: scenarios.find((item) => item.id === current.evaluation_scenario_id && compatibleHoldout(item))?.id
+        ?? scenarios.find(compatibleHoldout)?.id ?? null }))
+  }
+
+  function openModelAction(model: RLModelRecord, action: ModelAction) {
+    setSelectedModelId(model.id)
+    setSelectedCheckpointId(model.compatible ? null : model.checkpoints.find((item) => item.compatible)?.id ?? null)
+    setModelAction(action)
+    setAlert("")
+    if (scenarioConfig?.controlled_junction !== model.controlled_junction) {
+      const matchingScenario = scenarios.find((item) => item.engine_config?.controlled_junction === model.controlled_junction)
+      if (matchingScenario) chooseScenario(String(matchingScenario.id))
+    }
+    setTab("train")
   }
 
   function resumeSelectedModel() {
@@ -465,15 +592,13 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     }
     const algorithm = selectedModel.algorithm.toLowerCase() as AlgorithmId
     if (!algorithmOptions.some((option) => option.value === algorithm)) { setAlert("Unknown model algorithm."); return }
-    setSettings((current) => ({
-      ...current,
+    void startTraining({
+      ...settings,
       resume_model_id: selectedModel.id,
       resume_checkpoint_id: checkpoint?.id ?? null,
       decision_interval_seconds: selectedModel.decision_interval_seconds,
       minimum_green_hold_seconds: selectedModel.minimum_green_hold_seconds,
-    }))
-    setAlgorithms([algorithm])
-    setAlert(`Resume ${algorithm.toUpperCase()} from registered ${checkpoint ? `checkpoint #${checkpoint.id}` : `model #${selectedModel.id}`}. Saved learning parameters may be retained by the artifact.`)
+    }, [algorithm])
   }
 
   async function evaluateSelectedModel() {
@@ -483,12 +608,11 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     const evaluationSettings = { ...settings, resume_model_id: null, resume_checkpoint_id: null, decision_interval_seconds: selectedModel.decision_interval_seconds, minimum_green_hold_seconds: selectedModel.minimum_green_hold_seconds }
     const validationError = validateSettings(evaluationSettings)
     if (validationError) { setAlert(validationError); return }
-    setSettings(evaluationSettings)
     setPendingAction(true)
     try {
       const response = await evaluateRLModel({ model_id: selectedModel.id, settings: evaluationSettings })
       viewJob(response.job_id)
-      setAlert(response.message)
+      setAlert("")
       toast.success(response.message)
     } catch (error) {
       setAlert(rlErrorMessage(error, "Unable to evaluate selected model."))
@@ -497,357 +621,291 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
     }
   }
 
+  function clearModelAction() {
+    setModelAction(null)
+    setSelectedModelId(null)
+    setSelectedCheckpointId(null)
+    setAlert("")
+  }
+
+  function useShortWorkflowCheck() {
+    setSettings((current) => ({ ...current, episodes: 2, seeds: "11", evaluation_seeds: "101",
+      warmup_seconds: 0, evaluation_seconds: 20, decision_interval_seconds: 1, minimum_green_hold_seconds: 5, checkpoint_every: 1 }))
+    setAdvanced({ ql: defaultAdvanced.ql, dql: { learning_starts: 4, buffer_size: 100, batch_size: 4 },
+      ppo: { n_steps: 8, batch_size: 4, n_epochs: 1 } })
+    setAlert("Short workflow check selected. Use its results to verify the workflow.")
+  }
+
+  const configuredAlgorithms = selectedModel && modelAction ? [selectedModel.algorithm] : algorithms
+  const reportState = evaluation?.jobId === reportJobId ? evaluation : null
+  const activeConsoleJob = viewedJob && viewedJob.id === serverActiveJobId ? viewedJob : null
+  const modelTargetReady = !modelAction || (selectedModelMatchesScenario && (evaluatingModel
+    ? selectedModel?.compatible : resumeTargetCompatible(selectedModel, selectedCheckpointId)))
+  const trainTitle = evaluatingModel ? "Evaluate model" : resumingModel ? "Resume training" : "Training configuration"
+  const submitLabel = evaluatingModel ? "Start evaluation" : resumingModel ? "Resume training" : "Start training"
   const metrics = [
-    { label: "Job", value: statusLabel(viewedJob?.status), hint: viewedJob?.message ?? "Idle", icon: ListChecksIcon, tone: "info" },
-    { label: "Algorithm", value: (viewedJob?.current_algorithm ?? activeItem?.algorithm ?? selectedAlgorithmLabel(algorithms)).toUpperCase(), hint: "Viewed job", icon: BrainIcon, tone: "success" },
-    { label: "Progress", value: `${compactNumber(viewedJob?.progress_percent ?? 0)}%`, hint: "Viewed job", icon: GaugeIcon, tone: "warning" },
-    { label: "Reward", value: compactNumber(activeItem?.latest_reward, 3), hint: "Latest episode", icon: ChartLineIcon, tone: "info" },
+    { label: "Saved models", value: shownModels.length, detail: "Available to evaluate or resume", icon: DatabaseIcon, tone: "blue" },
+    { label: "Worker", value: serverActiveJobId ? "Active" : "Idle", detail: serverActiveJobId ? `Job #${serverActiveJobId}` : "Ready for a job", icon: ListChecksIcon, tone: "green" },
+    { label: "Job progress", value: viewedJob ? `${compactNumber(viewedJob.progress_percent)}%` : EMPTY_VALUE,
+      detail: viewedJob ? `Job #${viewedJob.id}` : "No job selected", icon: GaugeIcon, tone: "violet" },
+    { label: "Latest reward", value: viewedJob ? compactNumber(activeItem?.latest_reward, 3) : EMPTY_VALUE,
+      detail: viewedJob && activeItem ? `Job #${viewedJob.id} · ${activeItem.algorithm.toUpperCase()}` : "Latest training episode", icon: ChartLineIcon, tone: "blue" },
   ]
 
   return (
     <main className="smartflow-page rl-training-page">
-      <section className="rl-training-hero">
+      <header className="rl-training-hero">
         <div>
           <h1>RL Training</h1>
-          <p>Queue QL, DQL, and PPO training jobs, evaluate saved models, and monitor live output.</p>
-          {!canRunTraining && <p>Training is read-only for your role. An administrator can grant the RL training run permission.</p>}
+          <p>Train and evaluate traffic signal controllers using QL, DQL, and PPO.</p>
+          {!canRunTraining && <p>Training is read-only for your role.</p>}
         </div>
-        <div className="rl-hero-actions">
-          <Button variant="outline" onClick={() => void refreshStatus(viewedJobId)} disabled={isLoading}>
-            <RefreshCcwIcon data-icon="inline-start" />
-            Refresh
-          </Button>
-          <Button onClick={startTraining} disabled={!canRunTraining || Boolean(serverActiveJobId) || pendingAction || scenarioLoading}>
-            <PlayIcon data-icon="inline-start" />
-            Start queue
-          </Button>
-          <Button variant="destructive" onClick={stopTraining} disabled={!canStopActiveJob || pendingAction}>
-            <SquareIcon data-icon="inline-start" />
-            Stop active job
-          </Button>
-        </div>
-      </section>
+        <Button variant="outline" onClick={() => void refreshStatus(viewedJobId)} disabled={isLoading}>
+          <RefreshCcwIcon data-icon="inline-start" /> Refresh
+        </Button>
+      </header>
 
-      <section className="audit-metric-strip" aria-label="RL training metrics">
-        {metrics.map((metric) => {
-          const Icon = metric.icon
-          return (
-            <div key={metric.label} className={cn("audit-strip-metric", metric.tone)}>
-              <Icon />
-              <div>
-                <div>
-                  <strong>{metric.value}</strong>
-                  <span>{metric.label}</span>
-                </div>
-                <small>{metric.hint}</small>
-              </div>
+      <dl className="rl-kpis" aria-label="RL training summary">
+        {metrics.map(({ label, value, detail, icon: Icon, tone }) => (
+          <div className="rl-kpi" data-tone={tone} key={label}>
+            <Icon aria-hidden="true" />
+            <div>
+              <div className="rl-kpi-heading"><dt>{label}</dt><dd>{value}</dd></div>
+              <span>{detail}</span>
             </div>
-          )
-        })}
-      </section>
+          </div>
+        ))}
+      </dl>
 
-      <Alert>
-        <BrainIcon />
-        <AlertDescription>{alert}</AlertDescription>
-      </Alert>
-      <p role="status" className="text-sm text-muted-foreground">Viewing {viewedJob ? `job #${viewedJob.id}` : "latest job"}.
-        {serverActiveJobId ? ` Active worker: job #${serverActiveJobId}, owner user #${activeJob?.user_id ?? "unknown"}.` : " No active worker."}
-        {viewedJob?.id && serverActiveJobId !== viewedJob.id ? " The viewed job is historical." : ""}
-      </p>
+      {alert && <Alert><AlertDescription>{alert}</AlertDescription></Alert>}
 
-      <section className="rl-training-grid">
-        <Card className="rl-queue-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PlayIcon />
-              Training Queue
-            </CardTitle>
-            <CardDescription>Train one selected junction from a complete saved scenario. Other junctions follow their saved plans. Synthetic inputs are workflow evidence, not field validation.</CardDescription>
-            <CardAction>
-              <Badge variant="secondary">{selectedAlgorithmLabel(algorithms)}</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="rl-form-stack">
-            <div className="rl-algorithm-row">
-              {algorithmOptions.map((option) => (
-                <label key={option.value} className="rl-checkbox-card">
-                  <Checkbox
-                    checked={algorithms.includes(option.value)}
-                    onCheckedChange={(checked) => toggleAlgorithm(option.value, Boolean(checked))}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
+      <Tabs value={selectedTab} onValueChange={(value) => { setTab(value as TrainingTab); setAlert("") }}>
+        <TabsList variant="line" className="rl-tabs" aria-label="RL training views">
+          <TabsTrigger value="models"><DatabaseIcon /> Models</TabsTrigger>
+          <TabsTrigger value="train"><PlayIcon /> Train</TabsTrigger>
+          <TabsTrigger value="jobs"><ListChecksIcon /> Jobs{serverActiveJobId ? " · Active" : ""}</TabsTrigger>
+        </TabsList>
 
-            <FieldGroup className="rl-form-grid">
-              <Field className="rl-field-wide">
-                <FieldLabel>Saved scenario</FieldLabel>
-                <ScenarioSelect scenarios={scenarios} selectedScenarioId={selectedScenarioId} onChange={(id) => {
-                  setSelectedScenarioId(id)
-                  setSettings((current) => ({ ...current, scenario_id: Number(id) || null,
-                    evaluation_scenario_id: current.evaluation_scenario_id === Number(id)
-                      ? scenarios.find((scenario) => scenario.id !== Number(id))?.id ?? null
-                      : current.evaluation_scenario_id }))
-                }} />
-                <FieldDescription>{scenarioLoading ? "Loading saved configuration…" : selectedScenario && scenarioConfig ? `${selectedScenario.name} · junction ${String(scenarioConfig.controlled_junction ?? selectedScenario.network_id)} · ${String(scenarioConfig.demand_source?.kind ?? "synthetic")} demand · ${scenarioConfig.events?.length ?? 0} timed road events` : "Choose an available scenario."}</FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="rl-seeds">Training seeds</FieldLabel>
-                <Input id="rl-seeds" value={settings.seeds} onChange={(event) => setSettings({ ...settings, seeds: event.target.value })} />
-                <FieldDescription>Comma-separated non-negative integers.</FieldDescription>
-              </Field>
-              <Field className="rl-field-wide">
-                <FieldLabel>Held-out evaluation scenario</FieldLabel>
-                <ScenarioSelect scenarios={scenarios.filter((scenario) => scenario.id !== settings.scenario_id)} selectedScenarioId={String(settings.evaluation_scenario_id ?? "")} onChange={(id) => setSettings((current) => ({ ...current, evaluation_scenario_id: Number(id) || null }))} />
-                <FieldDescription>Choose a different saved scenario for automatic and manual evaluation. Its controlled junction must match training.</FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="rl-evaluation-seeds">Held-out evaluation seeds</FieldLabel>
-                <Input id="rl-evaluation-seeds" value={settings.evaluation_seeds} onChange={(event) => setSettings({ ...settings, evaluation_seeds: event.target.value })} />
-                <FieldDescription>These seeds must differ from the training seeds.</FieldDescription>
-              </Field>
-              <NumberField label="Episodes" min={1} max={100000} value={settings.episodes} onChange={(episodes) => setSettings({ ...settings, episodes })} />
-              <NumberField label="Warmup seconds" min={0} max={86400} step={0.1} value={settings.warmup_seconds} onChange={(warmup_seconds) => setSettings({ ...settings, warmup_seconds })} />
-              <NumberField label="Evaluation seconds" min={0.1} max={86400} step={0.1} value={settings.evaluation_seconds} onChange={(evaluation_seconds) => setSettings({ ...settings, evaluation_seconds })} />
-              <NumberField label="Decision interval seconds" min={0.1} max={60} step={0.1} value={settings.decision_interval_seconds} onChange={(decision_interval_seconds) => setSettings({ ...settings, decision_interval_seconds })} />
-              <NumberField label="Minimum green hold seconds" min={5} max={60} step={0.1} value={settings.minimum_green_hold_seconds} onChange={(minimum_green_hold_seconds) => setSettings({ ...settings, minimum_green_hold_seconds })} />
-              <NumberField label="Checkpoint every" min={0} max={100000} value={settings.checkpoint_every} onChange={(checkpoint_every) => setSettings({ ...settings, checkpoint_every })} />
-            </FieldGroup>
-            <Button variant="outline" onClick={() => {
-              setSettings((current) => ({ ...current, episodes: 2, seeds: "11", evaluation_seeds: "101", warmup_seconds: 0, evaluation_seconds: 20, decision_interval_seconds: 1, minimum_green_hold_seconds: 5, checkpoint_every: 1, resume_model_id: null, resume_checkpoint_id: null }))
-              setAdvanced({ ql: { ...defaultAdvanced.ql }, dql: { learning_starts: 4, buffer_size: 100, batch_size: 4 }, ppo: { n_steps: 8, batch_size: 4, n_epochs: 1 } })
-              setAlert("Short workflow check selected. This trains and evaluates on separate saved scenarios and seeds.")
-            }}>Use short workflow check</Button>
-
-            <div className="rl-advanced-grid">
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>QL</CardTitle>
-                </CardHeader>
-                <CardContent className="rl-mini-grid">
-                  <NumberField label="Alpha" value={advanced.ql.alpha} onChange={(alpha) => setAdvanced({ ...advanced, ql: { ...advanced.ql, alpha } })} />
-                  <NumberField label="Gamma" value={advanced.ql.gamma} onChange={(gamma) => setAdvanced({ ...advanced, ql: { ...advanced.ql, gamma } })} />
-                  <NumberField label="Epsilon" value={advanced.ql.epsilon} onChange={(epsilon) => setAdvanced({ ...advanced, ql: { ...advanced.ql, epsilon } })} />
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>DQL</CardTitle>
-                </CardHeader>
-                <CardContent className="rl-mini-grid">
-                  <NumberField label="Learning Starts" value={advanced.dql.learning_starts} onChange={(learning_starts) => setAdvanced({ ...advanced, dql: { ...advanced.dql, learning_starts } })} />
-                  <NumberField label="Buffer Size" value={advanced.dql.buffer_size} onChange={(buffer_size) => setAdvanced({ ...advanced, dql: { ...advanced.dql, buffer_size } })} />
-                  <NumberField label="Batch Size" value={advanced.dql.batch_size} onChange={(batch_size) => setAdvanced({ ...advanced, dql: { ...advanced.dql, batch_size } })} />
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>PPO</CardTitle>
-                </CardHeader>
-                <CardContent className="rl-mini-grid">
-                  <NumberField label="N Steps" value={advanced.ppo.n_steps} onChange={(n_steps) => setAdvanced({ ...advanced, ppo: { ...advanced.ppo, n_steps } })} />
-                  <NumberField label="Batch Size" value={advanced.ppo.batch_size} onChange={(batch_size) => setAdvanced({ ...advanced, ppo: { ...advanced.ppo, batch_size } })} />
-                  <NumberField label="N Epochs" value={advanced.ppo.n_epochs} onChange={(n_epochs) => setAdvanced({ ...advanced, ppo: { ...advanced.ppo, n_epochs } })} />
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="rl-secondary-actions">
-              <Button variant="outline" onClick={() => { setSettings((current) => ({ ...current, resume_model_id: null, resume_checkpoint_id: null })); setSelectedCheckpointId(null); setAlert("Resume selection cleared.") }}>Clear resume selection</Button>
-              <Button variant="outline" onClick={resumeSelectedModel} disabled={!canRunTraining || !resumeTargetCompatible(selectedModel, selectedCheckpointId) || Boolean(serverActiveJobId) || pendingAction}>
-                <RotateCcwIcon data-icon="inline-start" />
-                Resume selected
-              </Button>
-              <Button variant="outline" onClick={evaluateSelectedModel} disabled={!canRunTraining || !selectedModel?.compatible || !selectedModelMatchesScenario || Boolean(serverActiveJobId) || pendingAction}>
-                <ChartLineIcon data-icon="inline-start" />
-                Evaluate selected
-              </Button>
-              {settings.resume_model_id ? <Badge variant="outline">Resume model #{settings.resume_model_id}{settings.resume_checkpoint_id ? ` checkpoint #${settings.resume_checkpoint_id}` : ""}</Badge> : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rl-console-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TerminalIcon />
-              Live Console
-            </CardTitle>
-            <CardDescription>{status.log_lines.length} recent log line{status.log_lines.length === 1 ? "" : "s"}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="rl-console">{consoleText}</pre>
-          </CardContent>
-        </Card>
-
-        <Card className="rl-chart-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ChartLineIcon />
-              Reward Progress
-            </CardTitle>
-            <CardDescription>Parsed from live training output.</CardDescription>
-          </CardHeader>
-          <CardContent className="rl-chart-shell">
-            {rewardChart.data.length ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={rewardChart.data}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="episode" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  {rewardChart.algorithms.map((algorithm, index) => (
-                    <Line key={algorithm} type="monotone" dataKey={algorithm} stroke={`var(--chart-${(index % 5) + 1})`} dot={false} connectNulls />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <Empty>
+        <TabsContent value="models">
+          <Card>
+            <CardHeader className="rl-models-header">
+              <CardTitle>Saved models</CardTitle>
+              <CardDescription>Evaluate a model on a held-out scenario or resume from a compatible artifact.</CardDescription>
+            </CardHeader>
+            <CardContent className="rl-models">
+              {!shownModels.length && <Empty>
                 <EmptyHeader>
-                  <EmptyTitle>No rewards yet</EmptyTitle>
-                  <EmptyDescription>They appear here while a job trains.</EmptyDescription>
+                  <EmptyTitle>No compatible models yet</EmptyTitle>
+                  <EmptyDescription>Saved models will appear here after training.</EmptyDescription>
                 </EmptyHeader>
-              </Empty>
-            )}
-          </CardContent>
-        </Card>
+                {canRunTraining && <Button onClick={() => { clearModelAction(); setTab("train") }}>Configure training</Button>}
+              </Empty>}
+              {shownModels.map((model) => (
+                <div key={model.id} className="rl-model-row">
+                  <div className="min-w-0">
+                    <div className="rl-action-row">
+                      <Badge variant="outline" className="rl-model-tag" data-algorithm={model.algorithm.toLowerCase()}>{model.algorithm.toUpperCase()}</Badge>
+                      <Badge variant="outline" className="rl-model-tag" data-tone={model.compatible ? "green" : "amber"}>{model.compatible ? "Compatible" : "Checkpoint available"}</Badge>
+                    </div>
+                    <p className="rl-model-name">{model.name ?? `Model #${model.id}`}</p>
+                    <p className="text-muted-foreground">{model.controlled_junction === "tagum_site_a_j" ? "Site A"
+                      : model.controlled_junction === "tagum_site_b_j" ? "Site B" : model.controlled_junction ?? "Junction unknown"} · {formatServerDate(model.training_date)}</p>
+                    <p className="text-muted-foreground">{model.best_evaluation_score == null ? "No evaluation score" : `Recorded mean stopped wait ${compactNumber(Math.abs(model.best_evaluation_score), 3)} s`}</p>
+                  </div>
+                  {canRunTraining && <div className="rl-action-row">
+                    <Button size="sm" variant="outline" className="rl-model-action" data-tone="blue" aria-label={`Evaluate model #${model.id}`} onClick={() => openModelAction(model, "evaluate")} disabled={!model.compatible}>
+                      <ChartLineIcon data-icon="inline-start" /> Evaluate
+                    </Button>
+                    <Button size="sm" variant="outline" className="rl-model-action" data-tone="violet" aria-label={`Resume model #${model.id}`} onClick={() => openModelAction(model, "resume")}>
+                      <RotateCcwIcon data-icon="inline-start" /> Resume
+                    </Button>
+                  </div>}
+                </div>
+              ))}
+              {shownModels.some((model) => model.best_evaluation_score != null) && <p className="text-muted-foreground">Compare stopped wait across matching inputs and measurement definitions. Historical scores may lack coverage information.</p>}
+              {hiddenModelCount > 0 && <p className="text-muted-foreground">{hiddenModelCount} older {hiddenModelCount === 1 ? "model requires" : "models require"} an earlier controller contract.</p>}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <Card className="rl-jobs-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ListChecksIcon />
-              Training Jobs
-            </CardTitle>
-            <CardDescription>Select a job to inspect its status and logs.</CardDescription>
-            <CardAction>
-              <Badge variant="secondary">{jobs.length} jobs</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="rl-table-shell">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Algorithms</TableHead>
-                  <TableHead>Progress</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((job) => (
-                  <TableRow
-                    key={job.id}
-                    className={cn(viewedJob?.id === job.id && "selected")}
-                    onClick={() => viewJob(job.id)}
-                  >
-                    <TableCell>#{job.id}{serverActiveJobId === job.id ? " · active" : ""}</TableCell>
-                    <TableCell><StatusBadge status={job.status} /></TableCell>
-                    <TableCell>{selectedAlgorithmLabel(job.selected_algorithms)}</TableCell>
-                    <TableCell>
-                      <ProgressBar value={job.progress_percent} />
-                    </TableCell>
-                    <TableCell>{formatServerDate(job.created_at)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <TabsContent value="train">
+          <div className="rl-training-grid rl-train-grid">
+            <Card>
+              <CardHeader>
+                <CardTitle className="rl-card-title"><PlayIcon /> {trainTitle}</CardTitle>
+                <CardDescription>{selectedModel && modelAction ? selectedModel.name ?? `Model #${selectedModel.id}`
+                  : "Choose algorithms and a saved scenario. Training controls one junction."}</CardDescription>
+                {modelAction && <CardAction><Button size="sm" variant="ghost" onClick={clearModelAction}>New training</Button></CardAction>}
+              </CardHeader>
+              <CardContent className="rl-form-stack">
+                {!modelAction && <fieldset className="rl-form-stack">
+                  <legend className="mb-2 font-medium">Algorithms</legend>
+                  <div className="rl-action-row">
+                    {algorithmOptions.map((option) => (
+                      <label key={option.value} className="rl-checkbox-card">
+                        <Checkbox checked={algorithms.includes(option.value)} onCheckedChange={(checked) => toggleAlgorithm(option.value, Boolean(checked))} />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>}
 
-        <Card className="rl-models-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DatabaseIcon />
-              Trained Models
-            </CardTitle>
-            <CardDescription>Pick a model to resume or evaluate. Historical scores may lack evidence about which vehicles were counted. Compare wait only across runs with matching inputs.</CardDescription>
-            <CardAction>
-              <Badge variant="secondary">{shownModels.length} models</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="rl-table-shell">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Algorithm</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Mean stopped wait (s)</TableHead>
-                  <TableHead>Trained</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shownModels.map((model: RLModelRecord) => (
-                  <TableRow
-                    key={model.id}
-                    className={cn(selectedModel?.id === model.id && "selected")}
-                    onClick={() => { setSelectedModelId(model.id); setSelectedCheckpointId(null) }}
-                  >
-                    <TableCell>#{model.id}</TableCell>
-                    <TableCell><Badge variant="outline">{model.algorithm}</Badge></TableCell>
-                    <TableCell>{model.name ?? "RL Model"} · {model.compatible ? "compatible" : model.compatibility_message}</TableCell>
-                    <TableCell>{compactNumber(model.best_evaluation_score == null ? null : Math.abs(model.best_evaluation_score), 3)}</TableCell>
-                    <TableCell>{formatServerDate(model.training_date)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {hiddenModelCount > 0 ? <p role="note" className="p-3 text-sm text-muted-foreground">{hiddenModelCount} older model{hiddenModelCount === 1 ? "" : "s"} from before the current controller contract {hiddenModelCount === 1 ? "is" : "are"} hidden because {hiddenModelCount === 1 ? "it" : "they"} cannot run or resume. Nothing was deleted.</p> : null}
-            {selectedModel ? (
-              <div className="flex flex-col gap-2 p-3">
-                <p>Model #{selectedModel.id}: {selectedModel.compatible ? "compatible artifact" : selectedModel.compatibility_message}. Junction {selectedModel.controlled_junction ?? "unknown"}; decision every {selectedModel.decision_interval_seconds}s; minimum green hold {selectedModel.minimum_green_hold_seconds}s. Status: {selectedModel.training_status ?? "unknown"}. {selectedModelMatchesScenario ? "Matches the selected scenario junction." : "Choose a scenario with this controlled junction to use this model."}</p>
-                <Field>
-                  <FieldLabel htmlFor="rl-checkpoint">Resume checkpoint</FieldLabel>
-                  <select id="rl-checkpoint" value={selectedCheckpointId ?? ""} onChange={(event) => setSelectedCheckpointId(event.target.value ? Number(event.target.value) : null)}>
-                    <option value="">Final model artifact</option>
-                    {selectedModel.checkpoints.map((checkpoint) => <option key={checkpoint.id} value={checkpoint.id}>#{checkpoint.id} · episode {checkpoint.episode} · {checkpoint.compatible ? "compatible" : checkpoint.compatibility_message}</option>)}
-                  </select>
-                </Field>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+                <FieldGroup className="rl-scenario-grid">
+                  <Field>
+                    <FieldLabel htmlFor="rl-scenario">{evaluatingModel ? "Reference scenario" : "Training scenario"}</FieldLabel>
+                    <ScenarioSelect id="rl-scenario" scenarios={scenarios} selectedScenarioId={selectedScenarioId} onChange={chooseScenario} />
+                    <FieldDescription>{scenarioLoading ? "Loading saved settings…" : scenarioConfig && selectedScenario
+                      ? `${scenarioConfig.controlled_junction ?? selectedScenario.network_id} · ${String(scenarioConfig.demand_source?.kind ?? "synthetic").replaceAll("_", " ")} demand`
+                      : "Choose a saved scenario."}</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="rl-holdout">Held-out evaluation scenario</FieldLabel>
+                    <ScenarioSelect id="rl-holdout" scenarios={evaluationScenarios} selectedScenarioId={String(settings.evaluation_scenario_id ?? "")}
+                      onChange={(id) => setSettings((current) => ({ ...current, evaluation_scenario_id: Number(id) || null }))} />
+                    <FieldDescription>Choose a different scenario with the same controlled junction.</FieldDescription>
+                  </Field>
+                  {!evaluatingModel && <NumberField label="Episodes per algorithm" min={1} max={100000} value={settings.episodes} onChange={(episodes) => setSettings({ ...settings, episodes })} />}
+                  {resumingModel && selectedModel && <Field>
+                    <FieldLabel htmlFor="rl-checkpoint">Resume from</FieldLabel>
+                    <select className="rl-native-select" id="rl-checkpoint" value={selectedCheckpointId ?? ""}
+                      onChange={(event) => setSelectedCheckpointId(event.target.value ? Number(event.target.value) : null)}>
+                      <option value="" disabled={!selectedModel.compatible}>Final model artifact</option>
+                      {selectedModel.checkpoints.map((checkpoint) => <option key={checkpoint.id} value={checkpoint.id} disabled={!checkpoint.compatible}>
+                        Checkpoint #{checkpoint.id} · episode {checkpoint.episode}
+                      </option>)}
+                    </select>
+                    <FieldDescription>Saved learning parameters may be retained.</FieldDescription>
+                  </Field>}
+                </FieldGroup>
 
-        <Card className="rl-items-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GaugeIcon />
-              Job Items
-            </CardTitle>
-            <CardDescription>Per-algorithm execution and evaluation artifacts.</CardDescription>
-          </CardHeader>
-          <CardContent className="rl-table-shell">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Algorithm</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Episode</TableHead>
-                  <TableHead>Reward</TableHead>
-                  <TableHead>Artifact</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {status.items.map((item: RLTrainingJobItem) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.algorithm.toUpperCase()}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={item.status} />
-                      {item.message && ["error", "interrupted"].includes(item.status.toLowerCase()) ? <small className="rl-item-message">{item.message}</small> : null}
-                    </TableCell>
-                    <TableCell>{item.latest_episode}</TableCell>
-                    <TableCell>{compactNumber(item.latest_reward, 3)}</TableCell>
-                    <TableCell className="rl-path-cell">{item.artifact_path ?? item.evaluation_path ?? EMPTY_VALUE}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </section>
+                <Collapsible className="rl-advanced">
+                  <CollapsibleTrigger render={<Button className="w-full justify-between" variant="outline" />}>
+                    Advanced settings <ChevronDownIcon />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="rl-form-stack pt-4">
+                    <FieldGroup className="rl-scenario-grid">
+                      <Field>
+                        <FieldLabel htmlFor="rl-seeds">Training seeds</FieldLabel>
+                        <Input id="rl-seeds" value={settings.seeds} onChange={(event) => setSettings({ ...settings, seeds: event.target.value })} />
+                        <FieldDescription>Comma-separated non-negative integers.</FieldDescription>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="rl-evaluation-seeds">Held-out evaluation seeds</FieldLabel>
+                        <Input id="rl-evaluation-seeds" value={settings.evaluation_seeds} onChange={(event) => setSettings({ ...settings, evaluation_seeds: event.target.value })} />
+                        <FieldDescription>Use seeds distinct from training.</FieldDescription>
+                      </Field>
+                    </FieldGroup>
+                    <FieldGroup className="rl-number-grid">
+                      <NumberField label="Warm-up (s)" min={0} max={86400} step={0.1} value={settings.warmup_seconds} onChange={(warmup_seconds) => setSettings({ ...settings, warmup_seconds })} />
+                      <NumberField label="Evaluation (s)" min={0.1} max={86400} step={0.1} value={settings.evaluation_seconds} onChange={(evaluation_seconds) => setSettings({ ...settings, evaluation_seconds })} />
+                      {!modelAction && <>
+                        <NumberField label="Decision interval (s)" min={0.1} max={60} step={0.1} value={settings.decision_interval_seconds} onChange={(decision_interval_seconds) => setSettings({ ...settings, decision_interval_seconds })} />
+                        <NumberField label="Minimum green hold (s)" min={5} max={60} step={0.1} value={settings.minimum_green_hold_seconds} onChange={(minimum_green_hold_seconds) => setSettings({ ...settings, minimum_green_hold_seconds })} />
+                      </>}
+                      {!evaluatingModel && <NumberField label="Checkpoint interval (episodes)" min={0} max={100000} value={settings.checkpoint_every} onChange={(checkpoint_every) => setSettings({ ...settings, checkpoint_every })} />}
+                    </FieldGroup>
+                    {!modelAction && algorithms.map((algorithm) => (
+                      <fieldset className="rl-parameter-group" key={algorithm}>
+                        <legend>{algorithm.toUpperCase()} parameters</legend>
+                        <FieldGroup className="rl-number-grid">
+                          {Object.entries(advanced[algorithm]).map(([key, value]) => (
+                            <NumberField key={key} label={key.replaceAll("_", " ")} value={value} step={algorithm === "ql" ? 0.01 : 1}
+                              onChange={(next) => setAdvanced((current) => ({ ...current, [algorithm]: { ...current[algorithm], [key]: next } }))} />
+                          ))}
+                        </FieldGroup>
+                      </fieldset>
+                    ))}
+                    {!modelAction && <Button className="self-start" variant="outline" onClick={useShortWorkflowCheck}>Use short workflow check</Button>}
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <div className="rl-review">
+                  <p className="font-medium">{selectedAlgorithmLabel(configuredAlgorithms)}{!evaluatingModel && ` · ${settings.episodes.toLocaleString()} episodes per algorithm`}</p>
+                  <p className="text-muted-foreground">{evaluationScenario?.name ?? "Choose a held-out scenario"} · Evaluation seeds {settings.evaluation_seeds || EMPTY_VALUE}</p>
+                  <p className="text-muted-foreground">Compare against fixed-time and no-signal control. Results apply to the saved scenario inputs.</p>
+                </div>
+                {modelAction && scenarioConfig && !selectedModelMatchesScenario && <p role="status">Choose a reference scenario for the model’s controlled junction.</p>}
+                {serverActiveJobId && <Button className="self-start" variant="outline" onClick={() => viewJob(serverActiveJobId)}>Open active job #{serverActiveJobId}</Button>}
+                <Button className="self-start" disabled={!canSubmit || !modelTargetReady}
+                  onClick={() => evaluatingModel ? void evaluateSelectedModel() : resumingModel ? resumeSelectedModel() : void startTraining()}>
+                  <PlayIcon data-icon="inline-start" /> {pendingAction ? "Submitting…" : submitLabel}
+                </Button>
+              </CardContent>
+            </Card>
+            <JobConsole job={activeConsoleJob} lines={activeConsoleJob ? status.log_lines : []} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="jobs" className="rl-form-stack">
+          {!jobs.length && !viewedJob ? <Card><CardContent>
+            <Empty>
+              <EmptyHeader><EmptyTitle>No jobs yet</EmptyTitle><EmptyDescription>Start training or evaluate a saved model to see job progress here.</EmptyDescription></EmptyHeader>
+            </Empty>
+          </CardContent></Card> : <>
+            {viewedJob && <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Job #{viewedJob.id} · {selectedAlgorithmLabel(viewedJob.selected_algorithms)}</CardTitle>
+                  <CardDescription>{viewedJob.message}</CardDescription>
+                  <CardAction><StatusBadge status={viewedJob.status} /></CardAction>
+                </CardHeader>
+                <CardContent className="rl-form-stack">
+                  <dl className="rl-job-metrics">
+                    <div><dt>Stage</dt><dd className="capitalize">{viewedJob.status === "running" && viewedJob.current_algorithm
+                      ? viewedJob.current_algorithm === "evaluation" ? "Evaluation" : viewedJob.current_algorithm.toUpperCase()
+                      : statusLabel(viewedJob.status)}</dd></div>
+                    <div><dt>Episode</dt><dd>{activeItem?.latest_episode || EMPTY_VALUE}</dd></div>
+                    <div><dt>Elapsed</dt><dd>{elapsedTime(viewedJob)}</dd></div>
+                    <div><dt>Job progress</dt><dd>{compactNumber(viewedJob.progress_percent)}%</dd></div>
+                  </dl>
+                  <ProgressBar value={viewedJob.progress_percent} />
+                  {canStopActiveJob && serverActiveJobId === viewedJob.id && <Button className="self-start" variant="destructive" disabled={pendingAction} onClick={stopTraining}>
+                    <SquareIcon data-icon="inline-start" /> Stop active job
+                  </Button>}
+                  {status.items.length > 0 && <ul className="rl-job-items" aria-label="Algorithms in this job">
+                    {status.items.map((item: RLTrainingJobItem) => <li key={item.id}>
+                      <strong>{item.algorithm.toUpperCase()}</strong> <StatusBadge status={item.status} />
+                      {["error", "interrupted"].includes(item.status) && item.message && <span>{item.message}</span>}
+                    </li>)}
+                  </ul>}
+                </CardContent>
+              </Card>
+            </>}
+            {!viewedJob && <p role="status">Loading job details…</p>}
+            <div className="rl-training-grid">
+              <JobConsole job={viewedJob} lines={viewedJob ? status.log_lines : []} />
+              <Card>
+                <CardHeader><CardTitle>Recent jobs</CardTitle></CardHeader>
+                <CardContent>
+                  <ul className="rl-job-list">
+                    {jobs.map((job) => <li key={job.id}>
+                      <Button className="w-full justify-between" variant={viewedJob?.id === job.id ? "secondary" : "ghost"}
+                        aria-current={viewedJob?.id === job.id ? "true" : undefined} onClick={() => viewJob(job.id)}>
+                        <span>#{job.id} · {selectedAlgorithmLabel(job.selected_algorithms)}</span>
+                        <span className="rl-action-row"><span className="rl-job-date">{formatServerDate(job.created_at)}</span><StatusBadge status={job.status} /></span>
+                      </Button>
+                    </li>)}
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+            {viewedJob && rewardChart.data.length > 0 && <Card>
+              <CardHeader><CardTitle className="rl-card-title"><ChartLineIcon /> Recent training rewards</CardTitle></CardHeader>
+              <CardContent className="rl-chart-shell">
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={rewardChart.data}>
+                    <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="episode" /><YAxis /><Tooltip /><Legend />
+                    {rewardChart.algorithms.map((algorithm, index) => <Line key={algorithm} type="monotone" dataKey={algorithm}
+                      stroke={`var(--chart-${(index % 5) + 1})`} dot={false} connectNulls isAnimationActive={false} />)}
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>}
+            {reportJobId && (reportState?.report ? <EvaluationResults jobId={reportJobId} report={reportState.report} />
+              : <p role="status">{reportState?.error ?? "Loading evaluation results…"}</p>)}
+          </>}
+        </TabsContent>
+      </Tabs>
     </main>
   )
 }

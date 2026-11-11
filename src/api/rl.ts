@@ -68,6 +68,17 @@ export type RLTrainingStatusResponse = {
   models: RLModelRecord[]
 }
 
+export type RLEvaluationReport = {
+  controllers: string[]
+  seeds: number[]
+  summary: Record<string, Record<string, { mean: number | null }>>
+  excluded_matched_seeds?: Record<string, unknown>
+}
+
+export function getRLEvaluationReport(jobId: number, signal?: AbortSignal) {
+  return apiRequest<RLEvaluationReport>(`/api/rl/jobs/${jobId}/evaluation`, { signal })
+}
+
 export type RLTrainingSettings = {
   scenario_id: number | null
   evaluation_scenario_id: number | null
