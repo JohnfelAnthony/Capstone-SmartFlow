@@ -183,21 +183,20 @@ export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }
               {preview.uses_shared_pavement ? <p className="mt-1">This trip uses hypothetical shared pavement.</p> : null}
               {preview.routing_mode === "adaptive" ? <p className="mt-1">Adaptive routing · no simulated queues in this preview.</p> : null}
             </details> : null}
-            <p className="text-xs">Modelled route with no traffic. Scenario-based, not calibrated or validated.</p>
           </AlertDescription>
         </Alert>
         <ol className="flex flex-col" aria-label="Plan a trip">
-          <Step number={1} title="Where does the trip start?" note="Click a road end on the map, or choose below."
+          <Step number={1} title="Where does the trip start?"
             active={picking === "start"} onActivate={() => setPicking("start")}>
             {picking === "start" || !startLabel ? <EndPills roles={startRoles} step="start" onPick={chooseEnd} />
               : <ChosenEnd label={startLabel} onChange={() => setPicking("start")} />}
           </Step>
-          <Step number={2} title="Where is it going?" note={`Only places this vehicle can reach from the start are available.${noHeavyOnSobrecarey ? " Buses and trucks are not allowed on Sobrecarey Street." : ""}`}
+          <Step number={2} title="Where is it going?" note={noHeavyOnSobrecarey ? "Buses and trucks are not allowed on Sobrecarey Street." : undefined}
             active={picking === "destination"} onActivate={() => setPicking("destination")}>
             {picking === "destination" || !destinationLabel ? <EndPills roles={destinationRoles} step="destination" onPick={chooseEnd} />
               : <ChosenEnd label={destinationLabel} onChange={() => setPicking("destination")} />}
           </Step>
-          <Step number={3} title="Close a road? (optional)" note="Click any road on the map, then choose what traffic does.">
+          <Step number={3} title="Close a road? (optional)">
             <ClosureStep context={context} closures={closures} selectedLaneId={selectedLaneId} preview={preview} ready={ready}
               coordinationNotice={state.coordinationNotice} onSelect={setSelectedLaneId}
               onToggle={laneId => dispatch({ type: "toggle", laneId })}

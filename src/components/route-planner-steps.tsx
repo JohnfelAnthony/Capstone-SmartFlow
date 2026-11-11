@@ -23,12 +23,13 @@ const extraChoices: ClosureResponse[] = ["side_street_adaptive", "share"]
 export function Step({ number, title, note, active, onActivate, children }: {
   number: number; title: string; note?: string; active?: boolean; onActivate?: () => void; children: ReactNode
 }) {
-  return <li aria-current={active ? "step" : undefined} className={cn("flex gap-3 border-b py-3 pl-3 last:border-b-0", active && "border-l-2 border-l-primary pl-[10px]")}>
-    <span aria-hidden="true" className="flex size-6 flex-none items-center justify-center rounded-full bg-primary/15 text-xs font-medium text-primary">{number}</span>
+  return <li aria-current={active ? "step" : undefined} className="flex gap-3 border-b py-3 pl-3 last:border-b-0">
+    <span aria-hidden="true" className={cn("flex size-6 flex-none items-center justify-center rounded-full text-xs font-medium",
+      active ? "bg-primary text-primary-foreground ring-4 ring-primary/20" : "bg-muted text-muted-foreground")}>{number}</span>
     <div className="flex min-w-0 flex-1 flex-col gap-2">
       <div>
         {onActivate
-          ? <button type="button" onClick={onActivate} className="text-left text-sm font-medium underline-offset-2 hover:underline">{title}</button>
+          ? <button type="button" onClick={onActivate} className={cn("text-left text-sm underline-offset-2 hover:underline", active ? "font-semibold" : "font-medium")}>{title}</button>
           : <h3 className="text-sm font-medium">{title}</h3>}
         {note ? <p className="text-sm text-muted-foreground">{note}</p> : null}
       </div>
