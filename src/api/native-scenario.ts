@@ -40,6 +40,8 @@ export type SiteCalibration = {
 export type NativeScenarioConfig = {
   traffic_density?: string
   pedestrian_density?: string
+  /** Pedestrians per hour, present only with pedestrian_density "counted" (a peak-traffic video count). */
+  pedestrian_rate_per_hour?: number
   controlled_junction?: string
   green_seconds?: number
   /** Hidden warm-up before a live run or recording; absent in an old saved scenario, which the server resolves to its default. */
@@ -53,7 +55,7 @@ export type NativeScenarioConfig = {
   routing_mode?: "adaptive" | "static"
   reroute_interval?: number
   reroute_improvement?: number
-  demand_source?: { kind: "synthetic" | "observed" | "field_counts"; description?: string }
+  demand_source?: { kind: "synthetic" | "observed" | "field_counts"; description?: string; datasets?: Array<{ schema?: string; sha256?: string }> }
   vehicle_mix?: Record<string, number>
   demand_windows?: unknown[]
   site_calibration?: SiteCalibration
@@ -119,20 +121,16 @@ export function effectiveWarmupSeconds(config: NativeScenarioConfig, defaultSeco
   return steady ? (config.warmup_seconds ?? defaultSeconds) : 0
 }
 
-export type FieldCountsSummary = {
-  vehicles: number; bins: number; bin_seconds: number; span_seconds: number; vehicles_per_hour: number
-  by_approach_class: Record<string, Record<string, number>>; turns: Record<string, number>
-  class_mapping: Array<{ field_class: string; engine_class: string; vehicles: number; pending_team_decision: boolean; note: string }>
-  not_simulated: Record<string, number>; not_counted_at_the_end: number; limits: string; rate_note: string
-  source: { take_id: string; revision: string; manifest_sha256: string }
+export type PeakRoad = { approach: string; name: string; arriving: number; leaving: number; arriving_assumed: boolean; leaving_assumed: boolean }
+
+export type PeakCountsSummary = {
+  label: string; traffic_label: string; video: { file: string; seconds: number; take_id: string; source_sha256: string }
+  method: "manual" | "automatic_detector"; reviewed: boolean; count_direction: "leaving" | "arriving"
+  counted_vehicles: number; assumed_vehicles: number; vehicles_per_hour: number; entering: Record<"5" | "10" | "15", number>
+  by_type: Record<string, number>; roads: PeakRoad[]; pedestrians: { counted: number; per_hour: number } | null; notes: string[]; dataset_sha256: string
 }
 
-/** A reviewed Field Observer export (its five files, by name) as scenario demand. Nothing is saved until the scenario is. */
-export function importFieldObserverCounts(payload: { network_id: string; engine_config: NativeScenarioConfig; files: Record<string, string> }) {
-  return apiRequest<{ engine_config: NativeScenarioConfig; summary: FieldCountsSummary }>("/api/scenarios/field-observer-counts", { method: "POST", body: payload })
-}
-
-export function importMovementCounts(payload: { csv_text: string; network_id: string; engine_config: NativeScenarioConfig }) {
-  return apiRequest<{ engine_config: NativeScenarioConfig; rows: number; vehicles_per_hour: number }>(
-    "/api/scenarios/movement-counts", { method: "POST", body: payload })
+/** The site's peak-traffic video count as the draft's demand. Nothing is saved until the scenario is. */
+export function getPeakCounts(payload: { network_id: string; engine_config: NativeScenarioConfig }) {
+  return apiRequest<{ engine_config: NativeScenarioConfig; summary: PeakCountsSummary }>("/api/scenarios/peak-counts", { method: "POST", body: payload })
 }

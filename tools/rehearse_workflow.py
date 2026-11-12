@@ -1,9 +1,10 @@
-"""Rehearse the whole study workflow against a SCRATCH server and database, on a SYNTHETIC Field Observer export.
+"""Rehearse the whole study workflow against a SCRATCH server and database.
 
-    import counts -> scenario -> short train -> evaluate -> record -> Compare Runs -> report -> backup and restore,
+    peak-traffic counts -> scenario -> short train -> evaluate -> record -> Compare Runs -> report -> backup and restore,
     plus one live run for each closure response.
 
-Everything it creates is labelled SYNTHETIC; it makes no field measurement and proves only that the pieces fit together.
+Training and Site B use the sites' peak-traffic video counts (demand with assumed routes); the held-out scenario is a SYNTHETIC
+density preset, so training and evaluation see different demand. It proves only that the pieces fit together.
 Development seeds only (11 for training, 101 for held-out evaluation and recordings); the training is two short episodes.
 Never point it at the owner's database: it refuses a server whose scenario list does not look like a scratch database
 unless --allow-existing is given.
@@ -16,7 +17,6 @@ import argparse
 import csv
 import io
 import json
-import random
 import sqlite3
 import sys
 import time
@@ -25,64 +25,9 @@ from pathlib import Path
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from services.movement_counts import approach_boundaries  # noqa: E402
 from simulation.closure_responses import NEAREST_EXIT, SHARE, SIDE_STREET, SIDE_STREET_ADAPTIVE  # noqa: E402
-from simulation.network_registry import load_registered_network  # noqa: E402
 
-SPAN, BIN = 960, 60
 SYNTHETIC = "SYNTHETIC"
-# Field class, subtype, weight: includes a pedicab and a jeepney (the two flagged mappings) and a bicycle (not simulated).
-CLASSES = [("car", "", .15), ("motorcycle", "", .45), ("tricycle", "bao_bao", .17), ("tricycle", "pedicab", .03), ("bus", "", .03),
-           ("truck", "", .04), ("jeepney", "", .10), ("bicycle", "", .03)]
-COMMON = {"survey_id": "S1", "intersection_id": "rehearsal", "camera_id": "C1", "take_id": "T1", "view_segment_id": "V1"}
-EVENT_FIELDS = (*COMMON, "event_id", "episode_id", "event_type", "location_id", "time_s", "frame_pts", "approach_id", "exit_id", "crossing_id",
-                "direction", "reviewed_class", "vehicle_subtype", "review_status", "review_method", "reviewer", "note")
-COVERAGE_FIELDS = (*COMMON, "event_type", "location_id", "start_s", "end_s", "visibility", "review_method", "reviewer", "note")
-BIN_FIELDS = (*COMMON, "start_s", "end_s", "event_type", "location_id", "reviewed_class", "vehicle_subtype", "observed_count", "count",
-              "coverage", "review_state", "publication_status")
-
-
-def table(fields, rows) -> str:
-    out = io.StringIO()
-    writer = csv.DictWriter(out, fieldnames=fields, lineterminator="\n")
-    writer.writeheader()
-    writer.writerows(rows)
-    return out.getvalue()
-
-
-def synthetic_export(site: str, seed: int, vehicles_per_minute: float) -> dict[str, str]:
-    """The five files of a reviewed revision, invented: a seeded stream of vehicles per approach, each with an arrival and a reviewed exit."""
-    import hashlib
-    rng = random.Random(seed)
-    approaches = sorted(approach_boundaries(load_registered_network(site)))
-    events = []
-    for number in range(round(vehicles_per_minute*SPAN/60)):
-        origin = rng.choice(approaches)
-        destination = rng.choice([name for name in approaches if name != origin])
-        field_class, subtype, _ = rng.choices(CLASSES, [weight for *_, weight in CLASSES])[0]
-        arrive = round(rng.uniform(0, SPAN-30), 1)
-        for kind, place, moment in (("vehicle_arrival", f"arr_{origin}", arrive), ("vehicle_discharge", f"exit_{destination}", arrive+rng.uniform(6, 20))):
-            events.append({**COMMON, "event_id": f"v{number}-{kind[8]}", "episode_id": f"v{number}", "event_type": kind, "location_id": place, "time_s": round(moment, 1),
-                           "frame_pts": "", "approach_id": "", "exit_id": "", "crossing_id": "", "direction": "", "reviewed_class": field_class,
-                           "vehicle_subtype": subtype, "review_status": "accepted", "review_method": "manual", "reviewer": SYNTHETIC, "note": SYNTHETIC})
-    lines = ([(f"arr_{name}", "vehicle_arrival", name, "arrival") for name in approaches] + [(f"exit_{name}", "vehicle_discharge", name, "exit") for name in approaches])
-    classes = sorted({(row["reviewed_class"], row["vehicle_subtype"]) for row in events})
-    bins = []
-    for location, kind, _, _ in lines:
-        for left in range(0, SPAN, BIN):
-            for field_class, subtype in classes:
-                count = sum(row["location_id"] == location and row["reviewed_class"] == field_class and row["vehicle_subtype"] == subtype
-                            and left <= row["time_s"] < left+BIN for row in events)
-                bins.append({**COMMON, "start_s": left, "end_s": left+BIN, "event_type": kind, "location_id": location, "reviewed_class": field_class,
-                             "vehicle_subtype": subtype, "observed_count": count, "count": count, "coverage": "complete",
-                             "review_state": "manual_review_recorded", "publication_status": "provisional"})
-    coverage = [{**COMMON, "event_type": kind, "location_id": location, "start_s": 0, "end_s": SPAN, "visibility": "complete", "review_method": "manual",
-                 "reviewer": SYNTHETIC, "note": SYNTHETIC} for location, kind, _, _ in lines]
-    files = {"events.csv": table(EVENT_FIELDS, events), "coverage.csv": table(COVERAGE_FIELDS, coverage), "reviewed_bins.csv": table(BIN_FIELDS, bins),
-             "lines.json": json.dumps({"schema_version": 1, "take_id": "T1", "lines": [
-                 {"id": f"l{index}", "location_id": place, "event_type": kind, "approach_id": name, "role": role} for index, (place, kind, name, role) in enumerate(lines)]})}
-    manifest = {**COMMON, "revision": f"synthetic-{seed}", "bin_seconds": BIN, "artifact_sha256": {name: hashlib.sha256(text.encode("utf-8")).hexdigest() for name, text in files.items()}}
-    return {**files, "manifest.json": json.dumps(manifest)}
 
 
 class Rehearsal:
@@ -114,15 +59,20 @@ class Rehearsal:
         raise TimeoutError(f"{label} did not finish in {timeout}s")
 
     # --- 1. import counts -> scenario
-    def import_and_save(self, site: str, label: str, seed: int, per_minute: float) -> dict:
-        files = synthetic_export(site, seed, per_minute)
-        imported = self.call("POST", "/api/scenarios/field-observer-counts", json={"network_id": site, "engine_config": {"pedestrian_density": "none"}, "files": files}).json()
-        summary = imported["summary"]
-        pending = [item["field_class"] for item in summary["class_mapping"] if item["pending_team_decision"]]
-        saved = self.call("POST", "/api/scenarios", json={"name": f"REHEARSAL {label} ({SYNTHETIC})", "network_id": site, "engine_config": imported["engine_config"],
-                                                          "description": f"{SYNTHETIC} Field Observer export for a rehearsal; not a measurement. Scenario-based, demand from field counts, not calibrated or validated."}).json()
-        self.step("import-and-save", site=site, scenario_id=saved["id"], vehicles=summary["vehicles"], vehicles_per_hour=summary["vehicles_per_hour"],
-                  rate_note=summary["rate_note"], flagged_mappings=pending, not_simulated=summary["not_simulated"])
+    def peak_and_save(self, site: str, label: str) -> dict:
+        made = self.call("POST", "/api/scenarios/peak-counts", json={"network_id": site, "engine_config": {"pedestrian_density": "none"}}).json()
+        summary = made["summary"]
+        saved = self.call("POST", "/api/scenarios", json={"name": f"REHEARSAL {label}", "network_id": site, "engine_config": made["engine_config"],
+                                                          "description": f"Rehearsal. {summary['label']}; scenario-based, not calibrated or validated."}).json()
+        self.step("peak-counts-and-save", site=site, scenario_id=saved["id"], counted=summary["counted_vehicles"], assumed=summary["assumed_vehicles"],
+                  vehicles_per_hour=summary["vehicles_per_hour"], entering=summary["entering"])
+        return saved
+
+    def preset_and_save(self, site: str, label: str, density: str) -> dict:
+        saved = self.call("POST", "/api/scenarios", json={"name": f"REHEARSAL {label} ({SYNTHETIC})", "network_id": site,
+                                                          "engine_config": {"traffic_density": density, "pedestrian_density": "none"},
+                                                          "description": f"{SYNTHETIC} {density} density preset for a rehearsal; not a measurement."}).json()
+        self.step("preset-and-save", site=site, scenario_id=saved["id"], density=density)
         return saved
 
     # --- 2. short train (+ the held-out evaluation the job runs)
@@ -229,11 +179,11 @@ def main():
     existing = [scenario["name"] for scenario in rehearsal.call("GET", "/api/scenarios").json()["scenarios"] if not scenario["name"].startswith("REHEARSAL")]
     if len(existing) > 3 and not args.allow_existing:
         raise SystemExit(f"This server has {len(existing)} scenarios that are not rehearsal ones; it does not look like a scratch database. Use --allow-existing to go on.")
-    rehearsal.step("start", note=f"{SYNTHETIC} rehearsal; development seeds only; short training")
+    rehearsal.step("start", note="rehearsal on a scratch database; development seeds only; short training")
     site_a, site_b = "tagum_site_a", "tagum_site_b"
-    a_train = rehearsal.import_and_save(site_a, "Site A counts", 1, 14)
-    a_hold = rehearsal.import_and_save(site_a, "Site A held-out counts", 2, 12)
-    rehearsal.import_and_save(site_b, "Site B counts", 3, 12)
+    a_train = rehearsal.peak_and_save(site_a, "Site A peak traffic")
+    a_hold = rehearsal.preset_and_save(site_a, "Site A held-out", "medium")
+    rehearsal.peak_and_save(site_b, "Site B peak traffic")
     model_id = rehearsal.train(a_train["id"], a_hold["id"])
     runs = rehearsal.compare(a_train["id"], model_id)
     rehearsal.report(runs)

@@ -1,6 +1,6 @@
 # Settings, search and counts import
 
-This guide describes Settings, Search and the current Field Observer import on the web branch.
+This guide describes Settings, Search and the peak-traffic video counts on the web branch.
 
 The metric catalog covers five simulated vehicle classes and pedestrians. Model compatibility follows the current engine, network fingerprint and phase plan. [Metric catalog](../simulation/metric_definitions.json) · [Current contracts](../AGENTS.md)
 
@@ -16,11 +16,13 @@ Search finds accessible workspace pages, scenario names/descriptions, run IDs/co
 
 The Calibration & Validation page, its `/api/calibration` routes, the site-validation check, the study gate and the validation criteria and ledger templates were removed (decision D38): the study does not calibrate or validate the simulation. Records saved earlier stay in the `calibration_records` table, untouched but no longer reachable from the application. Results are described as **scenario-based, demand from field counts, not calibrated or validated**.
 
-## Counts from Field Observer
+## Peak-traffic video counts (D49)
 
-In **Scenarios**, **Import counts from Field Observer** takes the five files of a reviewed revision (`manifest.json`, `events.csv`, `coverage.csv`, `reviewed_bins.csv`, `lines.json`), chosen together, and turns the accepted arrivals into the scenario's vehicle demand: one steady hourly rate per class, approach and turn (count × 3600 / the count's span, for the whole run, however long; the bins are checked but not replayed; within-period variation is not modelled). It shows the totals per approach and class and the turns before anything is applied, and nothing is saved until the scenario is.
+In **Scenarios**, the Traffic section offers **Peak traffic** (the site's video count) or a **Density preset**. Peak traffic replaces the scenario's vehicle demand with the site's count and shows one card: the video and how it was counted, vehicles per hour, the vehicles entering in 5, 10 and 15 minutes of a run, the vehicle mix, counted against assumed numbers for each road, pedestrians and the assumptions. Nothing is saved until the scenario is.
 
-- The counting lines' `approach_id` must be the site's own approach names (south, north, east, west); arrival lines are `vehicle_arrival` lines and exits are lines with role `exit`.
-- A blank reviewed bin, a coverage gap, a changed file, a U-turn or a vehicle with no reviewed exit stops the import with the reason. A vehicle seen in the last 60 s of the footage with no exit yet is left out and reported. Nothing is read as zero.
-- Classes: car, motorcycle, tricycle (including bao-bao), bus and truck map directly. **Pedicab is simulated as a tricycle and jeepney as a bus; both are flagged as pending the team's decision.** Bicycle, other and unknown are listed as not simulated.
-- Limits: 16 minutes of one day, midday; counts at the lines are used as boundary entry rates; simulation settings are not tuned to the site.
+- **Site A:** a manual count of vehicles leaving by each road. Each exit's vehicles are shared equally among the roads that can legally reach it. The 15 counted pedestrians set the pedestrian rate.
+- **Site B:** unreviewed automatic detector arrivals on the two highway ends and Sobrecarey Street. Each road's vehicles are shared equally among the roads they can legally reach. Buses and trucks detected on Sobrecarey count as tricycles; Dao Street was not counted and gets Sobrecarey's rate (assumed). Pedestrians follow the chosen level.
+- Each share is a steady rate for the whole run; variation within the video is not modelled. Results are scenario-based, demand from video counts with assumed routes, not calibrated or validated.
+- The counts live in `data/sites/<site>_peak_counts.json`. After a recount, copy the new Field Observer files into `data/generated/field_observations/` and run `.venv/Scripts/python.exe tools/build_peak_counts.py`. A scenario saved before a recount says its count changed until Peak traffic is chosen again.
+
+The CSV and Field Observer importers were removed; scenarios saved with imported counts keep them.

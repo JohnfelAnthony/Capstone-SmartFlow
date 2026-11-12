@@ -32,14 +32,15 @@ import {
 } from "@/api/scenarios"
 import { configureSimulation, generateTimeline, startSimulation } from "@/api/simulation"
 import { listRLModels, type RLModelRecord } from "@/api/rl"
-import { effectiveWarmupSeconds, getNativeScenarioOptions, importMovementCounts, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary } from "@/api/native-scenario"
+import { effectiveWarmupSeconds, getNativeScenarioOptions, getPeakCounts, listNetworks, resolveNativeScenario, type NativeScenarioConfig, type NativeScenarioOptions, type NetworkSummary, type PeakCountsSummary } from "@/api/native-scenario"
 import { ClosurePicker } from "@/components/closure-picker"
 import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { closureLines, closureProblem, readClosures } from "@/lib/closures"
 import { closuresIntoConfig, type RouteScenarioDraft } from "@/lib/route-scenario"
-import { FieldCountsImport } from "@/components/field-counts-import"
+import { PeakTrafficCard } from "@/components/peak-traffic"
+import { savedPeakSha, trafficSource } from "@/lib/peak-traffic"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -151,6 +152,14 @@ function scenarioFromApi(scenario: ApiScenario): ScenarioRecord {
   }
 }
 
+function trafficText(scenario: ScenarioRecord) {
+  return trafficSource(scenario.engineConfig) === "peak" ? "Peak traffic" : scenario.trafficDensity
+}
+
+function pedestrianText(scenario: ScenarioRecord) {
+  return scenario.pedestrianDensity === "counted" ? "Counted in the video" : scenario.pedestrianDensity
+}
+
 function closedRoadsText(config: NativeScenarioConfig) {
   const { rules, locked } = readClosures(config)
   const count = Object.keys(rules).length + locked.length
@@ -256,7 +265,7 @@ function ScenarioStatusBadges({ scenario }: { scenario: ScenarioRecord }) {
       </Badge>
       <Badge variant={scenario.isArchived ? "outline" : "secondary"}>{scenario.isArchived ? "Archived" : "Active"}</Badge>
       {scenario.migrationError && <Badge variant="destructive">Needs migration</Badge>}
-      <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{scenario.trafficDensity}</Badge>
+      <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{trafficText(scenario)}</Badge>
     </div>
   )
 }
@@ -291,9 +300,9 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   const [networks, setNetworks] = React.useState<NetworkSummary[]>([])
   const [formError, setFormError] = React.useState("")
   const [serverClosureProblem, setServerClosureProblem] = React.useState<string | null>(null)
-  const [importNotice, setImportNotice] = React.useState("")
+  const [peakSummary, setPeakSummary] = React.useState<PeakCountsSummary | null>(null)
   const [routeNotice, setRouteNotice] = React.useState("")
-  const [isImporting, setIsImporting] = React.useState(false)
+  const [peakBusy, setPeakBusy] = React.useState(false)
   const [isResolving, setIsResolving] = React.useState(false)
   const [editConfigReady, setEditConfigReady] = React.useState(true)
   const editRequest = React.useRef(0)
@@ -348,7 +357,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   }, [category, density, scenarios, search, sort, stateFilter, typeFilter])
 
   const closureIssue = closureProblem(draft.engineConfig) ?? serverClosureProblem
-  const hasCsvDemand = (draft.engineConfig.demand_windows?.length ?? 0) > 0
+  const source = trafficSource(draft.engineConfig)
   const requiresLegacyMapping = Boolean(scenarios.find((scenario) => scenario.id === editingScenarioId)?.migrationError)
 
   const stats = React.useMemo(() => {
@@ -376,7 +385,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     setIsResolving(false)
     setFormMode("create")
     setEditingScenarioId(null)
-    setImportNotice("")
+    setPeakSummary(null)
+    setPeakBusy(false)
     setRouteNotice("")
     setDraft(emptyScenarioDraft)
     if (networks[0]) void changeNetwork(networks[0].id, "")
@@ -390,6 +400,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     setRouteNotice("")
     setEditingScenarioId(scenario.id)
     setDraft(draftFromScenario(scenario))
+    setPeakSummary(null)
+    setPeakBusy(false)
     setFormError("")
     setServerClosureProblem(null)
     setEditConfigReady(false)
@@ -406,6 +418,11 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       setDraft((current) => ({ ...current, engineConfig: result.engine_config,
         trafficDensity: normalizeDensity(String(result.engine_config.traffic_density)),
         pedestrianDensity: String(result.engine_config.pedestrian_density) }))
+      if (trafficSource(result.engine_config) === "peak") {
+        getPeakCounts({ network_id: scenario.intersectionId, engine_config: result.engine_config })
+          .then((response) => { if (request === editRequest.current) setPeakSummary(response.summary) })
+          .catch((error) => { if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to read the video count.") })
+      }
       setEditConfigReady(true)
     } catch (error) {
       if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load native settings.")
@@ -423,7 +440,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     setDraft(emptyScenarioDraft)
     setFormError("")
     setServerClosureProblem(null)
-    setImportNotice("")
+    setPeakSummary(null)
+    setPeakBusy(false)
     setRouteNotice("")
     setEditConfigReady(false)
     setIsResolving(true)
@@ -460,6 +478,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   async function changeNetwork(networkId: string, currentNetworkId = draft.intersectionId) {
     if (networkId === currentNetworkId) return
     const request = ++editRequest.current
+    setPeakBusy(false)
     setIsResolving(true)
     setEditConfigReady(false)
     setFormError("")
@@ -472,7 +491,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
         engineConfig: structuredClone(options.defaults),
         trafficDensity: "Medium",  // the form's default; the engine's own default (the single car) is not offered for a new scenario
         pedestrianDensity: String(options.defaults.pedestrian_density) }))
-      setImportNotice("")
+      setPeakSummary(null)
       setEditConfigReady(true)
     } catch (error) {
       if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to load that network.")
@@ -516,19 +535,38 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     }
   }
 
-  async function attachCsv(file: File | undefined) {
-    if (!file || !nativeOptions || !editConfigReady) return
-    setIsImporting(true)
+  async function chooseTrafficSource(next: string) {
+    if (!nativeOptions || !editConfigReady || next === source) return
     setFormError("")
-    setImportNotice("")
+    if (next === "preset") {
+      const engineConfig: NativeScenarioConfig = { ...draft.engineConfig, demand_windows: [], demand_source: structuredClone(nativeOptions.defaults.demand_source) }
+      delete engineConfig.pedestrian_rate_per_hour
+      setPeakSummary(null)
+      setDraft((current) => ({ ...current, engineConfig, trafficDensity: "Medium",
+        pedestrianDensity: current.pedestrianDensity === "counted" ? String(nativeOptions.defaults.pedestrian_density) : current.pedestrianDensity }))
+      return
+    }
+    await loadPeakCounts()
+  }
+
+  /** The site's current video count as the draft's demand; the server keeps every other setting. Also the stale card's refresh. */
+  async function loadPeakCounts() {
+    if (!nativeOptions || !editConfigReady) return
+    const request = ++editRequest.current
+    setFormError("")
+    setPeakBusy(true)
     try {
-      const response = await importMovementCounts({ csv_text: await file.text(), network_id: draft.intersectionId, engine_config: draft.engineConfig })
-      setDraft((current) => ({ ...current, engineConfig: response.engine_config, trafficDensity: "None" }))
-      setImportNotice(`${file.name}: ${response.rows} movements, ${response.vehicles_per_hour} vehicles per hour. Save the scenario to keep them.`)
+      const response = await getPeakCounts({ network_id: draft.intersectionId,
+        engine_config: { ...draft.engineConfig, pedestrian_density: draft.pedestrianDensity.toLowerCase() } })
+      // A reply for a site or form the user has left since is dropped, never applied to the new draft.
+      if (request !== editRequest.current) return
+      setDraft((current) => ({ ...current, engineConfig: response.engine_config, trafficDensity: "None",
+        pedestrianDensity: String(response.engine_config.pedestrian_density) }))
+      setPeakSummary(response.summary)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Unable to read the CSV.")
+      if (request === editRequest.current) setFormError(error instanceof Error ? error.message : "Unable to read the video count.")
     } finally {
-      setIsImporting(false)
+      if (request === editRequest.current) setPeakBusy(false)
     }
   }
 
@@ -811,7 +849,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
         <SheetContent className="scenario-sheet" side="right">
           <SheetHeader>
             <SheetTitle>{formMode === "edit" ? "Edit Scenario" : "New Scenario"}</SheetTitle>
-            <SheetDescription>Pick a site, set traffic and pedestrians, or attach a traffic counts CSV.</SheetDescription>
+            <SheetDescription>Pick a site, then its peak-traffic video count or a density preset.</SheetDescription>
           </SheetHeader>
           <div className="scenario-sheet-scroll">
             <FieldGroup className="px-4 pb-4">
@@ -829,7 +867,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
               </Field>
               <Field>
                 <FieldLabel>Site</FieldLabel>
-                <ToggleGroup aria-label="Site" variant="outline" className="grid w-full grid-cols-2" value={[draft.intersectionId]} disabled={isResolving || isSaving}
+                <ToggleGroup aria-label="Site" variant="outline" className="grid w-full grid-cols-2" value={[draft.intersectionId]} disabled={isResolving || isSaving || peakBusy}
                   onValueChange={(values) => values[0] && void changeNetwork(values[0])}>
                   {networks.map((network) => <ToggleGroupItem key={network.id} value={network.id} className="h-auto flex-col items-stretch gap-1.5 p-1.5 text-left data-pressed:border-primary data-pressed:ring-2 data-pressed:ring-primary/40">
                     <ScenarioPhoto networkId={network.id} className="aspect-[4/3]" />
@@ -837,35 +875,42 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
                   </ToggleGroupItem>)}
                 </ToggleGroup>
               </Field>
+              <Field>
+                <FieldLabel>Traffic</FieldLabel>
+                <ToggleGroup aria-label="Traffic" variant="outline" className="grid w-full grid-cols-2" value={source === "imported" ? [] : [source]}
+                  disabled={peakBusy || isResolving || isSaving || !nativeOptions || !editConfigReady}
+                  onValueChange={(values) => values[0] && void chooseTrafficSource(values[0])}>
+                  {([["peak", "Peak traffic", "Video count"], ["preset", "Density preset", "Low to very high"]] as const).map(([value, title, hint]) =>
+                    <ToggleGroupItem key={value} value={value} className="h-auto flex-col items-start gap-0.5 p-2 text-left whitespace-normal data-pressed:border-primary data-pressed:ring-2 data-pressed:ring-primary/40">
+                      <span className="text-sm font-medium">{title}</span><span className="text-xs text-muted-foreground">{hint}</span>
+                    </ToggleGroupItem>)}
+                </ToggleGroup>
+                {source === "imported" && <FieldDescription>Counts imported earlier: {draft.engineConfig.demand_source?.description ?? "no description saved"}. They stay unless you choose Peak traffic or a density preset.</FieldDescription>}
+              </Field>
+              {peakBusy && <p role="status" className="text-sm">Reading the video count...</p>}
+              {source === "peak" && peakSummary && <PeakTrafficCard summary={peakSummary} stale={savedPeakSha(draft.engineConfig) !== peakSummary.dataset_sha256}
+                onRefresh={() => void loadPeakCounts()} refreshing={peakBusy || isResolving || isSaving} />}
               <FieldGroup className="grid sm:grid-cols-2">
-                <NativeSelect label={hasCsvDemand ? "Traffic density (set by the imported counts)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={hasCsvDemand}
+                {source !== "peak" && <NativeSelect label={source === "imported" ? "Traffic density (set by the imported counts)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={source === "imported" || peakBusy}
                   options={["None", "Single", "Low", "Medium", "High", "Very High"]
                     .filter((label) => !["None", "Single"].includes(label) || label === draft.trafficDensity)  // kept only for a saved scenario that already has it
                     .map((label) => ({ label, value: label.toLowerCase() }))}
-                  onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />
-                <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()}
-                  options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
-                  onChange={(pedestrianDensity) => setDraft((current) => ({ ...current, pedestrianDensity }))} />
+                  onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />}
+                {draft.pedestrianDensity === "counted"
+                  ? <Field><FieldLabel>Pedestrians</FieldLabel><p className="text-sm">From the video count, about {Math.round(Number(draft.engineConfig.pedestrian_rate_per_hour ?? 0))} per hour</p></Field>
+                  : <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()} disabled={peakBusy}
+                    options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
+                    onChange={(pedestrianDensity) => setDraft((current) => ({ ...current, pedestrianDensity }))} />}
               </FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="import-file">Traffic counts CSV (optional)</FieldLabel>
-                <Input id="import-file" type="file" accept=".csv,text/csv" disabled={isImporting || isResolving || !nativeOptions || !editConfigReady}
-                  onChange={(event) => { void attachCsv(event.target.files?.[0]); event.target.value = "" }} />
-                <p className="text-sm text-muted-foreground">Columns: <code>from,to,vehicle_type,count</code>. One row per movement, for example <code>north,south,car,320</code>. from and to are {nativeOptions?.junctions[0]?.approaches.filter((approach) => approach !== "pedestrian").join(", ") ?? "the approaches"}; vehicle_type is car, motorcycle, tricycle, bus or truck; count is vehicles per hour.</p>
-                {isImporting && <p role="status" className="text-sm">Reading CSV...</p>}
-                {importNotice && <p role="status" className="text-sm">{importNotice}</p>}
-              </Field>
-              <FieldCountsImport networkId={draft.intersectionId} config={draft.engineConfig} disabled={isImporting || isResolving || !nativeOptions || !editConfigReady}
-                onUse={(engineConfig, notice) => { setDraft((current) => ({ ...current, engineConfig, trafficDensity: "None" })); setImportNotice(notice) }} />
               {nativeOptions && nativeOptions.network_id === draft.intersectionId && editConfigReady && !isResolving
-                && <ClosurePicker options={nativeOptions} config={draft.engineConfig} disabled={isSaving}
+                && <ClosurePicker options={nativeOptions} config={draft.engineConfig} disabled={isSaving || peakBusy}
                   onChange={(engineConfig) => setDraft((current) => ({ ...current, engineConfig }))} onProblem={setServerClosureProblem} />}
               {isResolving && <p role="status">Loading site settings...</p>}
             </FieldGroup>
           </div>
           <SheetFooter className="scenario-sheet-footer">
             <Button variant="outline" onClick={() => setFormMode(null)}>Cancel</Button>
-            <Button onClick={() => void saveScenarioDraft()} disabled={isSaving || isResolving || !nativeOptions || !editConfigReady || Boolean(closureIssue) ||
+            <Button onClick={() => void saveScenarioDraft()} disabled={isSaving || isResolving || peakBusy || !nativeOptions || !editConfigReady || Boolean(closureIssue) ||
               (formMode === "edit" ? !permissions.edit : !permissions.create)}>
               {isSaving ? "Saving..." : "Save Scenario"}
             </Button>
@@ -956,8 +1001,8 @@ function ScenarioCard({
         <ScenarioPhoto networkId={scenario.intersectionId} />
         <div className="scenario-card-meta-grid">
           <ScenarioMeta icon={MapPinnedIcon} label="Intersection" value={formatIntersection(scenario.intersectionId)} />
-          <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
-          <ScenarioMeta icon={UserRoundIcon} label="Pedestrians" value={scenario.pedestrianDensity} />
+          <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={trafficText(scenario)} />
+          <ScenarioMeta icon={UserRoundIcon} label="Pedestrians" value={pedestrianText(scenario)} />
           <ScenarioMeta icon={SlidersHorizontalIcon} label="Closed roads" value={closedRoadsText(scenario.engineConfig)} />
         </div>
         <div className="scenario-card-actions">
@@ -1035,7 +1080,7 @@ function ScenarioTable({
                 <TableCell>{formatIntersection(scenario.intersectionId)}</TableCell>
                 <TableCell>
                   {scenario.migrationError && <Badge variant="destructive">Needs migration</Badge>}
-      <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{scenario.trafficDensity}</Badge>
+      <Badge variant={densityBadgeVariant(scenario.trafficDensity)}>{trafficText(scenario)}</Badge>
                 </TableCell>
                 <TableCell>{scenario.isOfficial ? "Official" : "User"}</TableCell>
                 <TableCell>{scenario.isArchived ? "Archived" : "Active"}</TableCell>
@@ -1128,8 +1173,8 @@ function ScenarioDetailSheet({
           <ScenarioStatusBadges scenario={scenario} />
           <p className="text-sm leading-6 text-muted-foreground">{scenario.description || "No description provided."}</p>
           <div className="scenario-detail-grid">
-            <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={scenario.trafficDensity} />
-            <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={scenario.pedestrianDensity} />
+            <ScenarioMeta icon={GaugeIcon} label="Traffic Density" value={trafficText(scenario)} />
+            <ScenarioMeta icon={UserRoundIcon} label="Pedestrian Activity" value={pedestrianText(scenario)} />
             <ScenarioMeta icon={SlidersHorizontalIcon} label="Road events" value={`${scenario.engineConfig.closed_lanes?.length ?? 0} closures, ${Object.keys(scenario.engineConfig.slow_lanes ?? {}).length} speed restrictions, ${scenario.engineConfig.events?.length ?? 0} timed events`} />
               <ScenarioMeta icon={CalendarClockIcon} label="Traffic warm-up" value={warmUp > 0 ? `${warmUp} s before the first frame` : "None"} />
             <ScenarioMeta icon={CalendarClockIcon} label="Created" value={formatDate(scenario.createdAt)} />
