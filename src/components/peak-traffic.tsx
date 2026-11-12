@@ -1,6 +1,7 @@
 import type { PeakCountsSummary } from "@/api/native-scenario"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 const TYPES = ["car", "motorcycle", "tricycle", "bus", "truck"] as const
@@ -12,12 +13,17 @@ function videoLength(seconds: number) {
 }
 
 /** The owner's chosen layout ("version A", 2026-11-13): one card with the totals, run-length numbers, vehicle mix, roads and assumptions. */
-export function PeakTrafficCard({ summary, stale }: { summary: PeakCountsSummary; stale?: boolean }) {
+export function PeakTrafficCard({ summary, stale, onRefresh, refreshing }: {
+  summary: PeakCountsSummary; stale?: boolean; onRefresh?: () => void; refreshing?: boolean
+}) {
   const mixTotal = TYPES.reduce((sum, kind) => sum + (summary.by_type[kind] ?? 0), 0)
   const method = summary.method === "manual" ? "Manual count" : `Automatic detector count${summary.reviewed ? "" : ", not reviewed"}`
   const value = (count: number, assumed: boolean) => assumed ? <span className="text-muted-foreground">≈ {count}</span> : <strong>{count}</strong>
   return <section aria-label="Peak-traffic video count" className="flex flex-col gap-3 rounded-lg border p-3 text-sm">
-    {stale && <Alert><AlertDescription>The site's video count changed after this scenario was saved. Choose Peak traffic again to use the current count.</AlertDescription></Alert>}
+    {stale && <Alert><AlertDescription className="flex flex-col items-start gap-2">
+      <span>The site's video count changed after this scenario was saved. Its demand still uses the saved count; your other settings stay as they are.</span>
+      {onRefresh && <Button type="button" size="sm" variant="outline" disabled={refreshing} onClick={onRefresh}>Use the current count</Button>}
+    </AlertDescription></Alert>}
     <div><Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-300">Video counts, assumed routes</Badge></div>
     <p className="text-muted-foreground">
       {method} of {summary.video.file} · {videoLength(summary.video.seconds)} · {summary.counted_vehicles.toLocaleString()} vehicles counted
