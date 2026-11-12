@@ -57,10 +57,9 @@ from backend.schemas import (
     LoginResponse,
     MessageResponse,
     ClosureCheckRequest,
-    FieldObserverCountsRequest,
-    MovementCountsRequest,
     NetworkRevisionPreviewRequest,
     NetworkRevisionApplyRequest,
+    PeakCountsRequest,
     ObservationImportRequest,
     ObservationImportResponse,
     Permission,
@@ -1637,22 +1636,13 @@ def open_field_observer(user: dict = Depends(require_current_user)) -> MessageRe
     return MessageResponse(message="Field Observer is starting. It opens in a new browser tab; keep its helper window open.")
 
 
-@app.post("/api/scenarios/movement-counts")
-def import_movement_counts(payload: MovementCountsRequest, user: dict = Depends(require_current_user)) -> dict:
+@app.post("/api/scenarios/peak-counts")
+def peak_counts(payload: PeakCountsRequest, user: dict = Depends(require_current_user)) -> dict:
+    """The site's peak-traffic video count as the draft's demand, with the summary the Scenarios form shows."""
     require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
-    from services.movement_counts import import_movement_counts as convert
+    from services.peak_counts import peak_counts_demand
     try:
-        return convert(**payload.model_dump())
-    except (ValueError, KeyError) as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
-
-
-@app.post("/api/scenarios/field-observer-counts")
-def import_field_observer_counts(payload: FieldObserverCountsRequest, user: dict = Depends(require_current_user)) -> dict:
-    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
-    from services.field_observer_counts import import_field_counts
-    try:
-        return import_field_counts(**payload.model_dump())
+        return peak_counts_demand(**payload.model_dump())
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc).strip("'")) from exc
 

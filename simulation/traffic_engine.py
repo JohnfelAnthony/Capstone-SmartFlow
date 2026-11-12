@@ -767,7 +767,8 @@ class TrafficEngine:
                 self.pedestrians[pedestrian.id] = pedestrian
             else:
                 self.dropped_pedestrians += 1
-            rate = {"low": 0.025, "medium": 0.07, "high": 0.15}[self.pedestrian_density]
+            rate = (self.config["pedestrian_rate_per_hour"]/3600 if self.pedestrian_density == "counted"
+                    else {"low": 0.025, "medium": 0.07, "high": 0.15}[self.pedestrian_density])
             self.next_pedestrian_time += self.pedestrian_random.expovariate(rate)
 
     def _control_signals(self):

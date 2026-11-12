@@ -204,7 +204,7 @@ def validate_config(current: dict, settings: dict, network) -> dict:
         raise ValueError("Engine settings must be an object with named fields")
     result = normalize_vehicle_scope(current)
     settings = normalize_vehicle_scope(settings)
-    unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id", "site_calibration"})
+    unknown = settings.keys() - (DEFAULTS.keys() | {"controlled_junction", "intersection_id", "site_calibration", "pedestrian_rate_per_hour"})
     if unknown:
         raise ValueError(f"Unknown engine settings: {', '.join(sorted(unknown))}")
     result.update(copy.deepcopy(settings))
@@ -238,10 +238,17 @@ def validate_config(current: dict, settings: dict, network) -> dict:
     if result["controlled_junction"] not in network.intersections:
         raise ValueError("Unknown controlled junction")
     for key, allowed in (("traffic_density", {"none", "single", "low", "medium", "high", "very high"}),
-                         ("pedestrian_density", {"none", "low", "medium", "high"})):
+                         ("pedestrian_density", {"none", "low", "medium", "high", "counted"})):
         result[key] = str(result[key]).lower()
         if result[key] not in allowed:
             raise ValueError(f"Unsupported {key}")
+    # "counted": pedestrians at a counted rate (peak-traffic video counts). The rate exists only with it, so every other config is unchanged.
+    if result["pedestrian_density"] == "counted":
+        if result.get("pedestrian_rate_per_hour") is None:
+            raise ValueError("Counted pedestrians need pedestrian_rate_per_hour")
+        result["pedestrian_rate_per_hour"] = number(result["pedestrian_rate_per_hour"], "pedestrian_rate_per_hour", 0.1, 2000)
+    else:
+        result.pop("pedestrian_rate_per_hour", None)
     if not isinstance(result["routing_mode"], str) or result["routing_mode"] not in {"adaptive", "static"}:
         raise ValueError("routing_mode must be adaptive or static")
     for key, low, high in (("green_seconds", 5, 180), ("reroute_interval", 1, 300),

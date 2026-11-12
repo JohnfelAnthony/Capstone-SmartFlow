@@ -462,16 +462,9 @@ class RoutePreviewResponse(BaseModel):
     notices: list[RouteNotice]
 
 
-class MovementCountsRequest(BaseModel):
-    csv_text: str
+class PeakCountsRequest(BaseModel):
     network_id: str
     engine_config: dict[str, Any] = Field(default_factory=dict)
-
-
-class FieldObserverCountsRequest(BaseModel):
-    network_id: str
-    engine_config: dict[str, Any] = Field(default_factory=dict)
-    files: dict[str, str]
 
 
 class ObservationImportResponse(BaseModel):

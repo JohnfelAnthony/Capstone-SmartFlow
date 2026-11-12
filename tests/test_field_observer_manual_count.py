@@ -1,4 +1,4 @@
-"""A Field Observer manual-count export (four hand-counted approach passes) imports as scenario demand. SYNTHETIC: invented clicks, no field measurement.
+"""A Field Observer manual-count export (four hand-counted approach passes) is marked as manual review. SYNTHETIC: invented clicks, no field measurement.
 
 The export is made by the tool's own code (tools/field_observer), not hand-written, so this checks the real file format against the real importer.
 """
@@ -7,14 +7,12 @@ import io
 import sys
 from pathlib import Path
 
-import pytest
 
 TOOL = Path(__file__).resolve().parents[1] / "tools" / "field_observer"
 sys.path.insert(0, str(TOOL))
 from field_observer import manual_count  # noqa: E402  (the tool is a separate package; it never imports SmartFlow)
 from field_observer.core import TABLES, sha256, write_csv, write_json  # noqa: E402
 
-from services.field_observer_counts import import_field_counts  # noqa: E402
 
 FPS, FRAMES = 10, 600
 DURATION = FRAMES / FPS
@@ -57,23 +55,6 @@ PLAN = {"south": [(3, "north", "car"), (10, "north", "car"), (31, "east", "motor
         "west": [(12, "east", "truck"), (50, "east", "bus")],
         "north": [(40, "south", "car")],
         "east": [(55, "west", "motorcycle")]}
-
-
-@pytest.mark.parametrize("site", ["tagum_site_a", "tagum_site_b"])
-def test_a_manual_count_export_imports_with_the_right_movements_per_class(tmp_path, site):
-    files = manual_export(tmp_path, site, PLAN)
-    result = import_field_counts(files=files, network_id=site, engine_config={})
-    summary = result["summary"]
-    assert summary["vehicles"] == 8
-    assert summary["span_seconds"] == DURATION and summary["bin_seconds"] == 30
-    assert summary["by_approach_class"] == {"south": {"car": 2, "motorcycle": 1, "tricycle": 1}, "west": {"bus": 1, "truck": 1},
-                                           "north": {"car": 1}, "east": {"motorcycle": 1}}
-    assert summary["turns"] == {"south to north": 2, "south to east": 1, "south to west": 1, "west to east": 2,
-                                "north to south": 1, "east to west": 1}
-    assert summary["not_counted_at_the_end"] == 0 and summary["not_simulated"] == {}
-    windows = result["engine_config"]["demand_windows"]
-    assert {(w["label"], w["vehicle_type"]): w["vehicles_per_hour"] for w in windows}[("south to north car", "car")] == pytest.approx(2 * 3600 / DURATION)
-    assert result["engine_config"]["demand_source"]["kind"] == "field_counts"
 
 
 def test_an_exported_manual_count_has_manual_review_throughout(tmp_path):

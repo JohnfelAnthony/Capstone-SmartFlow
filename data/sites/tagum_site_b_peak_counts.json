@@ -1,0 +1,95 @@
+{
+  "schema": "smartflow_peak_counts",
+  "version": 1,
+  "network_id": "tagum_site_b",
+  "label": "Peak traffic",
+  "video": {
+    "file": "IMG_2516.MOV",
+    "seconds": 968.0,
+    "take_id": "p8c338847ec094956b5306cc938e2e6a2",
+    "source_sha256": "fefb1ca288e16df4ac6ae5cb49b0272d837b61861390022fe6389b680f5bc877"
+  },
+  "method": "automatic_detector",
+  "reviewed": false,
+  "count_direction": "arriving",
+  "counts": {
+    "west": {
+      "car": 222,
+      "motorcycle": 104,
+      "tricycle": 0,
+      "bus": 8,
+      "truck": 67
+    },
+    "east": {
+      "car": 122,
+      "motorcycle": 42,
+      "tricycle": 0,
+      "bus": 2,
+      "truck": 33
+    },
+    "north": {
+      "car": 30,
+      "motorcycle": 3,
+      "tricycle": 17,
+      "bus": 0,
+      "truck": 0
+    }
+  },
+  "detected": {
+    "west": {
+      "bus": 8,
+      "car": 222,
+      "motorcycle": 104,
+      "truck": 67
+    },
+    "east": {
+      "bus": 2,
+      "car": 122,
+      "motorcycle": 42,
+      "truck": 33
+    },
+    "north": {
+      "bus": 2,
+      "car": 30,
+      "motorcycle": 3,
+      "truck": 15
+    }
+  },
+  "assumed": {
+    "south": {
+      "car": 30,
+      "motorcycle": 3,
+      "tricycle": 17,
+      "bus": 0,
+      "truck": 0
+    }
+  },
+  "relabelled": [
+    {
+      "road": "north",
+      "from": [
+        "bus",
+        "truck"
+      ],
+      "to": "tricycle",
+      "vehicles": 17
+    }
+  ],
+  "pedestrians": null,
+  "road_names": {
+    "north": "Sobrecarey Street",
+    "south": "Dao Street",
+    "west": "Davao-Agusan National Highway",
+    "east": "Davao-Agusan National Highway"
+  },
+  "built_from": [
+    {
+      "file": "data/generated/field_observations/site_b/proposals.csv",
+      "sha256": "a66189762175ce56621908c532881e3f5797d36152eed91308b45d8ca36863ce"
+    },
+    {
+      "file": "data/generated/field_observations/site_b/run.json",
+      "sha256": "18a44b921dddb1a3c007a76277e03fb1b80b928f2a857559e728ba2076fa0a95"
+    }
+  ]
+}

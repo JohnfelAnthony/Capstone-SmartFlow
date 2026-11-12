@@ -1,0 +1,60 @@
+{
+  "schema": "smartflow_peak_counts",
+  "version": 1,
+  "network_id": "tagum_site_a",
+  "label": "Peak traffic",
+  "video": {
+    "file": "IMG_2511.MOV",
+    "seconds": 1004.1216666666667,
+    "take_id": "p1c8b80c55b3a4358b7c6930bb5282f9e",
+    "source_sha256": "1907f35c58dbc1150dd1bf0dc570850b1358d610488e9311bcad887ccf21284e"
+  },
+  "method": "manual",
+  "reviewed": true,
+  "count_direction": "leaving",
+  "counts": {
+    "north": {
+      "car": 32,
+      "motorcycle": 105,
+      "tricycle": 48,
+      "bus": 0,
+      "truck": 5
+    },
+    "south": {
+      "car": 72,
+      "motorcycle": 157,
+      "tricycle": 85,
+      "bus": 0,
+      "truck": 2
+    },
+    "west": {
+      "car": 79,
+      "motorcycle": 125,
+      "tricycle": 80,
+      "bus": 7,
+      "truck": 6
+    },
+    "east": {
+      "car": 73,
+      "motorcycle": 94,
+      "tricycle": 64,
+      "bus": 8,
+      "truck": 10
+    }
+  },
+  "assumed": {},
+  "relabelled": [],
+  "pedestrians": 15,
+  "road_names": {
+    "north": "Dalisay Gante Road",
+    "south": "Dalisay Gante Road",
+    "west": "Capitol Circumferential Road",
+    "east": "Capitol Circumferential Road"
+  },
+  "built_from": [
+    {
+      "file": "data/generated/field_observations/site_a/road-totals.csv",
+      "sha256": "3060a8d33a1dbfe7238910fa6be1acc8ca7ecc82c3a162f984ada21ed8e0c918"
+    }
+  ]
+}
