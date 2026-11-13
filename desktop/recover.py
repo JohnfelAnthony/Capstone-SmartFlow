@@ -13,23 +13,27 @@ import uuid
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from desktop.instance_lock import InstanceInUse, InstanceLock
-from desktop.paths import DesktopPaths
+from desktop.paths import DesktopPaths, extended_path
 from desktop.restore_switch import RestoreSwitch
 
 
 def list_snapshots(data_root: Path) -> list[Path]:
-    return sorted((data_root / "pre-start-snapshots").glob("pre-start-*.db"), reverse=True)
+    directory = extended_path(data_root.absolute()) / "pre-start-snapshots"
+    return sorted(directory.glob("pre-start-*.db"), reverse=True)
 
 
 def recover(root: Path, snapshot: Path) -> Path:
     """Replace the live database with a verified snapshot; the old one is kept beside it."""
-    data = root / "data"
+    data = extended_path(root.absolute()) / "data"
     snapshot = data / "pre-start-snapshots" / snapshot.name  # only our own folder, by name
     if not (snapshot.name.startswith("pre-start-") and snapshot.suffix == ".db" and snapshot.is_file()):
         raise ValueError("Choose a snapshot file from the pre-start-snapshots folder")
-    with closing(sqlite3.connect(snapshot.resolve().as_uri() + "?mode=ro", uri=True)) as check:
+    # Encoding the filename keeps Windows' extended path prefix out of the URI authority.
+    snapshot_uri = f"file:{quote(str(snapshot), safe='')}?mode=ro"
+    with closing(sqlite3.connect(snapshot_uri, uri=True)) as check:
         if check.execute("PRAGMA integrity_check").fetchone() != ("ok",):
             raise ValueError("That snapshot failed its integrity check; try an older one")
     with InstanceLock(root):  # refuses while SmartFlow is running on this data root
@@ -44,7 +48,7 @@ def recover(root: Path, snapshot: Path) -> Path:
         moved = []
         try:
             # Finish and verify the replacement before touching the only live copy.
-            with closing(sqlite3.connect(snapshot.resolve().as_uri() + "?mode=ro", uri=True)) as source, \
+            with closing(sqlite3.connect(snapshot_uri, uri=True)) as source, \
                     closing(sqlite3.connect(staged)) as target:
                 source.backup(target)
                 if target.execute("PRAGMA integrity_check").fetchone() != ("ok",):
@@ -66,7 +70,7 @@ def recover(root: Path, snapshot: Path) -> Path:
             raise
         finally:
             staged.unlink(missing_ok=True)
-    return kept
+    return root / "data" / kept.name
 
 
 def main(argv: list[str] | None = None) -> int:

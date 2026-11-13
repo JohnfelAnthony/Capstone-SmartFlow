@@ -9,7 +9,7 @@ import uuid
 import argparse
 from pathlib import Path
 
-from desktop.paths import STUDY_MAPPING_NAMES, network_resource_names
+from desktop.paths import STUDY_SITE_RESOURCE_NAMES, network_resource_names
 
 
 def main() -> None:
@@ -43,7 +43,7 @@ def main() -> None:
     command.extend(["--add-data", f"{manifest};."])
     for name in network_resource_names(root / "data" / "networks"):
         command.extend(["--add-data", f"{root / 'data' / 'networks' / name};data/networks"])
-    for name in STUDY_MAPPING_NAMES:
+    for name in STUDY_SITE_RESOURCE_NAMES:
         command.extend(["--add-data", f"{root / 'data' / 'sites' / name};data/sites"])
     command.append(str(root / "desktop" / "worker_entry.py"))
     print(f"Building disposable worker experiment in {output}", flush=True)

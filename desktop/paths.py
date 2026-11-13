@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-STUDY_MAPPING_NAMES = ("tagum_site_a_mapping.json", "tagum_site_b_mapping.json")
+STUDY_SITE_RESOURCE_NAMES = (
+    "tagum_site_a_mapping.json",
+    "tagum_site_b_mapping.json",
+    "tagum_site_a_peak_counts.json",
+    "tagum_site_b_peak_counts.json",
+)
 
 
 def network_resource_names(source: Path) -> tuple[str, ...]:

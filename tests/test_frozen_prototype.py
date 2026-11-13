@@ -83,16 +83,20 @@ def test_frozen_bootstrap_and_backend_lifecycle(tmp_path):
             cookie = response.headers["Set-Cookie"].split(";", 1)[0]
         with urllib.request.urlopen(urllib.request.Request(ready["origin"] + "/api/networks", headers={"Cookie": cookie}), timeout=20) as response:
             assert next(site for site in json.load(response) if site["id"] == "tagum_site_a")["name"] == "Synthetic user-data site"
-        from tests.test_field_observer_counts import export, vehicle
-        counts = urllib.request.Request(ready["origin"] + "/api/scenarios/field-observer-counts",
-                                        data=json.dumps({"network_id": "tagum_site_a", "engine_config": {},
-                                                         "files": export([vehicle("a", 5, "south", "north")])}).encode(),
-                                        headers={"Content-Type": "application/json", "Origin": ready["origin"], "Cookie": cookie})
-        try:
-            with urllib.request.urlopen(counts, timeout=20) as response:
-                assert json.load(response)["engine_config"]["demand_windows"]
-        except urllib.error.HTTPError as exc:
-            pytest.fail(f"Count import returned {exc.code}: {exc.read().decode()}")
+        for site, counted, assumed in (("tagum_site_a", 1052, 0), ("tagum_site_b", 650, 50)):
+            counts = urllib.request.Request(
+                ready["origin"] + "/api/scenarios/peak-counts",
+                data=json.dumps({"network_id": site, "engine_config": {}}).encode(),
+                headers={"Content-Type": "application/json", "Origin": ready["origin"], "Cookie": cookie},
+            )
+            try:
+                with urllib.request.urlopen(counts, timeout=20) as response:
+                    result = json.load(response)
+            except urllib.error.HTTPError as exc:
+                pytest.fail(f"Peak counts for {site} returned {exc.code}: {exc.read().decode()}")
+            assert result["engine_config"]["demand_windows"]
+            assert result["summary"]["counted_vehicles"] == counted
+            assert result["summary"]["assumed_vehicles"] == assumed
         process.stdin.write('{"command":"shutdown_if_idle"}\n')
         process.stdin.flush()
         assert json.loads(process.stdout.readline())["accepted"] is True

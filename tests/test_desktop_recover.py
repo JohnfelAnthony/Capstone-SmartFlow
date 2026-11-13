@@ -1,11 +1,15 @@
 import sqlite3
 import json
+import os
 import subprocess
 import sys
 from contextlib import closing
 
+import pytest
+
 from desktop.instance_lock import InstanceLock
 from desktop.migration_snapshot import KEEP_SNAPSHOTS, snapshot_before_start
+from desktop.paths import extended_path
 from desktop.recover import list_snapshots, main, recover
 
 
@@ -101,6 +105,21 @@ def test_recover_restores_snapshot_and_keeps_replaced_database(tmp_path):
     kept = recover(tmp_path, snapshot)
     assert value(data / "smartflow.db") == "good"
     assert value(kept) == "damaged"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows extended paths")
+def test_recover_restores_snapshot_and_keeps_database_at_long_paths(tmp_path):
+    root = tmp_path / ("restored-" + "x" * max(1, 221 - len(str(tmp_path))))
+    extended_path(root).mkdir()
+    data = make_root(extended_path(root), "snapshot")
+    snapshot = snapshot_before_start(data / "smartflow.db", data)
+    make_root(extended_path(root), "current")
+
+    assert len(str(root / "data" / "pre-start-snapshots" / snapshot.name)) > 260
+    kept = recover(root, snapshot)
+
+    assert value(data / "smartflow.db") == "snapshot"
+    assert value(extended_path(kept)) == "current"
 
 
 def test_recover_refuses_while_running_and_foreign_files(tmp_path, capsys):
