@@ -3,7 +3,7 @@ import { controlLabel, isRlControl } from "./control-labels"
 
 describe("controlLabel", () => {
   it("names the no-signal condition without calling it a controller or RL", () => {
-    expect(controlLabel("no-signal")).toBe("No signal (first come, first served)")
+    expect(controlLabel("no-signal")).toBe("No signal (negotiated, provisional)")
   })
   it("keeps fixed-time and playback distinct", () => {
     expect(controlLabel("fixed-time")).toBe("Traditional signal (fixed-time)")

@@ -31,7 +31,7 @@ export type JunctionControl = {
   mode: string; controller: string; selected_for_rl: boolean; phase: string
   stage?: string; elapsed_seconds?: number; remaining_seconds?: number | null
   timing_kind?: "fixed_stage" | "minimum_hold" | "clearance" | "none"
-  pending_service?: string | null; external_control?: boolean
+  pending_service?: string | null; external_control?: boolean; negotiated?: boolean
   phase_order?: string[]; green_seconds?: number; minimum_green?: number; maximum_green?: number
   yellow_seconds?: number; all_red_seconds?: number
 }

@@ -37,6 +37,7 @@ import { ClosurePicker } from "@/components/closure-picker"
 import { NativeNumber, NativeScenarioSummary, NativeSelect } from "@/components/native-scenario-controls"
 import { closureLines, closureProblem, readClosures } from "@/lib/closures"
 import { closuresIntoConfig, type RouteScenarioDraft } from "@/lib/route-scenario"
+import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { PeakTrafficCard } from "@/components/peak-traffic"
 import { savedPeakSha, trafficSource } from "@/lib/peak-traffic"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -928,6 +929,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
             <FieldGroup className="px-4 pb-4">
               {recordError && <Alert variant="destructive"><AlertDescription>{recordError}</AlertDescription></Alert>}
               <NativeSelect label="Recording controller" value={recordControlMode} options={[
+                { value: "no-signal", label: NO_SIGNAL_LABEL },
                 { value: "fixed-time", label: "Fixed-time baseline" },
                 ...recordingModels.map((model) => ({ value: `${model.algorithm}:${model.id}`, label: `${model.algorithm.toUpperCase()} model #${model.id} · ${model.name ?? "Saved model"}` })),
               ]} onChange={setRecordControlMode} />

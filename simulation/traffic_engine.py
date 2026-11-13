@@ -40,7 +40,19 @@ STOP_SETBACK_STEP_M = 0.1
 _STOP_SETBACKS: dict[tuple[str, str], float] = {}
 _JUNCTION_TURN_BODIES: dict[tuple[str, str], list] = {}
 ENGINE_VERSION = "native-14"
-NO_SIGNAL_LABEL = "No signal (first come, first served)"
+NO_SIGNAL_LABEL = "No signal (negotiated, provisional)"
+# Negotiated no-signal at the study junction (owner-approved design, 2026-11-12; values provisional, see
+# docs/superpowers/specs/2026-11-12-negotiated-no-signal-design.md): critical gap by class, shrinking while a vehicle waits.
+NO_SIGNAL_BEHAVIOUR = "negotiated-v1"
+NEGOTIATED_CRITICAL_GAP_S = {"motorcycle": 2.0, "car": 3.0, "tricycle": 3.0, "bus": 3.5, "truck": 3.5}
+NEGOTIATED_GAP_SHRINK_PER_S = 0.1
+NEGOTIATED_GAP_FLOOR_SHARE = 0.5
+NEGOTIATED_MAX_INSIDE = 8
+# Conservative (owner, 2026-11-13): a vehicle not yet inside the junction (still at or before its line) counts as crossing every path,
+# from the start of that path. Counting only paths it really touches let priority holds loop and bodies wedge (3 of 12 safety runs).
+NEGOTIATED_NOT_INSIDE_CROSSES_ALL = True
+NEGOTIATED_PEDESTRIAN_PATIENCE_S = 20.0
+SCAN_MARGIN_M = 1e-6  # a scan limit only skips work: points within it still go through the exact test
 # Slot k serves the k-th vehicle phase of the plan (an approach or a group); the last action serves the walk phase.
 RL_SERVICE_ACTIONS = ("SERVE_PHASE_1", "SERVE_PHASE_2", "SERVE_PHASE_3", "SERVE_PHASE_4", "SERVE_PEDESTRIAN")
 APPROACHES = ("north", "east", "south", "west")
@@ -315,6 +327,10 @@ class TrafficEngine:
         self._sweep_bounds_cache: dict[int, tuple[list, tuple[float, float, float, float]]] = {}
         self._sweep_block_cache: dict[int, tuple[list, list]] = {}
         self._conflict_point_cache: dict[tuple[int, int], tuple[list, list, float | None]] = {}
+        self._conflict_profile_cache: dict[tuple[int, int], tuple[list, list, list]] = {}
+        # Negotiated no-signal: who committed first goes first at every crossing point (a fixed order, so no wait can loop).
+        self._commit_order: dict[str, int] = {}
+        self._commit_serial = 0
         self.pedestrians: dict[str, Pedestrian] = {}
         # Junction occupants and the approach they share; only one approach may be inside a junction at a time.
         self.reservations: dict[str, set[str]] = {}
@@ -524,7 +540,7 @@ class TrafficEngine:
         """Replace the network by the one with `shared_roads` shared (or the base network when none is). Lane ids and topology do not change."""
         self.network = shared_network(self.base_network, dict(self.shared_roads))
         self._index_lanes()
-        for cache in (self._sweep_cache, self._sweep_bounds_cache, self._sweep_block_cache, self._conflict_point_cache):
+        for cache in (self._sweep_cache, self._sweep_bounds_cache, self._sweep_block_cache, self._conflict_point_cache, self._conflict_profile_cache):
             cache.clear()
 
     def _set_sharing(self, lane_id: str, closed: bool) -> None:
@@ -852,7 +868,9 @@ class TrafficEngine:
             signal = self.signals[pedestrian.junction]
             if not pedestrian.crossing:
                 # Do not start a crossing that cannot finish in this pedestrian green.
-                if ((signal.family == "pedestrian" and signal.stage == "green" and signal.elapsed <= 0.5) or signal.mode in {"all_way_stop", "first_come"}) and pedestrian.junction not in self.reservations:
+                if ((signal.family == "pedestrian" and signal.stage == "green" and signal.elapsed <= 0.5) or signal.mode in {"all_way_stop", "first_come"}) and (
+                        pedestrian.junction not in self.reservations
+                        or (pedestrian.junction == self._negotiated_junction() and pedestrian.wait >= NEGOTIATED_PEDESTRIAN_PATIENCE_S)):
                     pedestrian.crossing = True
                 else:
                     pedestrian.wait += STEP_LENGTH
@@ -925,6 +943,8 @@ class TrafficEngine:
         self.reservations.setdefault(node, set()).add(vehicle.id)
         self.reservation_approach[node] = approach
         vehicle.reserved_junction = node
+        self._commit_serial += 1
+        self._commit_order[vehicle.id] = self._commit_serial
         # Time stuck in the junction counts from commitment, not from the red wait before it.
         vehicle.stopped_for = 0.0
 
@@ -932,6 +952,7 @@ class TrafficEngine:
         node = vehicle.reserved_junction
         occupants = self.reservations.get(node, set())
         occupants.discard(vehicle.id)
+        self._commit_order.pop(vehicle.id, None)
         if not occupants:
             self.reservations.pop(node, None)
             self.reservation_approach.pop(node, None)
@@ -1010,6 +1031,7 @@ class TrafficEngine:
         """Fixed order between vehicles of one approach whose paths merge or cross, so none waits for another in the junction."""
         node = self.network.lanes[vehicle.route[0]].target
         own_order = (math.inf if vehicle.stop_arrival is None else vehicle.stop_arrival, vehicle.id)
+        negotiated = node == self._negotiated_junction()
         sharp_setback_turn = ("junction_clearance_m" in self.network.nodes[node]
                               and abs(self._turn_angle(vehicle.route[0], vehicle.route[1])) >= SHARP_TURN_DEGREES)
         for other in self._candidates(("turning_off", vehicle.route[0]), ("on_lane", vehicle.route[0])):
@@ -1022,6 +1044,11 @@ class TrafficEngine:
                 # good, so one goes at a time. Of those still at the line whichever has a clear path goes: the kerb-side one
                 # always has, whereas keeping arrival order can close a loop with a vehicle standing in the next one's path.
                 if inside_or_committed:
+                    return True
+                # Negotiated no-signal: a driver beside this one who stopped at the line earlier goes first once its own path is
+                # clear, so a dense stream creeping up alongside cannot starve it (entries come quicker than under first come).
+                if (negotiated and other.stop_arrival is not None and (other.stop_arrival, other.id) < own_order
+                        and not (self._stands_in_path(vehicle, other) or self._sweep_blocked(other, node))):
                     return True
                 continue
             if self._paths_cross(vehicle, other):
@@ -1083,9 +1110,12 @@ class TrafficEngine:
         """Gap to the nearest vehicle ahead in the junction or at the start of the exit lane, and its speed."""
         gap, leader_speed = math.inf, vehicle.speed
         x, y, heading = self._pose(vehicle)
+        negotiated = vehicle.reserved_junction is not None and vehicle.reserved_junction == self._negotiated_junction()
         for other in self._junction_pool(vehicle):
             if self._same_movement_behind(other, vehicle):
                 continue  # it yields to this vehicle, so this vehicle never waits for it
+            if negotiated and self._hold_for(other, vehicle) is not None:
+                continue  # negotiated: it holds short of their crossing point for this vehicle, so following it would lock both
             if self._same_movement_behind(vehicle, other):
                 # Same path, other ahead: follow it along the path when the bands are close; beside it, the footprint
                 # check alone keeps the bodies apart on a curve.
@@ -1321,7 +1351,7 @@ class TrafficEngine:
         if key not in self._sweep_cache:
             if len(self._sweep_cache) >= SWEEP_CACHE_LIMIT:
                 # Pure geometry, so dropping it only costs a rebuild; the keyed-by-id caches would otherwise keep every sweep alive.
-                for cache in (self._sweep_cache, self._sweep_bounds_cache, self._sweep_block_cache, self._conflict_point_cache):
+                for cache in (self._sweep_cache, self._sweep_bounds_cache, self._sweep_block_cache, self._conflict_point_cache, self._conflict_profile_cache):
                     cache.clear()
             self._sweep_cache[key] = self._build_sweep(vehicle.route[0], vehicle.route[1], entry_lateral, exit_lateral, vehicle.length, vehicle.width)
         return self._sweep_cache[key]
@@ -1453,9 +1483,13 @@ class TrafficEngine:
         """Remaining sweeps of vehicles committed to (or inside) the junction ahead: from other approaches, and from this
         one when ahead of the vehicle, whose rear can still swing across the queue while it drifts towards its exit."""
         result = []
+        negotiated = lane.target == self._negotiated_junction()
         for identity, samples in self._sweeps.items():
             other = self.vehicles.get(identity)
             if other is None or other is vehicle or self.network.lanes[other.route[0]].target != lane.target:
+                continue
+            # It stops short of this vehicle's path (`_negotiated_hold`); waiting on its path as well would lock both.
+            if negotiated and self._hold_for(other, vehicle) is not None:
                 continue
             own_approach = other.route[0] == lane.id
             # Fronts, not centres: a long vehicle beside a short one can be ahead with its centre behind. One behind in this
@@ -1567,6 +1601,136 @@ class TrafficEngine:
             if self._sweeps_intersect(vehicle, other, remaining=True):
                 return True
         return False
+
+    def _negotiated_junction(self) -> str | None:
+        """The junction that negotiates (only the controlled one, only under the No signal controller); neighbours stay first come."""
+        return self.controlled_junction if self.no_signal_control else None
+
+    def _critical_gap(self, vehicle: Vehicle) -> float:
+        """Smallest time to an approaching vehicle that this one accepts, by class, shrinking while it has waited at the line."""
+        base = NEGOTIATED_CRITICAL_GAP_S.get(vehicle.vehicle_type, NEGOTIATED_CRITICAL_GAP_S["car"])
+        waited = 0.0 if vehicle.stop_arrival is None else self.simulation_time-vehicle.stop_arrival
+        return max(base*NEGOTIATED_GAP_FLOOR_SHARE, base-NEGOTIATED_GAP_SHRINK_PER_S*waited)
+
+    def _conflict_profile(self, own: list, other: list) -> list:
+        """For each body of `own` in path order: (its path position, the furthest body of `other` it touches, else -inf).
+        Cached: both sweeps are fixed geometry."""
+        key = (id(own), id(other))
+        entry = self._conflict_profile_cache.get(key)
+        if entry is None or entry[0] is not own or entry[1] is not other:
+            other_bounds, other_blocks = self._sweep_bounds(other), self._sweep_blocks(other)
+            profile = []
+            for run_box, run in self._sweep_blocks(own):
+                near = [(block_box, block) for block_box, block in other_blocks if _boxes_overlap(run_box, block_box)] if _boxes_overlap(run_box, other_bounds) else []
+                for point, corners, box in run:
+                    furthest = max((other_point for block_box, block in near if _boxes_overlap(box, block_box)
+                                    for other_point, other_corners, other_box in block
+                                    if _boxes_overlap(box, other_box) and rectangles_overlap(corners, other_corners)), default=-math.inf)
+                    profile.append((point, furthest))
+            entry = (own, other, profile)
+            self._conflict_profile_cache[key] = entry
+        return entry[2]
+
+    def _first_conflict(self, own: list, other: list, other_progress: float) -> float | None:
+        """First path position of `own` whose body touches what is left of `other` (its bodies from `other_progress` on)."""
+        if other_progress == -math.inf:
+            return own[0][0] if own else None  # the conservative rule (NEGOTIATED_NOT_INSIDE_CROSSES_ALL)
+        return next((point for point, furthest in self._conflict_profile(own, other) if furthest > -math.inf and furthest >= other_progress), None)
+
+    def _first_conflict_scan(self, own: list, other: list, other_progress: float, before: float = math.inf) -> float | None:
+        """The same answer as `_first_conflict`, found by stopping at the first touching body instead of building and caching the whole
+        table. For paths that change every tick (a vehicle still at or before the line drifts sideways), where a table is never reused.
+        A caller that only acts on a crossing point below `before` gets None as soon as the path passes it."""
+        if other_progress == -math.inf:
+            return own[0][0] if own else None  # the conservative rule (NEGOTIATED_NOT_INSIDE_CROSSES_ALL)
+        other_bounds, other_blocks = self._sweep_bounds(other), self._sweep_blocks(other)
+        remaining = [(block_box, [body for body in block if body[0] >= other_progress]) for block_box, block in other_blocks]
+        remaining = [(block_box, block) for block_box, block in remaining if block]
+        for run_box, run in self._sweep_blocks(own):
+            if run[0][0] >= before:
+                return None
+            if not _boxes_overlap(run_box, other_bounds):
+                continue
+            near = [(block_box, block) for block_box, block in remaining if _boxes_overlap(run_box, block_box)]
+            if not near:
+                continue
+            for point, corners, box in run:
+                if point >= before:
+                    return None
+                if any(_boxes_overlap(box, other_box) and rectangles_overlap(corners, other_corners)
+                       for block_box, block in near if _boxes_overlap(box, block_box) for _, other_corners, other_box in block):
+                    return point
+        return None
+
+    def _negotiated_permission(self, vehicle: Vehicle, lane) -> bool:
+        """Negotiated no-signal entry. Vehicles already committed go first at every crossing point (`_negotiated_hold`), so a newcomer
+        needs room inside, a stop before each crossing point they have not passed, and a big enough gap to vehicles still approaching."""
+        node = lane.target
+        if len(self.reservations.get(node, ())) >= NEGOTIATED_MAX_INSIDE:
+            return False
+        own = self._sweep_for(vehicle, vehicle.lateral, self._exit_lateral(vehicle))
+        to_path = lane.length-vehicle.position
+        stopping = vehicle.speed**2/(2*COMFORTABLE_DECELERATION)+vehicle.speed*STEP_LENGTH
+        for identity in self.reservations.get(node, ()):
+            other = self.vehicles.get(identity)
+            sweep = self._sweeps.get(identity)
+            if other is None or sweep is None:
+                continue
+            progress = other.connector_position-other.length if other.connector is not None else -math.inf
+            # Only a crossing point within the stopping distance can refuse; the exact test below still decides.
+            point = self._first_conflict_scan(own, sweep, progress, before=stopping+SWEEP_SAMPLE_M-to_path+SCAN_MARGIN_M)
+            if point is not None and to_path+point-SWEEP_SAMPLE_M < stopping:
+                return False
+        critical_gap = self._critical_gap(vehicle)
+        for lane_id in self.network.incoming[node]:
+            if lane_id == lane.id:
+                continue
+            other_lane = self.network.lanes[lane_id]
+            for other in self._candidates(("on_lane", lane_id)):
+                if (other.route[0] != lane_id or other.connector is not None or len(other.route) < 2
+                        or other.reserved_junction == node or other.approach_arrival is None):
+                    continue
+                # Only a crossing point it reaches within the critical gap can refuse (the arrival time grows with the distance);
+                # the exact test below still decides.
+                if other.speed >= 1.0:
+                    reach = critical_gap*other.speed
+                elif critical_gap > 1.0:
+                    reach = other.max_acceleration*(critical_gap-1.0)**2/2
+                else:
+                    continue
+                point = self._first_conflict_scan(self._sweep_for(other, other.lateral, self._exit_lateral(other)), own, -math.inf,
+                                                  before=reach-(other_lane.length-other.position)+SCAN_MARGIN_M)
+                if point is None:
+                    continue
+                distance = max(0.0, other_lane.length-other.position+point)
+                # Moving: at its speed. Standing: it still has to set off (one second to react, then its own acceleration).
+                arrival = distance/other.speed if other.speed >= 1.0 else 1.0+math.sqrt(2*distance/other.max_acceleration)
+                if arrival < critical_gap:
+                    return False
+        return True
+
+    def _negotiated_hold(self, vehicle: Vehicle) -> float | None:
+        """Furthest path position (body centre, junction path coordinates) this committed vehicle may reach before a crossing point
+        that a vehicle committed earlier has not passed yet; None when nothing holds it."""
+        holds = [hold for identity in self.reservations.get(vehicle.reserved_junction, ())
+                 if (other := self.vehicles.get(identity)) is not None and other is not vehicle
+                 for hold in [self._hold_for(vehicle, other)] if hold is not None]
+        return min(holds, default=None)
+
+    def _hold_for(self, vehicle: Vehicle, other: Vehicle) -> float | None:
+        """Where `vehicle` must stop for `other` at a negotiated junction: just before their first crossing point when `other`
+        committed earlier and has not passed it yet; None otherwise."""
+        own, sweep = self._sweeps.get(vehicle.id), self._sweeps.get(other.id)
+        order, other_order = self._commit_order.get(vehicle.id), self._commit_order.get(other.id)
+        if own is None or sweep is None or order is None or other_order is None or other_order >= order:
+            return None
+        progress = other.connector_position-other.length if other.connector is not None else -math.inf
+        point = self._first_conflict(own, sweep, progress)
+        here = vehicle.connector_position if vehicle.connector is not None else vehicle.position-self.network.lanes[vehicle.route[0]].length
+        # Clearly past it already (it was there first): stopping now would leave its body in the other's way.
+        if point is None or point-SWEEP_SAMPLE_M < here-0.5:
+            return None
+        return point-SWEEP_SAMPLE_M
 
     def _first_come_permission(self, vehicle: Vehicle, node: str) -> bool:
         if vehicle.approach_arrival is None:
@@ -1713,6 +1877,10 @@ class TrafficEngine:
         if vehicle.connector:
             connector_length = length(vehicle.connector)
             gap, leader_speed = self._junction_gap(vehicle, connector_length)
+            if vehicle.reserved_junction is not None and vehicle.reserved_junction == self._negotiated_junction():
+                hold = self._negotiated_hold(vehicle)
+                if hold is not None and hold-vehicle.connector_position+vehicle.minimum_gap < gap:
+                    gap, leader_speed = hold-vehicle.connector_position+vehicle.minimum_gap, 0.0
             desired_speed = self._movement_speed(vehicle.route[0], vehicle.route[1])*vehicle.speed_factor
             travel = self._advance(vehicle, gap, leader_speed, desired_speed)
             cleared = self._clear_travel(vehicle, travel, connector_length)
@@ -1742,8 +1910,10 @@ class TrafficEngine:
             stop_position = self.stop_line(lane.id)-vehicle.length/2
             if vehicle.position >= stop_position-1 and vehicle.speed <= .1 and vehicle.stop_arrival is None:
                 vehicle.stop_arrival = self.simulation_time
+            negotiated = lane.target == self._negotiated_junction()
             if signal.mode == "first_come":
-                has_permission = self._first_come_permission(vehicle, lane.target)
+                has_permission = (self._negotiated_permission(vehicle, lane) if negotiated
+                                  else self._first_come_permission(vehicle, lane.target))
             else:
                 has_permission = self._stop_priority(vehicle, lane.target) if signal.mode == "all_way_stop" else signal.stage == "green" and signal.serves(lane.approach)
             may_proceed = (has_permission and self._junction_open_to(lane.target, lane.approach, signal)
@@ -1756,9 +1926,11 @@ class TrafficEngine:
             # Never commit behind an uncommitted vehicle that could still be held at the line.
             clear_ahead = leader is None or leader.reserved_junction == lane.target
             # The sweep test is the costliest, so it runs only at the moment the vehicle would otherwise commit.
+            # A negotiated junction lets crossing paths share the middle: its permission has already checked them.
+            keeps_apart = not negotiated and (signal.mode == "first_come" or "+" in signal.family)
             if may_proceed and must_decide and clear_ahead and (self._sweep_blocked(vehicle, lane.target) or (
                     # Approaches sharing a green (and a first-come junction) also keep apart from each other's committed paths.
-                    self._meets_committed_path if signal.mode == "first_come" or "+" in signal.family else self._meets_own_approach_path)(vehicle)):
+                    self._meets_committed_path if keeps_apart else self._meets_own_approach_path)(vehicle)):
                 may_proceed = False
             if may_proceed and must_decide and clear_ahead:
                 self._reserve(vehicle, lane.target, lane.approach)
@@ -1767,6 +1939,10 @@ class TrafficEngine:
                 self._sweeps[vehicle.id] = self._sweep_for(vehicle, vehicle.lateral, self._exit_lateral(vehicle))
             elif not may_proceed and stop_position < obstacle:
                 obstacle, leader_speed = stop_position+vehicle.minimum_gap, 0.0
+        if vehicle.reserved_junction == lane.target and lane.target == self._negotiated_junction():
+            hold = self._negotiated_hold(vehicle)
+            if hold is not None and lane.length+hold+vehicle.minimum_gap < obstacle:
+                obstacle, leader_speed = lane.length+hold+vehicle.minimum_gap, 0.0
         desired_speed = lane.speed*self.slow_lanes.get(lane.id, 1.0)*vehicle.speed_factor
         if (lane.target in self.signals and self.signals[lane.target].mode == "first_come"
                 and vehicle.reserved_junction != lane.target and vehicle.approach_arrival is not None):
@@ -2235,7 +2411,8 @@ class TrafficEngine:
         self._refresh_metrics()
 
     def junction_controls(self):
-        return {node: {"mode": signal.mode,
+        negotiated = self._negotiated_junction()
+        return {node: {"mode": signal.mode, **({"negotiated": True} if node == negotiated else {}),
                        "controller": self.controller_provenance if signal.external else
                        "no-signal" if signal.mode == "first_come" else "all-way-stop" if signal.mode == "all_way_stop" else "fixed-time",
                        "selected_for_rl": node == self.controlled_junction,
@@ -2264,6 +2441,11 @@ class TrafficEngine:
                 "policy": copy.deepcopy(getattr(self.runtime_policy, "artifact_metadata", None)),
                 "control": {"decision_interval": self.rl_decision_interval if self.rl_control_enabled else None,
                             "minimum_green_hold": self.rl_minimum_green_hold if self.rl_control_enabled else None,
-                            **({"junction_control": "first_come"} if self.no_signal_control else {})},
+                            **({"junction_control": "first_come", "no_signal_behaviour": {
+                                "version": NO_SIGNAL_BEHAVIOUR, "junction": self.controlled_junction,
+                                "critical_gap_s": dict(NEGOTIATED_CRITICAL_GAP_S), "gap_shrink_per_s": NEGOTIATED_GAP_SHRINK_PER_S,
+                                "gap_floor_share": NEGOTIATED_GAP_FLOOR_SHARE, "max_inside": NEGOTIATED_MAX_INSIDE,
+                                "not_inside_crosses_all": NEGOTIATED_NOT_INSIDE_CROSSES_ALL,
+                                "pedestrian_patience_s": NEGOTIATED_PEDESTRIAN_PATIENCE_S}} if self.no_signal_control else {})},
                 "last_policy_decision": copy.deepcopy(self.last_policy_decision),
                 "last_safety_override": copy.deepcopy(self.last_safety_override)}

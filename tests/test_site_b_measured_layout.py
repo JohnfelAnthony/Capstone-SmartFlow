@@ -182,11 +182,12 @@ def test_a_gentler_turn_still_takes_followers_in():
 
 @pytest.mark.parametrize("incoming,outgoing", [("road2f", "road1f"), ("road9f", "road7f")])
 def test_crowded_sharp_turn_traffic_all_gets_through(incoming, outgoing):
-    """A dense mixed stream of right-turners, the traffic that froze this turn, must drain with nobody left standing in the junction."""
-    engine = build_engine("siteB", "none", {"car": 1}, 400, 1, no_signal=True)
+    """A dense mixed stream of right-turners, the traffic that froze this turn, must drain with nobody left standing in the junction.
+    600 s: under negotiated no-signal (2026-11-12) waiting pedestrians step out after 20 s and hold new entries, so it drains in about 450 s."""
+    engine = build_engine("siteB", "none", {"car": 1}, 600, 1, no_signal=True)
     classes = ["motorcycle", "motorcycle", "tricycle", "car", "motorcycle", "motorcycle", "tricycle", "motorcycle"]
     added, longest_stop = 0, 0.0
-    while engine.status == "running" and engine.simulation_time < 400:
+    while engine.status == "running" and engine.simulation_time < 600:
         if added < 32 and engine.simulation_time >= added*1.2 and engine.add_vehicle(to_boundary(NETWORK, [incoming, outgoing]), vehicle_type=classes[added % len(classes)]):
             added += 1
         engine.step(1)
