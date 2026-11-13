@@ -1,4 +1,4 @@
-export const NO_SIGNAL_LABEL = "No signal (first come, first served)"
+export const NO_SIGNAL_LABEL = "No signal (negotiated, provisional)"
 
 const RL_ALGORITHMS = ["ql", "dql", "ppo"]
 

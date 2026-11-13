@@ -157,7 +157,7 @@ function SignalPhases({ control, frame, geometry, junctionId, approachName, road
   const signalMap = <><JunctionSignalMap frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} />
     <ClosureNotes control={control} frame={frame} geometry={geometry} junctionId={junctionId} approachName={approachName} roadName={roadName} /></>
   const unsignalledNote = !control ? "Start a simulation to see the signal phases."
-    : control.mode === "first_come" ? "No signal — first come, first served."
+    : control.mode === "first_come" ? (control.negotiated ? "No signal — drivers negotiate their way through (provisional)." : "No signal — first come, first served.")
     : control.mode === "all_way_stop" ? "All-way stop: this junction has no signal phases." : null
   if (!control || unsignalledNote) return <div className="flex flex-col gap-3">{signalMap}<p className="sf-junction-note">{unsignalledNote}</p></div>
   const current = phaseService(control.phase)
