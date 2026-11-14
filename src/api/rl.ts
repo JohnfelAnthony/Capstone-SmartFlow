@@ -66,6 +66,8 @@ export type RLTrainingStatusResponse = {
   items: RLTrainingJobItem[]
   log_lines: RLLogLine[]
   models: RLModelRecord[]
+  /** Another workload ("live simulation", "recording", ...) holding the one compute slot; training cannot start. */
+  blocking_workload?: string | null
 }
 
 export type RLEvaluationReport = {

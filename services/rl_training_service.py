@@ -332,7 +332,13 @@ def training_status(job_id: int | None = None) -> dict:
     job = database.get_rl_training_job(job_id) if job_id else database.get_latest_rl_training_job()
     return {"job": job, "items": database.get_rl_training_job_items(job["id"]) if job else [],
             "log_lines": read_log_tail(job.get("log_path")) if job else [], "models": model_rows(),
-            "active_job_id": _active_job_id}
+            "active_job_id": _active_job_id, "blocking_workload": _other_workload()}
+
+
+def _other_workload() -> str | None:
+    """A live run, recording or network revision holding the one compute slot, so training cannot start."""
+    kind = workload_admission.active_kind()
+    return None if kind == "training/evaluation" else kind
 
 
 def evaluation_report_path(job_id: int) -> Path | None:

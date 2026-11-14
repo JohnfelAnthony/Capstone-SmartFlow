@@ -5,7 +5,7 @@ import type { ApiScenario } from "@/api/scenarios"
 import type { RLModelRecord } from "@/api/rl"
 import type { SimulationRunRecord, SimulationStatePayload } from "@/api/simulation"
 import { NativeSelect } from "@/components/native-scenario-controls"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,8 +14,9 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
+import { blockedStartMessage, NO_SIGNAL_LABEL } from "@/lib/control-labels"
 
 const durationOptions = [
   { label: "5 minutes", value: "300" },
@@ -44,7 +45,7 @@ export function SimControlBar({ simulation, elapsedSeconds, isBusy, isPreparing 
   return <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
     {isRunning
       ? <Button size="sm" disabled={isLocked} onClick={onPause}><PauseIcon data-icon="inline-start" />Pause</Button>
-      : <Button size="sm" disabled={isLocked || !canPlay} onClick={isPaused ? onPause : isPlayback ? onStartPlayback : onStart}><PlayIcon data-icon="inline-start" />{isPaused ? "Resume" : "Play"}</Button>}
+      : <Button size="sm" disabled={isLocked || !canPlay} onClick={isPaused ? onPause : isPlayback ? onStartPlayback : onStart}>{isPreparing ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}{isPaused ? "Resume" : "Play"}</Button>}
     <Button size="sm" variant="outline" disabled={isLocked || !isActive} onClick={onStop}><SquareIcon data-icon="inline-start" />Stop</Button>
     <Button size="icon-sm" variant="ghost" disabled={isLocked} onClick={onReset} aria-label="Reset simulation" title="Reset simulation"><RotateCcwIcon /></Button>
     <Select items={speedOptions} value={String(simulation?.speed_multiplier ?? 1)} onValueChange={(next) => next !== null && onSpeedChange(Number(next))} disabled={isLocked}>
@@ -65,10 +66,11 @@ export function SimControlBar({ simulation, elapsedSeconds, isBusy, isPreparing 
 }
 
 /** Centred over the idle map: the one place to pick what to run or which recording to replay. */
-export function SetupCard({ scenarios, selectedScenarioId, durationSeconds, seed, controlMode, models, controlledJunction, recordedRuns, selectedRecordedRunId, isBusy, canOperate, canTakeOver,
-  onScenarioChange, onDurationChange, onSeedChange, onControlModeChange, onStart, onRecordedRunChange, onLoadRecording, onTakeOver }: {
+export function SetupCard({ scenarios, selectedScenarioId, durationSeconds, seed, controlMode, models, controlledJunction, recordedRuns, selectedRecordedRunId, isBusy, isStarting = false, blockingWorkload = null, canOperate, canTakeOver,
+  onOpenTraining, onScenarioChange, onDurationChange, onSeedChange, onControlModeChange, onStart, onRecordedRunChange, onLoadRecording, onTakeOver }: {
   scenarios: ApiScenario[]; selectedScenarioId: string; durationSeconds: string; seed: string; controlMode: string; models: RLModelRecord[]; controlledJunction: string | undefined
-  recordedRuns: SimulationRunRecord[]; selectedRecordedRunId: string; isBusy: boolean; canOperate: boolean; canTakeOver: boolean
+  recordedRuns: SimulationRunRecord[]; selectedRecordedRunId: string; isBusy: boolean; isStarting?: boolean; blockingWorkload?: string | null; canOperate: boolean; canTakeOver: boolean
+  onOpenTraining?: () => void
   onScenarioChange: (value: string) => void; onDurationChange: (value: string) => void; onSeedChange: (value: string) => void; onControlModeChange: (value: string) => void; onStart: () => void
   onRecordedRunChange: (value: string) => void; onLoadRecording: () => void; onTakeOver: () => void
 }) {
@@ -113,7 +115,16 @@ export function SetupCard({ scenarios, selectedScenarioId, durationSeconds, seed
                 </Field>
               </CollapsibleContent>
             </Collapsible>
-            <Button disabled={isLocked || !selectedScenarioId} onClick={onStart}><PlayIcon data-icon="inline-start" />Start simulation</Button>
+            {blockingWorkload ? <Alert>
+              <AlertTitle>Start is unavailable</AlertTitle>
+              <AlertDescription className="flex flex-col items-start gap-2">
+                {blockedStartMessage(blockingWorkload)}
+                {onOpenTraining && blockingWorkload === "training/evaluation" ? <Button size="sm" variant="outline" onClick={onOpenTraining}>Open RL Training</Button> : null}
+              </AlertDescription>
+            </Alert> : null}
+            <Button disabled={isLocked || !selectedScenarioId || Boolean(blockingWorkload)} onClick={onStart}>
+              {isStarting ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}{isStarting ? "Preparing traffic…" : "Start simulation"}
+            </Button>
           </FieldGroup>
         </TabsContent>
         <TabsContent value="replay">

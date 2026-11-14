@@ -171,7 +171,8 @@ export default function App() {
                 onPasswordChanged={() => { getCurrentUser().then(setCurrentUser).catch(() => undefined) }} />
             ) : activePage === "RL Training" ? (
               <RLTrainingPage currentUserId={currentUser!.id} isAdmin={currentUser!.role.toLowerCase() === "admin"}
-                canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")} />
+                canRunTraining={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "rl-training" && permission.action === "run")}
+                onOpenDashboard={() => navigate("Dashboard")} />
             ) : activePage === "Runs & Reports" ? (
               <RunsReportsPage onOpenDashboard={() => navigate("Dashboard")}
                 onOpenCompare={can("compare", "view") ? () => navigate("Compare Runs") : undefined} />
@@ -193,6 +194,7 @@ export default function App() {
                 isAdmin={currentUser!.role.toLowerCase() === "admin"}
                 canRunSimulation={currentUser!.role.toLowerCase() === "admin" || currentUser!.permissions.some((permission) => permission.page === "simulation" && permission.action === "run")}
                 view={dashboardView}
+                onOpenTraining={canViewPage(currentUser, "rl-training") ? () => navigate("RL Training") : undefined}
               />
             )}
             </React.Suspense>

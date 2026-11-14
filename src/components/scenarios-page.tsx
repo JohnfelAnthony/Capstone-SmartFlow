@@ -3,6 +3,7 @@ import * as React from "react"
 import {
   ArchiveIcon,
   BadgeCheckIcon,
+  TriangleAlertIcon,
   BoltIcon,
   CalendarClockIcon,
   EyeIcon,
@@ -293,7 +294,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   const [recordDuration, setRecordDuration] = React.useState(300)
   const [recordSeed, setRecordSeed] = React.useState(42)
   const [recordError, setRecordError] = React.useState("")
-  const [notice, setNotice] = React.useState("Loading scenarios from SQLite...")
+  const [notice, setNotice] = React.useState<string | { error: string }>("Loading scenarios from SQLite...")
   const [formMode, setFormMode] = React.useState<ScenarioFormMode | null>(null)
   const [editingScenarioId, setEditingScenarioId] = React.useState<number | null>(null)
   const [draft, setDraft] = React.useState<ScenarioDraft>(emptyScenarioDraft)
@@ -311,7 +312,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   React.useEffect(() => {
     let mounted = true
     Promise.all([getNativeScenarioOptions(), listNetworks()]).then(([options, available]) => { if (mounted) { setNativeOptions(options); setNetworks(available.filter((network) => network.id !== "tagum_network")) } })
-      .catch((error) => { if (mounted) setNotice(error instanceof Error ? error.message : "Unable to load network choices.") })
+      .catch((error) => { if (mounted) setNotice({ error: error instanceof Error ? error.message : "Unable to load network choices." }) })
     return () => { mounted = false }
   }, [])
 
@@ -326,7 +327,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       setScenarios(nextScenarios)
       setNotice(`Loaded ${nextScenarios.length} scenario${nextScenarios.length === 1 ? "" : "s"} from SQLite.`)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to load scenarios from the API.")
+      setNotice({ error: error instanceof Error ? error.message : "Unable to load scenarios from the API." })
     } finally {
       setIsLoading(false)
     }
@@ -583,7 +584,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       toast.success(updated.is_archived ? "Scenario archived" : "Scenario restored")
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to update scenario status."
-      setNotice(message)
+      setNotice({ error: message })
       toast.error(message)
     } finally {
       setIsSaving(false)
@@ -593,11 +594,11 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   async function launchScenario(scenario: ScenarioRecord, action: "load" | "live" | "record") {
     if (!permissions.run) return
     if (scenario.migrationError) {
-      setNotice(scenario.migrationError)
+      setNotice({ error: scenario.migrationError })
       return
     }
     if (scenario.isArchived) {
-      setNotice(`"${scenario.name}" is archived. Restore it before loading or running.`)
+      setNotice({ error: `"${scenario.name}" is archived. Restore it before loading or running.` })
       return
     }
     if (action === "record") {
@@ -630,7 +631,9 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       toast.success(action === "live" ? "Simulation started" : "Scenario loaded")
       onOpenDashboard?.()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to launch scenario.")
+      const message = error instanceof Error ? error.message : "Unable to launch scenario."
+      setNotice({ error: message })
+      toast.error(message)
     } finally {
       setIsSaving(false)
     }
@@ -664,6 +667,9 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     }
   }
 
+  // Launch, edit and archive wait while one of them is in flight, so a double click cannot submit twice.
+  const cardPermissions = isSaving ? { ...permissions, run: false, edit: false } : permissions
+
   return (
     <main className="smartflow-page scenarios-page">
       <section className="scenarios-hero">
@@ -689,9 +695,9 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
         <ScenarioMetric icon={ArchiveIcon} label="Active" value={stats.active} hint="Not archived" />
       </section>
 
-      <div className="scenario-notice">
-        <BadgeCheckIcon />
-        <span>{notice}</span>
+      <div className="scenario-notice" data-tone={typeof notice === "string" ? undefined : "error"}>
+        {typeof notice === "string" ? <BadgeCheckIcon /> : <TriangleAlertIcon />}
+        <span role={typeof notice === "string" ? "status" : "alert"}>{typeof notice === "string" ? notice : notice.error}</span>
       </div>
 
       <section className="scenario-workspace">
@@ -801,7 +807,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
                     key={scenario.id}
                     scenario={scenario}
                     selectedId={selectedId}
-                    permissions={permissions}
+                    permissions={cardPermissions}
                     onArchive={toggleArchiveScenario}
                     onEdit={openEditForm}
                     onLaunch={launchScenario}
@@ -813,7 +819,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
               <ScenarioTable
                 scenarios={filteredScenarios}
                 selectedId={selectedId}
-                permissions={permissions}
+                permissions={cardPermissions}
                 onArchive={toggleArchiveScenario}
                 onEdit={openEditForm}
                 onLaunch={launchScenario}
@@ -837,7 +843,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
           {selectedScenario ? (
             <ScenarioDetailSheet
               scenario={selectedScenario}
-              permissions={permissions}
+              permissions={cardPermissions}
               onArchive={toggleArchiveScenario}
               onEdit={openEditForm}
               onLaunch={launchScenario}

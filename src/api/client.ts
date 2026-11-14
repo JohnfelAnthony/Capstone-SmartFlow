@@ -41,12 +41,19 @@ async function apiResponse(path: string, options: RequestOptions = {}): Promise<
     headers.set("Content-Type", "application/json")
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-    credentials: "include",
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    })
+  } catch (error) {
+    // The browser reports an unreachable server only as "Failed to fetch"; aborts stay aborts.
+    if (error instanceof DOMException && error.name === "AbortError") throw error
+    throw new ApiError(0, "Unable to reach the SmartFlow API. Check that the server is running, then try again.")
+  }
 
   if (!response.ok) {
     if (response.status === 401 && !authRequest && generation === sessionGeneration && !sessionExpired) {

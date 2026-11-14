@@ -4,6 +4,8 @@ import { apiRequest } from "@/api/client"
 export type SimulationStatePayload = {
   render_frame?: import("@/simulation/frame-types").RenderFrame | null
   render_frame_error?: string | null
+  /** Another workload ("training/evaluation", "recording", ...) holding the one compute slot; a live run cannot start. */
+  blocking_workload?: string | null
   status: string
   owner_user_id: number | null
   owner_name: string | null

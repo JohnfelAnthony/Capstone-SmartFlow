@@ -232,6 +232,8 @@ class RLTrainingStatusResponse(BaseModel):
     items: list[RLTrainingJobItem] = Field(default_factory=list)
     log_lines: list[RLLogLine] = Field(default_factory=list)
     models: list[RLModelRecord] = Field(default_factory=list)
+    # Another workload (live simulation, recording, network revision) holding the one compute slot.
+    blocking_workload: str | None = None
 
 
 class RLTrainingJobListResponse(BaseModel):
@@ -636,6 +638,8 @@ class SimulationStateResponse(BaseModel):
     state: dict[str, Any]
     render_frame: dict[str, Any] | None = None
     render_frame_error: str | None = None
+    # Another workload (training/evaluation, recording, network revision) holding the one compute slot.
+    blocking_workload: str | None = None
 
 
 class SimulationActionResponse(BaseModel):

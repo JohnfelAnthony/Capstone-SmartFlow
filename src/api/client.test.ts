@@ -37,3 +37,14 @@ describe("session expiry handling", () => {
     await expect(apiRequest("/api/compare/pair/frames")).resolves.toEqual({ok:true})
   })
 })
+
+describe("unreachable server", () => {
+  it("turns the browser's bare 'Failed to fetch' into a readable ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")))
+    await expect(apiRequest("/api/simulation/state")).rejects.toMatchObject({ status: 0, message: expect.stringContaining("Unable to reach the SmartFlow API") })
+  })
+  it("leaves an aborted request as an abort", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError")))
+    await expect(apiRequest("/api/rl/jobs/1/evaluation")).rejects.toMatchObject({ name: "AbortError" })
+  })
+})

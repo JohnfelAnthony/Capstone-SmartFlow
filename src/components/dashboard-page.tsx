@@ -27,6 +27,7 @@ import { TagumMap } from "@/components/tagum-map"
 import { renderFrameFromSimulation, mergeRenderFrame } from "@/simulation/render-frame-adapter"
 import { useSimulationSocket } from "@/hooks/useSimulationSocket"
 import type { RenderFrame } from "@/simulation/frame-types"
+import { toast } from "sonner"
 import { pickReferenceRun, type ReferenceRun } from "@/lib/reference-run"
 import { metricCatalog, metricEngineVersion } from "@/lib/metrics"
 
@@ -47,11 +48,13 @@ export function DashboardPage({
   isAdmin,
   canRunSimulation,
   view = "simulation",
+  onOpenTraining,
 }: {
   currentUserId: number
   isAdmin: boolean
   canRunSimulation: boolean
   view?: DashboardView
+  onOpenTraining?: () => void
 }) {
   const [scenarios, setScenarios] = React.useState<ApiScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = React.useState("")
@@ -75,6 +78,7 @@ export function DashboardPage({
   const [notice, setNotice] = React.useState("Loading simulation workspace...")
   const [isBusy, setIsBusy] = React.useState(false)
   const [isPreparing, setIsPreparing] = React.useState(false)
+  const [isWorkspaceLoaded, setIsWorkspaceLoaded] = React.useState(false)
   const lastStateRefreshAt = React.useRef(0)
   const stateRefreshInFlight = React.useRef(false)
 
@@ -125,6 +129,7 @@ export function DashboardPage({
         if (applySimulationSnapshot(response.simulation)) setNotice(successMessage ?? response.message)
       } catch (error) {
         setNotice(apiMessage(error))
+        toast.error(apiMessage(error))
       } finally {
         setIsBusy(false)
       }
@@ -176,7 +181,7 @@ export function DashboardPage({
       } catch (error) {
         if (isMounted) setNotice(apiMessage(error))
       } finally {
-        if (isMounted) setIsBusy(false)
+        if (isMounted) { setIsBusy(false); setIsWorkspaceLoaded(true) }
       }
     }
 
@@ -350,15 +355,17 @@ export function DashboardPage({
     <div className="flex flex-col gap-4 p-4 lg:p-6">
       <DashboardKpis metrics={simulation?.state.metrics} reference={reference} isReferenceRun={simulation?.control_mode === "no-signal"} />
       {view === "map" ? <TagumMap /> :
-      <SimulationVisualization frame={renderFrame} networkId={intersectionId}
+      <SimulationVisualization frame={renderFrame} networkId={intersectionId} networkPending={!isWorkspaceLoaded}
+        busyBadge={streamEnabled && streamStatus === "reconnecting" ? "Reconnecting to the live stream…" : null}
         controlledJunction={Object.entries(renderFrame?.junction_controls ?? {}).find(([, control]) => control.selected_for_rl)?.[0] ?? recordedJunction ?? scenarioConfig?.controlled_junction}
         runKey={String(simulation?.active_run_id ?? "idle")} seekRevision={seekRevision} laneStreets={laneStreets}
         onPerformanceSample={showPerformance ? handleRenderPerformance : undefined}
-        controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} isPreparing={isPreparing} canOperate={canOperate} canStart={canConfigure}
+        controlBar={<SimControlBar simulation={simulation} elapsedSeconds={renderFrame?.time ?? Number(simulation?.state.time ?? 0)} isBusy={isBusy} isPreparing={isPreparing} canOperate={canOperate} canStart={canConfigure && !simulation?.blocking_workload}
           onStart={handleStart} onStartPlayback={handleStartPlayback} onPause={handlePauseOrResume} onStop={() => applySimulationAction(stopSimulation)} onReset={() => applySimulationAction(resetSimulation)}
           onSpeedChange={(value) => { void applySimulationAction(() => setSimulationSpeed(value)) }} onSeekPlayback={(frameIndex) => void handleSeekPlayback(frameIndex)} />}
         overlay={isIdle ? <SetupCard scenarios={scenarios} selectedScenarioId={selectedScenarioId} durationSeconds={durationSeconds} seed={seed} controlMode={controlMode} models={models} controlledJunction={scenarioConfig?.controlled_junction}
-          recordedRuns={recordedRuns} selectedRecordedRunId={selectedRecordedRunId} isBusy={isBusy} canOperate={canOperate} canTakeOver={!canOperate && isAdmin}
+          recordedRuns={recordedRuns} selectedRecordedRunId={selectedRecordedRunId} isBusy={isBusy} isStarting={isPreparing} blockingWorkload={simulation?.blocking_workload}
+          canOperate={canOperate} canTakeOver={!canOperate && isAdmin} onOpenTraining={onOpenTraining}
           onScenarioChange={handleScenarioChange} onDurationChange={setDurationSeconds} onSeedChange={setSeed} onControlModeChange={setControlMode} onStart={handleStart}
           onRecordedRunChange={setSelectedRecordedRunId} onLoadRecording={handleLoadRecording}
           onTakeOver={() => void applySimulationAction(() => resetSimulation(true), "Shared session released. The prior run was saved as stopped.")} /> : null} />}

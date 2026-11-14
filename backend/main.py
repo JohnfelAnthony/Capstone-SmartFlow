@@ -395,6 +395,7 @@ def rl_training_status_response(raw_status: dict) -> RLTrainingStatusResponse:
         items=[rl_job_item_model(item) for item in raw_status.get("items") or []],
         log_lines=[rl_log_line_model(line) for line in raw_status.get("log_lines") or []],
         models=[rl_model_record(model) for model in raw_status.get("models") or []],
+        blocking_workload=raw_status.get("blocking_workload"),
     )
 
 
