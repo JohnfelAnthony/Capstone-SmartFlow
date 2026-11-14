@@ -101,6 +101,7 @@ export function BackupRestorePage() {
   const [pendingAction, setPendingAction] = React.useState<{ kind: "restore" | "activate" | "delete"; backup: BackupSnapshot } | null>(null)
   const [alert, setAlert] = React.useState("Loading backup snapshot catalog from SQLite.")
   const [isLoading, setIsLoading] = React.useState(false)
+  const creatingBackup = React.useRef(false)
 
   const loadBackups = React.useCallback(async () => {
     setIsLoading(true)
@@ -134,6 +135,9 @@ export function BackupRestorePage() {
   ]
 
   async function createBackup() {
+    if (creatingBackup.current) return  // a ref, so a second click before the re-render is refused too
+    creatingBackup.current = true
+    setIsLoading(true)  // drives the buttons' "Working" label
     try {
       const response = await createBackupSnapshot()
       if (response.backup) {
@@ -149,6 +153,9 @@ export function BackupRestorePage() {
       const message = backupErrorMessage(error, "Unable to create backup.")
       setAlert(message)
       toast.error(message)
+    } finally {
+      creatingBackup.current = false
+      setIsLoading(false)
     }
   }
 

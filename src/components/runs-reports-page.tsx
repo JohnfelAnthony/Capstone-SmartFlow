@@ -204,6 +204,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
   const [isTimelineLoading, setIsTimelineLoading] = React.useState(false)
   const [alert, setAlert] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isWorking, setIsWorking] = React.useState(false)  // an export or replay request is in flight
 
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null
   const selectedIds = selectedRunIds.length ? selectedRunIds : selectedRun ? [selectedRun.id] : []
@@ -321,12 +322,17 @@ export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
       setAlert("Select at least one run to export.")
       return
     }
+    setIsWorking(true)
     try {
       await exportRuns(selectedIds, format)
       toast.success(`${format.toUpperCase()} export downloaded`)
       setAlert(`Exported ${selectedIds.length} run${selectedIds.length === 1 ? "" : "s"} as ${format.toUpperCase()}.`)
     } catch (error) {
-      setAlert(runsErrorMessage(error, "Unable to export selected runs."))
+      const message = runsErrorMessage(error, "Unable to export selected runs.")
+      setAlert(message)
+      toast.error(message)
+    } finally {
+      setIsWorking(false)
     }
   }
 
@@ -335,13 +341,18 @@ export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
       setAlert("Select a completed run first.")
       return
     }
+    setIsWorking(true)
     try {
       const response = await loadPlayback(selectedRun.id)
       setAlert(response.message)
       toast.success("Recording loaded for replay")
       onOpenDashboard?.()
     } catch (error) {
-      setAlert(runsErrorMessage(error, `Unable to load run #${selectedRun.id} for replay.`))
+      const message = runsErrorMessage(error, `Unable to load run #${selectedRun.id} for replay.`)
+      setAlert(message)
+      toast.error(message)
+    } finally {
+      setIsWorking(false)
     }
   }
 
@@ -482,11 +493,11 @@ export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
           </CardHeader>
           <CardContent className="runs-action-stack">
             <div className="runs-export-options">
-              <Button variant="outline" className="runs-export-option" disabled={!selectedIds.length} onClick={() => void exportSelected("csv")}>
+              <Button variant="outline" className="runs-export-option" disabled={!selectedIds.length || isWorking} onClick={() => void exportSelected("csv")}>
                 <FileSpreadsheetIcon data-icon="inline-start" />
                 <span>CSV <small>Spreadsheet</small></span>
               </Button>
-              <Button variant="outline" className="runs-export-option" disabled={!selectedIds.length} onClick={() => void exportSelected("json")}>
+              <Button variant="outline" className="runs-export-option" disabled={!selectedIds.length || isWorking} onClick={() => void exportSelected("json")}>
                 <FileJsonIcon data-icon="inline-start" />
                 <span>JSON <small>Structured data</small></span>
               </Button>
@@ -506,7 +517,7 @@ export function RunsReportsPage({ onOpenDashboard, onOpenCompare }: {
             <CardDescription>{selectedRun ? selectedRun.scenario_name ?? "Unknown scenario" : "Select a run to see its results."}</CardDescription>
             {selectedRun ? <CardAction className="flex flex-wrap justify-end gap-2">
               {onOpenCompare ? <Button variant="outline" size="sm" onClick={onOpenCompare}>Compare runs</Button> : null}
-              <Button size="sm" onClick={replaySelectedRun} disabled={!canReplay} title={canReplay ? undefined : "Only completed recordings can be replayed"}>
+              <Button size="sm" onClick={replaySelectedRun} disabled={!canReplay || isWorking} title={canReplay ? undefined : "Only completed recordings can be replayed"}>
                 <PlayCircleIcon data-icon="inline-start" />
                 Replay
               </Button>

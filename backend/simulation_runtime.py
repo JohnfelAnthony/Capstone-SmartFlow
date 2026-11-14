@@ -590,6 +590,7 @@ class SimulationRuntime:
             seed=self._seed,
             control_mode=self._control_mode,
             state=state,
+            blocking_workload=None if self._workload_lease is not None else workload_admission.active_kind(),
         )
 
     def _idle_state(self) -> dict[str, Any]:

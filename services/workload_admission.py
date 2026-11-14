@@ -25,6 +25,10 @@ class WorkloadAdmission:
             self._lease, self._kind = object(), kind
             return self._lease
 
+    def active_kind(self):
+        with self._lock:
+            return self._kind
+
     def release(self, lease):
         with self._lock:
             if lease is not None and lease is self._lease:

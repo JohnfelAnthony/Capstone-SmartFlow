@@ -4,6 +4,8 @@ import { getVisualNetwork } from "@/api/visual-network"
 import { SimulationCanvas2D } from "@/components/simulation-canvas-2d"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -105,16 +107,35 @@ function Workspace({ geometry, frame, controlledJunction, runKey, seekRevision =
   </div>
 }
 
-/** The host loads once per network; a stale response never replaces another network. */
-export function SimulationVisualization(props: Omit<WorkspaceProps, "geometry"> & { networkId: string | null }) {
+/** Same footprint as the workspace, so the page does not jump while the first network loads. */
+export function WorkspaceSkeleton() {
+  return <div className="sf-scene-workspace sf-sim-layout" data-mode="2d" role="status" aria-label="Loading the simulation map">
+    <div className="sf-sim-main"><div className="sf-scene-viewport"><Skeleton className="absolute inset-0 rounded-none" /></div></div>
+    <aside className="sf-sim-side"><Skeleton className="h-64 w-full" /></aside>
+  </div>
+}
+
+/** The host loads once per network; a stale response never replaces another network.
+ *  `networkPending`: the caller does not know the network yet, so nothing is fetched.
+ *  `busyBadge`: a short message shown in the same badge over the map (e.g. a stream reconnecting). */
+export function SimulationVisualization({ networkPending = false, busyBadge = null, ...props }: Omit<WorkspaceProps, "geometry"> & { networkId: string | null; networkPending?: boolean; busyBadge?: string | null }) {
   const [loaded, setLoaded] = React.useState<{ requested: string | null; geometry: SceneGeometry } | null>(null)
   const [error, setError] = React.useState<{ requested: string | null; message: string } | null>(null)
   React.useEffect(() => {
+    if (networkPending) return
     let active = true
     getVisualNetwork(props.networkId).then(network => { if (active) { setLoaded({ requested: props.networkId, geometry: normalizeSceneGeometry(network) }); setError(null) } }).catch(reason => { if (active) setError({ requested: props.networkId, message: reason instanceof Error ? reason.message : "Unable to load network" }) })
     return () => { active = false }
-  }, [props.networkId])
-  if (error && error.requested === props.networkId) return <Alert><AlertDescription>{error.message}</AlertDescription></Alert>
-  if (!loaded || loaded.requested !== props.networkId) return <p role="status">Loading native network…</p>
-  return <Workspace key={loaded.geometry.networkId} {...props} geometry={loaded.geometry} />
+  }, [props.networkId, networkPending])
+  if (!networkPending && error && error.requested === props.networkId) return <Alert><AlertDescription>{error.message}</AlertDescription></Alert>
+  if (!loaded) return <WorkspaceSkeleton />
+  const isSwitching = networkPending || loaded.requested !== props.networkId
+  // While another network loads, the previous one stays mounted with a small local badge instead of blanking the page.
+  const badge = isSwitching ? "Loading the map…" : busyBadge
+  return <div className="relative" aria-busy={isSwitching}>
+    <Workspace key={loaded.geometry.networkId} {...props} geometry={loaded.geometry} />
+    {badge ? <span role="status" className="absolute top-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-1 text-sm shadow-sm">
+      <Spinner aria-hidden="true" role={undefined} />{badge}
+    </span> : null}
+  </div>
 }

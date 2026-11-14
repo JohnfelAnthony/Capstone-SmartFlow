@@ -318,6 +318,26 @@ class WorkflowIntegrityTests(unittest.TestCase):
                     self.wait_for_job(worker._active_job_id)
                 self.client.post("/api/simulation/stop")
 
+    def test_simulation_state_names_the_workload_that_blocks_a_live_start(self):
+        token = workload_admission.acquire("training/evaluation")
+        try:
+            self.assertEqual(self.client.get("/api/simulation/state").json()["blocking_workload"], "training/evaluation")
+        finally:
+            workload_admission.release(token)
+        self.assertIsNone(self.client.get("/api/simulation/state").json()["blocking_workload"])
+
+    def test_training_status_names_the_workload_that_blocks_training_but_not_its_own(self):
+        token = workload_admission.acquire("live simulation")
+        try:
+            self.assertEqual(self.client.get("/api/rl/status").json()["blocking_workload"], "live simulation")
+        finally:
+            workload_admission.release(token)
+        token = workload_admission.acquire("training/evaluation")
+        try:
+            self.assertIsNone(self.client.get("/api/rl/status").json()["blocking_workload"])
+        finally:
+            workload_admission.release(token)
+
     def test_thread_launch_failures_release_admission_and_terminalize_allocated_jobs(self):
         from unittest.mock import Mock
         failed_thread = SimpleNamespace(Thread=Mock(side_effect=RuntimeError("thread unavailable")))

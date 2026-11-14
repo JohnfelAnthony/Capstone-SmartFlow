@@ -57,10 +57,11 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   Select,
@@ -78,6 +79,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { blockedTrainingMessage } from "@/lib/control-labels"
 import { EMPTY_VALUE, formatServerDate, parseServerTimestamp } from "@/lib/display-format"
 import { resumeTargetCompatible } from "@/lib/rl-resume"
 import { rewardSeries } from "@/lib/reward-series"
@@ -253,6 +255,17 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+/** Shown beside Start while a live run or recording holds the server's one compute slot. */
+export function TrainingBlockedAlert({ workload, onOpenDashboard }: { workload: string; onOpenDashboard?: () => void }) {
+  return <Alert>
+    <AlertTitle>Training is unavailable</AlertTitle>
+    <AlertDescription className="flex flex-col items-start gap-2">
+      {blockedTrainingMessage(workload)}
+      {onOpenDashboard && workload === "live simulation" ? <Button size="sm" variant="outline" onClick={onOpenDashboard}>Open Dashboard</Button> : null}
+    </AlertDescription>
+  </Alert>
+}
+
 function ProgressBar({ value }: { value: number }) {
   const boundedValue = Math.max(0, Math.min(100, value || 0))
   return <Progress value={boundedValue} aria-label="Job progress" />
@@ -331,7 +344,7 @@ function EvaluationResults({ jobId, report }: { jobId: number; report: RLEvaluat
   )
 }
 
-export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean }) {
+export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenDashboard }: { currentUserId: number; isAdmin: boolean; canRunTraining: boolean; onOpenDashboard?: () => void }) {
   const [algorithms, setAlgorithms] = React.useState<AlgorithmId[]>(["ql"])
   const [settings, setSettings] = React.useState<RLTrainingSettings>(defaultSettings)
   const [advanced, setAdvanced] = React.useState<RLAdvancedSettings>(defaultAdvanced)
@@ -355,6 +368,8 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   const [evaluation, setEvaluation] = React.useState<{ jobId: number; report?: RLEvaluationReport; error?: string } | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
   const [pendingAction, setPendingAction] = React.useState(false)
+  const [initialLoadDone, setInitialLoadDone] = React.useState(false)
+  const [statusLoadFailed, setStatusLoadFailed] = React.useState(false)
   const requestId = React.useRef(0)
   const viewedJobRef = React.useRef<number | null>(null)
   const inFlightRefreshes = React.useRef<Set<number | null>>(new Set())
@@ -379,7 +394,8 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   const selectedTab = tab ?? "models"
   const evaluatingModel = modelAction === "evaluate"
   const resumingModel = modelAction === "resume"
-  const canSubmit = canRunTraining && !serverActiveJobId && !pendingAction && !scenarioLoading
+  const blockingWorkload = status.blocking_workload ?? null
+  const canSubmit = canRunTraining && !serverActiveJobId && !blockingWorkload && !pendingAction && !scenarioLoading
   const reportJobId = selectedTab === "jobs" && viewedJob?.status === "completed"
     && status.items.some((item) => item.evaluation_path) ? viewedJob.id : null
   const activeItem = status.items.find((item) => item.id === viewedJob?.current_item_id) ?? status.items[0] ?? null
@@ -398,9 +414,13 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
       if (thisRequest === requestId.current && jobId === viewedJobRef.current) {
         setStatus(nextStatus)
         setJobs(nextJobs.jobs)
+        setStatusLoadFailed(false)
       }
     } catch (error) {
-      if (thisRequest === requestId.current) setAlert(rlErrorMessage(error, "Unable to refresh RL training status."))
+      if (thisRequest === requestId.current) {
+        setAlert(rlErrorMessage(error, "Unable to refresh RL training status."))
+        setStatusLoadFailed(true)
+      }
     } finally {
       inFlightRefreshes.current.delete(jobId)
       if (thisRequest === requestId.current) setIsLoading(false)
@@ -443,7 +463,10 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
       } catch (error) {
         if (isMounted) {
           setAlert(rlErrorMessage(error, "Unable to load RL training data."))
+          setStatusLoadFailed(true)
         }
+      } finally {
+        if (isMounted) setInitialLoadDone(true)
       }
     }
 
@@ -469,12 +492,13 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
   }, [selectedScenarioId])
 
   React.useEffect(() => {
-    if (!serverActiveJobId && !viewedJobPending) return
+    if (!serverActiveJobId && !viewedJobPending && !blockingWorkload) return
+    // While blocked, poll slower; the alert clears once the live run or recording ends.
     const intervalId = window.setInterval(() => {
       void refreshStatus(viewedJobRef.current)
-    }, 1500)
+    }, serverActiveJobId || viewedJobPending ? 1500 : 3000)
     return () => window.clearInterval(intervalId)
-  }, [serverActiveJobId, viewedJobPending, viewedJobId, refreshStatus])
+  }, [serverActiveJobId, viewedJobPending, viewedJobId, blockingWorkload, refreshStatus])
 
   React.useEffect(() => {
     if (!reportJobId) return
@@ -697,7 +721,10 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
               )}
             </CardHeader>
             <CardContent className="rl-models">
-              {!shownModels.length && <Empty>
+              {!initialLoadDone && <div className="flex flex-col gap-3" role="status" aria-label="Loading saved models">
+                <Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" />
+              </div>}
+              {initialLoadDone && !shownModels.length && <Empty>
                 <EmptyHeader>
                   <EmptyTitle>No compatible models yet</EmptyTitle>
                   <EmptyDescription>Saved models will appear here after training.</EmptyDescription>
@@ -830,6 +857,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                 </div>
                 {modelAction && scenarioConfig && !selectedModelMatchesScenario && <p role="status">Choose a reference scenario for the model’s controlled junction.</p>}
                 {serverActiveJobId && <Button className="self-start" variant="outline" onClick={() => viewJob(serverActiveJobId)}>Open active job #{serverActiveJobId}</Button>}
+                {canRunTraining && blockingWorkload && <TrainingBlockedAlert workload={blockingWorkload} onOpenDashboard={onOpenDashboard} />}
                 <Button className="self-start" disabled={!canSubmit || !modelTargetReady}
                   onClick={() => evaluatingModel ? void evaluateSelectedModel() : resumingModel ? resumeSelectedModel() : void startTraining()}>
                   <PlayIcon data-icon="inline-start" /> {pendingAction ? "Submitting…" : submitLabel}
@@ -841,7 +869,8 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
         </TabsContent>
 
         <TabsContent value="jobs" className="rl-form-stack">
-          {!jobs.length && !viewedJob ? <Card><CardContent>
+          {!initialLoadDone ? <Skeleton className="h-40 w-full" role="status" aria-label="Loading training jobs" />
+            : !jobs.length && !viewedJob && !statusLoadFailed ? <Card><CardContent>
             <Empty>
               <EmptyHeader><EmptyTitle>No jobs yet</EmptyTitle><EmptyDescription>Start training or evaluate a saved model to see job progress here.</EmptyDescription></EmptyHeader>
             </Empty>
@@ -875,7 +904,11 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining }: { cur
                 </CardContent>
               </Card>
             </>}
-            {!viewedJob && <p role="status">Loading job details…</p>}
+            {!viewedJob && (statusLoadFailed
+              ? <Alert><AlertDescription className="flex flex-col items-start gap-2">Couldn’t load job details.
+                <Button size="sm" variant="outline" disabled={isLoading} onClick={() => void refreshStatus(viewedJobRef.current)}><RefreshCcwIcon data-icon="inline-start" />Retry</Button>
+              </AlertDescription></Alert>
+              : <p role="status">Loading job details…</p>)}
             <div className="rl-training-grid">
               <JobConsole job={viewedJob} lines={viewedJob ? status.log_lines : []} />
               <Card>
