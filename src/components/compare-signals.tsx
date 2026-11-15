@@ -21,7 +21,7 @@ function Timeline({ evidence, name, start, end }: { evidence: SignalEvidence; na
   </div></div>
 }
 
-export function CompareSignalsCard({ left, right }: { left: number; right: number }) {
+export const CompareSignalsCard = React.memo(function CompareSignalsCard({ left, right }: { left: number; right: number }) {
   const [result, setResult] = React.useState<{ ids: string; data?: CompareSignals; error?: string } | null>(null)
   const [revision, retry] = React.useReducer((n: number) => n+1, 0)
   const ids = `${left}:${right}`
@@ -64,4 +64,4 @@ export function CompareSignalsCard({ left, right }: { left: number; right: numbe
       </>}
     </CardContent>
   </Card>
-}
+})

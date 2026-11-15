@@ -1,7 +1,7 @@
 import { createMapInterpolator } from "@/simulation/map-navigation"
 import type { RenderFrame } from "@/simulation/frame-types"
 import { describe, expect, it } from "vitest"
-import { advancePlayback, compareCanvasFrame, compareFrameWindow, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "./compare-view"
+import { advancePlayback, compareCanvasFrame, compareFrameWindow, comparePrefetchWindows, createCompareFrameCache, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "./compare-view"
 
 describe("kpiChange", () => {
   it("marks a drop in a lower-is-better metric as better and a rise as worse", () => {
@@ -34,6 +34,23 @@ describe("frameAtTime", () => {
     expect(frameAtTime([0, 0.5, 1], 5)).toBe(2)
     expect(frameAtTime([10, 11], 5)).toBe(-1)
     expect(frameAtTime([], 5)).toBe(-1)
+  })
+})
+
+describe("comparePrefetchWindows", () => {
+  const times = Array.from({ length: 301 }, (_, index) => index / 10)
+  it("preloads earlier at faster playback, with two future windows at 4x", () => {
+    expect(comparePrefetchWindows(times, 0, 10, 1)).toEqual([])
+    expect(comparePrefetchWindows(times, 5, 10, 1)).toEqual([10])
+    expect(comparePrefetchWindows(times, 0, 10, 2)).toEqual([10])
+    expect(comparePrefetchWindows(times, 0, 10, 4)).toEqual([10, 20])
+    expect(comparePrefetchWindows(times, 12, 10, 4)).toEqual([20, 30])
+  })
+  it("uses the next shared frame across gaps and stops at the recording end", () => {
+    expect(comparePrefetchWindows([0, 7, 80, 81], 65, 10, 4)).toEqual([80])
+    expect(comparePrefetchWindows([0, 7, 80, 81], 65, 10, 1)).toEqual([])
+    expect(comparePrefetchWindows(times, 30, 10, 4)).toEqual([])
+    expect(comparePrefetchWindows([], 0, 10, 4)).toEqual([])
   })
 })
 
@@ -70,6 +87,9 @@ describe("windowsToRequest", () => {
 describe("windowsNear", () => {
   it("keeps only the windows within reach of the requested one", () => {
     expect(Object.keys(windowsNear({ 0: 1, 10: 1, 50: 1, 60: 1 }, 50, 30)).map(Number)).toEqual([50, 60])
+  })
+  it("retains one previous window and two lookahead windows without accumulating history", () => {
+    expect(Object.keys(windowsNear({ 0: 1, 10: 1, 20: 1, 30: 1, 40: 1, 50: 1 }, 30, 10, [40, 50])).map(Number)).toEqual([20, 30, 40, 50])
   })
 })
 
@@ -111,12 +131,32 @@ describe("compare playback and the map interpolator", () => {
     expect(map.moving()).toBe(false)
   })
 
+  it("lets the canvas read new recorded frames independently of UI updates", () => {
+    let recorded: RenderFrame | null = snapshot(1)
+    let player = { playing: true, speed: 4, seekRevision: 0 }
+    const cache = createCompareFrameCache()
+    const source = () => cache(recorded, player)
+    const first = source()
+    expect(source()).toBe(first)
+    recorded = snapshot(1.4)
+    expect(source()?.time).toBe(1.4)
+    expect(source()?.speed_multiplier).toBe(4)
+    player = { ...player, playing: false }
+    expect(source()?.status).toBe("paused")
+    recorded = snapshot(.2)
+    player = { ...player, seekRevision: 1 }
+    expect(source()?.time).toBe(.2)
+    expect(source()?.playback.seek_revision).toBe(1)
+    recorded = null
+    expect(source()).toBeNull()
+  })
+
   it("uses the last shared frame's window when seeking into a gap", () => {
     const times = [0.5, 7.5, 36, 40]
     expect(compareFrameWindow(times, 0, 10)).toBe(0)
     expect(compareFrameWindow(times, 25, 10)).toBe(0)
     expect(compareFrameWindow(times, 36, 10)).toBe(30)
     expect(compareFrameWindow(times, 40, 10)).toBe(40)
-    expect(windowsNear({ 0: "current", 80: "next", 120: "old" }, 0, 30, 80)).toEqual({ 0: "current", 80: "next" })
+    expect(windowsNear({ 0: "current", 80: "next", 120: "old" }, 0, 30, [80])).toEqual({ 0: "current", 80: "next" })
   })
 })

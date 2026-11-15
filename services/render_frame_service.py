@@ -106,7 +106,7 @@ def _serialize_pedestrian_entity(raw_pedestrian: dict) -> dict:
     return pedestrian
 
 
-def _serialize_visual_payload(raw_visual: dict | None) -> dict:
+def _serialize_visual_payload(raw_visual: dict | None, *, copy_metadata: bool = True) -> dict:
     raw_visual = raw_visual if isinstance(raw_visual, dict) else {}
     constraint_marker = raw_visual.get("constraint_marker", {})
     visual = {
@@ -119,18 +119,18 @@ def _serialize_visual_payload(raw_visual: dict | None) -> dict:
         }
     }
     if isinstance(raw_visual.get("pedestrian_paths"), list):
-        visual["pedestrian_paths"] = copy.deepcopy(raw_visual["pedestrian_paths"])
+        visual["pedestrian_paths"] = copy.deepcopy(raw_visual["pedestrian_paths"]) if copy_metadata else raw_visual["pedestrian_paths"]
     if raw_visual.get("shared_roads"):  # only while a closed direction shares the opposite pavement (hypothetical)
-        visual["shared_roads"] = copy.deepcopy(raw_visual["shared_roads"])
+        visual["shared_roads"] = copy.deepcopy(raw_visual["shared_roads"]) if copy_metadata else raw_visual["shared_roads"]
     return visual
 
 
-def _serialize_junction_controls(raw_controls: dict | None) -> dict:
+def _serialize_junction_controls(raw_controls: dict | None, *, copy_metadata: bool = True) -> dict:
     if not isinstance(raw_controls, dict):
         return {}
     # Optional snapshot metadata stays absent in older recordings. Copy instead
     # of inferring elapsed time, pending requests or controller behavior.
-    return {str(junction): copy.deepcopy(control)
+    return {str(junction): copy.deepcopy(control) if copy_metadata else control
             for junction, control in raw_controls.items() if isinstance(control, dict)}
 
 
@@ -209,8 +209,14 @@ def build_render_frame(
     sequence: int | None = None,
     current_intersection_id: str | None = None,
     speed_multiplier: float | None = None,
+    copy_metadata: bool = True,
 ) -> dict:
-    """Build the compact renderer payload shared by native state fallbacks and WebSocket streaming."""
+    """Build the compact renderer payload shared by native state fallbacks and WebSocket streaming.
+
+    Live snapshots keep independent metadata by default. A caller that owns a
+    freshly JSON-decoded recording frame may transfer its metadata instead.
+    With copy_metadata=False the input must not be reused or mutated afterwards.
+    """
 
     status = state.get("status", "stopped")
     phase = "ALL_RED" if status == "stopped" else state.get("phase", "ALL_RED")
@@ -252,17 +258,17 @@ def build_render_frame(
             _serialize_pedestrian_entity(pedestrian)
             for pedestrian in _distributed_entities(state.get("pedestrians", []), max_pedestrian_count)
         ],
-        "visual": _serialize_visual_payload(state.get("visual", {})),
-        "junction_controls": _serialize_junction_controls(state.get("junction_controls")),
+        "visual": _serialize_visual_payload(state.get("visual", {}), copy_metadata=copy_metadata),
+        "junction_controls": _serialize_junction_controls(state.get("junction_controls"), copy_metadata=copy_metadata),
         "traffic_lights": _serialize_traffic_lights(state.get("traffic_lights")),
     }
     metrics = state.get("metrics") if isinstance(state.get("metrics"), dict) else {}
     for source, target in (("lanes", "lane_metrics"), ("junctions", "junction_metrics")):
         if isinstance(metrics.get(source), dict):
-            frame[target] = copy.deepcopy(metrics[source])
+            frame[target] = copy.deepcopy(metrics[source]) if copy_metadata else metrics[source]
     experiment = state.get("experiment")
     if isinstance(experiment, dict) and any(key in experiment for key in ("last_policy_decision", "last_safety_override")):
-        frame["controller_events"] = {key: copy.deepcopy(experiment.get(key))
+        frame["controller_events"] = {key: copy.deepcopy(experiment.get(key)) if copy_metadata else experiment.get(key)
                                       for key in ("last_policy_decision", "last_safety_override")}
     if sequence is not None:
         frame["sequence"] = int(sequence)

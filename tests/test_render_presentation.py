@@ -37,6 +37,24 @@ def population_state(vehicles=300, pedestrians=128):
 
 
 class RenderPresentationTests(unittest.TestCase):
+    def test_owned_recording_metadata_matches_live_serialization_without_copying(self):
+        for vehicles in (0, 160, 400):
+            with self.subTest(vehicles=vehicles):
+                state = population_state(vehicles)
+                state["visual"] = {"pedestrian_paths": [{"junction_id": "J0", "shape": [{"x": 1, "y": 2}]}],
+                                   "shared_roads": [{"road_id": "hypothetical", "lanes": {"a": [[1, 2], [3, 4]]}}]}
+                state["junction_controls"] = {"J0": {"phase": "NORTH_GREEN", "pending": {"slot": 2}}}
+                before = copy.deepcopy(state)
+                expected = build_render_frame(state, render_ts=0, sequence=7)
+                with patch("services.render_frame_service.copy.deepcopy", side_effect=AssertionError("owned JSON metadata needs no copy")):
+                    actual = build_render_frame(state, render_ts=0, sequence=7, copy_metadata=False)
+                self.assertEqual(actual, expected)
+                self.assertEqual(state, before)
+                state["visual"]["pedestrian_paths"][0]["shape"][0]["x"] = 99
+                state["junction_controls"]["J0"]["pending"]["slot"] = 4
+                self.assertEqual(expected["visual"]["pedestrian_paths"][0]["shape"][0]["x"], 1)
+                self.assertEqual(expected["junction_controls"]["J0"]["pending"]["slot"], 2)
+
     def test_visual_junction_labels_match_existing_options_without_geometry_changes(self):
         from services.native_scenario_service import configuration_options
         from services.visual_network_service import load_client_visual_network
