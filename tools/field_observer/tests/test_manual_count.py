@@ -1,4 +1,4 @@
-"""Manual lane-by-lane counting: four passes merge into one revision that the tool's own validation accepts. All data is synthetic."""
+"""Manual counting passes and exports. All data is synthetic."""
 
 import csv
 import json
@@ -225,6 +225,77 @@ class ManualCountPageTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as caught:   # no token, no change
             urlopen(Request(self.url + "/api/manual/undo", b"{}", {"Content-Type": "application/json"}))
         self.assertEqual(caught.exception.code, 400)
+
+    def test_outbound_totals_reopen_and_export_without_using_movement_counts(self):
+        self.post("/api/demo", {})
+        self.wait_job("ready")
+        project = self.service.project.name
+        duration = self.service.manifest["media"]["decoded_duration_s"]
+        mode = {"mode": "road_totals"}
+        self.post("/api/manual/site", {**mode, "site": SITE})
+        self.post("/api/manual/click", {"approach": "west", "exit": "east", "class": "truck", "time_s": 1})
+
+        click = {**mode, "approach": "east", "class": "car", "time_s": 1.5}
+        with self.assertRaises(HTTPError) as caught:
+            self.post("/api/manual/click", {**click, "exit": "north"})
+        self.assertEqual(caught.exception.code, 400)
+        self.post("/api/manual/click", click)
+        self.post("/api/manual/click", {**click, "class": "motorcycle"})
+        self.post("/api/manual/undo", {**mode, "approach": "east"})
+
+        self.post("/api/open", {"id": project})
+        with urlopen(self.url + "/api/manual?mode=road_totals") as response:
+            state = json.load(response)
+        east = next(item for item in state["passes"] if item["approach"] == "east")
+        self.assertEqual(east["tally"], {"car": 1})
+        self.assertNotIn("exit", east["recent"][0])
+        self.assertEqual(east["recent"][0]["time_s"], 1.5)
+        with self.assertRaises(HTTPError):
+            urlopen(self.url + "/api/manual/road-totals.csv")
+        with self.assertRaises(HTTPError):
+            self.post("/api/manual/complete", {**mode, "approach": "east", "complete": True})
+
+        for road in ("east", "north", "south", "west"):
+            self.post("/api/manual/watched", {**mode, "approach": road, "start": 0, "end": duration})
+            state = self.post("/api/manual/complete", {**mode, "approach": road, "complete": True})["manual"]
+        self.assertTrue(state["can_export"])
+        with self.assertRaises(HTTPError):
+            self.post("/api/manual/click", click)
+        with self.assertRaises(HTTPError):
+            self.post("/api/manual/export", mode)
+        with urlopen(self.url + "/api/manual/road-totals.csv") as response:
+            self.assertIn("text/csv", response.headers["Content-Type"])
+            rows = list(csv.DictReader(response.read().decode().splitlines()))
+        self.assertEqual({row["road"]: row["total"] for row in rows}, {"east": "1", "north": "0", "south": "0", "west": "0"})
+        self.assertEqual({row["count_direction"] for row in rows}, {"outbound"})
+        self.assertEqual({row["source_kind"] for row in rows}, {"synthetic"})
+        self.assertTrue(all(row["scope"] == "road" and not row["pedestrian_total"] for row in rows))
+
+        for invalid in (-1, 1.5, True, "20"):
+            with self.subTest(invalid=invalid), self.assertRaises(HTTPError):
+                self.post("/api/manual/pedestrians", {**mode, "count": invalid})
+        with self.assertRaises(HTTPError):
+            self.post("/api/manual/pedestrians", {"count": 20})
+        self.post("/api/manual/pedestrians", {**mode, "count": 20})
+        self.post("/api/open", {"id": project})
+        self.assertEqual(self.service.manual_state("road_totals")["pedestrian_total"], 20)
+        with urlopen(self.url + "/api/manual/road-totals.csv") as response:
+            exported = list(csv.DictReader(response.read().decode().splitlines()))
+        self.assertEqual(exported[:4], rows)
+        self.assertEqual(len(exported), 5)
+        self.assertEqual({name: exported[4][name] for name in ("scope", "road", "count_direction", "total", "pedestrian_total")},
+                         {"scope": "recording", "road": "", "count_direction": "", "total": "", "pedestrian_total": "20"})
+        self.assertEqual(read_json(self.service.project / "road_totals" / "pedestrian_total.json"), {"count": 20})
+        self.post("/api/manual/pedestrians", {**mode, "count": 0})
+        self.assertIn(",recording,0\r\n", self.service.manual_road_totals())
+        self.post("/api/manual/pedestrians", {**mode, "count": None})
+        self.assertNotIn(",recording,", self.service.manual_road_totals())
+
+        movement = self.service.manual_state()
+        west = next(item for item in movement["passes"] if item["approach"] == "west")
+        self.assertEqual(west["tally"], {"east|truck": 1})
+        self.assertFalse(movement["can_export"])
+        self.assertEqual(self.service.events()["events"], [])
 
 
 if __name__ == "__main__":

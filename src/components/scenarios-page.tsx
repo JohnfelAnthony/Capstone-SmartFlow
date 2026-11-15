@@ -42,6 +42,7 @@ import { NO_SIGNAL_LABEL } from "@/lib/control-labels"
 import { PeakTrafficCard } from "@/components/peak-traffic"
 import { savedPeakSha, trafficSource } from "@/lib/peak-traffic"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ConfirmAction } from "@/components/ui/confirm-action"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -291,14 +292,17 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   const [recordingScenarioId, setRecordingScenarioId] = React.useState<number | null>(null)
   const [recordingModels, setRecordingModels] = React.useState<RLModelRecord[]>([])
   const [recordControlMode, setRecordControlMode] = React.useState("fixed-time")
-  const [recordDuration, setRecordDuration] = React.useState(300)
+  const [recordDurationOverride, setRecordDuration] = React.useState<number | null>(null)
   const [recordSeed, setRecordSeed] = React.useState(42)
   const [recordError, setRecordError] = React.useState("")
   const [notice, setNotice] = React.useState<string | { error: string }>("Loading scenarios from SQLite...")
   const [formMode, setFormMode] = React.useState<ScenarioFormMode | null>(null)
   const [editingScenarioId, setEditingScenarioId] = React.useState<number | null>(null)
   const [draft, setDraft] = React.useState<ScenarioDraft>(emptyScenarioDraft)
+  const [draftBaseline, setDraftBaseline] = React.useState<ScenarioDraft>(emptyScenarioDraft)
+  const [confirmDiscard, setConfirmDiscard] = React.useState(false)
   const [nativeOptions, setNativeOptions] = React.useState<NativeScenarioOptions | null>(null)
+  const [nativeOptionsError, setNativeOptionsError] = React.useState("")
   const [networks, setNetworks] = React.useState<NetworkSummary[]>([])
   const [formError, setFormError] = React.useState("")
   const [serverClosureProblem, setServerClosureProblem] = React.useState<string | null>(null)
@@ -309,13 +313,32 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   const [editConfigReady, setEditConfigReady] = React.useState(true)
   const editRequest = React.useRef(0)
 
-  React.useEffect(() => {
-    let mounted = true
-    Promise.all([getNativeScenarioOptions(), listNetworks()]).then(([options, available]) => { if (mounted) { setNativeOptions(options); setNetworks(available.filter((network) => network.id !== "tagum_network")) } })
-      .catch((error) => { if (mounted) setNotice({ error: error instanceof Error ? error.message : "Unable to load network choices." }) })
-    return () => { mounted = false }
+  const loadNativeOptions = React.useCallback(async () => {
+    setNativeOptionsError("")
+    try {
+      const options = await getNativeScenarioOptions()
+      setNativeOptions(options)
+      if (options.max_recording_seconds === undefined) {
+        setNativeOptionsError("The server did not provide a recording limit.")
+      }
+    } catch (error) {
+      setNativeOptionsError(error instanceof Error ? error.message : "Unable to load simulation options.")
+    }
   }, [])
 
+  React.useEffect(() => {
+    let mounted = true
+    queueMicrotask(() => { if (mounted) void loadNativeOptions() })
+    listNetworks().then((available) => {
+      if (mounted) setNetworks(available.filter((network) => network.id !== "tagum_network"))
+    }).catch((error) => {
+      if (mounted) setNotice({ error: error instanceof Error ? error.message : "Unable to load network choices." })
+    })
+    return () => { mounted = false }
+  }, [loadNativeOptions])
+
+  const maxRecordingSeconds = nativeOptions?.max_recording_seconds
+  const recordDuration = recordDurationOverride ?? Math.min(300, maxRecordingSeconds ?? 300)
   const selectedScenario = scenarios.find((scenario) => scenario.id === selectedId) ?? null
   const recordingScenario = scenarios.find((scenario) => scenario.id === recordingScenarioId) ?? null
 
@@ -359,6 +382,28 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   }, [category, density, scenarios, search, sort, stateFilter, typeFilter])
 
   const closureIssue = closureProblem(draft.engineConfig) ?? serverClosureProblem
+
+  function dismissForm() {
+    editRequest.current += 1
+    setFormMode(null)
+  }
+
+  function closeForm() {
+    if (isSaving) return
+    if (JSON.stringify(draft) !== JSON.stringify(draftBaseline)) setConfirmDiscard(true)
+    else dismissForm()
+  }
+
+  function initializeDraft(initial: ScenarioDraft) {
+    setDraft(initial)
+    setDraftBaseline(initial)
+  }
+
+  // The initial request fills in site settings while leaving any name the user typed intact.
+  function applyInitialSettings(settings: Omit<ScenarioDraft, "name" | "description">) {
+    setDraft((current) => ({ ...current, ...settings }))
+    setDraftBaseline((current) => ({ ...current, ...settings }))
+  }
   const source = trafficSource(draft.engineConfig)
   const requiresLegacyMapping = Boolean(scenarios.find((scenario) => scenario.id === editingScenarioId)?.migrationError)
 
@@ -390,8 +435,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     setPeakSummary(null)
     setPeakBusy(false)
     setRouteNotice("")
-    setDraft(emptyScenarioDraft)
-    if (networks[0]) void changeNetwork(networks[0].id, "")
+    initializeDraft(emptyScenarioDraft)
+    if (networks[0]) void changeNetwork(networks[0].id, { initial: true })
   }
 
   async function openEditForm(scenario: ScenarioRecord) {
@@ -401,7 +446,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     setFormMode("edit")
     setRouteNotice("")
     setEditingScenarioId(scenario.id)
-    setDraft(draftFromScenario(scenario))
+    initializeDraft(draftFromScenario(scenario))
     setPeakSummary(null)
     setPeakBusy(false)
     setFormError("")
@@ -417,9 +462,9 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       const [result, options] = await Promise.all([resolveNativeScenario(scenario.id), getNativeScenarioOptions(scenario.intersectionId)])
       if (request !== editRequest.current) return
       setNativeOptions(options)
-      setDraft((current) => ({ ...current, engineConfig: result.engine_config,
+      applyInitialSettings({ intersectionId: scenario.intersectionId, engineConfig: result.engine_config,
         trafficDensity: normalizeDensity(String(result.engine_config.traffic_density)),
-        pedestrianDensity: String(result.engine_config.pedestrian_density) }))
+        pedestrianDensity: String(result.engine_config.pedestrian_density) })
       if (trafficSource(result.engine_config) === "peak") {
         getPeakCounts({ network_id: scenario.intersectionId, engine_config: result.engine_config })
           .then((response) => { if (request === editRequest.current) setPeakSummary(response.summary) })
@@ -439,7 +484,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     setSelectedId(null)
     setFormMode("create")
     setEditingScenarioId(null)
-    setDraft(emptyScenarioDraft)
+    initializeDraft(emptyScenarioDraft)
     setFormError("")
     setServerClosureProblem(null)
     setPeakSummary(null)
@@ -455,8 +500,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       if (request !== editRequest.current) return
       const settings = base ? base.engine_config : structuredClone(options.defaults)
       setNativeOptions(options)
-      setDraft({
-        ...emptyScenarioDraft, intersectionId: options.network_id,
+      applyInitialSettings({
+        intersectionId: options.network_id,
         engineConfig: closuresIntoConfig(settings, prefill),
         trafficDensity: base ? normalizeDensity(String(settings.traffic_density)) : "Medium",  // as in changeNetwork: the engine's own default is not offered for a new scenario
         pedestrianDensity: String(settings.pedestrian_density),
@@ -477,8 +522,8 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per hand-off; the opener only uses its argument and stable setters
   }, [routePrefill])
 
-  async function changeNetwork(networkId: string, currentNetworkId = draft.intersectionId) {
-    if (networkId === currentNetworkId) return
+  async function changeNetwork(networkId: string, { initial = false } = {}) {
+    if (!initial && networkId === draft.intersectionId) return
     const request = ++editRequest.current
     setPeakBusy(false)
     setIsResolving(true)
@@ -489,10 +534,12 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       const options = await getNativeScenarioOptions(networkId)
       if (request !== editRequest.current) return
       setNativeOptions(options)
-      setDraft((current) => ({ ...current, intersectionId: options.network_id,
+      const settings = { intersectionId: options.network_id,
         engineConfig: structuredClone(options.defaults),
-        trafficDensity: "Medium",  // the form's default; the engine's own default (the single car) is not offered for a new scenario
-        pedestrianDensity: String(options.defaults.pedestrian_density) }))
+        trafficDensity: "Medium" as const,  // the engine's single-car default is not offered for a new scenario
+        pedestrianDensity: String(options.defaults.pedestrian_density) }
+      if (initial) applyInitialSettings(settings)
+      else setDraft((current) => ({ ...current, ...settings }))
       setPeakSummary(null)
       setEditConfigReady(true)
     } catch (error) {
@@ -605,7 +652,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
       setSelectedId(null)
       setRecordingScenarioId(scenario.id)
       setRecordControlMode("fixed-time")
-      setRecordDuration(300)
+      setRecordDuration(null)
       setRecordSeed(42)
       setRecordError("")
       try {
@@ -640,11 +687,11 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
   }
 
   async function startRecording() {
-    if (!permissions.run) return
+    if (!permissions.run || maxRecordingSeconds === undefined) return
     if (!recordingScenario || recordingScenario.migrationError) return
-    if (!Number.isInteger(recordDuration) || recordDuration < 1 || recordDuration > 86400 ||
+    if (!Number.isInteger(recordDuration) || recordDuration < 1 || recordDuration > maxRecordingSeconds ||
         !Number.isInteger(recordSeed) || recordSeed < 0 || recordSeed > 4294967295) {
-      setRecordError("Enter an integer duration from 1 to 86400 seconds and a seed from 0 to 4294967295.")
+      setRecordError(`Enter an integer duration from 1 to ${maxRecordingSeconds} seconds and a seed from 0 to 4294967295.`)
       return
     }
     setIsSaving(true)
@@ -681,7 +728,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
             <RotateCcwIcon data-icon="inline-start" />
             {isLoading ? "Refreshing" : "Refresh"}
           </Button>
-          <Button onClick={openCreateForm} disabled={isSaving || !nativeOptions || !permissions.create}>
+          <Button onClick={openCreateForm} disabled={isSaving || !nativeOptions || !networks.length || !permissions.create}>
             <PlusIcon data-icon="inline-start" />
             New Scenario
           </Button>
@@ -852,7 +899,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
         </SheetContent>
       </Sheet>
 
-      <Sheet open={formMode !== null} onOpenChange={(open) => !open && setFormMode(null)}>
+      <Sheet open={formMode !== null} onOpenChange={(open) => !open && closeForm()}>
         <SheetContent className="scenario-sheet" side="right">
           <SheetHeader>
             <SheetTitle>{formMode === "edit" ? "Edit Scenario" : "New Scenario"}</SheetTitle>
@@ -898,14 +945,14 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
               {source === "peak" && peakSummary && <PeakTrafficCard summary={peakSummary} stale={savedPeakSha(draft.engineConfig) !== peakSummary.dataset_sha256}
                 onRefresh={() => void loadPeakCounts()} refreshing={peakBusy || isResolving || isSaving} />}
               <FieldGroup className="grid sm:grid-cols-2">
-                {source !== "peak" && <NativeSelect label={source === "imported" ? "Traffic density (set by the imported counts)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={source === "imported" || peakBusy}
+                {source !== "peak" && <NativeSelect label={source === "imported" ? "Traffic density (set by the imported counts)" : "Traffic density"} value={draft.trafficDensity.toLowerCase()} disabled={source === "imported" || peakBusy || isResolving}
                   options={["None", "Single", "Low", "Medium", "High", "Very High"]
                     .filter((label) => !["None", "Single"].includes(label) || label === draft.trafficDensity)  // kept only for a saved scenario that already has it
                     .map((label) => ({ label, value: label.toLowerCase() }))}
                   onChange={(value) => setDraft((current) => ({ ...current, trafficDensity: normalizeDensity(value) }))} />}
                 {draft.pedestrianDensity === "counted"
                   ? <Field><FieldLabel>Pedestrians</FieldLabel><p className="text-sm">From the video count, about {Math.round(Number(draft.engineConfig.pedestrian_rate_per_hour ?? 0))} per hour</p></Field>
-                  : <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()} disabled={peakBusy}
+                  : <NativeSelect label="Pedestrians" value={draft.pedestrianDensity.toLowerCase()} disabled={peakBusy || isResolving}
                     options={["None", "Low", "Medium", "High"].map((label) => ({ label, value: label.toLowerCase() }))}
                     onChange={(pedestrianDensity) => setDraft((current) => ({ ...current, pedestrianDensity }))} />}
               </FieldGroup>
@@ -916,7 +963,7 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
             </FieldGroup>
           </div>
           <SheetFooter className="scenario-sheet-footer">
-            <Button variant="outline" onClick={() => setFormMode(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button onClick={() => void saveScenarioDraft()} disabled={isSaving || isResolving || peakBusy || !nativeOptions || !editConfigReady || Boolean(closureIssue) ||
               (formMode === "edit" ? !permissions.edit : !permissions.create)}>
               {isSaving ? "Saving..." : "Save Scenario"}
@@ -924,6 +971,10 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <ConfirmAction open={confirmDiscard} title="Discard unsaved changes?" actionLabel="Discard changes"
+        description={`Your changes to ${formMode === "edit" ? "this scenario" : "the new scenario"} have not been saved. Keep editing to save them.`}
+        onCancel={() => setConfirmDiscard(false)} onConfirm={async () => dismissForm()} />
 
       <Sheet open={Boolean(recordingScenario)} onOpenChange={(open) => !open && setRecordingScenarioId(null)}>
         <SheetContent className="scenario-sheet" side="right">
@@ -939,14 +990,20 @@ export function ScenariosPage({ onOpenDashboard, permissions, routePrefill = nul
                 { value: "fixed-time", label: "Fixed-time baseline" },
                 ...recordingModels.map((model) => ({ value: `${model.algorithm}:${model.id}`, label: `${model.algorithm.toUpperCase()} model #${model.id} · ${model.name ?? "Saved model"}` })),
               ]} onChange={setRecordControlMode} />
-              <NativeNumber label="Recording duration (seconds)" value={recordDuration} onChange={setRecordDuration} min={1} max={86400} step={1} />
+              {maxRecordingSeconds !== undefined
+                ? <NativeNumber label="Recording duration (seconds)" value={recordDuration} onChange={setRecordDuration} min={1} max={maxRecordingSeconds} step={1} />
+                : nativeOptionsError
+                  ? <Alert variant="destructive"><AlertDescription>{nativeOptionsError}
+                    <Button variant="outline" size="sm" onClick={() => void loadNativeOptions()}>Retry</Button>
+                  </AlertDescription></Alert>
+                  : <p role="status">Loading recording limit…</p>}
               <NativeNumber label="Recording seed" value={recordSeed} onChange={setRecordSeed} min={0} max={4294967295} step={1} />
               <p className="text-sm text-muted-foreground">Record the fixed-time baseline and selected model with the same saved scenario, seed and duration. A completed timeline appears in Compare Runs and Runs & Reports.</p>
             </FieldGroup>
           </div>
           <SheetFooter className="scenario-sheet-footer">
             <Button variant="outline" onClick={() => setRecordingScenarioId(null)}>Cancel</Button>
-            <Button onClick={() => void startRecording()} disabled={isSaving || !permissions.run}>{isSaving ? "Starting..." : "Start recording"}</Button>
+            <Button onClick={() => void startRecording()} disabled={isSaving || !permissions.run || maxRecordingSeconds === undefined}>{isSaving ? "Starting..." : "Start recording"}</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>

@@ -2269,7 +2269,8 @@ def native_configuration_options(network_id: str | None = None, user: dict = Dep
                                   ("dashboard", "view"), ("rl-training", "view")])
     from services.native_scenario_service import configuration_options
     try:
-        return configuration_options(network_id)
+        # The recording form uses the server's limit, so the browser never offers a duration the server refuses.
+        return {**configuration_options(network_id), "max_recording_seconds": config.MAX_RECORDING_SECONDS}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

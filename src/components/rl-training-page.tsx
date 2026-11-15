@@ -79,7 +79,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { blockedTrainingMessage } from "@/lib/control-labels"
+import { blockedTrainingMessage, workerSummary } from "@/lib/control-labels"
 import { EMPTY_VALUE, formatServerDate, parseServerTimestamp } from "@/lib/display-format"
 import { resumeTargetCompatible } from "@/lib/rl-resume"
 import { rewardSeries } from "@/lib/reward-series"
@@ -369,10 +369,12 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
   const [isLoading, setIsLoading] = React.useState(false)
   const [pendingAction, setPendingAction] = React.useState(false)
   const [initialLoadDone, setInitialLoadDone] = React.useState(false)
-  const [statusLoadFailed, setStatusLoadFailed] = React.useState(false)
+  const [statusLoadError, setStatusLoadError] = React.useState("")
   const requestId = React.useRef(0)
   const viewedJobRef = React.useRef<number | null>(null)
   const inFlightRefreshes = React.useRef<Set<number | null>>(new Set())
+  const scenariosLoaded = React.useRef(false)
+  const statusLoadFailed = Boolean(statusLoadError)
 
   const scenarioConfig = scenarioResolution?.id === selectedScenarioId ? scenarioResolution.config : null
   const scenarioLoading = Boolean(selectedScenarioId && scenarioResolution?.id !== selectedScenarioId)
@@ -401,31 +403,48 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
   const activeItem = status.items.find((item) => item.id === viewedJob?.current_item_id) ?? status.items[0] ?? null
   const rewardChart = React.useMemo(() => rewardSeries(parseRewardPoints(status.log_lines)), [status.log_lines])
 
+  const applyScenarios = React.useCallback((loaded: ApiScenario[]) => {
+    scenariosLoaded.current = true
+    setScenarios(loaded)
+    setSelectedScenarioId(String(loaded[0]?.id ?? ""))
+    setSettings((current) => ({ ...current,
+      scenario_id: loaded[0]?.id ?? null,
+      evaluation_scenario_id: loaded.find((scenario) => scenario.id !== loaded[0]?.id)?.id ?? null,
+    }))
+  }, [])
+
   const refreshStatus = React.useCallback(async (jobId: number | null = viewedJobRef.current) => {
     if (inFlightRefreshes.current.has(jobId)) return
     inFlightRefreshes.current.add(jobId)
     const thisRequest = ++requestId.current
+    // After a failed first load the scenarios are missing too, so a Refresh or Retry fetches them again.
+    const needsScenarios = !scenariosLoaded.current
     setIsLoading(true)
     try {
-      const [nextStatus, nextJobs] = await Promise.all([
+      const [nextStatus, nextJobs, nextScenarios] = await Promise.all([
         getRLTrainingStatus(jobId),
         listRLTrainingJobs({ limit: 30 }),
+        needsScenarios ? listScenarios() : null,
       ])
+      if (nextScenarios && !scenariosLoaded.current) applyScenarios(nextScenarios.scenarios)
       if (thisRequest === requestId.current && jobId === viewedJobRef.current) {
         setStatus(nextStatus)
         setJobs(nextJobs.jobs)
-        setStatusLoadFailed(false)
+        setStatusLoadError("")
+        if (needsScenarios && jobId === null && nextStatus.job) {  // as the first load does: show the latest job
+          viewedJobRef.current = nextStatus.job.id
+          setViewedJobId(nextStatus.job.id)
+        }
       }
     } catch (error) {
       if (thisRequest === requestId.current) {
-        setAlert(rlErrorMessage(error, "Unable to refresh RL training status."))
-        setStatusLoadFailed(true)
+        setStatusLoadError(rlErrorMessage(error, "Unable to refresh RL training status."))
       }
     } finally {
       inFlightRefreshes.current.delete(jobId)
       if (thisRequest === requestId.current) setIsLoading(false)
     }
-  }, [])
+  }, [applyScenarios])
 
   function viewJob(jobId: number | null) {
     if (jobId !== viewedJobRef.current) requestId.current += 1
@@ -446,14 +465,10 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
           listRLTrainingJobs({ limit: 30 }),
         ])
         if (!isMounted) return
-        setScenarios(scenarioResponse.scenarios)
-        setSelectedScenarioId(String(scenarioResponse.scenarios[0]?.id ?? ""))
-        setSettings((current) => ({ ...current,
-          scenario_id: scenarioResponse.scenarios[0]?.id ?? null,
-          evaluation_scenario_id: scenarioResponse.scenarios.find((scenario) => scenario.id !== scenarioResponse.scenarios[0]?.id)?.id ?? null,
-        }))
+        applyScenarios(scenarioResponse.scenarios)
         setStatus(statusResponse)
         setJobs(jobsResponse.jobs)
+        setStatusLoadError("")
         setTab((current) => current ?? (statusResponse.active_job_id ? "jobs"
           : statusResponse.models.some((model) => model.compatible || model.checkpoints.some((checkpoint) => checkpoint.compatible))
             || !canRunTraining ? "models" : "train"))
@@ -462,8 +477,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
         setViewedJobId(initialJobId)
       } catch (error) {
         if (isMounted) {
-          setAlert(rlErrorMessage(error, "Unable to load RL training data."))
-          setStatusLoadFailed(true)
+          setStatusLoadError(rlErrorMessage(error, "Unable to load RL training data."))
         }
       } finally {
         if (isMounted) setInitialLoadDone(true)
@@ -474,7 +488,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
     return () => {
       isMounted = false
     }
-  }, [canRunTraining])
+  }, [canRunTraining, applyScenarios])
 
   React.useEffect(() => {
     const scenarioId = Number(selectedScenarioId)
@@ -492,13 +506,14 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
   }, [selectedScenarioId])
 
   React.useEffect(() => {
-    if (!serverActiveJobId && !viewedJobPending && !blockingWorkload) return
-    // While blocked, poll slower; the alert clears once the live run or recording ends.
+    if (!initialLoadDone) return
+    // Idle pages still check for workloads started from another page or session.
+    const refreshInterval = serverActiveJobId || viewedJobPending ? 1500 : blockingWorkload ? 3000 : 5000
     const intervalId = window.setInterval(() => {
       void refreshStatus(viewedJobRef.current)
-    }, serverActiveJobId || viewedJobPending ? 1500 : 3000)
+    }, refreshInterval)
     return () => window.clearInterval(intervalId)
-  }, [serverActiveJobId, viewedJobPending, viewedJobId, blockingWorkload, refreshStatus])
+  }, [initialLoadDone, serverActiveJobId, viewedJobPending, blockingWorkload, refreshStatus])
 
   React.useEffect(() => {
     if (!reportJobId) return
@@ -670,7 +685,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
   const submitLabel = evaluatingModel ? "Start evaluation" : resumingModel ? "Resume training" : "Start training"
   const metrics = [
     { label: "Saved models", value: shownModels.length, detail: "Available to evaluate or resume", icon: DatabaseIcon, tone: "blue" },
-    { label: "Worker", value: serverActiveJobId ? "Active" : "Idle", detail: serverActiveJobId ? `Job #${serverActiveJobId}` : "Ready for a job", icon: ListChecksIcon, tone: "green" },
+    { label: "Worker", ...workerSummary({ loaded: initialLoadDone, statusFailed: statusLoadFailed, activeJobId: serverActiveJobId, blockingWorkload }), icon: ListChecksIcon, tone: "green" },
     { label: "Job progress", value: viewedJob ? `${compactNumber(viewedJob.progress_percent)}%` : EMPTY_VALUE,
       detail: viewedJob ? `Job #${viewedJob.id}` : "No job selected", icon: GaugeIcon, tone: "violet" },
     { label: "Latest reward", value: viewedJob ? compactNumber(activeItem?.latest_reward, 3) : EMPTY_VALUE,
@@ -702,6 +717,7 @@ export function RLTrainingPage({ currentUserId, isAdmin, canRunTraining, onOpenD
         ))}
       </dl>
 
+      {statusLoadError && <Alert><AlertDescription>{statusLoadError}</AlertDescription></Alert>}
       {alert && <Alert><AlertDescription>{alert}</AlertDescription></Alert>}
 
       <Tabs value={selectedTab} onValueChange={(value) => { setTab(value as TrainingTab); setAlert("") }}>

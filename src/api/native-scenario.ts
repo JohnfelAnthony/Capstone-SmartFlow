@@ -75,6 +75,8 @@ export type NativeScenarioOptions = {
     /** Road piece this lane belongs to (both directions share it), the compass direction of travel, entry/exit/link, and where the piece lies. */
     road_id: string; direction: string; kind: "entry" | "exit" | "link"; where: string }>
   vehicle_mix_presets: Record<string, VehicleMixPreset>
+  /** The server's longest recording (`SMARTFLOW_MAX_RECORDING_SECONDS`). */
+  max_recording_seconds?: number
 }
 
 export type NetworkSummary = { id: string; name: string; sha256: string; junctions: number }

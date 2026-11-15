@@ -14,6 +14,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SessionSignIn } from "@/components/session-sign-in"
 const AuditLogsPage = React.lazy(() => import("@/components/audit-logs-page").then(module => ({ default: module.AuditLogsPage })))
 import { LoginPage, RegisterPage } from "@/components/auth-pages"
+import { PageErrorBoundary } from "@/components/page-error-boundary"
 const BackupRestorePage = React.lazy(() => import("@/components/backup-restore-page").then(module => ({ default: module.BackupRestorePage })))
 const CompareRunsPage = React.lazy(() => import("@/components/compare-runs-page").then(module => ({ default: module.CompareRunsPage })))
 const DashboardPage = React.lazy(() => import("@/components/dashboard-page").then(module => ({ default: module.DashboardPage })))
@@ -156,6 +157,7 @@ export default function App() {
             onDashboardViewChange={activePage === "Dashboard" ? setDashboardView : undefined}
           />
           <div className="flex min-h-0 flex-1 flex-col">
+            <PageErrorBoundary key={activePage}>
             <React.Suspense fallback={<p role="status" className="p-6">Loading page…</p>}>
             {activePage === "Scenarios" ? (
               <ScenariosPage onOpenDashboard={() => navigate("Dashboard")}
@@ -198,6 +200,7 @@ export default function App() {
               />
             )}
             </React.Suspense>
+            </PageErrorBoundary>
           </div>
         </SidebarInset>
       </SidebarProvider>
