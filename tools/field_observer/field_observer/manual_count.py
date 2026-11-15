@@ -1,12 +1,8 @@
-"""Manual lane-by-lane counting: one pass per approach over the raw video, merged into one reviewed revision.
-
-Every click records a vehicle class and the exit it took, stamped with VIDEO time. Passes are autosaved JSON files. A pass is
-complete only when the counter attests it and the playback intervals actually watched span the whole video; gaps are never
-filled and incomplete passes are reported, not guessed. The export writes ordinary draft tables and reuses `export_revision`,
-so it is the same revision format the detector workflow produces (and SmartFlow's "Import counts from Field Observer" reads).
-"""
+"""Autosaved video counting passes for outbound road totals and turning movements."""
 
 import bisect
+import csv
+import io
 import json
 import re
 import uuid
@@ -30,6 +26,12 @@ GAP_S = 1.0           # watched intervals closer than this are one interval (pla
 DEFAULT_BIN_S = 900.0
 REVIEWER = "manual count"  # the page asks for no name; this honest label fills the reviewer fields the revision format requires
 DEFAULT_NOTE = "Manual lane-by-lane count: vehicle type and exit clicked per vehicle over four complete passes, one per approach."
+MODE_FOLDERS = {"movements": "manual_count", "road_totals": "road_totals"}
+
+
+def pass_directory(project: Path, mode: str) -> Path:
+    require(isinstance(mode, str) and mode in MODE_FOLDERS, "Choose a supported counting mode.")
+    return project / MODE_FOLDERS[mode]
 
 
 def upload_metadata(file_name: str, site_id: str) -> dict:
@@ -71,11 +73,17 @@ def load_site(directory: Path) -> str | None:
     return json.loads(path.read_text(encoding="utf-8"))["site"] if path.is_file() else None
 
 
-def set_site(directory: Path, site_id: str) -> None:
+def set_site(directory: Path, site_id: str, *, road_totals: Path | None = None) -> None:
     require(site_id in SITES, "Choose a study site.")
     current = load_site(directory)
-    require(current in (None, site_id) or not any(load_pass(directory, name)["clicks"] for name in SITES[current]["approaches"]),
-            "This recording already has clicks for another site; the approach names would not match.")
+    if current is not None and current != site_id:
+        for folder in (directory, road_totals):
+            if folder is None:
+                continue
+            for name in SITES[current]["approaches"]:
+                saved = load_pass(folder, name)
+                require(not (saved["clicks"] or saved["watched"] or saved["complete"]),
+                        "This recording already has a counting pass for another site.")
     directory.mkdir(parents=True, exist_ok=True)
     write_json(directory / "meta.json", {"site": site_id})
 
@@ -94,23 +102,33 @@ def spans_video(watched: list, duration: float) -> bool:
     return bool(watched) and watched[0][0] <= GAP_S and watched[-1][1] >= duration - GAP_S and len(watched) == 1
 
 
-def add_click(directory: Path, site_id: str, duration: float, data: dict) -> dict:
+def add_click(directory: Path, site_id: str, duration: float, data: dict, *, road_totals: bool = False) -> dict:
     approach, exit_, vehicle = data.get("approach"), data.get("exit"), data.get("class")
     names = SITES[site_id]["approaches"]
-    require(approach in names, "Choose the approach being counted.")
-    require(exit_ in names and exit_ != approach, "Choose an exit leg other than the approach the vehicle came from.")
+    require(approach in names, "Choose the road being counted.")
+    if road_totals:
+        require("exit" not in data, "Road totals only need the selected road and vehicle type.")
+    else:
+        require(exit_ in names and exit_ != approach, "Choose an exit leg other than the approach the vehicle came from.")
     require(vehicle in VEHICLE_CLASSES, "Choose one of the five vehicle types.")
     moment = number(data.get("time_s"), "video time")
     require(0 <= moment <= duration, "Click time is outside the video.")
     current = load_pass(directory, approach)
-    current["clicks"].append({"id": uuid.uuid4().hex[:12], "time_s": moment, "class": vehicle, "exit": exit_,
-                              "saved_at": datetime.now(timezone.utc).isoformat()})
+    if road_totals:
+        require(not current["complete"], "Reopen this road pass before changing its count.")
+    click = {"id": uuid.uuid4().hex[:12], "time_s": moment, "class": vehicle,
+             "saved_at": datetime.now(timezone.utc).isoformat()}
+    if not road_totals:
+        click["exit"] = exit_
+    current["clicks"].append(click)
     save_pass(directory, current)
     return current
 
 
-def undo_click(directory: Path, approach: str) -> dict:
+def undo_click(directory: Path, approach: str, *, road_totals: bool = False) -> dict:
     current = load_pass(directory, approach)
+    if road_totals:
+        require(not current["complete"], "Reopen this road pass before changing its count.")
     require(bool(current["clicks"]), "Nothing to undo in this pass.")
     current["clicks"].pop()
     save_pass(directory, current)
@@ -134,19 +152,53 @@ def set_complete(directory: Path, approach: str, duration: float, complete: bool
     save_pass(directory, current)
 
 
-def summary(directory: Path, site_id: str, duration: float) -> dict:
+def summary(directory: Path, site_id: str, duration: float, *, road_totals: bool = False) -> dict:
     passes = []
     for name in SITES[site_id]["approaches"]:
         current = load_pass(directory, name)
         tally = {}
         for click in current["clicks"]:
-            tally[f"{click['exit']}|{click['class']}"] = tally.get(f"{click['exit']}|{click['class']}", 0) + 1
+            key = click["class"] if road_totals else f"{click['exit']}|{click['class']}"
+            tally[key] = tally.get(key, 0) + 1
         passes.append({"approach": name, "count": len(current["clicks"]), "tally": tally, "watched": current["watched"],
                        "watched_s": round(sum(end - start for start, end in current["watched"]), 2),
                        "spans_video": spans_video(current["watched"], duration), "complete": current["complete"],
                        "reviewer": current["reviewer"], "recent": current["clicks"][-8:][::-1]})
     return {"site": site_view(site_id), "passes": passes, "duration": duration,
             "can_export": all(item["complete"] and item["spans_video"] for item in passes)}
+
+
+def load_pedestrian_total(directory: Path) -> int | None:
+    path = directory / "pedestrian_total.json"
+    return json.loads(path.read_text(encoding="utf-8"))["count"] if path.is_file() else None
+
+
+def save_pedestrian_total(directory: Path, count: int | None) -> None:
+    require(count is None or (type(count) is int and 0 <= count <= 2**53 - 1),
+            "Enter a nonnegative whole number for pedestrians, or leave it blank.")
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "pedestrian_total.json"
+    temporary = path.with_suffix(".tmp")
+    write_json(temporary, {"count": count})
+    temporary.replace(path)
+
+
+def road_totals_csv(directory: Path, site_id: str, manifest: dict) -> str:
+    duration = manifest["media"]["decoded_duration_s"]
+    report = summary(directory, site_id, duration, road_totals=True)
+    require(report["can_export"], "Complete all four road passes before downloading the totals.")
+    stream = io.StringIO(newline="")
+    writer = csv.writer(stream)
+    writer.writerow(("site_id", "take_id", "source_kind", "source_sha256", "count_direction", "road",
+                     "video_duration_s", *VEHICLE_CLASSES, "total", "scope", "pedestrian_total"))
+    identity = (site_id, manifest["take_id"], manifest["source_kind"], manifest["source_sha256"])
+    for item in report["passes"]:
+        writer.writerow((*identity, "outbound", item["approach"], duration,
+                         *(item["tally"].get(category, 0) for category in VEHICLE_CLASSES), item["count"], "road", ""))
+    pedestrian_total = load_pedestrian_total(directory)
+    if pedestrian_total is not None:
+        writer.writerow((*identity, "", "", duration, *("" for _ in VEHICLE_CLASSES), "", "recording", pedestrian_total))
+    return stream.getvalue()
 
 
 def _lines_config(manifest: dict, site_id: str) -> dict:

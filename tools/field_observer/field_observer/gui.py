@@ -369,15 +369,19 @@ class ObserverGUI:
             write_csv(path, PRIORITY_PAIR_COLUMNS, [*existing, row])
             self.update(message="Priority pair saved as a manual observation.")
 
-    def manual_state(self):
+    def manual_state(self, mode="movements"):
         with self.lock:
+            directory = manual_count.pass_directory(self.project or self.root, mode)
             sites = [{"id": key, "label": value["label"]} for key, value in manual_count.SITES.items()]
             if self.manifest is None:
-                return {"sites": sites, "site_id": None, "recording": False}
-            directory, site = self.project / "manual_count", manual_count.load_site(self.project / "manual_count")
-            result = {"sites": sites, "site_id": site, "recording": True}
+                return {"sites": sites, "site_id": None, "recording": False, "mode": mode}
+            site = manual_count.load_site(self.project / "manual_count")
+            result = {"sites": sites, "site_id": site, "recording": True, "mode": mode}
+            if mode == "road_totals":
+                result["pedestrian_total"] = manual_count.load_pedestrian_total(directory)
             if site:
-                result.update(manual_count.summary(directory, site, self.manifest["media"]["decoded_duration_s"]))
+                result.update(manual_count.summary(directory, site, self.manifest["media"]["decoded_duration_s"],
+                                                   road_totals=mode == "road_totals"))
             return result
 
     def manual(self, action, data):
@@ -385,29 +389,46 @@ class ObserverGUI:
         with self.lock:
             self.idle()
             require(self.manifest is not None, "Choose a recording first.")
-            directory, duration = self.project / "manual_count", self.manifest["media"]["decoded_duration_s"]
+            mode = data.get("mode", "movements")
+            directory = manual_count.pass_directory(self.project, mode)
+            site_directory = self.project / "manual_count"
+            duration = self.manifest["media"]["decoded_duration_s"]
+            road_totals = mode == "road_totals"
             if action == "site":
-                manual_count.set_site(directory, data.get("site"))
+                manual_count.set_site(site_directory, data.get("site"), road_totals=self.project / "road_totals")
+            elif action == "pedestrians":
+                require(road_totals, "Use Road totals for a whole-video pedestrian count.")
+                require("count" in data, "Supply the pedestrian count or a blank value.")
+                manual_count.save_pedestrian_total(directory, data["count"])
             else:
-                site = manual_count.load_site(directory)
+                site = manual_count.load_site(site_directory)
                 require(site is not None, "Choose the study site first.")
                 approach = data.get("approach")
-                require(approach in manual_count.SITES[site]["approaches"], "Choose the approach being counted.")
+                require(approach in manual_count.SITES[site]["approaches"], "Choose the road being counted.")
                 if action == "click":
-                    manual_count.add_click(directory, site, duration, data)
+                    manual_count.add_click(directory, site, duration, data, road_totals=road_totals)
                 elif action == "undo":
-                    manual_count.undo_click(directory, approach)
+                    manual_count.undo_click(directory, approach, road_totals=road_totals)
                 elif action == "watched":
                     manual_count.add_watched(directory, approach, duration, data.get("start"), data.get("end"))
                 elif action == "complete":
                     manual_count.set_complete(directory, approach, duration, data.get("complete") is True)
                 else:
                     raise ValueError("Unknown action.")
-        return self.manual_state()
+            return self.manual_state(mode)
+
+    def manual_road_totals(self):
+        with self.lock:
+            self.idle()
+            require(self.manifest is not None, "Choose a recording first.")
+            site = manual_count.load_site(self.project / "manual_count")
+            require(site is not None, "Choose the study site first.")
+            return manual_count.road_totals_csv(self.project / "road_totals", site, self.manifest)
 
     def manual_export(self, data):
         with self.lock:
             self.idle()
+            require(data.get("mode", "movements") == "movements", "Use the road totals CSV for this counting mode.")
             require(self.manifest is not None, "Choose a recording first.")
             previous = self.status
             self.update(status="exporting", message="Checking the four passes and saving a provisional revision...")
@@ -483,7 +504,8 @@ def make_server(root: Path, port=0):
         def do_GET(self):
             try:
                 self.local_request()
-                route = urlparse(self.path).path
+                url = urlparse(self.path)
+                route = url.path
                 if route == "/":
                     html = Path(__file__).with_name("gui.html").read_text(encoding="utf-8").replace("__TOKEN__", token).encode()
                     self.send_response(200)
@@ -492,6 +514,9 @@ def make_server(root: Path, port=0):
                     self.send_header("Cache-Control", "no-store")
                     self.end_headers()
                     self.wfile.write(html)
+                elif route in ("/gui.css", "/gui.js"):
+                    media_type = "text/css" if route == "/gui.css" else "text/javascript"
+                    self.file_response(Path(__file__).with_name(route[1:]), media_type + "; charset=utf-8")
                 elif route == "/api/state":
                     self.json_response(service.state())
                 elif route == "/api/saved":
@@ -499,7 +524,17 @@ def make_server(root: Path, port=0):
                 elif route == "/api/events":
                     self.json_response(service.events())
                 elif route == "/api/manual":
-                    self.json_response(service.manual_state())
+                    mode = parse_qs(url.query).get("mode", ["movements"])[0]
+                    self.json_response(service.manual_state(mode))
+                elif route == "/api/manual/road-totals.csv":
+                    payload = service.manual_road_totals().encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/csv; charset=utf-8")
+                    self.send_header("Content-Disposition", 'attachment; filename="field-observer-road-totals.csv"')
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
                 elif route == "/api/image":
                     with service.lock:
                         data = service.image
