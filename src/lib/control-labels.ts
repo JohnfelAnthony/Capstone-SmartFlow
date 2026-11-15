@@ -23,6 +23,17 @@ export function blockedTrainingMessage(workload: string) {
   return `${busyWith(workload)}. The server runs one workload at a time, so training or evaluation can start when it finishes or is stopped.`
 }
 
+/** The RL Training Worker card: never "Idle" while the status is unknown or another workload holds the slot. */
+export function workerSummary({ loaded, statusFailed, activeJobId, blockingWorkload }: {
+  loaded: boolean; statusFailed: boolean; activeJobId: number | null; blockingWorkload: string | null
+}): { value: string; detail: string } {
+  if (!loaded) return { value: "—", detail: "Loading status" }
+  if (statusFailed) return { value: "Unavailable", detail: "Status could not be loaded" }
+  if (activeJobId) return { value: "Active", detail: `Job #${activeJobId}` }
+  if (blockingWorkload) return { value: "Blocked", detail: `Busy with ${blockingWorkload}` }
+  return { value: "Idle", detail: "Ready for a job" }
+}
+
 /** One name per run control mode, shared by the dashboard, reports and comparisons. */
 export function controlLabel(mode: string | null | undefined): string {
   const value = String(mode || "unknown")

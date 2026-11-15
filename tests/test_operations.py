@@ -69,6 +69,12 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(second_raw.read_text(encoding="utf-8"), "second database recording\n")
         self.assertNotEqual(first_jobs, second_jobs)
 
+    def test_recording_form_limit_comes_from_the_server(self):
+        options = self.client.get("/api/simulation/options").json()
+        self.assertEqual(options["max_recording_seconds"], config.MAX_RECORDING_SECONDS)
+        over = {"scenario_id": self.scenario["id"], "duration_seconds": options["max_recording_seconds"] + 1, "seed": 7}
+        self.assertEqual(self.client.post("/api/simulation/timelines", json=over).status_code, 422)
+
     def test_recording_admission_limits_duration_space_and_concurrency(self):
         request = {"scenario_id": self.scenario["id"], "duration_seconds": 10, "seed": 7}
         too_long = self.client.post("/api/simulation/timelines", json={**request, "duration_seconds": 3601})
