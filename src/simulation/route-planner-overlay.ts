@@ -2,12 +2,15 @@ import type { RoutePath } from "@/api/routes"
 import type { VisualPoint } from "@/api/visual-network"
 import type { SharedRoad } from "@/simulation/frame-types"
 import type { EndRole } from "@/lib/route-ends"
-import { mapToScreen, screenToMap, type MapCamera } from "@/simulation/map-navigation"
+import { claimMapLabel, mapToScreen, screenToMap, type LabelRect, type MapCamera } from "@/simulation/map-navigation"
 import { boundsOfPoints, distanceToPolyline, lanePolygon, pointInPolygon, type SceneBounds, type SceneGeometry, type SceneLane } from "@/simulation/scene-geometry"
 
-export type PlannerEnd = { key: string; label: string; x: number; y: number; role: EndRole }
+export type PlannerEnd = { key: string; label: string; x: number; y: number; role: EndRole; selectable: boolean }
+export type PlannerTarget = { kind: "end"; key: string } | { kind: "road"; laneId: string }
+export type PlannerMapAction = { target: PlannerTarget | null; anchor: VisualPoint; contextMenu: boolean }
 
 export type PlannerOverlay = {
+  interactive: boolean
   original: RoutePath | null
   selected: RoutePath | null
   closedLaneIds: readonly string[]
@@ -19,9 +22,18 @@ export type PlannerOverlay = {
 export type PlannerFitRequest = { revision: number; target: "network" | "routes" }
 
 const sharedLine = (points: Array<[number, number]>) => points.map(([x, y]) => ({ x, y }))
-const END_RADIUS = 12
-const END_REACH = 18
-const palette = { original: "#d1d5db", selected: "#4ade80", amber: "#f9b545", outline: "#7dd3fc" }
+const END_RADIUS = 15
+const END_REACH = 22
+const END_LABEL_FONT = "600 12px system-ui, sans-serif"
+const palette = { original: "#e2e8f0", selected: "#39e895", closed: "#ef4444", amber: "#f9b545", outline: "#7dd3fc" }
+const PIN_REMOVE_RADIUS = 14
+
+export function plannerRemovePosition(point: VisualPoint, camera: MapCamera) {
+  const room = PIN_REMOVE_RADIUS + 2
+  const offset = END_RADIUS + 10
+  return { x: point.x + offset + room <= camera.width ? point.x + offset : point.x - offset,
+    y: point.y - offset + 5 >= room ? point.y - offset + 5 : point.y + offset - 5 }
+}
 
 export function plannerPathLines(path: RoutePath | null) {
   return path?.segments.map(segment => segment.points) ?? []
@@ -59,16 +71,23 @@ export function pickPlannerLane(lanes: readonly SceneLane[], point: VisualPoint,
   return best
 }
 
-/** The road end under a click or tap, if any. Ends win over the road beneath them. */
-export function pickPlannerEnd(ends: readonly PlannerEnd[], point: VisualPoint, camera: MapCamera) {
+/** Markers take precedence if a tap overlaps a nearby label. */
+export function pickPlannerEnd(ends: readonly PlannerEnd[], point: VisualPoint, camera: MapCamera,
+  labels?: ReadonlyMap<string, LabelRect>) {
+  const actionable = (end: PlannerEnd) => end.selectable || end.role === "start" || end.role === "destination"
   let best: PlannerEnd | null = null
   let closest = END_REACH
   for (const end of ends) {
+    if (!actionable(end)) continue
     const screen = mapToScreen(end, camera)
     const distance = Math.hypot(screen.x - point.x, screen.y - point.y)
     if (distance <= closest) { closest = distance; best = end }
   }
-  return best
+  if (best || !labels) return best
+  return ends.find(end => {
+    const rect = actionable(end) ? labels.get(end.key) : undefined
+    return rect && point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height
+  }) ?? null
 }
 
 function trace(ctx: CanvasRenderingContext2D, line: readonly VisualPoint[]) {
@@ -136,52 +155,75 @@ function hatchClosedLane(ctx: CanvasRenderingContext2D, polygon: VisualPoint[], 
   ctx.restore()
 }
 
-const endColors = { start: "#1D9E75", destination: "#378ADD" } as const
+const markerStyles = {
+  start: { color: "#126748", symbol: "A", label: "Start" },
+  destination: { color: "#1e52a7", symbol: "B", label: "Destination" },
+  other_exit: { color: "#983b13", symbol: "↗", label: "Actual exit" },
+  available: { color: "#1e52a7", symbol: "•", label: null },
+}
 
-function drawEnd(ctx: CanvasRenderingContext2D, end: PlannerEnd, camera: MapCamera) {
-  const { x, y } = mapToScreen(end, camera)
-  const chosen = end.role === "start" || end.role === "destination"
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(x, y, END_RADIUS, 0, Math.PI * 2)
-  if (chosen) {
-    ctx.fillStyle = endColors[end.role as "start" | "destination"]
+function drawEnds(ctx: CanvasRenderingContext2D, ends: readonly PlannerEnd[], camera: MapCamera) {
+  const visible = ends.flatMap(end => {
+    if (end.role === "unavailable") return []
+    const point = mapToScreen(end, camera)
+    if (point.x < -END_RADIUS || point.y < -END_RADIUS || point.x > camera.width + END_RADIUS || point.y > camera.height + END_RADIUS) return []
+    return [{ end, point, style: markerStyles[end.role] }]
+  })
+  const labels = new Map<string, LabelRect>()
+  const occupied = visible.map(({ point }) => ({ x: point.x - END_RADIUS, y: point.y - END_RADIUS, width: END_RADIUS * 2, height: END_RADIUS * 2 }))
+  for (const { end, point } of visible) {
+    if (end.role !== "start" && end.role !== "destination") continue
+    const remove = plannerRemovePosition(point, camera)
+    occupied.push({ x: remove.x - PIN_REMOVE_RADIUS, y: remove.y - PIN_REMOVE_RADIUS, width: PIN_REMOVE_RADIUS * 2, height: PIN_REMOVE_RADIUS * 2 })
+  }
+
+  ctx.textBaseline = "middle"
+  ctx.setLineDash([])
+  for (const { end, point: { x, y }, style } of visible) {
+    ctx.beginPath()
+    ctx.arc(x, y, END_RADIUS, 0, Math.PI * 2)
+    ctx.fillStyle = style.color
     ctx.fill()
-    ctx.lineWidth = 2
     ctx.strokeStyle = "#ffffff"
+    ctx.lineWidth = 2.5
     ctx.stroke()
     ctx.fillStyle = "#ffffff"
-    ctx.font = "600 12px system-ui, sans-serif"
+    ctx.font = "700 16px system-ui, sans-serif"
     ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-    ctx.fillText(end.role === "start" ? "A" : "B", x, y + 0.5)
-    ctx.font = "500 12px system-ui, sans-serif"
-    ctx.textAlign = "left"
-    // Put the name beside the marker on the side with room, and never past the canvas edge.
-    const width = ctx.measureText(end.label).width
-    const fitsRight = x + END_RADIUS + 6 + width <= camera.width - 4
-    const labelX = Math.max(4, Math.min(camera.width - width - 4, fitsRight ? x + END_RADIUS + 6 : x - END_RADIUS - 6 - width))
-    ctx.lineWidth = 3
-    ctx.strokeStyle = "rgba(15,23,42,.85)"
-    ctx.strokeText(end.label, labelX, y)
-    ctx.fillStyle = "#f8fafc"
-    ctx.fillText(end.label, labelX, y)
-  } else {
-    ctx.fillStyle = "rgba(15,23,42,.55)"
+    ctx.fillText(style.symbol, x, y)
+
+    ctx.font = END_LABEL_FONT
+    const text = style.label ?? end.label
+    const width = Math.min(ctx.measureText(text).width + 16, camera.width - 16)
+    const height = 23, gap = END_RADIUS + 6
+    const alignedX = Math.max(4, Math.min(camera.width - width - 4, x - width / 2))
+    const rect = claimMapLabel([
+      { x: x + gap, y: y - height / 2, width, height },
+      { x: x - gap - width, y: y - height / 2, width, height },
+      { x: alignedX, y: y + gap, width, height },
+      { x: alignedX, y: y - gap - height, width, height },
+    ], occupied, camera.width, camera.height)
+    if (!rect) continue
+    labels.set(end.key, rect)
+    ctx.beginPath()
+    ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 5)
+    ctx.fillStyle = "#172635"
     ctx.fill()
-    ctx.lineWidth = 2
-    ctx.setLineDash([4, 3])
-    ctx.strokeStyle = end.role === "available" ? "#7dd3fc" : "rgba(148,163,184,.55)"
-    ctx.stroke()
+    ctx.textAlign = "left"
+    ctx.fillStyle = "#ffffff"
+    ctx.fillText(text, rect.x + 8, rect.y + rect.height / 2, rect.width - 16)
   }
-  ctx.restore()
+  return labels
 }
 
 export function drawPlannerOverlay(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, overlay: PlannerOverlay, camera: MapCamera, hoverId: string | null) {
   ctx.save()
   for (const id of overlay.closedLaneIds) {
     const lane = geometry.laneById.get(id)
-    if (lane) hatchClosedLane(ctx, lane.polygon, camera)
+    if (lane) {
+      hatchClosedLane(ctx, lane.polygon, camera)
+      strokeLine(ctx, lane.centerline.map(point => mapToScreen(point, camera)), palette.closed, 4, [5, 4])
+    }
   }
   for (const road of overlay.sharedRoads) {
     for (const [id, points] of Object.entries(road.lanes)) {
@@ -193,13 +235,12 @@ export function drawPlannerOverlay(ctx: CanvasRenderingContext2D, geometry: Scen
   ctx.lineJoin = "round"
   for (const line of plannerPathLines(overlay.original)) {
     const points = line.map(point => mapToScreen(point, camera))
-    strokeLine(ctx, points, palette.original, 7, [7, 5])
-    arrows(ctx, points, palette.original, 7)
+    strokeLine(ctx, points, palette.original, 5, [7, 5])
   }
   for (const line of plannerPathLines(overlay.selected)) {
     const points = line.map(point => mapToScreen(point, camera))
-    strokeLine(ctx, points, "#123723", 5)
-    strokeLine(ctx, points, palette.selected, 3)
+    strokeLine(ctx, points, "#123723", 8)
+    strokeLine(ctx, points, palette.selected, 4)
     arrows(ctx, points, palette.selected, 5)
   }
   const highlight = geometry.laneById.get(overlay.selectedLaneId ?? hoverId ?? "")
@@ -207,6 +248,7 @@ export function drawPlannerOverlay(ctx: CanvasRenderingContext2D, geometry: Scen
     const outline = highlight.polygon.map(point => mapToScreen(point, camera))
     if (outline.length) strokeLine(ctx, [...outline, outline[0]], palette.outline, 1.6)
   }
-  for (const end of overlay.ends) drawEnd(ctx, end, camera)
+  const labels = drawEnds(ctx, overlay.ends, camera)
   ctx.restore()
+  return labels
 }

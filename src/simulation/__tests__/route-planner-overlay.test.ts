@@ -5,7 +5,7 @@ import { pickPlannerEnd, pickPlannerLane, plannerFitBounds, plannerPathLines, ty
 import type { SceneLane } from "@/simulation/scene-geometry"
 
 const bounds = { min_x: -100, min_y: -70, max_x: 300, max_y: 80 }
-const empty: PlannerOverlay = { original: null, selected: null, sharedRoads: [], closedLaneIds: [], selectedLaneId: null, ends: [] }
+const empty: PlannerOverlay = { interactive: false, original: null, selected: null, sharedRoads: [], closedLaneIds: [], selectedLaneId: null, ends: [] }
 
 function lane(id: string, y: number, reversed = false): SceneLane {
   const line = [{ x: 0, y }, { x: 100, y }]
@@ -61,8 +61,8 @@ describe("planner overlay geometry", () => {
 
   it("picks the nearest road end within finger reach at any zoom, and nothing far away", () => {
     const ends = [
-      { key: "west", label: "West", x: 0, y: 0, role: "available" as const },
-      { key: "east", label: "East", x: 8, y: 0, role: "available" as const },
+      { key: "west", label: "West", x: 0, y: 0, role: "available" as const, selectable: true },
+      { key: "east", label: "East", x: 8, y: 0, role: "available" as const, selectable: true },
     ]
     for (const camera of [fitMap(bounds, 360, 250), fitMap(bounds, 1200, 800)]) {
       expect(pickPlannerEnd(ends, mapToScreen({ x: 1, y: 0 }, camera), camera)?.key).toBe("west")
@@ -71,5 +71,18 @@ describe("planner overlay geometry", () => {
     const camera = fitMap(bounds, 1200, 800)
     expect(pickPlannerEnd(ends, mapToScreen({ x: 150, y: 70 }, camera), camera)).toBeNull()
     expect(pickPlannerEnd([], mapToScreen({ x: 0, y: 0 }, camera), camera)).toBeNull()
+  })
+
+  it("picks displayed labels and chosen pins for map actions, but ignores hidden choices", () => {
+    const start = { key: "start", label: "Start", x: 0, y: 0, role: "start" as const, selectable: false }
+    const candidate = { key: "candidate", label: "Candidate", x: 100, y: 15, role: "available" as const, selectable: true }
+    const camera = fitMap(bounds, 650, 400)
+    const candidateAt = mapToScreen(candidate, camera)
+    const label = { x: candidateAt.x + 34, y: candidateAt.y - 10, width: 76, height: 20 }
+    const labels = new Map([["candidate", label]])
+    expect(pickPlannerEnd([start, candidate], { x: label.x + 10, y: label.y + 10 }, camera, labels)).toBe(candidate)
+    expect(pickPlannerEnd([start, candidate], mapToScreen(start, camera), camera, labels)).toBe(start)
+    const hidden = { ...candidate, role: "unavailable" as const, selectable: false }
+    expect(pickPlannerEnd([start, hidden], candidateAt, camera, labels)).toBeNull()
   })
 })

@@ -9,6 +9,7 @@ const rootDir = fileURLToPath(new URL(".", import.meta.url))
 export default defineConfig({
   root: rootDir,
   plugins: [react(), tailwindcss()],
+  optimizeDeps: { include: ["@base-ui/react/popover"] },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

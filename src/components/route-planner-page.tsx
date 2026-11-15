@@ -1,27 +1,26 @@
 import { useEffect, useMemo, useState } from "react"
-import { BusIcon, CarIcon, CarTaxiFrontIcon, MotorbikeIcon, RouteIcon, RulerIcon, TrafficConeIcon, TruckIcon } from "lucide-react"
+import { FocusIcon, Undo2Icon } from "lucide-react"
 import { ApiError, SESSION_RESTORED_EVENT } from "@/api/client"
 import { listNetworks, type NetworkSummary } from "@/api/native-scenario"
 import { listScenarios, type ApiScenario } from "@/api/scenarios"
-import type { RouteSource, RouteVehicleClass } from "@/api/routes"
+import type { RouteSource } from "@/api/routes"
+import type { VisualPoint } from "@/api/visual-network"
 import { NativeSelect } from "@/components/native-scenario-controls"
 import { RoutePlannerMap } from "@/components/route-planner-map"
-import { ChosenEnd, ClosureStep, EndPills, Step } from "@/components/route-planner-steps"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { EndpointList, RoadActions, TripEndpoint } from "@/components/route-planner-steps"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { activeClosures, useRoutePlanner } from "@/lib/route-planner"
 import { routeScenarioDraft, type RouteScenarioDraft } from "@/lib/route-scenario"
 import { buildRouteEnds, describeRoad, describeRoute, endAction, endRoles, formatDistance, routeEndsComplete, routeLengthMeters, routeStatus, type EndStep } from "@/lib/route-ends"
-import type { PlannerFitRequest, PlannerOverlay } from "@/simulation/route-planner-overlay"
+import type { PlannerFitRequest, PlannerMapAction, PlannerOverlay, PlannerTarget } from "@/simulation/route-planner-overlay"
 import "@/styles/admin-user-management.css"
 import "@/styles/route-planner.css"
 
-const vehicles: Array<{ value: RouteVehicleClass; label: string; Icon: typeof CarIcon }> = [
-  { value: "car", label: "Car", Icon: CarIcon }, { value: "motorcycle", label: "Motorcycle", Icon: MotorbikeIcon },
-  { value: "tricycle", label: "Tricycle", Icon: CarTaxiFrontIcon }, { value: "bus", label: "Bus", Icon: BusIcon },
-  { value: "truck", label: "Truck", Icon: TruckIcon },
-]
+type MapSelection = { target: PlannerTarget; anchor: VisualPoint | null }
 
 export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }: {
   /** Needs the same permission as the New Scenario form. */
@@ -31,10 +30,9 @@ export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }
   const { state, dispatch } = useRoutePlanner()
   const [sources, setSources] = useState<{ networks: NetworkSummary[]; scenarios: ApiScenario[] } | null>(null)
   const [sourceError, setSourceError] = useState("")
-  const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null)
+  const [mapSelection, setMapSelection] = useState<MapSelection | null>(null)
   const [fitRequest, setFitRequest] = useState<PlannerFitRequest>()
-  const [moreOpen, setMoreOpen] = useState(false)
-  const [chosenStep, setPicking] = useState<EndStep>("start")
+  const [editingEnd, setEditingEnd] = useState<EndStep | null>(null)
   const { context, preview, source, entryId, destinationId } = state
 
   useEffect(() => {
@@ -66,61 +64,112 @@ export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }
     }
   }, [dispatch])
 
-  function chooseSource(next: RouteSource) {
-    setSelectedLaneId(null)
+  function resetMapControls() {
+    setMapSelection(null)
     setFitRequest(undefined)
-    setPicking("start")
+    setEditingEnd(null)
+  }
+
+  function chooseSource(next: RouteSource) {
+    resetMapControls()
     dispatch({ type: "source", source: next })
   }
 
   function reloadContext() {
-    setSelectedLaneId(null)
-    setFitRequest(undefined)
+    resetMapControls()
     dispatch({ type: "reload" })
   }
 
   const ends = useMemo(() => context ? buildRouteEnds(context) : [], [context])
   const startLabel = ends.find(end => end.entryId === entryId)?.label
   const destinationLabel = ends.find(end => end.destinationId === destinationId)?.label
-  // A start with no destination (for example after changing vehicle) always asks for the destination next.
-  const picking: EndStep = startLabel && !destinationLabel ? "destination" : chosenStep
-  const pairs = useMemo(() => context?.eligible_pairs ?? [], [context])
-  const startRoles = useMemo(() => endRoles(ends, "start", pairs, entryId, destinationId), [ends, pairs, entryId, destinationId])
-  const destinationRoles = useMemo(() => endRoles(ends, "destination", pairs, entryId, destinationId), [ends, pairs, entryId, destinationId])
-  const closures = activeClosures(state)
-  const overlay = useMemo<PlannerOverlay>(() => ({
-    original: preview?.original ?? null, selected: preview?.selected ?? null,
-    sharedRoads: preview?.shared_roads ?? [], closedLaneIds: closures?.closed_lanes ?? [], selectedLaneId,
-    ends: (picking === "start" ? startRoles : destinationRoles).map(({ end, role }) => ({ key: end.key, label: end.label, x: end.x, y: end.y, role })),
-  }), [preview, closures, selectedLaneId, picking, startRoles, destinationRoles])
-
-  function chooseEnd(key: string, step: EndStep = picking) {
-    const end = ends.find(item => item.key === key)
-    if (!end) return
-    const next = endAction(end, step, pairs, entryId)
-    if (next.action) dispatch(next.action)
-    setPicking(next.picking)
-  }
-
-  function fit(target: PlannerFitRequest["target"]) {
-    setFitRequest(previous => ({ target, revision: (previous?.revision ?? 0) + 1 }))
-  }
-
+  const picking = editingEnd ?? (!startLabel ? "start" : !destinationLabel ? "destination" : null)
   const ready = state.contextStatus === "ready"
+  const displayPreview = picking ? null : preview
+  const pairs = useMemo(() => context?.eligible_pairs ?? [], [context])
+  const alternateExit = displayPreview?.outcome === "alternative_exit" ? displayPreview.actual_destination_id : null
+  const roles = useMemo(() => endRoles(ends, ready ? picking : null, pairs, entryId, destinationId, alternateExit),
+    [ends, ready, picking, pairs, entryId, destinationId, alternateExit])
+  const closures = activeClosures(state)
+  const showBefore = Boolean(displayPreview?.original && (displayPreview.outcome !== "unchanged" || displayPreview.uses_shared_pavement))
+  const target = mapSelection?.target
+  const selectedRoad = target?.kind === "road" ? context?.roads.find(road => road.lane_id === target.laneId) : undefined
+  const selectedPin = target?.kind === "end" ? roles.find(({ end }) => end.key === target.key) : undefined
+  const selectedLaneId = selectedRoad?.lane_id ?? null
+  const overlay: PlannerOverlay = {
+    interactive: ready,
+    original: showBefore ? displayPreview?.original ?? null : null,
+    selected: displayPreview?.selected ?? null,
+    sharedRoads: displayPreview?.shared_roads ?? [], closedLaneIds: closures?.closed_lanes ?? [],
+    selectedLaneId,
+    ends: roles.map(({ end, role, selectable }) => ({ ...end, role, selectable })),
+  }
+
+  function chooseEnd(key: string) {
+    const end = ends.find(item => item.key === key)
+    if (!ready || !picking || !end) return
+    const action = endAction(end, picking, pairs, entryId)
+    if (!action) return
+    dispatch(action)
+    setMapSelection(null)
+    setEditingEnd(null)
+  }
+
+  function mapAction({ target, anchor, contextMenu }: PlannerMapAction) {
+    const pin = target?.kind === "end" ? roles.find(({ end }) => end.key === target.key) : undefined
+    if (pin?.role === "available" && !contextMenu) {
+      chooseEnd(pin.end.key)
+      return
+    }
+    setMapSelection(target ? { target, anchor } : null)
+  }
+
+  function editEndpoint(step: EndStep) {
+    setMapSelection(null)
+    setEditingEnd(step)
+  }
+
+  function removeEndpoint(step: EndStep) {
+    setMapSelection(null)
+    setEditingEnd(null)
+    dispatch({ type: "remove-end", step })
+  }
+
+  function setClosure(laneIds: readonly string[], closed: boolean) {
+    setMapSelection(null)
+    dispatch({ type: "set-closure", laneIds, closed })
+  }
+
   const error = state.contextError ?? state.previewError
   const closedCount = closures?.closed_lanes.length ?? 0
   const siteId = source?.kind === "network" ? source.network_id : sources?.scenarios.find(scenario => scenario.id === source?.scenario_id)?.network_id
   const [, siteDetail] = (sources?.networks.find(network => network.id === siteId)?.name ?? "").split(" — ")
-  const noHeavyOnSobrecarey = context?.network_id === "tagum_site_b" && (state.vehicleType === "bus" || state.vehicleType === "truck")
   const scenarioName = source?.kind === "scenario" ? sources?.scenarios.find(scenario => scenario.id === source.scenario_id)?.name : undefined
   const scenarioDraft = context ? routeScenarioDraft({ source, context, closures, scenarioName }) : null
-  const sentence = preview && context
-    ? describeRoute({ vehicle: state.vehicleType, preview, context, ends, entryId, destinationId, closedCount }) : ""
-  const metrics = [
-    { label: "Route length", value: preview?.selected ? formatDistance(routeLengthMeters(preview.selected)) : "—", hint: "Modelled, no traffic", Icon: RulerIcon },
-    { label: "Roads closed", value: String(closedCount), hint: closedCount ? "Whole run" : "Click a road to close it", Icon: TrafficConeIcon },
-    { label: "Route", value: routeStatus(preview), hint: preview ? "Under these conditions" : "Pick a start and destination", Icon: RouteIcon },
-  ]
+  const distance = displayPreview?.selected ? formatDistance(routeLengthMeters(displayPreview.selected)) : null
+  const routeDescription = displayPreview && context && displayPreview.outcome !== "unchanged"
+    ? describeRoute({ preview: displayPreview, context, ends, entryId, destinationId, closedCount }) : ""
+  const choices = roles.filter(end => end.selectable).map(({ end }) => end)
+  const mapPrompt = state.contextStatus === "error" ? "Map selection unavailable" : !ready ? "Updating the map…" :
+    picking === "start" ? "Pick a start on the map" : picking === "destination" ? "Pick a destination on the map" :
+    state.previewPending ? "Finding the route…" : error ? "Route preview unavailable" : "Explore the route"
+  const lastClosureEdit = state.lastClosureEdit
+  const pinStep = selectedPin?.role === "start" || selectedPin?.role === "destination" ? selectedPin.role : null
+  const popup = ready && selectedRoad && context ? {
+    anchor: mapSelection?.anchor ?? null,
+    title: describeRoad(selectedRoad),
+    content: <RoadActions key={selectedRoad.lane_id} laneId={selectedRoad.lane_id}
+      segmentDirections={context.roads.filter(road => road.road_id === selectedRoad.road_id).map(road => road.lane_id)}
+      closures={closures} preview={preview} coordinationNotice={state.coordinationNotice} onSetClosure={setClosure}
+      onRespond={(laneId, response) => dispatch({ type: "response", laneId, response })} />,
+  } : ready && selectedPin && (pinStep || selectedPin.selectable && picking) ? {
+    anchor: mapSelection?.anchor ?? null,
+    title: selectedPin.end.label,
+    content: pinStep ? <div className="flex flex-col gap-2">
+      <Button size="sm" variant="outline" onClick={() => editEndpoint(pinStep)}>Change {pinStep}</Button>
+      <Button size="sm" variant="ghost" onClick={() => removeEndpoint(pinStep)}>Remove {pinStep}</Button>
+    </div> : <Button size="sm" onClick={() => chooseEnd(selectedPin.end.key)}>Set {picking}</Button>,
+  } : null
 
   return <main className="smartflow-page route-planner-page" aria-label="Route Planner">
     <section className="audit-hero">
@@ -135,12 +184,6 @@ export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }
         {siteDetail ? <p className="text-sm text-muted-foreground">{siteDetail}</p> : null}
       </div> : null}
     </section>
-    <section className="audit-metric-strip" aria-label="Route summary">
-      {metrics.map(({ label, value, hint, Icon }) => <div key={label} className="audit-strip-metric info">
-        <Icon aria-hidden="true" />
-        <div><div><strong>{value}</strong><span>{label}</span></div><small>{hint}</small></div>
-      </div>)}
-    </section>
     {source?.kind === "scenario" && scenarioName
       ? <p role="status" className="text-sm text-muted-foreground">Showing the saved scenario "{scenarioName}" and its closed roads. Changes here are temporary and do not alter the scenario.</p> : null}
     {sourceError ? <Alert variant="destructive"><AlertDescription>{sourceError}</AlertDescription></Alert> : null}
@@ -152,86 +195,84 @@ export function RoutePlannerPage({ canCreateScenario = false, onSaveAsScenario }
     </Alert> : null}
     {context && !routeEndsComplete(context, ends)
       ? <Alert variant="destructive"><AlertDescription>The server is out of date, so the road ends cannot be placed on the map. Restart the API, then refresh this page.</AlertDescription></Alert> : null}
-    {context && routeEndsComplete(context, ends) ? <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,1fr)]">
+    {context && routeEndsComplete(context, ends) ? <div className="route-planner-workspace">
       <div className="flex min-w-0 flex-col gap-3">
-        <RoutePlannerMap network={context.geometry} overlay={overlay} fitRequest={fitRequest}
-          onRoadEndSelect={chooseEnd} onRoadDirectionSelect={setSelectedLaneId} />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => fit("network")}>Show whole map</Button>
-          <Button size="sm" variant="outline" disabled={!preview?.original && !preview?.selected} onClick={() => fit("routes")}>Zoom to route</Button>
-          {scenarioDraft && canCreateScenario && onSaveAsScenario
-            ? <Button size="sm" onClick={() => onSaveAsScenario(scenarioDraft)}>Save as new scenario</Button> : null}
+        <div className="route-planner-map-bar">
+          <h2 aria-live="polite" className="font-medium">{mapPrompt}</h2>
+          <div className="flex flex-wrap gap-2">
+            {lastClosureEdit ? <Button variant="outline" size="sm" disabled={!ready}
+              onClick={() => { setMapSelection(null); dispatch({ type: "undo-closure" }) }}>
+              <Undo2Icon data-icon="inline-start" />{lastClosureEdit.closed ? "Undo closure" : "Undo reopening"}
+            </Button> : null}
+            {editingEnd ? <Button size="sm" variant="ghost" onClick={() => setEditingEnd(null)}>Cancel selection</Button> : null}
+            {overlay.original || overlay.selected ? <Button size="sm" variant="outline"
+              onClick={() => setFitRequest(previous => ({ target: "routes", revision: (previous?.revision ?? 0) + 1 }))}>
+              <FocusIcon data-icon="inline-start" />Fit route
+            </Button> : null}
+          </div>
         </div>
-        {scenarioDraft && canCreateScenario && onSaveAsScenario
-          ? <p className="text-sm text-muted-foreground">Opens the New Scenario form with the closed roads. Nothing is saved until you press Save Scenario there.</p> : null}
-        <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground" aria-label="Map legend">
-          <li><span aria-hidden="true" className="text-green-700 dark:text-green-400">➝ </span>Route under these conditions</li>
-          <li><span aria-hidden="true">⇢ </span>Route without closures</li>
-          <li><span aria-hidden="true" className="text-red-600 dark:text-red-400">▧ </span>Closed road</li>
-          <li><span aria-hidden="true" className="text-amber-700 dark:text-amber-400">⇄ </span>Shared pavement (hypothetical)</li>
-          <li><span aria-hidden="true" className="text-sky-600 dark:text-sky-300">○ </span>Road end you can choose</li>
-        </ul>
+        <RoutePlannerMap network={context.geometry} overlay={overlay} fitRequest={fitRequest}
+          onAction={mapAction} onRemoveEnd={removeEndpoint} popup={popup} onDismiss={() => setMapSelection(null)} />
+        <p className="text-sm text-muted-foreground">Click or tap a road for closure options.</p>
+        {overlay.original || overlay.selected || closedCount ? <ul className="route-planner-legend" aria-label="Map legend">
+          {overlay.original ? <li><span aria-hidden="true" data-line="before" />Before closure</li> : null}
+          {overlay.selected ? <li><span aria-hidden="true" data-line="route" />{overlay.original ? "After closure" : "Route"}</li> : null}
+          {closedCount ? <li><span aria-hidden="true" data-line="closed" />Closed direction</li> : null}
+          {overlay.sharedRoads.length ? <li><span aria-hidden="true" data-line="shared" />Shared pavement (hypothetical)</li> : null}
+        </ul> : null}
       </div>
-      <div className="flex min-w-0 flex-col gap-3">
-        <Alert variant={preview && (preview.outcome === "no_route" || preview.outcome === "invalid_arrangement") ? "destructive" : "default"} aria-label="Route result" aria-live="polite">
-          <AlertTitle>{state.previewPending ? "Updating the route…" : routeStatus(preview)}</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            {sentence ? <p className="text-foreground">{sentence}</p> : <p>{state.previewPending ? "One moment." : "Choose a start and a destination to see the route."}</p>}
-            {preview ? <details className="text-sm">
-              <summary className="cursor-pointer">Why this route?</summary>
-              <p className="mt-2">{preview.reason}</p>
-              {preview.uses_shared_pavement ? <p className="mt-1">This trip uses hypothetical shared pavement.</p> : null}
-              {preview.routing_mode === "adaptive" ? <p className="mt-1">Adaptive routing · no simulated queues in this preview.</p> : null}
-            </details> : null}
-          </AlertDescription>
-        </Alert>
-        <ol className="flex flex-col" aria-label="Plan a trip">
-          <Step number={1} title="Where does the trip start?"
-            active={picking === "start"} onActivate={() => setPicking("start")}>
-            {picking === "start" || !startLabel ? <EndPills roles={startRoles} step="start" onPick={chooseEnd} />
-              : <ChosenEnd label={startLabel} onChange={() => setPicking("start")} />}
-          </Step>
-          <Step number={2} title="Where is it going?" note={noHeavyOnSobrecarey ? "Buses and trucks are not allowed on Sobrecarey Street." : undefined}
-            active={picking === "destination"} onActivate={() => setPicking("destination")}>
-            {picking === "destination" || !destinationLabel ? <EndPills roles={destinationRoles} step="destination" onPick={chooseEnd} />
-              : <ChosenEnd label={destinationLabel} onChange={() => setPicking("destination")} />}
-          </Step>
-          <Step number={3} title="Close a road? (optional)">
-            <ClosureStep context={context} closures={closures} selectedLaneId={selectedLaneId} preview={preview} ready={ready}
-              coordinationNotice={state.coordinationNotice} onSelect={setSelectedLaneId}
-              onToggle={laneId => dispatch({ type: "toggle", laneId })}
-              onRespond={(laneId, response) => dispatch({ type: "response", laneId, response })} />
-          </Step>
-        </ol>
+      <aside className="flex min-w-0 flex-col gap-3" aria-label="Trip controls">
+        <Card>
+          <CardHeader>
+            <CardTitle><h2>Trip</h2></CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <ol className="flex flex-col gap-2" aria-label="Trip endpoints">
+              <TripEndpoint step="start" label={startLabel} active={picking === "start"} disabled={!ready} onChange={() => editEndpoint("start")} />
+              <TripEndpoint step="destination" label={destinationLabel} active={picking === "destination"} disabled={!ready} onChange={() => editEndpoint("destination")} />
+            </ol>
+            {ready && picking && choices.length ? <EndpointList key={picking} step={picking} ends={choices} onPick={chooseEnd} /> : null}
+            {ready && picking && !choices.length ? <p className="text-sm text-muted-foreground">No eligible points for this trip.</p> : null}
+            {!picking ? <>
+              <Separator />
+              <div className="flex flex-col gap-1" aria-label="Route result" aria-live="polite">
+                {state.previewPending ? <p>Updating the route…</p> : null}
+                {displayPreview ? <>
+                  <p className="font-semibold">{routeStatus(displayPreview, closedCount)}</p>
+                  {routeDescription ? <p>{routeDescription}</p> : distance ? <p>About {distance}</p> : null}
+                  <p className="text-xs text-muted-foreground">Preview at the start of a run, with no queues.</p>
+                  <details className="route-planner-details">
+                    <summary>Why this route?</summary>
+                    <p className="pt-2">{displayPreview.reason}</p>
+                    {displayPreview.uses_shared_pavement ? <p>This trip uses hypothetical shared pavement.</p> : null}
+                    {displayPreview.routing_mode === "adaptive" ? <p>Adaptive routing is enabled.</p> : null}
+                  </details>
+                </> : null}
+              </div>
+            </> : null}
+          </CardContent>
+        </Card>
         {context.notices.map(notice => <p key={notice.code} className="text-sm text-muted-foreground">{notice.message}</p>)}
-        <details className="rounded-lg border px-3 py-2 text-sm" open={moreOpen} onToggle={event => setMoreOpen(event.currentTarget.open)}>
-          <summary className="cursor-pointer py-1 font-medium">More options</summary>
+        <details className="route-planner-details route-planner-options">
+          <summary>More options</summary>
           <div className="flex flex-col gap-4 py-3">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">Vehicle</span>
-              <ToggleGroup variant="outline" className="flex-wrap" aria-label="Vehicle" value={[state.vehicleType]}
-                onValueChange={([vehicleType]) => { if (vehicleType) dispatch({ type: "class", vehicleType: vehicleType as RouteVehicleClass }) }}>
-                {vehicles.map(({ value, label, Icon }) => <ToggleGroupItem key={value} value={value} aria-label={label} className="gap-1.5 px-3 aria-pressed:bg-primary aria-pressed:text-primary-foreground"><Icon />{label}</ToggleGroupItem>)}
-              </ToggleGroup>
-            </div>
+            <NativeSelect label="Choose a road from a list" value={selectedLaneId ?? ""} disabled={!ready}
+              options={[{ value: "", label: "Select a direction" }, ...context.roads.map(road => ({ value: road.lane_id, label: describeRoad(road) }))]}
+              onChange={laneId => setMapSelection(laneId ? { target: { kind: "road", laneId }, anchor: null } : null)} />
             {sources?.scenarios.length ? <NativeSelect label="Start from a saved scenario" value={source?.kind === "scenario" ? String(source.scenario_id) : ""}
               options={[{ value: "", label: "None (temporary arrangement)" }, ...sources.scenarios.map(scenario => ({ value: String(scenario.id), label: scenario.name }))]}
               onChange={id => id ? chooseSource({ kind: "scenario", scenario_id: Number(id) })
                 : sources.networks[0] && chooseSource({ kind: "network", network_id: siteId ?? sources.networks[0].id })} /> : null}
-            <NativeSelect label="Pick a road from a list" value={selectedLaneId ?? ""} disabled={!ready}
-              options={[{ value: "", label: "Select a road direction" }, ...context.roads.map(road => ({ value: road.lane_id, label: describeRoad(road) }))]}
-              onChange={laneId => setSelectedLaneId(laneId || null)} />
             {source?.kind === "scenario"
               ? <Button size="sm" variant="outline" className="w-fit" disabled={!ready || state.override === undefined}
-                  onClick={() => { setSelectedLaneId(null); dispatch({ type: "reset" }) }}>Reset to saved scenario</Button>
+                  onClick={() => { setMapSelection(null); dispatch({ type: "reset" }) }}>Reset to saved scenario</Button>
               : <Button size="sm" variant="outline" className="w-fit" disabled={!ready || !closedCount}
-                  onClick={() => { setSelectedLaneId(null); dispatch({ type: "clear" }) }}>Reopen all roads</Button>}
-            {source?.kind === "scenario" && state.override !== undefined
-              ? <p className="text-muted-foreground">Temporary changes. The saved scenario is unchanged.</p> : null}
-            <p className="text-muted-foreground">The planner uses the start of a run, with no simulated queues. Green arrows show the route, independent of signal phases. Both sites are provisional networks.</p>
+                  onClick={() => { setMapSelection(null); dispatch({ type: "clear" }) }}>Reopen all roads</Button>}
+            {scenarioDraft && canCreateScenario && onSaveAsScenario
+              ? <Button size="sm" variant="outline" className="w-fit" onClick={() => onSaveAsScenario(scenarioDraft)}>Save as new scenario</Button> : null}
           </div>
         </details>
-      </div>
+      </aside>
     </div> : null}
   </main>
 }

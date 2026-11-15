@@ -1,52 +1,157 @@
-/* Route Planner reuses the Audit Logs hero and boxless metric strip; this only fits three short metrics. */
 .route-planner-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   padding: 20px;
 }
 
-.route-planner-page .audit-metric-strip {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 6px 0 10px;
+.route-planner-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  min-width: 0;
 }
 
-.route-planner-page .audit-strip-metric strong {
-  font-size: 28px;
+.route-planner-map-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
 }
 
-.route-planner-page .audit-strip-metric span {
-  font-size: 16px;
+.route-planner-canvas {
+  position: relative;
+  height: clamp(18rem, 50vh, 34rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
 }
 
-@media (max-width: 900px) {
-  .route-planner-page {
-    padding: 14px;
+.route-planner-remove-pin {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+}
+
+.route-planner-popup-anchor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.route-planner-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(17rem, calc(100vw - 24px));
+  max-height: var(--available-height, calc(100vh - 24px));
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 26px rgb(0 0 0 / 18%);
+  font-size: .875rem;
+}
+
+.route-trip-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.route-trip-endpoint[aria-current="step"] {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 7%, var(--card));
+}
+
+.route-trip-letter {
+  display: grid;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: #126748;
+  color: white;
+  font-weight: 650;
+}
+
+.route-trip-letter[data-endpoint="destination"] {
+  background: #1e52a7;
+}
+
+.route-planner-details {
+  font-size: .875rem;
+  color: var(--muted-foreground);
+}
+
+.route-planner-details summary {
+  cursor: pointer;
+  padding-block: 5px;
+}
+
+.route-planner-details summary:hover {
+  color: var(--foreground);
+}
+
+.route-planner-options {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.route-planner-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  font-size: .8125rem;
+  color: var(--muted-foreground);
+}
+
+.route-planner-legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.route-planner-legend [data-line] {
+  width: 23px;
+  border-top: 3px solid currentColor;
+}
+
+.route-planner-legend [data-line="route"] { color: #16a36c; }
+.route-planner-legend [data-line="before"] { border-top-style: dashed; }
+.route-planner-legend [data-line="closed"] { color: #ef4444; border-top-style: dashed; }
+.route-planner-legend [data-line="shared"] { color: #c9820b; }
+
+@media (min-width: 1024px) {
+  .route-planner-workspace {
+    grid-template-columns: minmax(0, 1fr) clamp(18rem, 29%, 23rem);
+    gap: 20px;
   }
 
-  .route-planner-page .audit-metric-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+  .route-planner-canvas {
+    height: clamp(25rem, 68vh, 43rem);
   }
 
-  .route-planner-page .audit-strip-metric {
-    align-items: flex-start;
+  .route-planner-workspace > aside {
+    margin-top: 44px;
   }
+}
 
-  .route-planner-page .audit-strip-metric > svg {
-    display: none;
-  }
-
-  .route-planner-page .audit-strip-metric strong {
-    font-size: 20px;
-  }
-
-  .route-planner-page .audit-strip-metric div div {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .route-planner-page .audit-strip-metric small {
-    font-size: 12px;
-  }
+@media (max-width: 640px) {
+  .route-planner-page { padding: 14px; }
 }

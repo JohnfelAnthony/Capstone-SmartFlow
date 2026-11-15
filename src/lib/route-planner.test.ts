@@ -20,12 +20,38 @@ const context: RouteContext = {
   notices: [],
 }
 
-function ready() {
+function readyWithoutTrip() {
   const loading = routePlannerReducer(initialRoutePlannerState, { type: "source", source: context.source })
   return routePlannerReducer(loading, { type: "context-ready", generation: loading.contextGeneration, context })
 }
 
+function ready() {
+  const withStart = routePlannerReducer(readyWithoutTrip(), { type: "entry", entryId: "west" })
+  return routePlannerReducer(withStart, { type: "destination", destinationId: "north" })
+}
+
+function refreshAfterSignIn(state: ReturnType<typeof ready>) {
+  const expired = routePlannerReducer(state, { type: "context-error", generation: state.contextGeneration,
+    error: { status: 401, message: "Sign in" } })
+  return routePlannerReducer(expired, { type: "session-restored" })
+}
+
 describe("temporary route-planner state", () => {
+  it("waits for both choices and clears an incompatible destination when the start changes", () => {
+    const empty = readyWithoutTrip()
+    expect(empty).toMatchObject({ entryId: "", destinationId: "" })
+    const started = routePlannerReducer(empty, { type: "entry", entryId: "west" })
+    expect(started.destinationId).toBe("")
+    expect(makePreviewRequest(started)).toBeNull()
+    const complete = routePlannerReducer(started, { type: "destination", destinationId: "north" })
+    expect(makePreviewRequest(complete)).toMatchObject({ entry_id: "west", destination_id: "north" })
+    const withAnotherStart = { ...complete, context: { ...context,
+      eligible_pairs: [...context.eligible_pairs, { entry_id: "south", destination_id: "east" }] } }
+    const changed = routePlannerReducer(withAnotherStart, { type: "entry", entryId: "south" })
+    expect(changed).toMatchObject({ entryId: "south", destinationId: "" })
+    expect(makePreviewRequest(changed)).toBeNull()
+  })
+
   it("distinguishes saved closures, an explicit empty arrangement and reset", () => {
     const state = ready()
     expect(makePreviewRequest(state)).not.toHaveProperty("closure_override")
@@ -44,6 +70,37 @@ describe("temporary route-planner state", () => {
     expect(context).toEqual(before)
   })
 
+  it("undos a temporary closure by restoring the saved arrangement without an override", () => {
+    const state = ready()
+    const closed = routePlannerReducer(state, { type: "set-closure", laneIds: ["entry"], closed: true })
+    expect(makePreviewRequest(closed)?.closure_override?.closed_lanes).toContain("entry")
+    const restored = routePlannerReducer(closed, { type: "undo-closure" })
+    expect(makePreviewRequest(restored)).toEqual(makePreviewRequest(state))
+    expect(activeClosures(restored)).toBe(context.initial_closures)
+    expect(restored.lastClosureEdit).toBeNull()
+  })
+
+  it("applies two directions as one action and restores both responses when reopening is undone", () => {
+    const state = ready()
+    const opened = routePlannerReducer(state, { type: "set-closure", laneIds: ["a", "b"], closed: false })
+    expect(activeClosures(opened)).toEqual({ closed_lanes: [], closure_responses: {} })
+    const undone = routePlannerReducer(opened, { type: "undo-closure" })
+    expect(activeClosures(undone)).toEqual(context.initial_closures)
+    const closed = routePlannerReducer(opened, { type: "set-closure", laneIds: ["a", "b"], closed: true })
+    expect(activeClosures(closed)?.closed_lanes).toEqual(["a", "b"])
+    expect(activeClosures(routePlannerReducer(closed, { type: "undo-closure" }))).toEqual(activeClosures(opened))
+  })
+
+  it.each(["start", "destination"] as const)("removing the %s keeps the other pin and invalidates its route", step => {
+    const before = routePlannerReducer(ready(), { type: "set-closure", laneIds: ["entry"], closed: true })
+    const result = routePlannerReducer(before, { type: "remove-end", step })
+    expect(result.entryId).toBe(step === "start" ? "" : "west")
+    expect(result.destinationId).toBe(step === "destination" ? "" : "north")
+    expect(makePreviewRequest(result)).toBeNull()
+    expect(result.previewGeneration).toBeGreaterThan(before.previewGeneration)
+    expect(activeClosures(result)).toEqual(activeClosures(before))
+  })
+
   it("uses the latest saved closure snapshot for the next edit and reset", () => {
     const state = ready()
     const effective = { closed_lanes: ["entry"], closure_responses: { entry: "wait" as const } }
@@ -60,7 +117,7 @@ describe("temporary route-planner state", () => {
     const pickingTrip = routePlannerReducer(resolved, { type: "destination", destinationId: "north" })
     expect(pickingTrip.preview).toBeNull()
     expect(activeClosures(pickingTrip)).toEqual(effective)
-    const edited = routePlannerReducer(pickingTrip, { type: "toggle", laneId: "b" })
+    const edited = routePlannerReducer(pickingTrip, { type: "set-closure", laneIds: ["b"], closed: true })
     expect(makePreviewRequest(edited)?.closure_override).toEqual({
       closed_lanes: ["b", "entry"], closure_responses: { entry: "wait" },
     })
@@ -70,11 +127,11 @@ describe("temporary route-planner state", () => {
     expect(context.initial_closures.closed_lanes).toEqual(["a", "b"])
   })
 
-  it("clears invalid trips on a class change and waits for new eligible choices", () => {
-    const truck = routePlannerReducer(ready(), { type: "class", vehicleType: "truck" })
-    expect(truck.context?.geometry).toBe(context.geometry)
-    expect(makePreviewRequest(truck)).toBeNull()
-    const restricted = routePlannerReducer(truck, { type: "context-ready", generation: truck.contextGeneration,
+  it("clears invalid trips when the refreshed context changes eligible choices", () => {
+    const refreshing = refreshAfterSignIn(ready())
+    expect(refreshing.context?.geometry).toBe(context.geometry)
+    expect(makePreviewRequest(refreshing)).toBeNull()
+    const restricted = routePlannerReducer(refreshing, { type: "context-ready", generation: refreshing.contextGeneration,
       context: { ...context, destinations: [], eligible_pairs: [] } })
     expect(restricted.destinationId).toBe("")
     expect(makePreviewRequest(restricted)).toBeNull()
@@ -91,9 +148,9 @@ describe("temporary route-planner state", () => {
     expect(makePreviewRequest(otherSite)).toBeNull()
   })
 
-  it("does not silently apply old temporary closures when a class change sees a new map revision", () => {
-    const changed = routePlannerReducer(ready(), { type: "toggle", laneId: "entry" })
-    const loading = routePlannerReducer(changed, { type: "class", vehicleType: "truck" })
+  it("does not silently apply old temporary closures when a context refresh sees a new map revision", () => {
+    const changed = routePlannerReducer(ready(), { type: "set-closure", laneIds: ["entry"], closed: true })
+    const loading = refreshAfterSignIn(changed)
     const refreshed = routePlannerReducer(loading, { type: "context-ready", generation: loading.contextGeneration,
       context: { ...context, network_sha256: "b".repeat(64) } })
     expect(refreshed.contextError?.status).toBe(409)
@@ -102,7 +159,7 @@ describe("temporary route-planner state", () => {
   })
 
   it("retries only session-blocked planner requests and preserves temporary closures", () => {
-    const edited = routePlannerReducer(ready(), { type: "toggle", laneId: "entry" })
+    const edited = routePlannerReducer(ready(), { type: "set-closure", laneIds: ["entry"], closed: true })
     const failed = routePlannerReducer(edited, { type: "preview-error", generation: edited.previewGeneration,
       error: { status: 401, message: "Sign in" } })
     const restored = routePlannerReducer(failed, { type: "session-restored" })
@@ -111,12 +168,9 @@ describe("temporary route-planner state", () => {
     expect(makePreviewRequest(restored)).toEqual(makePreviewRequest(edited))
     expect(routePlannerReducer(restored, { type: "session-restored" })).toBe(restored)
 
-    const loading = routePlannerReducer(edited, { type: "class", vehicleType: "truck" })
-    const unavailable = routePlannerReducer(loading, { type: "context-error", generation: loading.contextGeneration,
-      error: { status: 401, message: "Sign in" } })
-    const recovered = routePlannerReducer(unavailable, { type: "session-restored" })
+    const recovered = refreshAfterSignIn(edited)
     expect(recovered.contextStatus).toBe("loading")
-    expect(recovered.contextGeneration).toBeGreaterThan(unavailable.contextGeneration)
+    expect(recovered.contextGeneration).toBeGreaterThan(edited.contextGeneration)
     expect(activeClosures(recovered)).toEqual(activeClosures(edited))
   })
 
