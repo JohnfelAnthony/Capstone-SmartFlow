@@ -9,11 +9,12 @@ import type { PresentationState } from "@/simulation/presentation-state"
 import { junctionTagText } from "@/simulation/scene-summary"
 import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapScale, mapToScreen as screen, resizeMap, screenToMap, zoomMapAt, type LabelRect, type MapCamera as Transform } from "@/simulation/map-navigation"
 
-import { drawPlannerOverlay, pickPlannerEnd, pickPlannerLane, plannerFitBounds, type PlannerFitRequest, type PlannerOverlay } from "@/simulation/route-planner-overlay"
+import { drawPlannerOverlay, pickPlannerEnd, pickPlannerLane, plannerFitBounds, type PlannerFitRequest, type PlannerMapAction, type PlannerOverlay } from "@/simulation/route-planner-overlay"
 
 type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number }) => void
   frameSource?: () => RenderFrame | null
-  staticMode?: boolean; plannerOverlay?: PlannerOverlay; onRoadDirectionSelect?: (laneId: string) => void; onRoadEndSelect?: (endKey: string) => void; fitRequest?: PlannerFitRequest }
+  staticMode?: boolean; plannerOverlay?: PlannerOverlay; onPlannerAction?: (action: PlannerMapAction) => void
+  onPlannerCamera?: (camera: Transform) => void; fitRequest?: PlannerFitRequest }
 type Theme = "light" | "dark"
 /** Flat city-illustration palettes. Scenery stays muted so traffic and signals carry the contrast. */
 const CITY = {
@@ -224,7 +225,7 @@ function sceneryLayers(items: SceneryItem[]) {
   sceneryPaths.set(items, layers)
   return layers
 }
-function drawScenery(ctx: CanvasRenderingContext2D, items: SceneryItem[], transform: Transform, colors: Palette, roles: string[]) {
+function drawScenery(ctx: CanvasRenderingContext2D, items: SceneryItem[], transform: Transform, colors: Palette, roles: string[], opacity = 1) {
   const layers = sceneryLayers(items)
   const fills: Record<string, string> = {
     plaza: colors.plaza, lawn: colors.lawn, parking: colors.parking, stall: colors.stall, buildingShadow: colors.shadow, treeShadow: colors.shadow, fixture: colors.fixture, highlight: colors.highlight,
@@ -232,15 +233,17 @@ function drawScenery(ctx: CanvasRenderingContext2D, items: SceneryItem[], transf
     ...Object.fromEntries(colors.trees.map((tree, tone) => [`tree${tone}`, tree])),
   }
   ctx.save(); ctx.translate(transform.ox, transform.oy); ctx.scale(transform.scale, -transform.scale)
+  ctx.globalAlpha *= opacity
   for (const role of roles) { const shape = layers.get(role); if (shape) { ctx.fillStyle = fills[role]; ctx.fill(shape) } }
   ctx.restore()
 }
 const vergeCache = new WeakMap<SceneGeometry, VisualPoint[][]>()
 const GROUND_SCENERY = ["plaza", "lawn", "parking", "stall", "buildingShadow", "roof0", "roof1", "roof2", "roof3", "roofDetail0", "roofDetail1", "roofDetail2", "roofDetail3", "fixture"]
 const TREE_SCENERY = ["treeShadow", "tree0", "tree1", "tree2", "highlight"]
-function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, transform: Transform, colors: Palette, scenery: SceneryItem[], walkways: VisualPoint[][]) {
+function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, transform: Transform, colors: Palette, scenery: SceneryItem[], walkways: VisualPoint[][], mutedScenery: boolean) {
   ctx.fillStyle = colors.ground; ctx.fillRect(0, 0, transform.width, transform.height)
-  drawScenery(ctx, scenery, transform, colors, GROUND_SCENERY)
+  const sceneryOpacity = mutedScenery ? .38 : 1
+  drawScenery(ctx, scenery, transform, colors, GROUND_SCENERY, sceneryOpacity)
   // Kerbs, sidewalks and verges are illustrative edging around the untouched native pavement.
   const roads = geometry.lanes.filter((lane) => lane.kind === "road"), metres = transform.scale
   const band = (color: string, reach: number) => {
@@ -283,7 +286,7 @@ function staticMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, trans
     path(ctx, island.shape, transform, island.planted ? colors.lawn : colors.sidewalk, colors.kerb, Math.max(1, metres * .25))
   }
   for (const feature of features("shed")) path(ctx, feature.shape, transform, colors.shed, colors.kerb, Math.max(.5, metres * .1))
-  drawScenery(ctx, scenery, transform, colors, TREE_SCENERY)
+  drawScenery(ctx, scenery, transform, colors, TREE_SCENERY, sceneryOpacity)
   for (const feature of features("street_light")) {
     path(ctx, feature.shape, transform, undefined, colors.arm, Math.max(1, metres * .18))
     const pole = screen(feature.shape[Math.floor(feature.shape.length / 2)], transform)
@@ -398,16 +401,16 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
 }
 
 export function SimulationCanvas2D({ frame, frameSource, geometry, presentation, onSelect, runKey = "", onPerformanceSample,
-  staticMode = false, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }: Props) {
+  staticMode = false, plannerOverlay, onPlannerAction, onPlannerCamera, fitRequest }: Props) {
   const navigationHintId = React.useId()
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null), drawRef = React.useRef<() => void>(() => undefined)
   const controlsRef = React.useRef<(action: "in" | "out" | "reset") => void>(() => undefined)
   const tooltipRef = React.useRef<HTMLDivElement | null>(null), scaleRef = React.useRef<HTMLDivElement | null>(null), hintRef = React.useRef<HTMLSpanElement | null>(null)
-  const latestRef = React.useRef({ frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest })
+  const latestRef = React.useRef({ frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onPlannerAction, onPlannerCamera, fitRequest })
   React.useEffect(() => {
-    latestRef.current = { frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }
+    latestRef.current = { frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onPlannerAction, onPlannerCamera, fitRequest }
     drawRef.current()
-  }, [frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest])
+  }, [frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onPlannerAction, onPlannerCamera, fitRequest])
   React.useEffect(() => {
     const canvas = canvasRef.current, parent = canvas?.parentElement, context = canvas?.getContext("2d", { alpha: false })
     if (!canvas || !parent || !context) return
@@ -420,6 +423,8 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
     let lastDrawAt = 0, sampleStarted = performance.now(), drawnFrames = 0, totalPaints = 0, frameIntervals: number[] = []
     let previousPathSource: RenderFrame["visual"]["pedestrian_paths"] = undefined, pathsKey = "[]", previousScaleLabel = ""
     let decoration: MapScenery | undefined, sceneryPathsKey = ""
+    let plannerEndLabels: ReadonlyMap<string, LabelRect> | undefined
+    let lastPlannerCamera: Transform | undefined
     const currentTheme = (): Theme => document.documentElement.classList.contains("dark") ? "dark" : "light"
     let theme = currentTheme()
     // The app theme is a class on <html>; follow it without re-rendering React.
@@ -433,7 +438,8 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
     const pick = (point: VisualPoint): Selection | null => {
       const current = latestRef.current
       if (current.staticMode) {
-        const lane = pickPlannerLane(geometry.lanes, point, transform, current.plannerOverlay?.sharedRoads)
+        if (!current.plannerOverlay?.interactive) return null
+        const lane = pickPlannerLane(geometry.lanes, point, transform, current.plannerOverlay.sharedRoads)
         return lane ? { kind: "lane", id: lane } : null
       }
       const tag = junctionTags.get(ctx)?.find(({ rect }) => point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height)
@@ -447,7 +453,7 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
       if (hover.kind === "junction") text = geometry.junctionById.get(hover.id)?.label ?? "Junction"
       else if (hover.kind === "lane") {
         const metrics = displayedFrame?.lane_metrics?.[hover.id]
-        text = metrics ? `Lane · ${metrics.vehicles} vehicles · Queue ${metrics.queue}` : latestRef.current.staticMode ? "Road direction · Click to select" : "Lane · Click to inspect"
+        text = metrics ? `Lane · ${metrics.vehicles} vehicles · Queue ${metrics.queue}` : latestRef.current.staticMode ? "Click for road actions" : "Lane · Click to inspect"
       } else if (hover.kind === "vehicle") {
         const vehicle = displayedFrame?.vehicles.find((candidate) => candidate.id === hover?.id)
         if (vehicle) { const name = normalizeVehicleClass(vehicle.visual_type); text = `${name === "tricycle" ? "Tagum tricycle" : name[0].toUpperCase() + name.slice(1)} · ${vehicle.stopped ? "Stopped" : `${(vehicle.speed * 3.6).toFixed(0)} km/h`}` }
@@ -486,22 +492,32 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
         sceneryPathsKey = pathsKey
       }
       const { scenery, walkways } = decoration
-      const colors = CITY[theme], key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${pathsKey}:${theme}`
+      const colors = CITY[theme], key = `${width}:${height}:${dpr}:${transform.scale}:${transform.ox}:${transform.oy}:${pathsKey}:${theme}:${current.staticMode}`
       if (cached && cacheKey !== key) {
-        cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform, colors, scenery, walkways); cacheKey = key
+        cached.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(cached, geometry, transform, colors, scenery, walkways, current.staticMode); cacheKey = key
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       if (cached) ctx.drawImage(cache, 0, 0)
-      else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(ctx, geometry, transform, colors, scenery, walkways) }
-      if (pointerPosition && !pointers.size) hover = pick(pointerPosition)
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      if (current.staticMode && current.plannerOverlay) {
-        drawPlannerOverlay(ctx, geometry, current.plannerOverlay, transform, hover?.kind === "lane" ? hover.id : null)
+      else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); staticMap(ctx, geometry, transform, colors, scenery, walkways, current.staticMode) }
+      const planner = current.staticMode ? current.plannerOverlay : undefined
+      if (pointerPosition && !pointers.size) {
+        const overPin = planner?.interactive && pickPlannerEnd(planner.ends, pointerPosition, transform, plannerEndLabels)
+        hover = overPin ? null : pick(pointerPosition)
       }
-      const visiblePresentation = current.staticMode && current.presentation.overlays.signals
-        ? { ...current.presentation, overlays: { ...current.presentation.overlays, signals: false } }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const visiblePresentation = current.staticMode
+        ? { ...current.presentation, overlays: { ...current.presentation.overlays, signals: false,
+          labels: transform.scale >= fit(geometry.bounds, width, height).scale * 1.65 } }
         : current.presentation
       const signals = dynamicMap(ctx, geometry, displayedFrame, visiblePresentation, transform, hover, colors)
+      plannerEndLabels = planner ? drawPlannerOverlay(ctx, geometry, planner, transform, hover?.kind === "lane" ? hover.id : null) : undefined
+      const endUnderPointer = planner?.interactive && pointerPosition && !pointers.size
+        ? pickPlannerEnd(planner.ends, pointerPosition, transform, plannerEndLabels) : null
+      if (current.onPlannerCamera && (lastPlannerCamera?.scale !== transform.scale || lastPlannerCamera.ox !== transform.ox ||
+        lastPlannerCamera.oy !== transform.oy || lastPlannerCamera.width !== width || lastPlannerCamera.height !== height)) {
+        lastPlannerCamera = { ...transform }
+        current.onPlannerCamera(lastPlannerCamera)
+      }
       // Read-only diagnostics support browser checks without a renderer control backdoor.
       canvas!.dataset.signals = JSON.stringify({ time: displayedFrame?.time ?? null, ...signals })
       canvas!.dataset.theme = theme
@@ -513,7 +529,7 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
       canvas!.dataset.displayPedestrian = firstPerson ? JSON.stringify({ id: firstPerson.id, x: firstPerson.x, y: firstPerson.y }) : ""
       canvas!.dataset.paintMs = (performance.now() - paintStarted).toFixed(2)
       updateTooltip()
-      if (!pointers.size) canvas!.style.cursor = hover ? "pointer" : "grab"
+      if (!pointers.size) canvas!.style.cursor = hover || endUnderPointer ? "pointer" : "grab"
       const scale = mapScale(transform.scale), scaleLabel = `${scale.label}:${scale.pixels}`
       if (scaleRef.current && scaleLabel !== previousScaleLabel) { scaleRef.current.style.setProperty("--map-scale-width", `${scale.pixels}px`); scaleRef.current.setAttribute("aria-label", `Map scale ${scale.label}`); const label = scaleRef.current.querySelector("span"); if (label) label.textContent = scale.label; previousScaleLabel = scaleLabel }
       // Report active animation/navigation cadence only. Idle/paused maps do not burn frames.
@@ -540,7 +556,7 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
       canvas.width = cache.width = Math.max(1, Math.round(width * dpr)); canvas.height = cache.height = Math.max(1, Math.round(height * dpr)); cacheKey = ""; schedule()
     }
     drawRef.current = () => { resize(); schedule() }
-    const position = (event: PointerEvent | WheelEvent) => { const rect = canvas.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top } }
+    const position = (event: MouseEvent) => { const rect = canvas.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top } }
     const zoomAt = (point: VisualPoint, factor: number) => { transform = zoomMapAt(transform, point, factor, fit(geometry.bounds, width, height).scale * .65); boundPan(); schedule() }
     const reset = () => { previousFocus = ""; followSuspended = false; schedule() }
     controlsRef.current = (action) => { if (action === "reset") reset(); else { manualNavigation(); zoomAt({ x: width / 2, y: height / 2 }, action === "in" ? 1.3 : 1 / 1.3) } }
@@ -569,17 +585,26 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
         transform.ox += afterCenter.x - beforeCenter.x; transform.oy += afterCenter.y - beforeCenter.y; boundPan(); schedule()
       } else if (pointer.moved) { manualNavigation(); transform.ox += dx; transform.oy += dy; boundPan(); schedule() }
     }
+    const plannerAction = (point: VisualPoint, contextMenu: boolean) => {
+      const current = latestRef.current, overlay = current.plannerOverlay
+      if (!overlay?.interactive || !current.onPlannerAction) return false
+      const end = pickPlannerEnd(overlay.ends, point, transform, plannerEndLabels)
+      const selection = end ? null : pick(point)
+      const target = end ? { kind: "end", key: end.key } as const
+        : selection?.kind === "lane" ? { kind: "road", laneId: selection.id } as const : null
+      if (target || !contextMenu) current.onPlannerAction({ target, anchor: screenToMap(point, transform), contextMenu })
+      return target !== null
+    }
+    const contextMenu = (event: MouseEvent) => {
+      if (latestRef.current.staticMode && plannerAction(position(event), true)) event.preventDefault()
+    }
     const release = (event: PointerEvent, allowPick: boolean) => {
       const pointer = pointers.get(event.pointerId)
       if (!pointer) return
       if (allowPick && !pointer.moved && pointers.size === 1) {
         const current = latestRef.current, clicked = position(event)
-        if (current.staticMode) {
-          const end = pickPlannerEnd(current.plannerOverlay?.ends ?? [], clicked, transform)
-          const selection = end ? null : pick(clicked)
-          if (end) current.onRoadEndSelect?.(end.key)
-          else if (selection?.kind === "lane") current.onRoadDirectionSelect?.(selection.id)
-        } else current.onSelect(pick(clicked))
+        if (current.staticMode) plannerAction(clicked, false)
+        else current.onSelect(pick(clicked))
       }
       pointers.delete(event.pointerId)
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
@@ -605,10 +630,12 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
       } else { lastDrawAt = 0; schedule() }
     }
     canvas.addEventListener("wheel", wheel, { passive: false }); canvas.addEventListener("pointerdown", pointerDown); canvas.addEventListener("pointermove", pointerMove); canvas.addEventListener("pointerup", pointerUp); canvas.addEventListener("pointercancel", pointerCancel); canvas.addEventListener("lostpointercapture", pointerCancel); canvas.addEventListener("pointerleave", pointerLeave); canvas.addEventListener("keydown", keyDown); canvas.addEventListener("dblclick", doubleClick); document.addEventListener("visibilitychange", visibility)
+    canvas.addEventListener("contextmenu", contextMenu)
     const observer = new ResizeObserver(resize); observer.observe(parent); resize()
     return () => {
       observer.disconnect(); themeObserver.disconnect(); if (animationId) cancelAnimationFrame(animationId)
       canvas.removeEventListener("wheel", wheel); canvas.removeEventListener("pointerdown", pointerDown); canvas.removeEventListener("pointermove", pointerMove); canvas.removeEventListener("pointerup", pointerUp); canvas.removeEventListener("pointercancel", pointerCancel); canvas.removeEventListener("lostpointercapture", pointerCancel); canvas.removeEventListener("pointerleave", pointerLeave); canvas.removeEventListener("keydown", keyDown); canvas.removeEventListener("dblclick", doubleClick); document.removeEventListener("visibilitychange", visibility)
+      canvas.removeEventListener("contextmenu", contextMenu)
       for (const id of pointers.keys()) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id)
       drawRef.current = () => undefined; controlsRef.current = () => undefined; pointers.clear(); delete parent.dataset.navigating
     }
@@ -616,15 +643,17 @@ export function SimulationCanvas2D({ frame, frameSource, geometry, presentation,
   // New simulation frames update the drawing effect, not the unchanged map
   // controls. Their handlers read the current camera through controlsRef.
   return React.useMemo(() => <div className="sf-canvas2d-shell">
-    <canvas ref={canvasRef} className="sf-canvas2d" tabIndex={0} aria-label={staticMode ? "Route Planner map with selectable road directions" : "Simulation map with illustrative city scenery"} aria-describedby={navigationHintId} style={{ cursor: "grab", touchAction: "none" }} />
+    <canvas ref={canvasRef} className="sf-canvas2d" tabIndex={0} aria-label={staticMode ? "Route Planner map" : "Simulation map with illustrative city scenery"} aria-describedby={navigationHintId} style={{ cursor: "grab", touchAction: "none" }} />
     <div className="sf-canvas2d-navigation" role="group" aria-label="Map navigation">
       <Button variant="outline" size="icon" aria-label="Zoom in map" title="Zoom in (+)" onClick={() => controlsRef.current("in")}><Plus /></Button>
       <Button variant="outline" size="icon" aria-label="Zoom out map" title="Zoom out (−)" onClick={() => controlsRef.current("out")}><Minus /></Button>
-      <Button variant="outline" size="icon" aria-label="Reset map view" title="Reset view (Home)" onClick={() => controlsRef.current("reset")}><LocateFixed /></Button>
+      <Button variant="outline" size="icon" aria-label={staticMode ? "Fit whole map" : "Reset map view"} title={staticMode ? "Fit whole map (Home)" : "Reset view (Home)"} onClick={() => controlsRef.current("reset")}><LocateFixed /></Button>
     </div>
     <div ref={scaleRef} className="sf-canvas2d-scale" aria-label="Map scale"><b aria-hidden="true">↑ N</b><i aria-hidden="true" /><span /></div>
     <span ref={hintRef} className="sf-canvas2d-gesture-hint" aria-hidden="true">Drag to explore · Scroll to zoom</span>
     <div ref={tooltipRef} className="sf-canvas2d-tooltip" hidden aria-hidden="true" />
-    <span id={navigationHintId} className="sr-only">Drag to pan. Scroll, pinch, or use plus and minus keys to zoom. Double-click to zoom toward a location. Arrow keys pan, Home restores camera focus, and Escape clears selection. Use the labeled object picker beside the map to inspect objects with a keyboard.</span>
+    <span id={navigationHintId} className="sr-only">{staticMode
+      ? "Drag to pan. Scroll, pinch, or use plus and minus keys to zoom. Arrow keys pan and Home resets the view. Use the trip panel lists to choose a point or direction with the keyboard."
+      : "Drag to pan. Scroll, pinch, or use plus and minus keys to zoom. Double-click to zoom toward a location. Arrow keys pan, Home restores camera focus, and Escape clears selection. Use the labeled object picker beside the map to inspect objects with a keyboard."}</span>
   </div>, [staticMode, navigationHintId])
 }

@@ -1,10 +1,10 @@
-import type { RouteContext, RoutePath, RoutePreview, RouteVehicleClass } from "@/api/routes"
+import type { RouteContext, RoutePath, RoutePreview } from "@/api/routes"
 import type { VisualPoint } from "@/api/visual-network"
 
 /** One place where traffic can enter or leave the study area, as a person sees it on the map. */
 export type RouteEnd = { key: string; label: string; x: number; y: number; entryId: string | null; destinationId: string | null }
 export type EndStep = "start" | "destination"
-export type EndRole = "start" | "destination" | "available" | "unavailable"
+export type EndRole = "start" | "destination" | "other_exit" | "available" | "unavailable"
 export type EndAction = { type: "entry"; entryId: string } | { type: "destination"; destinationId: string }
 
 // The two carriageways of a dual road end a few metres apart; separate ends are far more than this.
@@ -75,14 +75,16 @@ export const formatDistance = (meters: number) =>
   meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters / 10) * 10} m`
 
 const statusWords: Record<RoutePreview["outcome"], string> = {
-  unchanged: "Same route", detour: "Detour", alternative_exit: "Other exit",
-  waiting_entry: "Waiting", no_route: "No route", invalid_arrangement: "Not usable",
+  unchanged: "Route unchanged", detour: "Detour to the same destination", alternative_exit: "Different exit",
+  waiting_entry: "Waiting at the start", no_route: "No route", invalid_arrangement: "No usable road arrangement",
 }
 
-export const routeStatus = (preview: RoutePreview | null) => preview ? statusWords[preview.outcome] : "Choose a trip"
+export function routeStatus(preview: RoutePreview, closedCount: number) {
+  return preview.outcome === "unchanged" && closedCount === 0 ? "Route found" : statusWords[preview.outcome]
+}
 
-export function describeRoute({ vehicle, preview, context, ends, entryId, destinationId, closedCount }: {
-  vehicle: RouteVehicleClass; preview: RoutePreview; context: Pick<RouteContext, "network_id" | "geometry">
+export function describeRoute({ preview, context, ends, entryId, destinationId, closedCount }: {
+  preview: RoutePreview; context: Pick<RouteContext, "network_id" | "geometry">
   ends: readonly RouteEnd[]; entryId: string; destinationId: string; closedCount: number
 }) {
   const start = ends.find(end => end.entryId === entryId)?.label ?? "the start"
@@ -94,15 +96,15 @@ export function describeRoute({ vehicle, preview, context, ends, entryId, destin
   const closed = closedCount === 1 ? "The closed road does not" : "The closed roads do not"
   switch (preview.outcome) {
     case "unchanged":
-      return `A ${vehicle} from ${start} to ${goal}: ${length}${via}.${closedCount ? ` ${closed} change this trip.` : ""}`
+      return `The route from ${start} to ${goal} is ${length}${via}.${closedCount ? ` ${closed} change this trip.` : ""}`
     case "detour":
-      return `A ${vehicle} from ${start} to ${goal} takes a detour: ${length} instead of ${formatDistance(routeLengthMeters(preview.original))}${via}.`
+      return `The trip takes a detour of ${length} instead of ${formatDistance(routeLengthMeters(preview.original))}${via}.`
     case "alternative_exit":
-      return `A ${vehicle} from ${start} is sent to ${exit} instead of ${goal}: ${length}${via}.`
+      return `The trip ends at ${exit} instead of ${goal}, after ${length}${via}.`
     case "waiting_entry":
-      return `A ${vehicle} waits outside ${start}, because that road is closed.`
+      return `Traffic waits outside ${start} because that road is closed.`
     case "no_route":
-      return `A ${vehicle} cannot get from ${start} to ${goal}. ${preview.reason}`
+      return `There is no open route from ${start} to ${goal}. ${preview.reason}`
     case "invalid_arrangement":
       return "These closures leave no usable roads. Reopen a road to see a route."
   }
@@ -111,20 +113,22 @@ export function describeRoute({ vehicle, preview, context, ends, entryId, destin
 const tripAllowed = (pairs: RouteContext["eligible_pairs"], entryId: string, destinationId: string) =>
   pairs.some(pair => pair.entry_id === entryId && pair.destination_id === destinationId)
 
-/** What clicking an end does: fill the active step, then move to the other one. An end that does not fit is ignored. */
-export function endAction(end: RouteEnd, picking: EndStep, pairs: RouteContext["eligible_pairs"], entryId: string): { action: EndAction | null; picking: EndStep } {
+/** Share the same eligibility rules between the map and the list. */
+export function endAction(end: RouteEnd, picking: EndStep, pairs: RouteContext["eligible_pairs"], entryId: string): EndAction | null {
   if (picking === "start") {
-    return end.entryId ? { action: { type: "entry", entryId: end.entryId }, picking: "destination" } : { action: null, picking }
+    return end.entryId && pairs.some(pair => pair.entry_id === end.entryId) ? { type: "entry", entryId: end.entryId } : null
   }
   return end.destinationId && tripAllowed(pairs, entryId, end.destinationId)
-    ? { action: { type: "destination", destinationId: end.destinationId }, picking: "start" } : { action: null, picking }
+    ? { type: "destination", destinationId: end.destinationId } : null
 }
 
-export function endRoles(ends: readonly RouteEnd[], picking: EndStep, pairs: RouteContext["eligible_pairs"], entryId: string, destinationId: string) {
-  return ends.map((end): { end: RouteEnd; role: EndRole } => {
-    if (end.entryId && end.entryId === entryId) return { end, role: "start" }
-    if (end.destinationId && end.destinationId === destinationId) return { end, role: "destination" }
-    const usable = picking === "start" ? !!end.entryId : !!end.destinationId && tripAllowed(pairs, entryId, end.destinationId)
-    return { end, role: usable ? "available" : "unavailable" }
+export function endRoles(ends: readonly RouteEnd[], picking: EndStep | null, pairs: RouteContext["eligible_pairs"],
+  entryId: string, destinationId: string, otherExitId?: string | null) {
+  return ends.map((end): { end: RouteEnd; role: EndRole; selectable: boolean } => {
+    const selectable = picking !== null && endAction(end, picking, pairs, entryId) !== null
+    if (end.entryId && end.entryId === entryId) return { end, role: "start", selectable }
+    if (end.destinationId && end.destinationId === destinationId) return { end, role: "destination", selectable }
+    if (end.destinationId && end.destinationId === otherExitId) return { end, role: "other_exit", selectable }
+    return { end, role: selectable ? "available" : "unavailable", selectable }
   })
 }

@@ -123,12 +123,12 @@ const preview = (outcome: RoutePreview["outcome"], parts: Partial<RoutePreview> 
 }) as RoutePreview
 const through = path("Highway", [{ kind: "connector", from_lane_id: "a", to_lane_id: "b", points: [{ x: -5, y: 0 }, { x: 5, y: 0 }] },
   { kind: "lane", lane_id: "b", points: [{ x: 5, y: 0 }, { x: 425, y: 0 }] }])
-const input = { vehicle: "car" as const, context, ends: buildRouteEnds(context), entryId: "b_w", destinationId: "b_hn_out" }
+const input = { context, ends: buildRouteEnds(context), entryId: "b_w", destinationId: "b_hn_out" }
 
 describe("plain-language route sentence", () => {
   it("states an unchanged trip with distance and the study junction", () => {
     const text = describeRoute({ ...input, closedCount: 0, preview: preview("unchanged", { original: through, selected: through, actual_destination_id: "b_hn_out" }) })
-    expect(text).toBe("A car from Dao Street (south-east end) to Davao-Agusan National Highway (north end): about 430 m, through the study junction.")
+    expect(text).toBe("The route from Dao Street (south-east end) to Davao-Agusan National Highway (north end) is about 430 m, through the study junction.")
   })
 
   it("adds that a closed road does not change an unchanged trip", () => {
@@ -146,7 +146,7 @@ describe("plain-language route sentence", () => {
   it("names the exit used instead when the destination cannot be reached", () => {
     const other = path("Sobrecarey", [{ kind: "lane", lane_id: "s", points: [{ x: 0, y: 0 }, { x: 100, y: 0 }] }], "b_s")
     const text = describeRoute({ ...input, closedCount: 1, preview: preview("alternative_exit", { original: through, selected: other, actual_destination_id: "b_s" }) })
-    expect(text).toContain("is sent to Sobrecarey Street (south end) instead of Davao-Agusan National Highway (north end): about 100 m")
+    expect(text).toContain("ends at Sobrecarey Street (south end) instead of Davao-Agusan National Highway (north end), after about 100 m")
   })
 
   it("explains waiting, no route and an unusable arrangement without a distance", () => {
@@ -155,17 +155,17 @@ describe("plain-language route sentence", () => {
     expect(describeRoute({ ...input, closedCount: 3, preview: preview("invalid_arrangement") })).toContain("Reopen a road")
   })
 
-  it("uses kilometres from 1000 m and the vehicle's own name", () => {
+  it("uses kilometres from 1000 m", () => {
     const far = path("Highway", [{ kind: "lane", lane_id: "b", points: [{ x: 0, y: 0 }, { x: 1240, y: 0 }] }])
-    const text = describeRoute({ ...input, vehicle: "bus", closedCount: 0, preview: preview("unchanged", { original: far, selected: far }) })
-    expect(text).toContain("A bus from")
+    const text = describeRoute({ ...input, closedCount: 0, preview: preview("unchanged", { original: far, selected: far }) })
     expect(text).toContain("about 1.2 km")
   })
 
-  it("gives a short status word for the strip", () => {
-    expect(routeStatus(null)).toBe("Choose a trip")
-    expect(routeStatus(preview("detour"))).toBe("Detour")
-    expect(routeStatus(preview("alternative_exit"))).toBe("Other exit")
+  it("uses a plain outcome and distinguishes a normal route from an unaffected trip", () => {
+    expect(routeStatus(preview("unchanged"), 0)).toBe("Route found")
+    expect(routeStatus(preview("unchanged"), 1)).toBe("Route unchanged")
+    expect(routeStatus(preview("detour"), 1)).toBe("Detour to the same destination")
+    expect(routeStatus(preview("alternative_exit"), 1)).toBe("Different exit")
   })
 })
 
@@ -176,17 +176,17 @@ describe("clicking a road end", () => {
   const south = ends.find(end => end.entryId === null)!
   const pairs = context.eligible_pairs
 
-  it("sets the start first, then moves on to the destination", () => {
-    expect(endAction(highway, "start", pairs, "b_w")).toEqual({ action: { type: "entry", entryId: "b_hn_in" }, picking: "destination" })
+  it("selects an eligible start", () => {
+    expect(endAction(highway, "start", pairs, "b_w")).toEqual({ type: "entry", entryId: "b_hn_in" })
   })
 
-  it("sets the destination only if the trip is allowed, then returns to the start step", () => {
-    expect(endAction(south, "destination", pairs, "b_w")).toEqual({ action: { type: "destination", destinationId: "b_s" }, picking: "start" })
-    expect(endAction(west, "destination", pairs, "b_w")).toEqual({ action: null, picking: "destination" })
+  it("sets the destination only if the trip is allowed", () => {
+    expect(endAction(south, "destination", pairs, "b_w")).toEqual({ type: "destination", destinationId: "b_s" })
+    expect(endAction(west, "destination", pairs, "b_w")).toBeNull()
   })
 
   it("ignores an end that cannot be a start", () => {
-    expect(endAction(south, "start", pairs, "b_w")).toEqual({ action: null, picking: "start" })
+    expect(endAction(south, "start", pairs, "b_w")).toBeNull()
   })
 
   const roleOf = (picking: "start" | "destination", entryId: string, destinationId: string, end: typeof west, trips = pairs) =>
@@ -205,5 +205,14 @@ describe("clicking a road end", () => {
     const onlyHighway = [{ entry_id: "b_w", destination_id: "b_hn_out" }]
     expect(roleOf("destination", "b_w", "b_hn_out", south, onlyHighway)).toBe("unavailable")
     expect(roleOf("destination", "b_hn_in", "b_w", west, pairs)).toBe("destination")
+  })
+
+  it("keeps the selected start visible without offering it as an invalid destination, then stops picking", () => {
+    const destinationOptions = endRoles(ends, "destination", pairs, "b_w", "")
+    expect(destinationOptions.find(item => item.end === west)).toMatchObject({ role: "start", selectable: false })
+    expect(destinationOptions.find(item => item.end === south)).toMatchObject({ role: "available", selectable: true })
+    const review = endRoles(ends, null, pairs, "b_w", "b_s", "b_hn_out")
+    expect(review.map(({ role }) => role)).toEqual(["start", "other_exit", "destination"])
+    expect(review.every(({ selectable }) => !selectable)).toBe(true)
   })
 })
