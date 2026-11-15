@@ -161,6 +161,18 @@ class ComparePairFramesTests(unittest.TestCase):
         self.assertLess(len(later["times"]), len(data["times"]))
         self.assertEqual(later["duration"], data["duration"])
 
+    def test_fast_json_response_matches_the_validated_model_and_renews_session(self):
+        left, right = self.record_pair()
+        with patch("services.render_frame_service.time.time", return_value=1000):
+            expected = backend_main.compare_pair_frames_response(left, right, 0, 1).model_dump(mode="json")
+            response = self.get_frames(left, right, 0, 1)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), expected)
+        self.assertEqual(response.headers["content-type"], "application/json")
+        self.assertIn("HttpOnly", response.headers["set-cookie"])
+        self.client.cookies.clear()
+        self.assertEqual(self.get_frames(left, right, 0, 1).status_code, 401)
+
     def test_pair_uses_the_embedded_revision_and_refuses_unverified_geometry(self):
         first, second = self.record_pair()
         payload = dict(TrafficEngine().base_network.payload, name="Recorded layout")
@@ -212,6 +224,25 @@ class ComparePairFramesTests(unittest.TestCase):
         self.assertEqual(self.get_frames(first, second, 0, 61).status_code, 422)
         self.assertEqual(self.get_frames(first, second, 5, 1).status_code, 422)
         self.assertEqual(self.get_frames(first, second, 0, 60).status_code, 200)
+
+    def test_replaying_gzip_windows_does_not_decompress_the_recording_again(self):
+        first, second = self.record_pair()
+        for run_id, label in ((first, "left"), (second, "right")):
+            raw = self.root / f"{label}.jsonl"
+            compressed = raw.with_suffix(".jsonl.gz")
+            with gzip.open(compressed, "wb") as stream:
+                stream.write(raw.read_bytes())
+            database.update_run(run_id, timeline_path=str(compressed))
+        with patch("gzip.open", wraps=gzip.open) as decompress:
+            early = self.get_frames(first, second, 0, 0.4)
+            late = self.get_frames(first, second, 0.5, 1)
+            rewind = self.get_frames(first, second, 0, 0.4)
+        self.assertEqual(early.status_code, 200, early.text)
+        self.assertEqual(late.status_code, 200, late.text)
+        for side in ("left", "right"):
+            self.assertEqual([frame["vehicles"] for frame in early.json()[side]],
+                             [frame["vehicles"] for frame in rewind.json()[side]])
+        self.assertEqual(decompress.call_count, 2, "each recording should be decompressed once, including indexing and rewinding")
 
     def test_frames_refuse_the_same_run_twice(self):
         first, _ = self.record_pair()

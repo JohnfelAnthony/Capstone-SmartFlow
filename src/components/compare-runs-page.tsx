@@ -66,7 +66,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { advancePlayback, compareFrameWindow, frameAtTime, frameWindow, kpiChange, studyJunctionId, windowsNear, windowsToRequest } from "@/lib/compare-view"
+import { advancePlayback, compareFrameWindow, comparePrefetchWindows, createCompareFrameCache, frameAtTime, kpiChange, studyJunctionId, windowsNear, windowsToRequest } from "@/lib/compare-view"
 import { controlLabel, isRlControl } from "@/lib/control-labels"
 import { EMPTY_VALUE } from "@/lib/display-format"
 import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
@@ -75,8 +75,8 @@ import "@/styles/compare-runs.css"
 const noSelection = "none"
 // Each frame is about 30 KB per run, so the page asks for 10 s at a time (the server allows up to 60 s).
 const WINDOW_SECONDS = 10
-const PREFETCH_SECONDS = 5
 const MIN_STEP_MS = 66
+const CONTROL_UPDATE_MS = 250
 const kpiRows = ["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "avg_ped_delay",
   "requested_vehicles", "total_vehicles_spawned", "pending_demand", "dropped_vehicles", "unfinished_vehicles",
   "boundary_wait_seconds", "avg_admitted_boundary_wait",
@@ -93,6 +93,7 @@ const chartTabs = {
 } as const
 type ChartTab = keyof typeof chartTabs
 type FrameWindows = { ids: string | null; byStart: Record<number, ComparePairFramesResponse> }
+const failedSafety = (warning: string) => warning.includes("failed a safety check")
 
 function compareErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError || error instanceof Error) {
@@ -135,7 +136,7 @@ function framesAt(loaded: ComparePairFramesResponse | null | undefined, time: nu
   return { left: loaded.left[index], right: loaded.right[index] }
 }
 
-function RunSelect({
+const RunSelect = React.memo(function RunSelect({
   value,
   onChange,
   options,
@@ -167,9 +168,9 @@ function RunSelect({
       </SelectContent>
     </Select>
   )
-}
+})
 
-function RunMetaCard({ bundle, role }: { bundle: CompareRunBundle; role: "Baseline" | "Compared" }) {
+const RunMetaCard = React.memo(function RunMetaCard({ bundle, role }: { bundle: CompareRunBundle; role: "Baseline" | "Compared" }) {
   const { run, timeline } = bundle.option
   const provenance = bundle.option.provenance
   return (
@@ -193,9 +194,9 @@ function RunMetaCard({ bundle, role }: { bundle: CompareRunBundle; role: "Baseli
       </CardContent>
     </Card>
   )
-}
+})
 
-function KpiCards({ pair }: { pair: ComparePairResponse }) {
+const KpiCards = React.memo(function KpiCards({ pair }: { pair: ComparePairResponse }) {
   const [expanded, setExpanded] = React.useState(false)
   const primary = ["avg_wait", "throughput", "avg_queue", "max_queue", "unfinished_vehicles", "avg_ped_delay"]
   return (
@@ -238,7 +239,7 @@ function KpiCards({ pair }: { pair: ComparePairResponse }) {
       </CardContent>
     </Card>
   )
-}
+})
 
 function DeferredCompareSection({ title, ready, children }: { title: string; ready: boolean; children: React.ReactNode }) {
   const section = React.useRef<HTMLDivElement>(null)
@@ -266,7 +267,7 @@ function DeferredCompareSection({ title, ready, children }: { title: string; rea
   </Card>}</div>
 }
 
-function HistoryChart({ left, right, time, duration, onSeek, sessionRevision }: {
+const HistoryChart = React.memo(function HistoryChart({ left, right, time, duration, onSeek, sessionRevision }: {
   left: number; right: number; time: number; duration: number; onSeek: (time: number) => void; sessionRevision: number
 }) {
   const [tab, setTab] = React.useState<ChartTab>("wait")
@@ -325,7 +326,7 @@ function HistoryChart({ left, right, time, duration, onSeek, sessionRevision }: 
       </CardContent>
     </Card>
   )
-}
+})
 
 export function CompareRunsPage() {
   const [runs, setRuns] = React.useState<CompareRunOption[]>([])
@@ -343,6 +344,7 @@ export function CompareRunsPage() {
   const [notice, setNotice] = React.useState<string | null>(null)
   const timeRef = React.useRef(0)
   const windowsRef = React.useRef<Record<number, ComparePairFramesResponse>>({})
+  const playerRef = React.useRef({ playing: false, speed: 1, seekRevision: 0 })
   const inFlightRef = React.useRef(new Map<string, AbortController>())
   const requestedWindowsRef = React.useRef<number[]>([])
   const pairIdsRef = React.useRef<string | null>(null)
@@ -369,13 +371,25 @@ export function CompareRunsPage() {
   const isLoadingPair = Boolean(pairIds) && !pairResult
   const isOpeningPlayback = isBuffering && !firstLoaded
   const detailReady = !geometry || Boolean(firstLoaded || framesError)
-  const nextFrameIndex = playbackTimes ? frameAtTime(playbackTimes, windowStart + WINDOW_SECONDS - 1e-7) + 1 : 0
-  const nextFrameTime = playbackTimes?.[nextFrameIndex]
-  const prefetchStart = nextFrameTime !== undefined && nextFrameTime - time <= PREFETCH_SECONDS
-    ? frameWindow(nextFrameTime, WINDOW_SECONDS).start : null
+  // At 4x two future windows give up to five wall seconds of headroom.
+  // Primitive dependencies keep the fetch effect off the per-tick path.
+  const [prefetchStart, followingStart] = bufferedFrames ? comparePrefetchWindows(playbackTimes, time, WINDOW_SECONDS, speed) : []
 
-  React.useEffect(() => { timeRef.current = time }, [time])
+  React.useEffect(() => { playerRef.current = { playing: isPlaying, speed, seekRevision } }, [isPlaying, speed, seekRevision])
   React.useEffect(() => { windowsRef.current = byStart ?? {} }, [byStart])
+  const openingFrames = pair?.opening_frames
+  const frameSources = React.useMemo(() => {
+    const left = createCompareFrameCache(), right = createCompareFrameCache()
+    const read = () => {
+      const at = timeRef.current
+      return framesAt(windowsRef.current[compareFrameWindow(playbackTimes, at, WINDOW_SECONDS)], at)
+        ?? (at === 0 ? framesAt(openingFrames, at) : null)
+    }
+    return {
+      left: () => left(read()?.left ?? null, playerRef.current),
+      right: () => right(read()?.right ?? null, playerRef.current),
+    }
+  }, [playbackTimes, openingFrames])
   React.useEffect(() => { rightRunIdRef.current = rightRunId }, [rightRunId])
   const cancelFrameRequests = React.useCallback(() => {
     const requests = inFlightRef.current
@@ -392,6 +406,7 @@ export function CompareRunsPage() {
       frameRequestsBlocked.current = true
       cancelFrameRequests()
       setIsPlaying(false)
+      setTime(timeRef.current)
       setFramesError("Session ended. Sign in to continue from this comparison.")
     }
     const restored = () => {
@@ -462,15 +477,16 @@ export function CompareRunsPage() {
     return () => request.abort()
   }, [pairIds, leftRunId, rightRunId, sessionRevision, pairAttempt])
 
-  // Fetch the window that holds the playback position, and the next one shortly before it ends.
+  // Prioritize the current window, then fill the lookahead one request at a time.
   // A window that was dropped from the cache, or whose request failed, is requested again when it is needed.
   React.useEffect(() => {
     if (!pair || !pairIds || !geometry || frameRequestsBlocked.current) return
-    const wanted = prefetchStart === null ? [windowStart] : [windowStart, prefetchStart]
+    const wanted = [windowStart, ...[prefetchStart, followingStart].filter(start => start !== undefined)]
     requestedWindowsRef.current = wanted
     const requests = inFlightRef.current
     const inFlight = new Set([...requests.keys()].filter((key) => key.startsWith(`${pairIds}:`)).map((key) => Number(key.split(":").pop())))
-    for (const start of windowsToRequest(wanted, byStart ?? {}, inFlight)) {
+    if (wanted.some(start => inFlight.has(start))) return
+    for (const start of windowsToRequest(wanted, byStart ?? {}, inFlight).slice(0, 1)) {
       const requestKey = `${pairIds}:${start}`
       const request = new AbortController()
       requests.set(requestKey, request)
@@ -482,7 +498,9 @@ export function CompareRunsPage() {
           setFramesError(null)
           setFrameWindows((current) => {
             const kept = current.ids === pairIds ? current.byStart : {}
-            return { ids: pairIds, byStart: { ...windowsNear(kept, stillWanted[0], WINDOW_SECONDS * 3, stillWanted[1]), [start]: response } }
+            // Keep one window behind and at most two ahead, bounding memory
+            // even for long, dense recordings.
+            return { ids: pairIds, byStart: { ...windowsNear(kept, stillWanted[0], WINDOW_SECONDS, stillWanted.slice(1)), [start]: response } }
           })
         })
         .catch((error) => {
@@ -492,15 +510,17 @@ export function CompareRunsPage() {
           setFramesError(compareErrorMessage(error, "Unable to load playback frames."))
           frameRequestsBlocked.current = true
           setIsPlaying(false)
+          setTime(timeRef.current)
         })
     }
-  }, [pair, pairIds, geometry, windowStart, prefetchStart, byStart, retryCount])
+  }, [pair, pairIds, geometry, windowStart, prefetchStart, followingStart, byStart, retryCount])
 
   // Playback follows simulation time, not a fixed delay per frame, and waits for frames rather than skipping.
   React.useEffect(() => {
     if (!isPlaying || duration <= 0 || !geometry) return
     let frameId = 0
     let last = performance.now()
+    let lastControlUpdate = last
     const tick = (now: number) => {
       frameId = requestAnimationFrame(tick)
       const elapsed = now - last
@@ -509,14 +529,17 @@ export function CompareRunsPage() {
       const next = advancePlayback(timeRef.current, Math.min(elapsed, 250), speed, duration)
       if (!windowsRef.current[compareFrameWindow(playbackTimes, next.time, WINDOW_SECONDS)]) return
       timeRef.current = next.time
-      setTime(next.time)
+      if (now - lastControlUpdate >= CONTROL_UPDATE_MS || next.finished) {
+        lastControlUpdate = now
+        setTime(next.time)
+      }
       if (next.finished) setIsPlaying(false)
     }
     frameId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frameId)
   }, [isPlaying, speed, duration, geometry, playbackTimes])
 
-  function resetPlayback() {
+  const resetPlayback = React.useCallback(() => {
     timeRef.current = 0
     setTime(0)
     setIsPlaying(false)
@@ -524,9 +547,9 @@ export function CompareRunsPage() {
     cancelFrameRequests()
     frameRequestsBlocked.current = false
     setLoadedPair(null)
-  }
+  }, [cancelFrameRequests])
 
-  async function exportReport() {
+  const exportReport = React.useCallback(async () => {
     if (!pair || isExporting) return
     setIsExporting(true)
     try {
@@ -540,47 +563,48 @@ export function CompareRunsPage() {
       toast.success("Comparison PDF downloaded")
     } catch (error) { toast.error(compareErrorMessage(error, "Unable to create the PDF.")) }
     finally { setIsExporting(false) }
-  }
+  }, [pair, isExporting])
 
-  function retryFrames() {
+  const retryFrames = React.useCallback(() => {
     frameRequestsBlocked.current = false
     cancelFrameRequests()
     setFramesError(null)
     setRetryCount(value => value + 1)
-  }
+  }, [cancelFrameRequests])
 
-  function selectBaseline(value: string) {
+  const selectBaseline = React.useCallback((value: string) => {
     resetPlayback()
     setLeftRunId(value)
     setRightRunId(noSelection)
     setCompatibleRuns([])
-  }
+  }, [resetPlayback])
 
-  function selectCompared(value: string) {
+  const selectCompared = React.useCallback((value: string) => {
     resetPlayback()
     setRightRunId(value)
-  }
+  }, [resetPlayback])
 
-  function swapRuns() {
+  const swapRuns = React.useCallback(() => {
     if (pairIds === null) return
     const previousBaseline = runs.find((option) => String(option.run.id) === leftRunId)
     resetPlayback()
     setLeftRunId(rightRunId)
     setRightRunId(leftRunId)
     setCompatibleRuns((current) => previousBaseline ? [previousBaseline, ...current.filter((option) => String(option.run.id) !== rightRunId)] : current)
-  }
+  }, [pairIds, runs, leftRunId, rightRunId, resetPlayback])
 
-  function seek(next: number, keepPlaying = false) {
+  const seek = React.useCallback((next: number, keepPlaying = false) => {
     const bounded = Math.min(Math.max(next, 0), duration)
     timeRef.current = bounded
     setTime(bounded)
     setSeekRevision((revision) => revision + 1)
     if (!keepPlaying) setIsPlaying(false)
-  }
+  }, [duration])
 
   function togglePlayback() {
     if (!geometry || duration <= 0 || frameRequestsBlocked.current || (!bufferedFrames && !isPlaying)) return
-    if (!isPlaying && time >= duration) seek(0, true)
+    if (!isPlaying && timeRef.current >= duration) seek(0, true)
+    else setTime(timeRef.current)
     setIsPlaying((current) => !current)
   }
 
@@ -592,16 +616,17 @@ export function CompareRunsPage() {
       togglePlayback()
     } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
       event.preventDefault()
-      seek(time + (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 10 : 1))
+      seek(timeRef.current + (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 10 : 1))
     }
   }
 
-  const failedSafety = (warning: string) => warning.includes("failed a safety check")
   const baselineTitle = pair ? runTitle(pair.left.option) : ""
   const comparedTitle = pair ? runTitle(pair.right.option) : ""
 
-  return (
-    <main className="compare-page">
+  // The playback clock changes about 15 times per second. Preserve the setup,
+  // notices and evidence controls while only the player and maps advance.
+  const header = React.useMemo(() => (
+    <>
       <section className="compare-hero">
         <div>
           <h1>Compare Runs</h1>
@@ -659,7 +684,14 @@ export function CompareRunsPage() {
           {pair.warnings.filter(warning => !failedSafety(warning)).map(warning => <li key={warning}>{warning}</li>)}
         </ul></CollapsibleContent>
       </Collapsible> : null}
+    </>
+  ), [pair, isExporting, exportReport, isLoadingRuns, loadRuns, leftRunId, rightRunId,
+    selectBaseline, selectCompared, runs, compatibleRuns, swapRuns, pairIds, notice,
+    pairResult, isLoadingPair, isOpeningPlayback, framesError, retryFrames])
 
+  return (
+    <main className="compare-page">
+      {header}
       {!pair ? (
         !pairIds ? <Empty className="compare-empty">
           <EmptyHeader>
@@ -672,8 +704,8 @@ export function CompareRunsPage() {
           <section className="compare-maps">
             {geometry ? (
               <>
-                <CompareMap geometry={geometry} frame={currentFrames?.left ?? null} title={`Baseline · ${baselineTitle}`} runKey={`${pairIds}:left`} junctionId={junctionId} playing={isPlaying} speed={speed} seekRevision={seekRevision} />
-                <CompareMap geometry={geometry} frame={currentFrames?.right ?? null} title={`Compared · ${comparedTitle}`} runKey={`${pairIds}:right`} junctionId={junctionId} playing={isPlaying} speed={speed} seekRevision={seekRevision} />
+                <CompareMap geometry={geometry} frame={currentFrames?.left ?? null} frameSource={frameSources.left} title={`Baseline · ${baselineTitle}`} runKey={`${pairIds}:left`} junctionId={junctionId} playing={isPlaying} speed={speed} seekRevision={seekRevision} />
+                <CompareMap geometry={geometry} frame={currentFrames?.right ?? null} frameSource={frameSources.right} title={`Compared · ${comparedTitle}`} runKey={`${pairIds}:right`} junctionId={junctionId} playing={isPlaying} speed={speed} seekRevision={seekRevision} />
               </>
             ) : <p className="compare-maps-loading" role="status">Recorded map unavailable.</p>}
           </section>
@@ -711,7 +743,7 @@ export function CompareRunsPage() {
             <CompareSignalsCard left={pair.left.option.run.id} right={pair.right.option.run.id} />
           </DeferredCompareSection>
           <DeferredCompareSection key={`${pairIds}:history`} title="Performance history" ready={detailReady}>
-            <HistoryChart left={pair.left.option.run.id} right={pair.right.option.run.id} time={time} duration={duration}
+            <HistoryChart left={pair.left.option.run.id} right={pair.right.option.run.id} time={isPlaying ? Math.floor(time) : time} duration={duration}
               onSeek={seek} sessionRevision={sessionRevision} />
           </DeferredCompareSection>
 

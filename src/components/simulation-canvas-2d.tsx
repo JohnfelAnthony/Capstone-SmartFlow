@@ -12,6 +12,7 @@ import { boundMapPan, claimMapLabel, createMapInterpolator, fitMap as fit, mapSc
 import { drawPlannerOverlay, pickPlannerEnd, pickPlannerLane, plannerFitBounds, type PlannerFitRequest, type PlannerOverlay } from "@/simulation/route-planner-overlay"
 
 type Props = { frame: RenderFrame | null; geometry: SceneGeometry; presentation: PresentationState; onSelect: (selection: Selection | null) => void; runKey?: string; onPerformanceSample?: (sample: { fps: number; p95FrameMs: number }) => void
+  frameSource?: () => RenderFrame | null
   staticMode?: boolean; plannerOverlay?: PlannerOverlay; onRoadDirectionSelect?: (laneId: string) => void; onRoadEndSelect?: (endKey: string) => void; fitRequest?: PlannerFitRequest }
 type Theme = "light" | "dark"
 /** Flat city-illustration palettes. Scenery stays muted so traffic and signals carry the contrast. */
@@ -396,17 +397,17 @@ function dynamicMap(ctx: CanvasRenderingContext2D, geometry: SceneGeometry, fram
   return report
 }
 
-export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, runKey = "", onPerformanceSample,
+export function SimulationCanvas2D({ frame, frameSource, geometry, presentation, onSelect, runKey = "", onPerformanceSample,
   staticMode = false, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }: Props) {
   const navigationHintId = React.useId()
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null), drawRef = React.useRef<() => void>(() => undefined)
   const controlsRef = React.useRef<(action: "in" | "out" | "reset") => void>(() => undefined)
   const tooltipRef = React.useRef<HTMLDivElement | null>(null), scaleRef = React.useRef<HTMLDivElement | null>(null), hintRef = React.useRef<HTMLSpanElement | null>(null)
-  const latestRef = React.useRef({ frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest })
+  const latestRef = React.useRef({ frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest })
   React.useEffect(() => {
-    latestRef.current = { frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }
+    latestRef.current = { frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest }
     drawRef.current()
-  }, [frame, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest])
+  }, [frame, frameSource, presentation, onSelect, runKey, onPerformanceSample, staticMode, plannerOverlay, onRoadDirectionSelect, onRoadEndSelect, fitRequest])
   React.useEffect(() => {
     const canvas = canvasRef.current, parent = canvas?.parentElement, context = canvas?.getContext("2d", { alpha: false })
     if (!canvas || !parent || !context) return
@@ -461,7 +462,8 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       animationId = 0
       const paintStarted = performance.now()
       const current = latestRef.current, focus = `${current.presentation.focus}:${current.presentation.junctionId}:${current.presentation.revision}`
-      stream.set(current.staticMode ? null : current.frame, `${current.runKey}:${current.presentation.revision}`, now)
+      const inputFrame = current.frameSource ? current.frameSource() : current.frame
+      stream.set(current.staticMode ? null : inputFrame, `${current.runKey}:${current.presentation.revision}`, now)
       displayedFrame = current.staticMode ? null : stream.sample(now)
       if (focus !== previousFocus) {
         transform = fit(current.presentation.focus === "network" ? geometry.bounds : boundsForJunction(geometry, current.presentation.junctionId), width, height)
@@ -478,7 +480,7 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         const vehicle = displayedFrame?.vehicles.find((entity) => entity.id === current.presentation.selection?.id)
         if (vehicle) { transform.ox = width / 2 - vehicle.x * transform.scale; transform.oy = height / 2 + vehicle.y * transform.scale }
       }
-      if (current.frame?.visual.pedestrian_paths !== previousPathSource) { previousPathSource = current.frame?.visual.pedestrian_paths; pathsKey = JSON.stringify(previousPathSource ?? []) }
+      if (inputFrame?.visual.pedestrian_paths !== previousPathSource) { previousPathSource = inputFrame?.visual.pedestrian_paths; pathsKey = JSON.stringify(previousPathSource ?? []) }
       if (!decoration || pathsKey !== sceneryPathsKey) {
         decoration = mapScenery(geometry, pathsKey, previousPathSource)
         sceneryPathsKey = pathsKey
@@ -523,7 +525,9 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
         current.onPerformanceSample?.({ fps: drawnFrames * 1000 / (now - sampleStarted), p95FrameMs: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))] })
         sampleStarted = now; drawnFrames = 0; frameIntervals = []
       }
-      if (!current.staticMode && stream.moving()) schedule()
+      // Compare supplies snapshots directly from its clock, between the less
+      // frequent React control updates. Poll until paused or the run ends.
+      if (!current.staticMode && (stream.moving() || (current.frameSource && inputFrame?.status === "running"))) schedule()
     }
     const resize = () => {
       const nextWidth = Math.max(1, parent.clientWidth), nextHeight = Math.max(1, parent.clientHeight), nextDpr = Math.min(window.devicePixelRatio || 1, 1.5)
@@ -609,7 +613,9 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
       drawRef.current = () => undefined; controlsRef.current = () => undefined; pointers.clear(); delete parent.dataset.navigating
     }
   }, [geometry])
-  return <div className="sf-canvas2d-shell">
+  // New simulation frames update the drawing effect, not the unchanged map
+  // controls. Their handlers read the current camera through controlsRef.
+  return React.useMemo(() => <div className="sf-canvas2d-shell">
     <canvas ref={canvasRef} className="sf-canvas2d" tabIndex={0} aria-label={staticMode ? "Route Planner map with selectable road directions" : "Simulation map with illustrative city scenery"} aria-describedby={navigationHintId} style={{ cursor: "grab", touchAction: "none" }} />
     <div className="sf-canvas2d-navigation" role="group" aria-label="Map navigation">
       <Button variant="outline" size="icon" aria-label="Zoom in map" title="Zoom in (+)" onClick={() => controlsRef.current("in")}><Plus /></Button>
@@ -620,5 +626,5 @@ export function SimulationCanvas2D({ frame, geometry, presentation, onSelect, ru
     <span ref={hintRef} className="sf-canvas2d-gesture-hint" aria-hidden="true">Drag to explore · Scroll to zoom</span>
     <div ref={tooltipRef} className="sf-canvas2d-tooltip" hidden aria-hidden="true" />
     <span id={navigationHintId} className="sr-only">Drag to pan. Scroll, pinch, or use plus and minus keys to zoom. Double-click to zoom toward a location. Arrow keys pan, Home restores camera focus, and Escape clears selection. Use the labeled object picker beside the map to inspect objects with a keyboard.</span>
-  </div>
+  </div>, [staticMode, navigationHintId])
 }

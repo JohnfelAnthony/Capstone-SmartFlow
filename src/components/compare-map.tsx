@@ -20,7 +20,7 @@ function phaseText(frame: RenderFrame, junctionId: string | null) {
 }
 
 /** One recorded run drawn on the existing 2D map. Each map keeps its own camera; pan and zoom are not linked. */
-export function CompareMap({ geometry, frame, title, runKey, junctionId = null, playing, speed, seekRevision }: {
+export function CompareMap({ geometry, frame, title, runKey, junctionId = null, playing, speed, seekRevision, frameSource }: {
   geometry: SceneGeometry
   frame: CompareRenderFrame | null
   title: string
@@ -29,6 +29,7 @@ export function CompareMap({ geometry, frame, title, runKey, junctionId = null, 
   speed: number
   seekRevision: number
   junctionId?: string | null
+  frameSource?: () => RenderFrame | null
 }) {
   const queue = frame?.queues ? studyQueue(frame.queues) : null
   const presentation = React.useMemo(() => createPresentationState(geometry, junctionId), [geometry, junctionId])
@@ -37,7 +38,7 @@ export function CompareMap({ geometry, frame, title, runKey, junctionId = null, 
     <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
     <CardContent className="compare-map-content">
       <div className="compare-map-viewport">
-        <SimulationCanvas2D frame={canvasFrame} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={ignoreSelection} />
+        <SimulationCanvas2D frame={canvasFrame} frameSource={frameSource} geometry={geometry} presentation={presentation} runKey={runKey} onSelect={ignoreSelection} />
         <dl className="compare-map-overlay" aria-label={`${title} at this time`}>
           {frame ? <>
             <div><dt>Phase</dt><dd>{phaseText(frame, junctionId)}</dd></div>

@@ -35,6 +35,20 @@ export function compareFrameWindow(times: number[] | undefined, time: number, wi
   return frameWindow(times?.[index] ?? 0, windowSeconds).start
 }
 
+/** Up to two future windows within five wall seconds, skipping empty recording gaps. */
+export function comparePrefetchWindows(times: number[] | undefined, time: number, windowSeconds: number, speed: number): number[] {
+  let start = compareFrameWindow(times, time, windowSeconds)
+  const wanted: number[] = []
+  while (wanted.length < 2) {
+    const nextIndex = frameAtTime(times ?? [], start + windowSeconds - 1e-7) + 1
+    const nextTime = times?.[nextIndex]
+    if (nextTime === undefined || nextTime - time > 5 * speed) break
+    start = frameWindow(nextTime, windowSeconds).start
+    wanted.push(start)
+  }
+  return wanted
+}
+
 /** Compare owns the playback state. The recording supplies the scene, not the player's clock settings. */
 export function compareCanvasFrame(frame: RenderFrame, playing: boolean, speed: number, seekRevision: number): RenderFrame {
   return {
@@ -43,6 +57,21 @@ export function compareCanvasFrame(frame: RenderFrame, playing: boolean, speed: 
     speed_multiplier: speed,
     render_mode: "playback",
     playback: { ...frame.playback, active: true, seek_revision: seekRevision },
+  }
+}
+
+/** Read on the canvas animation loop; reuse the wrapper until the recorded snapshot or player state changes. */
+export function createCompareFrameCache() {
+  let previous: RenderFrame | null = null
+  let settings: { playing: boolean; speed: number; seekRevision: number } | undefined
+  let result: RenderFrame | null = null
+  return (frame: RenderFrame | null, state: NonNullable<typeof settings>) => {
+    if (frame !== previous || state !== settings) {
+      previous = frame
+      settings = state
+      result = frame ? compareCanvasFrame(frame, state.playing, state.speed, state.seekRevision) : null
+    }
+    return result
   }
 }
 
@@ -68,9 +97,9 @@ export function windowsToRequest(wanted: number[], loaded: Record<number, unknow
   return wanted.filter((start) => !(start in loaded) && !inFlight.has(start))
 }
 
-export function windowsNear<T>(windows: Record<number, T>, start: number, reach: number, prefetchStart?: number): Record<number, T> {
+export function windowsNear<T>(windows: Record<number, T>, start: number, reach: number, prefetchStarts: number[] = []): Record<number, T> {
   return Object.fromEntries(Object.entries(windows).filter(([key]) => {
     const windowStart = Number(key)
-    return windowStart === prefetchStart || Math.abs(windowStart - start) <= reach
+    return prefetchStarts.includes(windowStart) || Math.abs(windowStart - start) <= reach
   }))
 }

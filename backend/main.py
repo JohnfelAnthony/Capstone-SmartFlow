@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import csv
 import functools
-import gzip
 import json
 import math
 import re
@@ -28,6 +27,7 @@ import config
 import database
 from services.metric_definitions import METRIC_CATALOG, METRIC_VERSION, metric_value, interpreted_metrics, run_safety_issues
 from services.control_labels import condition_label
+from services.compare_timeline_cache import compare_timeline_cache
 from backend.schemas import (
     AdminPasswordResetResponse,
     AdminRole,
@@ -1503,7 +1503,7 @@ def compare_line_time(line: str) -> float:
 
 
 def open_compare_timeline(path: Path):
-    return gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
+    return compare_timeline_cache.open(path)
 
 
 @functools.lru_cache(maxsize=4)
@@ -1566,7 +1566,9 @@ def render_compare_frames(
         path, offsets = timeline
         result = []
         for position, frame in enumerate(read_indexed_frames(path, (offsets[time] for time in times)), first):
-            rendered = render_frame_service.build_render_frame(frame, sequence=position)
+            # Each JSON-decoded frame belongs only to this response. Transfer
+            # its metadata instead of recursively copying it a second time.
+            rendered = render_frame_service.build_render_frame(frame, sequence=position, copy_metadata=False)
             queues = frame.get("queues")
             if isinstance(queues, dict) and queues:
                 rendered["queues"] = {key: compare_float(queues.get(key)) for key in COMPARE_APPROACHES}
@@ -1924,14 +1926,23 @@ def get_compare_pair_history(
 
 @app.get("/api/compare/pair/frames", response_model=ComparePairFramesResponse)
 def get_compare_pair_frames(
+    response: Response,
     left_run_id: int = Query(ge=1),
     right_run_id: int = Query(ge=1),
     start: float = Query(ge=0),
     end: float = Query(ge=0),
     user: dict = Depends(require_current_user),
-) -> ComparePairFramesResponse:
+) -> Response:
     require_permission(user, "compare", "view")
-    return compare_pair_frames_response(left_run_id, right_run_id, start, end)
+    frames = compare_pair_frames_response(left_run_id, right_run_id, start, end)
+    # This installed FastAPI version otherwise expands the validated model to
+    # Python dictionaries and JSON-encodes them again. Keep the documented model
+    # contract, using Pydantic's JSON serializer directly for these large windows.
+    encoded = Response(content=frames.model_dump_json(), media_type="application/json")
+    # Returning a Response bypasses FastAPI's normal dependency-header merge,
+    # including the sliding session cookie set by require_current_user.
+    encoded.raw_headers.extend(response.raw_headers)
+    return encoded
 
 
 def compare_signal_evidence(left_run_id: int, right_run_id: int) -> dict:
