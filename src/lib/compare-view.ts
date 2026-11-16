@@ -12,6 +12,19 @@ export function kpiChange(left: number | null, right: number | null, lowerIsBett
   return { delta, tone: delta < 0 === lowerIsBetter ? "better" : "worse" }
 }
 
+/** One plain sentence for a metric card, e.g. "Worse: 13 fewer vehicles". A change that rounds to zero on screen is no change. */
+export function kpiVerdict(left: number | null, right: number | null, lowerIsBetter: boolean | null, unit: string, digits: number): { tone: KpiTone; text: string } {
+  if (left === null && right === null) return { tone: "neutral", text: "Not measured in these runs" }
+  const { delta, tone } = kpiChange(left, right, lowerIsBetter)
+  if (delta === null) return { tone: "neutral", text: "Not measured in one run" }
+  const size = Math.abs(delta).toLocaleString(undefined, { maximumFractionDigits: digits })
+  if (Number(Math.abs(delta).toFixed(digits)) === 0) return { tone: "neutral", text: "No change" }
+  const [up, down] = unit === "seconds" ? ["longer", "shorter"] : unit === "vehicles" ? ["more", "fewer"] : ["higher", "lower"]
+  const word = delta > 0 ? up : down
+  const amount = unit === "vehicles" ? `${size} ${word} ${unit}` : `${size} ${unit} ${word}`
+  return { tone, text: `${tone === "better" ? "Better" : tone === "worse" ? "Worse" : "Differs"}: ${amount}` }
+}
+
 export function frameWindow(time: number, windowSeconds = 60): { start: number; end: number } {
   const start = Math.floor(Math.max(0, time) / windowSeconds) * windowSeconds
   return { start, end: start + windowSeconds }

@@ -1,7 +1,7 @@
 import { createMapInterpolator } from "@/simulation/map-navigation"
 import type { RenderFrame } from "@/simulation/frame-types"
 import { describe, expect, it } from "vitest"
-import { advancePlayback, compareCanvasFrame, compareFrameWindow, comparePrefetchWindows, createCompareFrameCache, frameAtTime, frameWindow, kpiChange, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "./compare-view"
+import { advancePlayback, compareCanvasFrame, compareFrameWindow, comparePrefetchWindows, createCompareFrameCache, frameAtTime, frameWindow, kpiChange, kpiVerdict, studyJunctionId, studyQueue, windowsNear, windowsToRequest } from "./compare-view"
 
 describe("kpiChange", () => {
   it("marks a drop in a lower-is-better metric as better and a rise as worse", () => {
@@ -18,6 +18,26 @@ describe("kpiChange", () => {
   it("stays neutral when the metric has no direction or the change is negligible", () => {
     expect(kpiChange(3, 7, null)).toEqual({ delta: 4, tone: "neutral" })
     expect(kpiChange(5, 5.00001, true).tone).toBe("neutral")
+  })
+})
+
+describe("kpiVerdict", () => {
+  it("says better or worse in plain words with the unit's own comparison", () => {
+    expect(kpiVerdict(24.05, 53.42, true, "seconds", 2)).toEqual({ tone: "worse", text: "Worse: 29.37 seconds longer" })
+    expect(kpiVerdict(70, 57, false, "vehicles", 0)).toEqual({ tone: "worse", text: "Worse: 13 fewer vehicles" })
+    expect(kpiVerdict(0.48, 0.22, true, "vehicles", 2)).toEqual({ tone: "better", text: "Better: 0.26 fewer vehicles" })
+    expect(kpiVerdict(10, 15, true, "vehicle-seconds", 0)).toEqual({ tone: "worse", text: "Worse: 5 vehicle-seconds higher" })
+  })
+  it("says no change when the difference rounds to zero on screen", () => {
+    expect(kpiVerdict(114, 114, null, "vehicles", 0)).toEqual({ tone: "neutral", text: "No change" })
+    expect(kpiVerdict(5, 5.004, true, "seconds", 2)).toEqual({ tone: "neutral", text: "No change" })
+  })
+  it("names a difference without judging a metric that has no direction", () => {
+    expect(kpiVerdict(3, 7, null, "vehicles", 0)).toEqual({ tone: "neutral", text: "Differs: 4 more vehicles" })
+  })
+  it("says not measured when either run lacks the value", () => {
+    expect(kpiVerdict(null, null, true, "seconds", 2)).toEqual({ tone: "neutral", text: "Not measured in these runs" })
+    expect(kpiVerdict(3, null, true, "seconds", 2)).toEqual({ tone: "neutral", text: "Not measured in one run" })
   })
 })
 

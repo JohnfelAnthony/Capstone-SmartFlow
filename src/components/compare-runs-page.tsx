@@ -1,12 +1,9 @@
 import * as React from "react"
 import {
-  ArrowDownIcon,
   ArrowLeftRightIcon,
-  ArrowUpIcon,
   ChevronDownIcon,
   DownloadIcon,
   GitCompareArrowsIcon,
-  MinusIcon,
   PauseIcon,
   PlayIcon,
   RefreshCcwIcon,
@@ -66,7 +63,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { advancePlayback, compareFrameWindow, comparePrefetchWindows, createCompareFrameCache, frameAtTime, kpiChange, studyJunctionId, windowsNear, windowsToRequest } from "@/lib/compare-view"
+import { advancePlayback, compareFrameWindow, comparePrefetchWindows, createCompareFrameCache, frameAtTime, kpiVerdict, studyJunctionId, windowsNear, windowsToRequest } from "@/lib/compare-view"
 import { controlLabel, isRlControl } from "@/lib/control-labels"
 import { EMPTY_VALUE } from "@/lib/display-format"
 import { normalizeSceneGeometry } from "@/simulation/scene-geometry"
@@ -196,44 +193,63 @@ const RunMetaCard = React.memo(function RunMetaCard({ bundle, role }: { bundle: 
   )
 })
 
+/** Plain names for readers who are not traffic engineers; the technical name stays in the card's tooltip. */
+const plainKpiLabels: Record<string, string> = {
+  avg_wait: "Average wait while stopped", avg_queue: "Average queue per lane", max_queue: "Longest queue",
+  throughput: "Trips finished", avg_travel_time: "Average trip time", unfinished_vehicles: "Still on the road at the end",
+  avg_ped_delay: "Average pedestrian wait",
+}
+
+function setupSummary(pair: ComparePairResponse) {
+  const both = (key: string) => {
+    const left = metricValue(pair.left.metrics, key), right = metricValue(pair.right.metrics, key)
+    return left !== null && left === right ? formatNumber(left, 0) : null
+  }
+  const [requested, dropped, start, seconds] = ["requested_vehicles", "dropped_vehicles", "measurement_start", "measurement_seconds"].map(both)
+  return requested !== null && dropped !== null && start !== null && seconds !== null
+    ? `Same setup in both runs: ${requested} vehicles requested, ${dropped} dropped, measured for ${seconds} s after a ${start} s warm-up.`
+    : null
+}
+
 const KpiCards = React.memo(function KpiCards({ pair }: { pair: ComparePairResponse }) {
   const [expanded, setExpanded] = React.useState(false)
-  const primary = ["avg_wait", "throughput", "avg_queue", "max_queue", "unfinished_vehicles", "avg_ped_delay"]
+  const primary = ["avg_wait", "avg_queue", "max_queue", "throughput", "avg_travel_time", "unfinished_vehicles", "avg_ped_delay"]
+  const setup = setupSummary(pair)
+  const runs = [["Baseline", pair.left.option], ["Compared", pair.right.option]] as const
   return (
     <Card className="compare-kpi-card">
       <CardHeader>
         <CardTitle>What changed</CardTitle>
-        <CardDescription>Baseline → compared. Each change applies to that metric; read wait, completed trips and unfinished demand together.</CardDescription>
+        <CardDescription>Each card shows the baseline run and the compared run side by side. Read wait, finished trips and vehicles still on the road together.</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="compare-legend" aria-label="Run colours">
+          {runs.map(([role, option]) => <span key={role}><i data-run={role.toLowerCase()} />{role}: {runTitle(option)}</span>)}
+        </div>
         <div className="compare-kpi-grid">
           {(expanded ? kpiRows : primary.map(key => kpiRows.find(row => row.key === key)!)).map((row) => {
-            const left = metricValue(pair.left.metrics, row.key)
-            const right = metricValue(pair.right.metrics, row.key)
-            const change = kpiChange(left, right, row.lowerIsBetter)
+            const values = [metricValue(pair.left.metrics, row.key), metricValue(pair.right.metrics, row.key)]
             const digits = kpiDigits(row.key)
-            const { delta } = change
-            // A change that rounds to zero on screen is shown as no change, not as "-0 Better".
-            const roundsToZero = delta !== null && Number(Math.abs(delta).toFixed(digits)) === 0
-            const tone = roundsToZero ? "neutral" : change.tone
-            const Icon = delta === null || roundsToZero ? MinusIcon : delta > 0 ? ArrowUpIcon : ArrowDownIcon
+            const verdict = kpiVerdict(values[0], values[1], row.lowerIsBetter, row.unit, digits)
+            const largest = Math.max(...values.map(value => Math.abs(value ?? 0)))
             return (
-              <div className="compare-kpi-card-item" data-tone={tone} key={row.key} title={metricDescription(row.key)}>
-                <span className="compare-kpi-label">{row.label}</span>
-                <span className="compare-kpi-values">
-                  {left === null ? EMPTY_VALUE : formatNumber(left, digits)} → {right === null ? EMPTY_VALUE : formatNumber(right, digits)} <small>{row.unit}</small>
-                </span>
-                <span className="compare-kpi-delta">
-                  <Icon aria-hidden="true" />
-                  {delta === null ? EMPTY_VALUE : roundsToZero ? "0" : `${delta > 0 ? "+" : ""}${formatNumber(delta, digits)}`}
-                  {tone !== "neutral" ? <em>{tone === "better" ? "Better" : "Worse"}</em> : null}
-                </span>
+              <div className="compare-kpi-card-item" data-tone={verdict.tone} key={row.key} title={`${row.label}: ${metricDescription(row.key)}`}>
+                <span className="compare-kpi-label">{plainKpiLabels[row.key] ?? row.label}</span>
+                {values.every(value => value === null) ? null : runs.map(([role], index) => (
+                  <span className="compare-kpi-bar" key={role}>
+                    <span>{role}</span>
+                    <span className="compare-kpi-track"><i data-run={role.toLowerCase()} style={{ width: `${largest ? 100 * Math.abs(values[index] ?? 0) / largest : 0}%` }} /></span>
+                    <strong>{values[index] === null ? EMPTY_VALUE : formatNumber(values[index], digits)} <small>{row.unit}</small></strong>
+                  </span>
+                ))}
+                <span className="compare-kpi-delta">{verdict.text}</span>
               </div>
             )
           })}
         </div>
+        {!expanded && setup ? <p className="compare-setup-note">{setup}</p> : null}
         <Button variant="ghost" size="sm" className="mt-3" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-          <ChevronDownIcon data-icon="inline-start" />{expanded ? "Show key results" : "All metrics and measurement details"}
+          <ChevronDownIcon data-icon="inline-start" />{expanded ? "Show key results" : "Show all numbers"}
         </Button>
         <MetricDefinitions keys={kpiRows.map((row) => row.key)} />
       </CardContent>
