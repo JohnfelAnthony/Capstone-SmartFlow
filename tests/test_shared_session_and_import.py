@@ -21,6 +21,19 @@ from simulation.road_network import load_network
 from simulation.traffic_engine import TrafficEngine
 
 
+class imported_csv:
+    """Stands in for the import endpoint removed by D49; scenarios saved with imported counts still use this converter."""
+    def __init__(self, payload):
+        try:
+            self.body, self.status_code = observed_data_import.import_observations(**payload), 200
+        except ValueError as exc:
+            self.body, self.status_code = {"detail": str(exc)}, 422
+        self.text = str(self.body)
+
+    def json(self):
+        return self.body
+
+
 class SharedSessionAndImportTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="shared-test-", dir=Path(__file__).resolve().parent)
@@ -87,20 +100,20 @@ class SharedSessionAndImportTests(unittest.TestCase):
                                    if a != b and network.route(a, b))
         metadata = {"source_kind": "synthetic", "source_description": "Reproducible sample counts", "collected_on": "2026-01-01"}
         trip_csv = f"time_s,source,destination,vehicle_type\n0.5,{source},{destination},bus\n"
-        imported = self.a.post("/api/scenarios/observations/import", json={"kind": "trips", "csv_text": trip_csv, **metadata})
+        imported = imported_csv({"kind": "trips", "csv_text": trip_csv, **metadata})
         self.assertEqual(imported.status_code, 200, imported.text)
         config = imported.json()["engine_config"]
         self.assertEqual(config["trips"][0]["vehicle_type"], "bus")
         source_path = Path(imported.json()["summary"]["source_path"])
         self.assertEqual(source_path.read_bytes(), trip_csv.encode("utf-8"))
         self.assertEqual(source_path.read_text(encoding="utf-8"), trip_csv)
-        bad = self.a.post("/api/scenarios/observations/import", json={"kind": "trips",
+        bad = imported_csv({"kind": "trips",
             "csv_text": f"time_s,source,destination,vehicle_type\n0.5,{source},invalid,bus\n", **metadata})
         self.assertEqual(bad.status_code, 422, bad.text)
         self.assertIn("Row 2", bad.json()["detail"])
         self.assertEqual(len(list((self.root / "imports").glob("*.csv"))), 1)
         count_csv = f"start_s,end_s,source,destination,count\n0,10,{source},{destination},3\n"
-        counts = self.a.post("/api/scenarios/observations/import", json={"kind": "od_counts", "csv_text": count_csv, **metadata,
+        counts = imported_csv({"kind": "od_counts", "csv_text": count_csv, **metadata,
             "engine_config": config})
         self.assertEqual(counts.status_code, 200, counts.text)
         count_config = counts.json()["engine_config"]
@@ -114,17 +127,17 @@ class SharedSessionAndImportTests(unittest.TestCase):
         junction = network.lanes[from_lane].target
         turn_header = "start_s,end_s,source,destination,junction,from_lane,to_lane,count\n"
         turn_row = f"0,10,{source},{destination},{junction},{from_lane},{to_lane},2\n"
-        turns = self.a.post("/api/scenarios/observations/import", json={"kind": "turn_counts",
+        turns = imported_csv({"kind": "turn_counts",
             "csv_text": turn_header + turn_row, **metadata, "engine_config": count_config})
         self.assertEqual(turns.status_code, 200, turns.text)
         self.assertEqual(len(turns.json()["engine_config"]["trips"]), 2)
         self.assertIn("routing may later change", turns.json()["summary"]["conversion"])
-        invalid_turn = self.a.post("/api/scenarios/observations/import", json={"kind": "turn_counts",
+        invalid_turn = imported_csv({"kind": "turn_counts",
             "csv_text": turn_header + turn_row.replace(from_lane, "invalid-lane"), **metadata})
         self.assertEqual(invalid_turn.status_code, 422)
         self.assertIn("Row 2", invalid_turn.json()["detail"])
         ped_csv = f"start_s,end_s,junction,count\n0,10,{network.intersections[0]},2\n"
-        pedestrians = self.a.post("/api/scenarios/observations/import", json={"kind": "pedestrian_counts", "csv_text": ped_csv,
+        pedestrians = imported_csv({"kind": "pedestrian_counts", "csv_text": ped_csv,
             **metadata, "engine_config": count_config})
         self.assertEqual(pedestrians.status_code, 200, pedestrians.text)
         full_config = pedestrians.json()["engine_config"]
@@ -147,7 +160,7 @@ class SharedSessionAndImportTests(unittest.TestCase):
         source, destination = next((a, b) for a in network.boundaries for b in network.boundaries
                                    if a != b and network.route(a, b))
         csv_text = f"start_s,end_s,source,destination,count\n0,600,{source},{destination},300\n"
-        imported = self.a.post("/api/scenarios/observations/import", json={
+        imported = imported_csv({
             "kind": "od_counts", "csv_text": csv_text, "source_kind": "synthetic",
             "source_description": "300-arrival persistence regression", "collected_on": "2026-01-01"})
         self.assertEqual(imported.status_code, 200, imported.text)
@@ -183,7 +196,7 @@ class SharedSessionAndImportTests(unittest.TestCase):
         for newline in ("\n", "\r\n"):
             with self.subTest(newline=repr(newline)):
                 csv_text = newline.join(["time_s,source,destination,vehicle_type", f"1,{source},{destination},car", ""])
-                response = self.a.post("/api/scenarios/observations/import", json={
+                response = imported_csv({
                     "kind": "trips", "csv_text": csv_text, "source_kind": "synthetic",
                     "source_description": "Exact source bytes — synthetic fixture", "collected_on": "2026-01-01"})
                 self.assertEqual(response.status_code, 200, response.text)
@@ -201,7 +214,7 @@ class SharedSessionAndImportTests(unittest.TestCase):
                    "source_description": "Bounded import regression", "collected_on": "2026-01-01"}
         existing_scenarios = database.get_scenarios()
         with patch.object(config, "SCENARIO_CONFIG_MAX_BYTES", 16384):
-            rejected = self.a.post("/api/scenarios/observations/import", json=payload)
+            rejected = imported_csv(payload)
         self.assertEqual(rejected.status_code, 422, rejected.text)
         self.assertIn("16384-byte limit", rejected.json()["detail"])
         self.assertIn("expanded size", rejected.json()["detail"])
@@ -217,13 +230,13 @@ class SharedSessionAndImportTests(unittest.TestCase):
             ("od_counts", f"start_s,end_s,source,destination,count\n0,15,{source},{destination},0\n"),
             ("pedestrian_counts", f"start_s,end_s,junction,count\n0,15,{network.intersections[0]},0\n"),
         ):
-            response = self.a.post("/api/scenarios/observations/import", json={
+            response = imported_csv({
                 "kind": kind, "csv_text": csv_text, "engine_config": {"traffic_density": "none"}, **metadata})
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["summary"]["arrival_count"], 0)
             self.assertEqual(response.json()["engine_config"]["demand_source"]["kind"], "observed")
             self.assertEqual(Path(response.json()["summary"]["source_path"]).read_text(encoding="utf-8"), csv_text)
-        invalid = self.a.post("/api/scenarios/observations/import", json={"kind": "od_counts",
+        invalid = imported_csv({"kind": "od_counts",
             "csv_text": f"start_s,end_s,source,destination,count\n0,15,invalid,{destination},0\n", **metadata})
         self.assertEqual(invalid.status_code, 422)
         self.assertIn("Row 2", invalid.json()["detail"])

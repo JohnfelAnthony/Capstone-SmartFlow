@@ -219,6 +219,18 @@ class OperationsTests(unittest.TestCase):
             self.assertFalse(fresh.get("/api/auth/me").json()["must_change_password"])
         self.assertFalse(database.get_user_by_id(user_id)["must_change_password"])
 
+    def test_password_change_signs_out_other_sessions_but_keeps_this_one(self):
+        database.create_user("Two", "twodevices", None, auth.hash_password("TwoDevices42!"))
+        login = {"username": "twodevices", "password": "TwoDevices42!"}
+        with TestClient(app) as phone, TestClient(app) as laptop:
+            phone.post("/api/auth/login", json=login)
+            laptop.post("/api/auth/login", json=login)
+            changed = laptop.post("/api/auth/change-password", json={
+                "current_password": "TwoDevices42!", "new_password": "TwoDevices43!", "confirm_password": "TwoDevices43!"})
+            self.assertEqual(changed.status_code, 200, changed.text)
+            self.assertEqual(laptop.get("/api/auth/me").status_code, 200)
+            self.assertEqual(phone.get("/api/auth/me").status_code, 401)
+
     def test_expired_session_and_restart_reconciliation(self):
         user_id = database.create_user("Operator", "operator", None, auth.hash_password("OperatorPassword42!"), role_id=2)
         with TestClient(app) as operator:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import atexit
 import gzip
+import shutil
 import tempfile
 import threading
 from collections import OrderedDict
@@ -16,6 +17,19 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import BinaryIO
+
+
+# Same reserve recordings keep free, so a copy never takes the last of the disk from the database.
+FREE_SPACE_RESERVE = 256 * 1024 * 1024
+
+
+def _declared_size(path: Path) -> int:
+    """Decoded size from the gzip trailer (modulo 4 GiB), or 0 for a non-gzip file so the reader reports it."""
+    with path.open("rb") as stream:
+        if stream.read(2) != b"\x1f\x8b":
+            return 0
+        stream.seek(-4, 2)
+        return int.from_bytes(stream.read(4), "little")
 
 
 class CompareTimelineCache:
@@ -40,6 +54,9 @@ class CompareTimelineCache:
                 self._remove(key)
 
     def _decode(self, path: Path) -> tuple[BinaryIO | None, int]:
+        expected = _declared_size(path)
+        if expected > self.max_bytes // 2 or shutil.disk_usage(tempfile.gettempdir()).free < expected + FREE_SPACE_RESERVE:
+            return None, 0
         try:
             copy = tempfile.TemporaryFile(prefix="smartflow-compare-", mode="w+b")
         except OSError:

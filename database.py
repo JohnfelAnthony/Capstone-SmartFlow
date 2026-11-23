@@ -6,7 +6,6 @@ All schema definitions, CRUD operations, and seed data.
 import sqlite3
 import os
 import json
-import secrets
 from datetime import UTC, datetime, timedelta
 from contextlib import contextmanager
 from pathlib import Path
@@ -21,7 +20,6 @@ SCENARIO_JSON_FIELDS = (
     "accident_config",
     "flooding_config",
 )
-AUTH_SESSION_VERSION_SETTING = "auth_session_version"
 
 
 def get_connection():
@@ -340,7 +338,6 @@ def init_db():
     _migrate_rl_models()
     normalize_standalone_artifact_paths()
     prune_login_attempts()
-    get_auth_session_version()
 
 
 def _migrate_login_attempts():
@@ -559,7 +556,6 @@ def seed_data():
                 ('min_password_length', str(config.MIN_PASSWORD_LENGTH)),
                 ('app_name', config.APP_NAME),
                 ('app_version', config.APP_VERSION),
-                ('maintenance_mode', '0'),
                 ('logging_level', 'INFO'),
             ]
             conn.executemany(
@@ -706,14 +702,9 @@ def delete_session_by_token(token):
         conn.execute("DELETE FROM user_sessions WHERE token = ?", (token,))
 
 
-def delete_sessions_for_user(user_id):
+def delete_sessions_for_user(user_id, keep_token=None):
     with get_db() as conn:
-        conn.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
-
-
-def delete_all_sessions():
-    with get_db() as conn:
-        conn.execute("DELETE FROM user_sessions")
+        conn.execute("DELETE FROM user_sessions WHERE user_id = ? AND token IS NOT ?", (user_id, keep_token))
 
 
 def update_session_expiry(token, expires_at):
@@ -897,20 +888,6 @@ def update_scenario(scenario_id, **kwargs):
         conn.execute(
             f"UPDATE scenarios SET {set_clause} WHERE id = ?", values
         )
-
-
-def delete_scenario(scenario_id):
-    timeline_paths = []
-    with get_db() as conn:
-        cursor = conn.execute(
-            "SELECT timeline_path FROM simulation_runs WHERE scenario_id = ?",
-            (scenario_id,),
-        )
-        timeline_paths = [row["timeline_path"] for row in cursor.fetchall() if row["timeline_path"]]
-        conn.execute("DELETE FROM simulation_runs WHERE scenario_id = ?", (scenario_id,))
-        conn.execute("DELETE FROM scenarios WHERE id = ?", (scenario_id,))
-    for timeline_path in timeline_paths:
-        _delete_timeline_artifacts(timeline_path)
 
 
 # ─── Simulation Runs CRUD ──────────────────────────────────────────
@@ -1347,78 +1324,7 @@ def get_setting(key, default=None):
         return row['value'] if row else default
 
 
-def set_setting(key, value):
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO system_settings (key, value, updated_at)
-               VALUES (?, ?, datetime('now'))
-               ON CONFLICT(key) DO UPDATE SET
-               value = excluded.value, updated_at = datetime('now')""",
-            (key, value)
-        )
-
-
-# ─── Notifications ─────────────────────────────────────────────────
-
-def get_auth_session_version() -> str:
-    version = get_setting(AUTH_SESSION_VERSION_SETTING)
-    if version:
-        return str(version)
-
-    version = secrets.token_hex(16)
-    set_setting(AUTH_SESSION_VERSION_SETTING, version)
-    return version
-
-
-def rotate_auth_session_version() -> str:
-    version = secrets.token_hex(16)
-    set_setting(AUTH_SESSION_VERSION_SETTING, version)
-    return version
-
-
-def is_maintenance_mode() -> bool:
-    return str(get_setting('maintenance_mode', '0')).strip() == '1'
-
-
-def set_maintenance_mode(enabled: bool):
-    set_setting('maintenance_mode', '1' if enabled else '0')
-
-
-def get_notifications(user_id, unread_only=False, limit=50):
-    with get_db() as conn:
-        query = "SELECT * FROM notifications WHERE user_id = ?"
-        params = [user_id]
-        if unread_only:
-            query += " AND read = 0"
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        cursor = conn.execute(query, params)
-        return [dict(row) for row in cursor.fetchall()]
-
-
-def create_notification(user_id, message, notif_type='info'):
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO notifications (user_id, message, type)
-               VALUES (?, ?, ?)""",
-            (user_id, message, notif_type)
-        )
-
-
-def mark_notification_read(notif_id):
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE notifications SET read = 1 WHERE id = ?", (notif_id,)
-        )
-
-
 # ─── Roles ─────────────────────────────────────────────────────────
-
-def get_roles():
-    with get_db() as conn:
-        cursor = conn.execute("SELECT * FROM roles ORDER BY id")
-        return [dict(row) for row in cursor.fetchall()]
-
 
 def get_role_by_name(name):
     with get_db() as conn:
@@ -1427,36 +1333,6 @@ def get_role_by_name(name):
         )
         row = cursor.fetchone()
         return dict(row) if row else None
-
-
-# ─── Constraints CRUD ──────────────────────────────────────────────
-
-def get_scenario_constraints(scenario_id):
-    with get_db() as conn:
-        cursor = conn.execute(
-            "SELECT * FROM scenario_constraints WHERE scenario_id = ?",
-            (scenario_id,)
-        )
-        return [dict(row) for row in cursor.fetchall()]
-
-
-def save_scenario_constraint(scenario_id, constraint_type, config_json):
-    _validate_json_object(f"constraint '{constraint_type}'", config_json)
-
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO scenario_constraints (scenario_id, constraint_type, config_json)
-               VALUES (?, ?, ?)""",
-            (scenario_id, constraint_type, config_json)
-        )
-
-
-def delete_scenario_constraints(scenario_id):
-    with get_db() as conn:
-        conn.execute(
-            "DELETE FROM scenario_constraints WHERE scenario_id = ?",
-            (scenario_id,)
-        )
 
 
 def _delete_timeline_artifacts(timeline_path):
@@ -1495,16 +1371,6 @@ def delete_run(run_id):
         conn.execute("DELETE FROM simulation_runs WHERE id = ?", (run_id,))
     if timeline_path:
         _delete_timeline_artifacts(timeline_path)
-
-
-def count_user_runs(user_id):
-    """Return total simulation runs created by a user."""
-    with get_db() as conn:
-        cursor = conn.execute(
-            "SELECT COUNT(*) FROM simulation_runs WHERE user_id = ?",
-            (user_id,)
-        )
-        return cursor.fetchone()[0]
 
 
 def get_user_activity_summary(user_id):
@@ -1615,40 +1481,6 @@ def create_backup(created_by):
                VALUES (?, ?, ?)""",
             (filename, created_by, size_bytes)
         )
-    return filename
-
-
-def restore_backup(backup_id):
-    with get_db() as conn:
-        cursor = conn.execute("SELECT filename FROM backups WHERE id = ?", (backup_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise ValueError("Backup not found")
-        filename = row['filename']
-    
-    src_path = _resolve_backup_path(filename)
-
-    if not src_path.exists():
-        raise FileNotFoundError(f"Backup file '{filename}' does not exist on disk.")
-
-    set_maintenance_mode(True)
-    try:
-        backup_conn = _connect_sqlite_file(src_path)
-        live_conn = get_connection()
-        try:
-            _checkpoint_wal(live_conn)
-            backup_conn.backup(live_conn)
-            live_conn.commit()
-            _checkpoint_wal(live_conn)
-        finally:
-            live_conn.close()
-            backup_conn.close()
-        init_db()
-        delete_all_sessions()
-        rotate_auth_session_version()
-    finally:
-        set_maintenance_mode(False)
-
     return filename
 
 

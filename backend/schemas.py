@@ -300,18 +300,6 @@ class ScenarioWriteRequest(BaseModel):
     engine_config: dict[str, Any] = Field(default_factory=dict)
 
 
-class ObservationImportRequest(BaseModel):
-    kind: str
-    source_kind: str = "synthetic"
-    csv_text: str
-    source_description: str
-    collected_on: str
-    collection_start: str | None = None
-    collection_end: str | None = None
-    engine_config: dict[str, Any] = Field(default_factory=dict)
-    network_id: str | None = None
-
-
 class ClosureCheckRequest(BaseModel):
     closed_lanes: list[str] = Field(default_factory=list)
     events: list[dict[str, Any]] = Field(default_factory=list)
@@ -467,11 +455,6 @@ class RoutePreviewResponse(BaseModel):
 class PeakCountsRequest(BaseModel):
     network_id: str
     engine_config: dict[str, Any] = Field(default_factory=dict)
-
-
-class ObservationImportResponse(BaseModel):
-    engine_config: dict[str, Any]
-    summary: dict[str, Any]
 
 
 class SimulationConfigureRequest(BaseModel):

@@ -60,8 +60,6 @@ from backend.schemas import (
     NetworkRevisionPreviewRequest,
     NetworkRevisionApplyRequest,
     PeakCountsRequest,
-    ObservationImportRequest,
-    ObservationImportResponse,
     Permission,
     RegisterRequest,
     RegisterResponse,
@@ -510,6 +508,7 @@ def me(user: dict = Depends(require_current_user)) -> CurrentUser:
 def change_password(
     payload: ChangePasswordRequest,
     user: dict = Depends(require_current_user),
+    smartflow_api_session: str | None = Cookie(default=None, alias=API_SESSION_COOKIE),
 ) -> MessageResponse:
     db_user = database.get_user_by_id(user["id"])
     if not db_user:
@@ -535,6 +534,8 @@ def change_password(
         password_hash=auth.hash_password(payload.new_password),
         must_change_password=0,
     )
+    # A changed password ends every other sign-in; this one stays so the user is not logged out mid-form.
+    database.delete_sessions_for_user(user["id"], keep_token=smartflow_api_session)
     database.log_audit_event(
         user_id=user["id"],
         action="api_change_password",
@@ -1596,37 +1597,6 @@ def create_scenario(payload: ScenarioWriteRequest, user: dict = Depends(require_
         details=f"Created scenario '{payload.name.strip()}' through the FastAPI bridge.",
     )
     return scenario_model(database.get_scenario_by_id(scenario_id))
-
-
-@app.get("/api/scenarios/observations/template")
-def get_observation_template(kind: str, example: bool = False, format: str = "json", network_id: str | None = None, user: dict = Depends(require_current_user)):
-    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
-    from services.observation_templates import observation_template
-    try:
-        if format not in {"json", "csv"}:
-            raise ValueError("Template format must be json or csv.")
-        if network_id:
-            from simulation.network_registry import load_registered_network
-            template = observation_template(kind, example=example, network=load_registered_network(network_id))
-        else:
-            template = observation_template(kind, example=example)
-        if format == "csv":
-            return Response(template["csv_text"], media_type="text/csv",
-                            headers={"Content-Disposition": f'attachment; filename="{template["filename"]}"'})
-        return template
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.post("/api/scenarios/observations/import", response_model=ObservationImportResponse)
-def import_scenario_observations(payload: ObservationImportRequest, user: dict = Depends(require_current_user)) -> ObservationImportResponse:
-    require_any_permission(user, [("scenarios", "create"), ("scenarios", "edit")])
-    from services.observed_data_import import import_observations
-    try:
-        result = import_observations(**payload.model_dump())
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    return ObservationImportResponse(**result)
 
 
 @app.post("/api/tools/field-observer/open", response_model=MessageResponse)

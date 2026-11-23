@@ -61,13 +61,13 @@ class ResultReportingApiTests(unittest.TestCase):
         for settings in ({"emergency_mode": "enabled"}, {"vehicle_mix": {"emergency": 1}}):
             response = self.client.post("/api/scenarios", json={"name": "Rejected scope", "engine_config": settings})
             self.assertEqual(response.status_code, 422, response.text)
-        template = self.client.get("/api/scenarios/observations/template", params={"kind": "trips", "example": True}).json()
-        csv_text = template["csv_text"].replace(",car", ",emergency")
-        self.assertNotEqual(csv_text, template["csv_text"])
-        response = self.client.post("/api/scenarios/observations/import", json={"kind": "trips",
-            "csv_text": csv_text, "source_description": "Synthetic removed-class rejection",
-            "source_kind": "synthetic", "collected_on": "2026-01-01"})
-        self.assertEqual(response.status_code, 422, response.text)
+        from services.observed_data_import import import_observations
+        from simulation.road_network import load_network
+        network = load_network()
+        source, destination = next((a, b) for a in network.boundaries for b in network.boundaries if a != b and network.route(a, b))
+        with self.assertRaisesRegex(ValueError, "vehicle_type is not supported"):
+            import_observations(kind="trips", csv_text=f"time_s,source,destination,vehicle_type\n0.5,{source},{destination},emergency\n",
+                                source_description="Synthetic removed-class rejection", source_kind="synthetic", collected_on="2026-01-01")
         for format in ("csv", "json"):
             response = self.client.post("/api/reports/export", json={"run_ids": [self.run_id], "format": format})
             self.assertEqual(response.status_code, 200, response.text)

@@ -1,6 +1,7 @@
 """The disposable playback cache preserves bytes, bounds disk use and owns its cursors."""
 import gzip
 import os
+import shutil
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
@@ -82,6 +83,24 @@ def test_oversize_recording_falls_back_without_repeated_cache_attempts(tmp_path,
             with cache.open(path) as stream:
                 assert stream.read() == content
     assert prepare.call_count == 1
+    assert cache._bytes == 0
+
+
+def test_oversize_recording_is_skipped_before_decoding_it(tmp_path, cache):
+    content = b"x" * 101
+    path = compressed(tmp_path, "large", content)
+    with patch("gzip.open", wraps=gzip.open) as decoder, cache.open(path) as stream:
+        assert stream.read() == content
+    assert decoder.call_count == 1  # only the ordinary reader, no throwaway copy
+
+
+def test_low_free_space_skips_the_copy_and_keeps_recording_readable(tmp_path, cache):
+    path = compressed(tmp_path, "run", b"recorded")
+    nearly_full = shutil.disk_usage(tmp_path)._replace(free=1024)
+    with patch("shutil.disk_usage", return_value=nearly_full), \
+            patch("services.compare_timeline_cache.tempfile.TemporaryFile", side_effect=AssertionError("copied on a full disk")):
+        with cache.open(path) as stream:
+            assert stream.read() == b"recorded"
     assert cache._bytes == 0
 
 

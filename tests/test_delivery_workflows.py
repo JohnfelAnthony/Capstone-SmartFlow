@@ -1,5 +1,4 @@
-"""Downloadable templates and exported experiment provenance."""
-import copy
+"""Exported experiment provenance."""
 import csv
 import io
 import json
@@ -11,15 +10,13 @@ from unittest.mock import patch
 
 os.environ.setdefault("SMARTFLOW_SECRET_KEY", "delivery-workflows-test-only")
 from fastapi.testclient import TestClient
-import auth
 import config
 import database
 from backend.main import app
 from backend.simulation_runtime import simulation_runtime
 from services import observed_data_import as importer
-from services.observation_templates import observation_template
 from simulation.ql_agent import TabularQLearningAgent
-from simulation.road_network import RoadNetwork, load_network
+from simulation.road_network import load_network
 from simulation.rl_policy_runtime import load_runtime_policy
 from tools.evaluate_controllers import _run_controller_once
 
@@ -46,70 +43,10 @@ class DeliveryWorkflowTests(unittest.TestCase):
             item.stop()
         self.directory.cleanup()
 
-    def test_all_downloaded_examples_import_and_blank_templates_need_rows(self):
-        for kind, columns in importer.SCHEMAS.items():
-            with self.subTest(kind=kind):
-                result = self.client.get("/api/scenarios/observations/template", params={"kind":kind,"example":True})
-                self.assertEqual(result.status_code, 200, result.text)
-                template = result.json()
-                self.assertIn("synthetic_example", template["filename"])
-                for example in (False, True):
-                    attachment = self.client.get("/api/scenarios/observations/template",
-                        params={"kind":kind,"example":example,"format":"csv"})
-                    metadata = self.client.get("/api/scenarios/observations/template", params={"kind":kind,"example":example}).json()
-                    self.assertEqual(attachment.status_code, 200, attachment.text)
-                    self.assertEqual(attachment.text, metadata["csv_text"])
-                    self.assertTrue(attachment.headers["content-type"].startswith("text/csv"))
-                    self.assertEqual(attachment.headers["content-disposition"], f'attachment; filename="{metadata["filename"]}"')
-                imported = self.client.post("/api/scenarios/observations/import", json={
-                    "kind":kind, "csv_text":template["csv_text"], "source_description":"Synthetic downloaded example",
-                    "source_kind":"synthetic", "collected_on":"2026-01-01"})
-                self.assertEqual(imported.status_code, 200, imported.text)
-                self.assertEqual(imported.json()["summary"]["row_count"], 1)
-                blank = self.client.get("/api/scenarios/observations/template", params={"kind":kind}).json()
-                self.assertEqual(next(csv.reader(io.StringIO(blank["csv_text"]))), list(columns))
-                with self.assertRaisesRegex(ValueError, "data rows"):
-                    importer.import_observations(kind=kind, csv_text=blank["csv_text"], source_description="Blank",
-                                                source_kind="synthetic", collected_on="2026-01-01")
-        self.assertEqual(database.get_runs(), [])
-
-    def test_template_endpoint_requires_scenario_authority_and_valid_schema(self):
-        anonymous = TestClient(app)
-        self.assertEqual(anonymous.get("/api/scenarios/observations/template", params={"kind":"trips"}).status_code, 401)
-        database.create_user("Viewer", "template_viewer", None, auth.hash_password("ViewerOnly42!"), role_id=2)
-        for action in ("create", "edit"):
-            database.update_role_permission(2, "scenarios", action, False)
-        with TestClient(app) as viewer:
-            login = viewer.post("/api/auth/login", json={"username":"template_viewer", "password":"ViewerOnly42!"})
-            self.assertEqual(login.status_code, 200, login.text)
-            self.assertEqual(viewer.get("/api/scenarios/observations/template", params={"kind":"trips"}).status_code, 403)
-        response = self.client.get("/api/scenarios/observations/template", params={"kind":"unexpected"})
-        self.assertEqual(response.status_code, 422)
-        self.assertEqual(self.client.get("/api/scenarios/observations/template", params={"kind":"trips","format":"bad"}).status_code, 422)
-        self.assertFalse((self.root / "imports").exists())
-
-    def test_examples_follow_replacement_network_ids(self):
-        payload = copy.deepcopy(load_network().payload)
-        payload["id"] = "replacement-template-network"
-        for node in payload["nodes"]:
-            old_id = node["id"]
-            node["id"] = f"fixture-{old_id}"
-            for road in payload["roads"]:
-                for end in ("source", "target"):
-                    if road[end] == old_id:
-                        road[end] = node["id"]
-        network = RoadNetwork(payload)
-        with patch.object(importer, "load_network", return_value=network):
-            for kind in importer.SCHEMAS:
-                template = observation_template(kind, example=True, network=network)
-                self.assertEqual(template["network_sha256"], network.fingerprint)
-                self.assertIn("fixture-", template["csv_text"])
-                importer.import_observations(kind=kind, csv_text=template["csv_text"], source_description="Replacement fixture",
-                    source_kind="synthetic", collected_on="2026-01-01")
-
     def test_csv_and_json_retain_observation_period_model_and_measurement_window(self):
-        template = observation_template("trips", example=True)
-        imported = importer.import_observations(kind="trips", csv_text=template["csv_text"], source_description="Artificial observed-format export fixture",
+        network = load_network()
+        source, destination = next((a, b) for a in network.boundaries for b in network.boundaries if a != b and network.route(a, b))
+        imported = importer.import_observations(kind="trips", csv_text=f"time_s,source,destination,vehicle_type\n0.5,{source},{destination},car\n", source_description="Artificial observed-format export fixture",
             source_kind="observed", collected_on="2026-01-01", collection_start="2026-01-01T07:00:00+08:00",
             collection_end="2026-01-01T08:00:00+08:00", engine_config={"traffic_density":"none","pedestrian_density":"none"})
         scenario_id = database.create_scenario("Export traceability", engine_config=json.dumps(imported["engine_config"]))

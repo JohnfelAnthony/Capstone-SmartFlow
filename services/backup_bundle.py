@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import secrets
 import shutil
 import sqlite3
 import tempfile
@@ -200,8 +199,6 @@ def _rewrite_database(snapshot: Path, paths: dict[str, str]) -> None:
                         conn.execute(f"UPDATE {table} SET {column} = ? WHERE id = ?",
                                      (json.dumps(rewritten), row["id"]))
         conn.execute("DELETE FROM user_sessions")
-        conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)",
-                     (database.AUTH_SESSION_VERSION_SETTING, secrets.token_hex(32)))
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ValueError("Restored SQLite database failed integrity check")
         if conn.execute("PRAGMA foreign_key_check").fetchone():
@@ -344,8 +341,6 @@ def restore_legacy_database_to_stage(backup_id: int) -> Path:
             if "user_sessions" in tables:
                 conn.execute("DELETE FROM user_sessions")
             if "system_settings" in tables:
-                conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)",
-                             (database.AUTH_SESSION_VERSION_SETTING, secrets.token_hex(32)))
                 if 'scenarios' in tables:
                     from services.scenario_migration import migrate_connection
                     conn.row_factory = sqlite3.Row

@@ -5,7 +5,7 @@ SmartFlow is a capstone traffic simulation and decision-support application for 
 ## Current scope
 
 - Use **Scenarios** to configure demand, signals and disruptions, then run a live simulation or record a run. The two study sites model unsignalized operation, a proposed fixed-time signal and proposed RL control. QL, DQL and PPO each control one selected junction. Routing is a separate graph algorithm.
-- Use **Scenarios → Import counts from Field Observer** to turn a reviewed export into steady vehicle arrival rates. The study uses one 16-minute midday recording per site for counts and turns. Treat the results as scenario-based, with demand from field counts and without calibration or validation (D38). Synthetic tests and rehearsals are software evidence.
+- Choose **Peak traffic** in a scenario's Traffic section to use the site's video counts (D49). The study uses one 16-minute midday recording per site for counts and turns. Treat the results as scenario-based, with demand from field counts and without calibration or validation (D38). Synthetic tests and rehearsals are software evidence.
 - Use **Compare Runs** to open two compatible recordings side by side. **Download PDF report** includes performance measures, the recorded junction layout and signal-phase evidence. Read wait together with throughput, unfinished demand and pedestrian outcomes. Use the [metric catalog](simulation/metric_definitions.json) for exact definitions.
 - The learning contract is **native-14**, with **native-local-20-v4**, **phase-service-5-v2**, the recorded network fingerprint and the saved phase plan. Check model and recording compatibility before use. The engine models cars, motorcycles, tricycles, buses, trucks and pedestrians.
 
